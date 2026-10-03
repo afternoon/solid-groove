@@ -79,7 +79,7 @@ const rowCentreY = async (page: Page, rowIndex: number): Promise<number> => {
 /** The interaction canvas the tracks are drawn on — see CF-008 on why a class. */
 const timeline = (page: Page): Locator => page.locator(".arrangement-layer-interactive");
 
-test.describe.fixme("CF-001", () => {
+test.describe("CF-001", () => {
   test("a visitor with no account reaches a playing loop", async ({
     page,
     browserName,

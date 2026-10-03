@@ -103,7 +103,7 @@ async function loopAtAnotherTempo(
 test.describe("CF-005", () => {
   // `test.fixme` until #817's stack lands: the PR that closes #817 removes this
   // marker in the same diff that makes the flow pass.
-  test.fixme("a producer brings a library loop into their project", async ({ page }) => {
+  test("a producer brings a library loop into their project", async ({ page }) => {
     const step = walkthrough(page, {
       id: "CF-005",
       title: "A producer brings a library loop into their project",

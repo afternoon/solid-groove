@@ -81,7 +81,6 @@ test.describe("CF-012", () => {
     browserName,
   }) => {
     // Parked from inside the body so the body keeps its indentation.
-    test.fixme();
     test.setTimeout(120_000);
 
     const step = walkthrough(page, {

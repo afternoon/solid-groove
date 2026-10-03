@@ -175,26 +175,28 @@ and issue #43. Moving between the five views, which is CF-008's subject: this
 flow only ever sees the arrangement and the sequence view. And persistence — it never reloads, and
 CF-004 onwards are where coming back to your work is proved.
 
-### CF-002 — A producer turns a loop into a song outline
+### CF-002 — A producer builds a five-part loop
 
-**Issue:** #61 · **Suite:** `tests/e2e/emulator/flows/CF-002.spec.ts` · **Entrypoint:** the
-project dashboard
+**Issue:** #61, trimmed for #817 · **Suite:** `tests/e2e/emulator/flows/CF-002.spec.ts` ·
+**Entrypoint:** the project dashboard
 
-**Revised for #496 (a sampler is a tonal instrument; the drum machine is the
-one-shot player).** The drum parts are drum-machine tracks and are sequenced on
-the step grid by pad; the pitched parts (chord stab, bass) are sampler tracks
-written in the piano roll, where a note plays the sample at its pitch and C4
-plays it as recorded. The loop, the outline and the undos are unchanged.
+**Trimmed for #817.** This flow used to go on to turn the loop into a song
+outline: select the loop, apply a structure template, delete the drums from the
+Intro, play from the top, undo twice. That was #61 (ARR-003), and the requirement
+was dropped when #61 closed, so those steps are gone. What remains is the part
+that guards real surfaces: building a loop across drum machines and samplers,
+through the sequence and Library views, and finding it again after a reload.
+
+**Revised for #496.** The drum parts are drum-machine tracks sequenced on the
+step grid by pad; the pitched parts (chord stab, bass) are sampler tracks
+written in the piano roll, where C4 plays the sample as recorded.
 
 **Revised for #817 (five views on `1`–`5`).** A clip is sequenced in the
 sequence view and a sound is loaded in the Library view, so "from the library"
 in steps 4-5 means pressing the sampler's sample slot, inserting there, and
-coming back. The steps read the same; only the surfaces under them moved.
+coming back.
 
 **Preconditions:** signed in as a guest with no projects — where CF-001 ends.
-Building the pitched parts in steps 4-5 depends on #225 (loading a library sound
-onto a sampler) and #496 (a sampler's clip opens in the piano roll); until both
-land, this flow cannot be walked by hand.
 
 1. Create a new project. It opens on the arrangement with the starter kick, a
    drum machine named "BD", four on the floor.
@@ -205,29 +207,16 @@ land, this flow cannot be walked by hand.
 5. Add a sampler track named "Bass", load a bass note onto it from the library,
    and write a C4 in the piano roll following the kick, on steps 1, 5, 9 and 13.
 6. Play the loop — five parts, one bar, tight.
-7. Select the loop's bar range in the arrangement.
-8. Apply the structure template. The arrangement fills out: named, coloured
-   sections along the ruler, each carrying its own copy of all five tracks.
-9. Select the hats and the claps in the "Intro" and delete them together, so the
-   song opens on the chord stab and the bass.
-10. Play from the top — the drums arrive at the section boundary.
-11. Undo twice: the drums come back, and then the outline collapses to the loop.
+7. Reload the page. The five tracks are still there, in the order you added
+   them.
 
-**Outcome:** a five-part loop became a multi-section song that opens quietly and
-lands its drums where the producer chose, and two undos put it back to the loop
-it started from.
+**Outcome:** a producer built a five-part loop out of drum machines and
+samplers, heard it play, and found it intact when they came back.
 
 **Out of scope:** that any of it is *audible* — as in CF-001, a headless browser
-records no audio, so this proves the transport runs and the arrangement changed,
-not that a sound reached a speaker. It also does not prove that the source clips
-survive the outline untouched, which is asserted at the command layer; nor
-automation across the new sections (`ARR-004`); nor persistence, since this runs
-against the mock backend.
-
-Note that steps 1-6 exercise track management, the library browser, the step
-editor and the piano roll before the flow reaches its own subject. That is deliberate — a loop-to-song
-outline stamped onto a single-track project demonstrates nothing — but it does
-mean a break in any of those surfaces will surface here as an `ARR-003` failure.
+records no audio, so this proves the transport runs, not that a sound reached a
+speaker. Turning the loop into a song, which was dropped with #61. Each part's
+own editing beyond the steps written here, which CF-017 to CF-020 cover.
 
 ### CF-003 — A producer names and rearranges the parts of their song
 

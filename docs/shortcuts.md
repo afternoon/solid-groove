@@ -21,10 +21,9 @@ registry, so it cannot quietly go stale.
 Contexts are the surfaces a shortcut is valid in. `global` is always active;
 `dialog` suppresses every other context while a modal or menu is open, so an
 open dialog receives normal typing and nothing fires underneath it.
-`sequence_editor` is the exception that proves that rule: the sequence editor
-`UI-001` opens over the arrangement is `role="dialog"` to a screen reader, but
-the transport, the note shortcuts and the view switches all have to keep working
-while a producer programs a clip in it, so it gets a context of its own instead.
+`sequence_editor` is the sequence view's (`UI-002`, on `2`): the transport, the
+note shortcuts and the view keys all keep working while a producer programs a
+clip in it.
 `loop_brace` is a focus context: it is active only while the ruler's loop brace
 has keyboard focus, and for the keys it claims (`Left`, `Right` and their
 `Shift` forms) it outranks the wider editor, so `Left` moves the brace rather
