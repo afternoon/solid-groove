@@ -1,6 +1,13 @@
 import { type Accessor, createSignal } from "solid-js";
 import type { SoundFilters, TempoFilter } from "./filters";
 
+/** The filters beside the shelf, as `snapshot` saves them. */
+export interface SavedFilters {
+  readonly genres: readonly string[];
+  readonly tempo: TempoFilter;
+  readonly bars: number | null;
+}
+
 /**
  * The Sounds view's filters that live beside the shelf (LIB-010): genres,
  * and under Loops the tempo window and bar count. The text query is the
@@ -16,6 +23,13 @@ export function useSoundFilters(songBpm: Accessor<number>) {
 
   return {
     genres,
+    /** Every filter's current setting, to put back later with `restore`. */
+    snapshot: (): SavedFilters => ({ genres: genres(), tempo: tempo(), bars: bars() }),
+    restore: (saved: SavedFilters) => {
+      setGenres(saved.genres);
+      setTempo(saved.tempo);
+      setBars(saved.bars);
+    },
     tempo,
     bars,
     setTempo,
