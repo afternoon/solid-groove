@@ -14,6 +14,13 @@ export interface SurfacePoint {
   readonly y: number;
 }
 
+/**
+ * How far, in pixels, a `startOnMove` press may wander before it becomes a
+ * drag. A hand that wobbles by a pixel or two while clicking is still clicking,
+ * and must not switch a band on or open a history entry.
+ */
+export const DRAG_SLOP_PX = 3;
+
 /** A surface's size on screen, in pixels. */
 export interface SurfaceBox {
   readonly width: number;
@@ -38,7 +45,8 @@ export interface DragSurfaceProps<G> {
   /**
    * When set, a press only grabs: nothing is written, and no history entry
    * opens, until the pointer actually moves. For a surface where a click
-   * means "pick this", not "put it here" (the EQ's band handles).
+   * means "pick this", not "put it here" (the EQ's band handles). A move
+   * within `DRAG_SLOP_PX` of the press is still a click.
    */
   readonly startOnMove?: boolean;
   /** Called once when a drag lands, for a panel's first-use analytics. */
@@ -59,8 +67,8 @@ export default function DragSurface<G>(props: DragSurfaceProps<G>): JSX.Element 
   let gesture: Gesture | undefined;
   let grabbed: G | undefined;
   let last: readonly RawCommandInput[] = [];
-  /** Where a `startOnMove` press landed, until the pointer leaves it. */
-  let pressed: SurfacePoint | undefined;
+  /** Where a `startOnMove` press landed on screen, until it turns into a drag. */
+  let pressed: { readonly x: number; readonly y: number } | undefined;
 
   const pointAt = (element: HTMLElement, event: PointerEvent): SurfacePoint => {
     const box = element.getBoundingClientRect();
@@ -114,7 +122,7 @@ export default function DragSurface<G>(props: DragSurfaceProps<G>): JSX.Element 
         const box = element.getBoundingClientRect();
         grabbed = props.grab(point, { width: box.width, height: box.height });
         if (props.startOnMove) {
-          pressed = point;
+          pressed = { x: event.clientX, y: event.clientY };
           return;
         }
         open();
@@ -122,13 +130,17 @@ export default function DragSurface<G>(props: DragSurfaceProps<G>): JSX.Element 
       }}
       onPointerMove={(event) => {
         if (grabbed === undefined) return;
-        const point = pointAt(event.currentTarget, event);
         if (pressed) {
-          // A move event that has not left the press is still a click.
-          if (point.x === pressed.x && point.y === pressed.y) return;
+          // A move that has not left the press by more than the slop is still a click.
+          const distance = Math.hypot(
+            event.clientX - pressed.x,
+            event.clientY - pressed.y,
+          );
+          if (distance <= DRAG_SLOP_PX) return;
           pressed = undefined;
           open();
         }
+        const point = pointAt(event.currentTarget, event);
         move(props.commands(point, grabbed));
       }}
       onPointerUp={end}

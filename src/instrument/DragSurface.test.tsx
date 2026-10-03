@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render } from "@solidjs/testing-library";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Gesture, RawCommandInput } from "../commands";
-import DragSurface, { type SurfacePoint } from "./DragSurface";
+import DragSurface, { DRAG_SLOP_PX, type SurfacePoint } from "./DragSurface";
 import { recordingGesture } from "./panelTesting";
 
 afterEach(() => cleanup());
@@ -99,6 +99,30 @@ describe("DragSurface (#447)", () => {
     firePointer(surface, "pointerup");
     expect(begin).toHaveBeenCalledTimes(1);
     expect(applied).toEqual([command("left-x", 0.75), command("y", 0)]);
+    expect(onCommit).toHaveBeenCalledTimes(1);
+  });
+
+  it("with startOnMove, a wobble within the slop is still a click", () => {
+    const applied: RawCommandInput[] = [];
+    const begin = vi.fn(() => recordingGesture(applied));
+    const { surface, dispatch, onCommit } = renderSurface(begin, { startOnMove: true });
+
+    firePointer(surface, "pointerdown", { button: 0, clientX: 50, clientY: 25 });
+    firePointer(surface, "pointermove", { clientX: 50.4, clientY: 25.3 });
+    firePointer(surface, "pointermove", { clientX: 50 + DRAG_SLOP_PX, clientY: 25 });
+    firePointer(surface, "pointermove", { clientX: 52, clientY: 23 });
+    firePointer(surface, "pointerup");
+    expect(begin).not.toHaveBeenCalled();
+    expect(applied).toEqual([]);
+    expect(dispatch).not.toHaveBeenCalled();
+    expect(onCommit).not.toHaveBeenCalled();
+
+    // Past the slop it is a drag, from where the pointer now is.
+    firePointer(surface, "pointerdown", { button: 0, clientX: 50, clientY: 25 });
+    firePointer(surface, "pointermove", { clientX: 50 + DRAG_SLOP_PX + 1, clientY: 25 });
+    firePointer(surface, "pointerup");
+    expect(begin).toHaveBeenCalledTimes(1);
+    expect(applied).toEqual([command("left-x", 0.27), command("y", 0.75)]);
     expect(onCommit).toHaveBeenCalledTimes(1);
   });
 
