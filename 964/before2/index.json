@@ -1,0 +1,10 @@
+{
+  "id": "before2",
+  "title": "Before, song longer than the view",
+  "steps": [
+    {
+      "file": "01-before-a-16-bar-song-at-bar-9-the-view-c.png",
+      "caption": "Before: a 16-bar song at bar 9, the view creeps along with the playhead off its right edge"
+    }
+  ]
+}

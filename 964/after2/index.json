@@ -1,0 +1,10 @@
+{
+  "id": "after2",
+  "title": "After, song longer than the view",
+  "steps": [
+    {
+      "file": "01-after-a-16-bar-song-at-bar-9-the-page-ha.png",
+      "caption": "After: a 16-bar song at bar 9, the page has turned and the playhead is in view"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "id": "before",
+  "title": "Before",
+  "steps": [
+    {
+      "file": "01-before-at-bar-9-the-view-has-crept-along.png",
+      "caption": "Before: playing at bar 9 of a one-bar song, the view stays on bars 1 to 5 and the playhead is off screen"
+    }
+  ]
+}
