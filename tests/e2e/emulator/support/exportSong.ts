@@ -90,7 +90,7 @@ export const trackList = (page: Page): Locator =>
   page.getByRole("list", { name: "Arrangement tracks" }).getByRole("listitem");
 
 const sequenceEditor = (page: Page): Locator =>
-  page.getByRole("dialog", { name: "Sequence editor" });
+  page.getByRole("region", { name: "Sequence editor" });
 
 const selectedPlacements = (page: Page): Locator =>
   page.getByTestId("placement-selection").locator("li");
@@ -99,7 +99,7 @@ const viewLink = (page: Page, name: "Arrangement" | "Instrument" | "Mixer"): Loc
   page.getByRole("navigation", { name: "Views" }).getByRole("link", { name });
 
 const library = (page: Page): Locator =>
-  page.getByRole("dialog", { name: "Library", exact: true });
+  page.getByRole("region", { name: "Library", exact: true });
 const librarySearch = (page: Page): Locator =>
   library(page).getByRole("searchbox", { name: "Search sounds" });
 
@@ -141,11 +141,11 @@ async function openClip(page: Page, row: number): Promise<Locator> {
   return sequenceEditor(page);
 }
 
+/** Back to the arrangement with `1`: the sequence view is a view (UI-002). */
 async function closeEditor(page: Page): Promise<void> {
-  await sequenceEditor(page)
-    .getByRole("button", { name: "Close sequence editor" })
-    .click();
+  await page.keyboard.press("1");
   await expect(sequenceEditor(page)).toHaveCount(0);
+  await page.getByTestId("arrangement-view-ready").waitFor();
 }
 
 /** Types a new name over a track's own, from its header in the arrangement. */
@@ -321,9 +321,8 @@ export async function buildExportSong(
   await library(page)
     .getByRole("button", { name: `Audition ${loopTrack}`, exact: true })
     .click();
-  await library(page)
-    .getByRole("button", { name: `Insert ${loopTrack}` })
-    .click();
+  // Enter inserts and goes back to the arrangement (UI-002).
+  await page.keyboard.press("Enter");
   await expect(library(page)).toHaveCount(0);
   await expect(trackList(page)).toHaveText(["BD", "Drums", "Bass", loopTrack]);
   await timeline(page).click({ position: await barOneOfRow(page, ROW.loop) });
@@ -359,9 +358,7 @@ export async function buildExportSong(
   await library(page)
     .getByRole("button", { name: `Audition ${PIANO_SOUND}`, exact: true })
     .click();
-  await library(page)
-    .getByRole("button", { name: `Insert ${PIANO_SOUND}`, exact: true })
-    .click();
+  await page.keyboard.press("Enter");
   await expect(library(page)).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Sample", exact: true })).toContainText(
     PIANO_SOUND,

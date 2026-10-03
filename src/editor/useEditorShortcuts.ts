@@ -30,9 +30,10 @@ export interface UseEditorShortcutsOptions {
   readonly setGuideOpen: (open: boolean) => void;
   /** Whether the Export dialog is open (`EXP-004`): a modal, so it takes the keyboard. */
   readonly exportOpen: Accessor<boolean>;
-  /** Whether the `UI-001` library modal is open, and how to close it. */
+  /** Whether the Library view (`UI-002`) is on screen. */
   readonly libraryOpen: Accessor<boolean>;
-  readonly closeLibrary: () => void;
+  /** Where Enter goes once its insert has committed: the instrument. */
+  readonly returnFromInsert: () => void;
   /** The open library modal's actions (`LIB-010`), or null while it is closed. */
   readonly libraryActions: Accessor<LibraryActions | null>;
   /** The arrangement's placement-editing operations (ARR-002), lifted from
@@ -46,11 +47,13 @@ export interface UseEditorShortcutsOptions {
    * (#258). */
   readonly hasArrangementSelection: () => boolean;
   /** Switches the editor to a view (`UI-001`), through the same path the dock
-   * takes — so `1`/`2`/`3` and the dock cannot reach different states. */
+   * takes — so the view keys and the dock cannot reach different states. */
   readonly selectView: (view: EditorViewName) => void;
-  /** Whether the `UI-001` sequence editor is open over the current view. */
+  /** Whether the sequence view (`UI-002`) is on screen with a clip in it. */
   readonly sequenceEditorOpen: () => boolean;
-  readonly closeSequenceEditor: () => void;
+  /** Opens the arrangement's one selected clip in the sequence view, for
+   * `Enter` (`UI-002`): `undefined` unless exactly one clip is selected. */
+  readonly openSelectedClip: () => (() => void) | undefined;
   /** Flips whether the transport obeys the song's loop brace (`LOOP-018`),
    * through the same command path as the header's loop button. */
   readonly toggleLooping: () => void;
@@ -77,6 +80,11 @@ const OWN_ARROWS =
   'input[type="range"], [role="slider"], [role="listbox"], [role="menu"]';
 const focusKeepsArrows = (): boolean =>
   document.activeElement?.matches(OWN_ARROWS) ?? false;
+
+/** A focused control that Enter already presses, so a clip must not take it. */
+const PRESSES_ENTER = 'button, a[href], [role="button"], [role="link"], summary';
+const focusPressesEnter = (): boolean =>
+  document.activeElement?.matches(PRESSES_ENTER) ?? false;
 
 /**
  * Installs the editor's PRD `KEY-01` shortcut mapping: which actions this
@@ -110,13 +118,13 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     setGuideOpen,
     exportOpen,
     libraryOpen,
-    closeLibrary,
+    returnFromInsert,
     libraryActions,
     arrangementEditingActions,
     hasArrangementSelection,
     selectView,
     sequenceEditorOpen,
-    closeSequenceEditor,
+    openSelectedClip,
     toggleLooping,
     loopBraceFocused,
     moveLoop,
@@ -255,10 +263,13 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
         deleteOwner() !== null ||
         (!sequenceEditorOpen() && deleteSelectedTrack() !== undefined),
     },
-    // The three views (UI-001). No `isEnabled`: a view is always reachable,
-    // and asking for the one you are on is a no-op inside `selectView`.
+    // The views (UI-001, UI-002). No `isEnabled`: a view is always reachable —
+    // one the selection does not fit shows its empty screen — and asking for
+    // the one you are on is a no-op inside `selectView`.
     "view.show_arrangement": { run: () => selectView("arrangement") },
+    "view.show_sequence": { run: () => selectView("sequence") },
     "view.show_instrument": { run: () => selectView("instrument") },
+    "view.show_library": { run: () => selectView("library") },
     "view.show_mixer": { run: () => selectView("mixer") },
     // In the library, `?` lists the library's own keys rather than the guide (#813).
     "help.shortcut_guide": {
@@ -267,6 +278,13 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
         if (libraryOpen() && actions) actions.toggleKeys();
         else setGuideOpen(true);
       },
+    },
+    // Enter on the arrangement's one selected clip opens it (UI-002), the
+    // keyboard's double-click.
+    "arrangement.open_clip": {
+      run: () => openSelectedClip()?.(),
+      isEnabled: () =>
+        arrangementFocused() && !focusPressesEnter() && openSelectedClip() !== undefined,
     },
     // Up/Down walk the selected track in the arrangement and instrument views.
     // Plain arrows only: Alt+Up/Down stay `device.move_*` (exact-modifier
@@ -300,37 +318,36 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     "library.all_sounds": inLibrary((a) => a.showView("all")),
     "library.favourites": inLibrary((a) => a.showView("favourites")),
     "library.browse_packs": inLibrary((a) => a.showView("packs")),
+    // Enter inserts and goes back to the instrument, as the Insert button
+    // does; Shift+Enter inserts and stays, so another sound can be tried
+    // (UI-002). Each insert is one history entry.
     "library.insert": onSelectedSound((a) => void a.insertSelected()),
+    "library.insert_and_return": onSelectedSound((a) => {
+      void a.insertSelected().then((committed) => committed && returnFromInsert());
+    }),
     ...Object.fromEntries(
       SOUNDS_KEY_ACTIONS.map((id) => [id, inLibrary((a) => a.press(id))]),
     ),
     "library.audition": onSelectedSound((a) => a.press("library.audition")),
     "library.back": inLibrary((a) => a.back()),
     // Escape closes the innermost surface: the guide, then the library's keys
-    // sheet (#813), then the library, then
-    // the sequence editor underneath both. Nothing here compares a key — this
-    // is the registry's `view.close_surface`, like every other close. A clip
+    // sheet (#813), then the library. Nothing here compares a key — this is
+    // the registry's `view.close_surface`, like every other close. A clip
     // drag in flight is innermost of all: Escape cancels it (ARR-011). The
-    // sequence editor closes on Escape whichever editor it shows, and from a
-    // focused Transform value field too: every dialog does (#650). Last of
-    // all, with no surface open, it clears the arrangement's selection (#835).
+    // sequence and library views are views, not dialogs (UI-002), so Escape
+    // does not leave them: a view key does. With no surface open, it clears the arrangement's
+    // selection (#835).
     "view.close_surface": {
       run: () => {
         if (arrangementDragging()) arrangementEditingActions()?.cancelDrag();
         else if (guideOpen()) setGuideOpen(false);
-        else if (libraryOpen()) {
-          if (!libraryActions()?.closeKeys()) closeLibrary();
-        } else if (sequenceEditorOpen()) closeSequenceEditor();
+        else if (libraryOpen()) libraryActions()?.closeKeys();
         else arrangementEditingActions()?.clearSelection();
       },
       // The Export dialog closes itself on Escape, and nothing beneath it should.
       isEnabled: () =>
         !exportOpen() &&
-        (arrangementDragging() ||
-          guideOpen() ||
-          libraryOpen() ||
-          sequenceEditorOpen() ||
-          arrangementClearable()),
+        (arrangementDragging() || guideOpen() || libraryOpen() || arrangementClearable()),
     },
     // A focused Transform value field (ARR-010): ↑/↓ nudge it, in place of
     // the roll's note moves, which its context replaces.
@@ -462,9 +479,9 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     const withArrangement: readonly ShortcutContext[] = arrangementContextLive()
       ? [...base, "arrangement"]
       : base;
-    // The sequence editor is a window over the page, but deliberately not the
-    // `dialog` context: the transport, the note shortcuts and the view
-    // switches all keep working while a producer programs in it (`UI-001`).
+    // The sequence view is a view, never the `dialog` context: the transport,
+    // the note shortcuts and the view keys all keep working while a producer
+    // programs in it (`UI-001`, `UI-002`).
     const withSequence: readonly ShortcutContext[] = sequenceEditorOpen()
       ? [...withArrangement, "sequence_editor"]
       : withArrangement;
@@ -478,8 +495,9 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
   // can fire — including playback and selection (PRD KEY-02).
   const contexts = (): readonly ShortcutContext[] => {
     if (guideOpen() || exportOpen()) return ["dialog"];
-    // The library is a modal with keys of its own, live only while it is open.
-    return libraryOpen() ? ["dialog", "library"] : editorContexts();
+    // The Library view has keys of its own, and the view keys and undo with
+    // them; the editor's transport and edits stand down while it is up.
+    return libraryOpen() ? ["library"] : editorContexts();
   };
 
   const shortcuts = useShortcuts({ handlers, contexts });

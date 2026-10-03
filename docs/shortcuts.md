@@ -21,10 +21,9 @@ registry, so it cannot quietly go stale.
 Contexts are the surfaces a shortcut is valid in. `global` is always active;
 `dialog` suppresses every other context while a modal or menu is open, so an
 open dialog receives normal typing and nothing fires underneath it.
-`sequence_editor` is the exception that proves that rule: the sequence editor
-`UI-001` opens over the arrangement is `role="dialog"` to a screen reader, but
-the transport, the note shortcuts and the view switches all have to keep working
-while a producer programs a clip in it, so it gets a context of its own instead.
+`sequence_editor` is the sequence view's (`UI-002`, on `2`): the transport, the
+note shortcuts and the view keys all keep working while a producer programs a
+clip in it.
 `loop_brace` is a focus context: it is active only while the ruler's loop brace
 has keyboard focus, and for the keys it claims (`Left`, `Right` and their
 `Shift` forms) it outranks the wider editor, so `Left` moves the brace rather
@@ -59,9 +58,12 @@ than also meaning `track.move_left`. It suppresses nothing else.
 | `arrangement.loop_lengthen` | Lengthen loop | `Shift+Right` | `Shift+Right` | Arrangement | loop_brace | Groove addition — Live sets its loop by dragging or `Cmd/Ctrl+L` on a selection |
 | `view.zoom_to_arrangement` | Zoom to arrangement | `Shift+Z` | `Shift+Z` | Navigation | editor | Groove addition — Live has no single key that frames the whole set |
 | `view.scroll_to_playhead` | Scroll to playhead | `P` | `P` | Navigation | editor | Groove addition — Live's Follow switch (`Cmd/Ctrl+Shift+F`) is a mode, this is a one-shot jump |
-| `view.show_arrangement` | Show the arrangement | `1` | `1` | Navigation | editor, sequence_editor | Groove addition — Live shows everything at once and has no view to switch to |
-| `view.show_instrument` | Show the instrument | `2` | `2` | Navigation | editor, sequence_editor | Groove addition — Live shows everything at once and has no view to switch to |
-| `view.show_mixer` | Show the mixer | `3` | `3` | Navigation | editor, sequence_editor | Groove addition — Live shows everything at once and has no view to switch to |
+| `view.show_arrangement` | Show the arrangement | `1` | `1` | Navigation | editor, sequence_editor, library | Groove addition — Live shows everything at once and has no view to switch to |
+| `view.show_sequence` | Show the sequence | `2` | `2` | Navigation | editor, sequence_editor, library | Groove addition — Live shows everything at once and has no view to switch to |
+| `view.show_instrument` | Show the instrument | `3` | `3` | Navigation | editor, sequence_editor, library | Groove addition — Live shows everything at once and has no view to switch to |
+| `view.show_library` | Show the library | `4` | `4` | Navigation | editor, sequence_editor, library | Groove addition — Live shows everything at once and has no view to switch to |
+| `view.show_mixer` | Show the mixer | `5` | `5` | Navigation | editor, sequence_editor, library | Groove addition — Live shows everything at once and has no view to switch to |
+| `arrangement.open_clip` | Open clip | `Enter` | `Enter` | Navigation | arrangement | Groove addition — Live shows a clip's notes under the arrangement; Groove's are a view of their own |
 | `view.close_surface` | Close or cancel | `Escape` | `Escape` | Navigation | global, dialog, gesture | Follows Live (`Esc`) |
 | `help.shortcut_guide` | Open keyboard mapping guide | `?` | `?` | Navigation | editor, library | Groove addition — `?` is the web convention |
 | `device.move_earlier` | Move device earlier | `Option+Up` | `Alt+Up` | Mixer and Devices | editor | Groove addition — Live reorders devices by dragging only |
@@ -80,19 +82,11 @@ than also meaning `track.move_left`. It suppresses nothing else.
 | `note.lengthen` | Lengthen notes | `Shift+Right` | `Shift+Right` | Clips and Notes | piano_roll | Follows Live (`Shift+Right`) |
 | `value.nudge_up` | Nudge value up | `Up` | `Up` | Global Editing | value_field | Follows Live (`Up`) |
 | `value.nudge_down` | Nudge value down | `Down` | `Down` | Global Editing | value_field | Follows Live (`Down`) |
-| `library.pick_1` | Pick 1 | `1` | `1` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
-| `library.pick_2` | Pick 2 | `2` | `2` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
-| `library.pick_3` | Pick 3 | `3` | `3` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
-| `library.pick_4` | Pick 4 | `4` | `4` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
-| `library.pick_5` | Pick 5 | `5` | `5` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
-| `library.pick_6` | Pick 6 | `6` | `6` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
-| `library.pick_7` | Pick 7 | `7` | `7` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
-| `library.pick_8` | Pick 8 | `8` | `8` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
-| `library.pick_9` | Pick 9 | `9` | `9` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
 | `library.select_previous` | Previous sound | `Up` | `Up` | Browser | library | Follows Live (`Up`) |
 | `library.select_next` | Next sound | `Down` | `Down` | Browser | library | Follows Live (`Down`) |
 | `library.audition` | Audition again | `Space` | `Space` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
-| `library.insert` | Insert sound | `Enter` | `Enter` | Browser | library | Follows Live (`Enter`) |
+| `library.insert` | Insert and stay | `Shift+Enter` | `Shift+Enter` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
+| `library.insert_and_return` | Insert sound | `Enter` | `Enter` | Browser | library | Follows Live (`Enter`) |
 | `library.like` | Like sound | `L` | `L` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
 | `library.similar` | Similar sounds | `S` | `S` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
 | `library.shuffle` | Shuffle | `R` | `R` | Browser | library | Groove addition — Live's browser has no single-key equivalent; the library's own keys are Groove's |
@@ -122,15 +116,18 @@ keyboard focus, so `Space`, the arrows and `Cmd/Ctrl+A` mean the list's own
 actions there and nothing behind the dialog. `Escape` stays `view.close_surface`;
 the dialog clears a pick before it closes.
 
-The `library.*` entries are the `Browser` group: the keys of the library modal
-(`LIB-010`), live only while it is open. The `library` context is active
-*beside* `dialog`, never instead of it: `dialog` still suppresses every other
-context, so no editor binding fires underneath, and `library` is the one
-context a modal may keep alive with it. Every other modal is `dialog` alone.
+The `library.*` entries are the `Browser` group: the keys of the Library view
+(`LIB-010`, `UI-002`), live only while it is on screen. The Library is a view,
+not a modal: `library` is its only context, so the editor's transport and edits
+stand down while it is up, but `global` (undo, redo, Escape) and the view keys
+`1`-`5` stay live in it. The library's keys use no digit for that reason.
 `Escape` is `view.close_surface` and `?` is `help.shortcut_guide`; the library
-reuses both. Typing in the search field keeps every key except `Escape` and
-`Down`, which leaves the field. `Enter` and `Space` leave the browser default
-alone, so a focused button or checkbox still presses.
+reuses both; Escape closes the keys sheet, and leaving the Library is a view
+key. Typing in the search field keeps every key except `Escape` and `Down`,
+which leaves the field. `Enter` inserts and goes back to the instrument, as
+the Insert button does, `Shift+Enter` inserts and stays to try another, and both are the library's even on a focused
+button; `Space` leaves the browser default alone, so a focused button or
+checkbox still presses.
 The two `device.*` moves act on the device whose header has focus: they are the
 keyboard way to reorder a chain, which the pointer does by dragging.
 

@@ -8,7 +8,7 @@ export interface LibraryHintProps {
   readonly place: LibraryPlace;
   /** Where auditions play ("the BD pad"); unset when they play on their own. */
   readonly where?: string;
-  /** The sound the slot holds, which Escape puts back. */
+  /** The sound the slot holds, which leaving the Library puts back. */
   readonly current?: string | null;
   readonly selected?: string;
   keyLabel?(action: ShortcutActionId): string;
@@ -17,7 +17,8 @@ export interface LibraryHintProps {
 /**
  * The footer's live hint (#814, the reference's `render()`): it names where
  * auditions are heard and the keys that matter in the view showing, and says
- * what Escape will put back. Every key label comes from the registry.
+ * what leaving will put back (`UI-002`: a view key leaves, not Escape). Every
+ * key label comes from the registry.
  */
 export default function LibraryHint(props: LibraryHintProps): JSX.Element {
   const key = (action: ShortcutActionId) => (
@@ -26,7 +27,9 @@ export default function LibraryHint(props: LibraryHintProps): JSX.Element {
     </Show>
   );
   const putsBack = () =>
-    props.current ? `puts back ${props.current}.` : "leaves the slot empty.";
+    props.current
+      ? `leaving puts back ${props.current}.`
+      : "leaving keeps the slot empty.";
 
   return (
     <span class="library-modal-hint">
@@ -50,7 +53,8 @@ export default function LibraryHint(props: LibraryHintProps): JSX.Element {
             <b>{props.where}</b> over your beat.{" "}
           </Show>
           {key("library.select_previous")} {key("library.select_next")} for the next,{" "}
-          {key("view.close_surface")} {props.where ? putsBack() : "closes the library."}
+          {key("library.insert_and_return")} to insert
+          {props.where ? `; ${putsBack()}` : "."}
         </Match>
         <Match when={props.place === "other"}>
           Pick a place on the left to find sounds.

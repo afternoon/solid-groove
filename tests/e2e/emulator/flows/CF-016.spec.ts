@@ -146,7 +146,7 @@ async function expectBdStepTwo(page: Page, bar: number, on: boolean): Promise<vo
 }
 
 test.describe("CF-016", () => {
-  test.fixme("a producer Alt-drags clips to copy them", async ({ page }) => {
+  test("a producer Alt-drags clips to copy them", async ({ page }) => {
     const step = walkthrough(page, {
       id: "CF-016",
       title: "A producer Alt-drags clips to copy them",

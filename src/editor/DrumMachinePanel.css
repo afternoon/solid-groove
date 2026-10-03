@@ -139,12 +139,12 @@ td.pad-index {
   cursor: pointer;
 }
 
-.drum-pad[aria-current="true"] > td {
+.drum-pad.selected > td {
   background-color: var(--color-background);
 }
 
 /* On the selected row's black, the preview well lifts to stay visible. */
-.drum-pad[aria-current="true"] .pad-preview {
+.drum-pad.selected .pad-preview {
   background-color: var(--color-background-secondary);
 }
 

@@ -8,6 +8,7 @@ import {
   expectSelected,
   familyTab,
   insertButton,
+  insertedBackToInstrument,
   library,
   libraryHeader,
   listedNames,
@@ -18,7 +19,6 @@ import {
   precondition,
   projectPacks,
   railButton,
-  readout,
   slotSound,
   soundList,
 } from "../support/library";
@@ -36,9 +36,8 @@ import { expectView, pressView } from "../support/views";
  * **Revised for #817.** The library is the Library view on `4`, filling the
  * page, not a dialog over the editor. Insert keeps it open, showing the
  * inserted impact as the sound in the slot, `3` goes back to the instrument,
- * and `4` comes back to the library still aimed at the "BD" pad. Parked at
- * `test.fixme` until #817's stack lands: the PR that closes #817 removes the
- * marker.
+ * and `4` comes back to the library still aimed at the "BD" pad. Live since
+ * #817's closing PR removed its `test.fixme`.
  *
  * **Locators.** Every library locator is assumed from #449 and the reference
  * design, and listed in `../support/library.ts`. This spec adds its own for
@@ -75,13 +74,9 @@ const anyCover = (page: Page) => library(page).getByRole("button", { name: /^Ope
 const IN_PROJECT = /\bin (this )?project\b/i;
 
 test.describe("CF-024", () => {
-  // `test.fixme` until #817's stack lands: the PR that closes #817 removes this
-  // marker in the same diff that makes the flow pass.
   test("a producer browses packs and uses a sound from one they did not have", async ({
     page,
   }) => {
-    // Parked from inside the body so the body keeps its indentation.
-    test.fixme();
     const step = walkthrough(page, {
       id: "CF-024",
       title: "A producer browses packs and uses a sound from one they did not have",
@@ -147,16 +142,17 @@ test.describe("CF-024", () => {
       .toEqual([...impacts].sort());
     await step("Choose FX, then Impact: only that pack's impacts are listed");
 
-    // 6. Select an impact and press Insert. The library shows it as the sound
-    //    in the slot. Press 3: the "BD" pad's slot names that impact.
+    // 6. Select an impact and press Insert. The editor goes back to the
+    //    instrument view, and the "BD" pad's slot names that impact.
     const impact = impacts[0];
     await audition(soundList(page), impact).click();
     await expectSelected(page, impact);
     await insertButton(page, impact).click();
-    await expect(readout(page, "In the slot")).toContainText(impact);
-    await backToInstrument(page);
+    await insertedBackToInstrument(page);
     await expect.poll(() => slotSound(page, "BD")).toBe(impact);
-    await step('Select an impact and press Insert: the "BD" slot names it');
+    await step(
+      'Select an impact and press Insert: back on the instrument, the "BD" slot names it',
+    );
 
     // 7. Press 4. The library is still aimed at the "BD" pad, and Transitions &
     //    FX is now listed with the project's own packs.

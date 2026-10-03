@@ -29,7 +29,6 @@ afterEach(cleanup);
 function renderEditorFor(
   project: Project,
   pick: (project: Project) => { clip: Clip; track: Track },
-  onClose = () => {},
   extra: Partial<SequenceEditorProps> = {},
 ) {
   const { clip, track } = pick(project);
@@ -48,7 +47,6 @@ function renderEditorFor(
       registerPianoRollActions={() => {}}
       dispatch={() => undefined}
       beginGesture={() => undefined}
-      onClose={onClose}
       {...extra}
     />
   ));
@@ -97,12 +95,12 @@ const starterClip = (project: Project) => {
 };
 
 describe("SequenceEditor", () => {
-  it("is a named window over the page, with the track it is editing", () => {
+  it("is a named region, not a dialog, with the track it is editing (UI-002)", () => {
     const project = createSliceFixtureProject();
     const { track } = renderEditorFor(project, starterClip);
 
-    const dialog = screen.getByRole("dialog", { name: "Sequence editor" });
-    expect(dialog).toHaveAttribute("aria-modal", "true");
+    const dialog = screen.getByRole("region", { name: "Sequence editor" });
+    expect(screen.queryByRole("dialog")).toBeNull();
     // Both the editor's own title and the clip editor's track info name it.
     expect(
       within(dialog).getByText(track.name, { selector: ".sequence-editor-title" }),
@@ -113,7 +111,7 @@ describe("SequenceEditor", () => {
     const project = createStepGridProject();
     renderEditorFor(project, starterClip);
 
-    const dialog = screen.getByRole("dialog", { name: "Sequence editor" });
+    const dialog = screen.getByRole("region", { name: "Sequence editor" });
     expect(within(dialog).getByRole("region", { name: "Step editor" })).toBeVisible();
     expect(within(dialog).getByRole("button", { name: "BD, step 1, on" })).toBeVisible();
     expect(within(dialog).getByRole("button", { name: "BD, step 2, off" })).toBeVisible();
@@ -124,7 +122,7 @@ describe("SequenceEditor", () => {
     const project = createStepGridProject();
     const onSelectPad = vi.fn();
     const auditionPad = vi.fn();
-    const { track } = renderEditorFor(project, starterClip, () => {}, {
+    const { track } = renderEditorFor(project, starterClip, {
       selectedPadId: null,
       onSelectPad,
       auditionPad,
@@ -140,14 +138,14 @@ describe("SequenceEditor", () => {
 
   it("plays the song from the step grid's Play (#643)", () => {
     const onTogglePlay = vi.fn();
-    renderEditorFor(createStepGridProject(), starterClip, () => {}, { onTogglePlay });
+    renderEditorFor(createStepGridProject(), starterClip, { onTogglePlay });
     clickAndFlush(screen.getByRole("button", { name: "Play" }));
     expect(onTogglePlay).toHaveBeenCalledOnce();
   });
 
   it("solos the clip's track from the step grid's Solo (#657)", () => {
     const dispatch = vi.fn();
-    const { track } = renderEditorFor(createStepGridProject(), starterClip, () => {}, {
+    const { track } = renderEditorFor(createStepGridProject(), starterClip, {
       dispatch,
     });
     clickAndFlush(screen.getByRole("button", { name: "Solo" }));
@@ -158,7 +156,7 @@ describe("SequenceEditor", () => {
 
   it("puts Generate beside Transform, previewing into the selected row (#643)", () => {
     const dispatch = vi.fn(() => ({ ok: true }) as never);
-    renderEditorFor(createStepGridProject(), starterClip, () => {}, { dispatch });
+    renderEditorFor(createStepGridProject(), starterClip, { dispatch });
     const generate = within(screen.getByRole("region", { name: "Generate" }));
     expect(screen.getByRole("region", { name: "Generate" })).toHaveTextContent("into BD");
     expect(screen.getByRole("region", { name: "Transform" })).toBeInTheDocument();
@@ -182,7 +180,7 @@ describe("SequenceEditor", () => {
   it("gives a sampler note clip the piano roll, not the step editor (#496)", () => {
     renderEditorFor(createSliceFixtureProject(), starterClip);
 
-    const dialog = screen.getByRole("dialog", { name: "Sequence editor" });
+    const dialog = screen.getByRole("region", { name: "Sequence editor" });
     expect(within(dialog).getByRole("region", { name: /Piano roll/ })).toBeVisible();
     expect(within(dialog).queryByRole("region", { name: "Step editor" })).toBeNull();
   });
@@ -191,13 +189,13 @@ describe("SequenceEditor", () => {
     const project = createPianoRollFixtureProject();
     const onTogglePlay = vi.fn();
     const audition = vi.fn();
-    renderEditorFor(project, starterClip, () => {}, {
+    renderEditorFor(project, starterClip, {
       onTogglePlay,
       audition,
       playing: true,
     });
 
-    const dialog = screen.getByRole("dialog", { name: "Sequence editor" });
+    const dialog = screen.getByRole("region", { name: "Sequence editor" });
     expect(within(dialog).getByRole("region", { name: /^Piano roll\b/ })).toBeVisible();
     expect(within(dialog).getByRole("region", { name: "Key" })).toBeVisible();
     expect(within(dialog).getByRole("region", { name: "Transform" })).toBeVisible();
@@ -229,37 +227,11 @@ describe("SequenceEditor", () => {
       return { clip, track };
     });
 
-    const dialog = screen.getByRole("dialog", { name: "Sequence editor" });
+    const dialog = screen.getByRole("region", { name: "Sequence editor" });
     expect(within(dialog).getByRole("region", { name: "Audio loop" })).toBeVisible();
     // Instead, not as well: a step grid and note transforms on an audio clip
     // would offer to edit notes it does not have (#281).
     expect(within(dialog).queryByRole("region", { name: "Step editor" })).toBeNull();
     expect(within(dialog).queryByRole("button", { name: "Transpose" })).toBeNull();
-  });
-
-  it("closes from its close control", () => {
-    const onClose = vi.fn();
-    renderEditorFor(createSliceFixtureProject(), starterClip, onClose);
-
-    clickAndFlush(screen.getByRole("button", { name: "Close sequence editor" }));
-
-    expect(onClose).toHaveBeenCalledTimes(1);
-  });
-
-  it("takes focus when it opens and gives it back when it closes", () => {
-    // A double-click on the canvas leaves focus nowhere useful, so a keyboard
-    // user would otherwise be stranded behind the editor.
-    const opener = document.createElement("button");
-    document.body.append(opener);
-    opener.focus();
-
-    const { unmount } = renderEditorFor(createSliceFixtureProject(), starterClip);
-    expect(document.activeElement).toBe(
-      screen.getByRole("button", { name: "Close sequence editor" }),
-    );
-
-    unmount();
-    expect(document.activeElement).toBe(opener);
-    opener.remove();
   });
 });

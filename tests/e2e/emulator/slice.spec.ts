@@ -32,7 +32,7 @@ async function openStarterClip(page: Page): Promise<Locator> {
       y: await firstRowCentreY(ready),
     },
   });
-  const editor = page.getByRole("dialog", { name: "Sequence editor" });
+  const editor = page.getByRole("region", { name: "Sequence editor" });
   await expect(editor).toBeVisible();
   return editor;
 }
@@ -52,7 +52,8 @@ interface StoredPackDependency {
  * token, so the rules do not apply). The editor does not print them.
  */
 async function savedPackDependencies(page: Page): Promise<string[]> {
-  const projectId = new URL(page.url()).pathname.split("/").pop();
+  // The id, not the last segment: the sequence view has its own (UI-002).
+  const projectId = /\/projects\/([^/]+)/.exec(new URL(page.url()).pathname)?.[1];
   const response = await page.request.get(
     `http://${firestoreEmulatorHost}/v1/projects/demo-solid-groove/databases/(default)/documents/projects/${projectId}`,
     { headers: { Authorization: "Bearer owner" } },
@@ -132,9 +133,9 @@ test.describe("foundation vertical slice", () => {
       await page.locator(".save-status").getAttribute("data-revision"),
     );
 
-    // The transport is in the header, behind the editor, so close it first.
-    await page.keyboard.press("Escape");
-    await expect(page.getByRole("dialog", { name: "Sequence editor" })).toHaveCount(0);
+    // Back to the arrangement with 1: the sequence view is a view (UI-002).
+    await page.keyboard.press("1");
+    await expect(page.getByRole("region", { name: "Sequence editor" })).toHaveCount(0);
 
     // Play it: the allowed user gesture resumes the shared AudioRuntime and
     // starts the transport.
@@ -214,16 +215,14 @@ test.describe("foundation vertical slice", () => {
 
     // Undo it: the added note is removed through the same history. The clip is
     // opened again to watch it happen, and the undo comes from the keyboard,
-    // because the sequence editor is a window over the header the Undo button
-    // lives in — `edit.undo` reaching through it is what the `sequence_editor`
-    // shortcut context is for (`UI-001`).
+    // which the `sequence_editor` shortcut context keeps live (`UI-001`).
     const afterPlayback = await openStarterClip(page);
     await page.keyboard.press("ControlOrMeta+z");
     await expect(
       afterPlayback.getByRole("button", { name: "BD, step 3, off" }),
     ).toBeVisible();
-    await page.keyboard.press("Escape");
-    await expect(page.getByRole("dialog", { name: "Sequence editor" })).toHaveCount(0);
+    await page.keyboard.press("1");
+    await expect(page.getByRole("region", { name: "Sequence editor" })).toHaveCount(0);
 
     // Save it: the autosave status settles once the revision-checked write
     // against the emulator completes.
@@ -252,8 +251,8 @@ test.describe("foundation vertical slice", () => {
     // post-undo revision that was actually persisted.
     await expect(reopened.getByRole("button", { name: "BD, step 3, off" })).toBeVisible();
     expect(await savedPackDependencies(page)).toEqual(packDependencies);
-    await page.keyboard.press("Escape");
-    await expect(page.getByRole("dialog", { name: "Sequence editor" })).toHaveCount(0);
+    await page.keyboard.press("1");
+    await expect(page.getByRole("region", { name: "Sequence editor" })).toHaveCount(0);
 
     // Reproduce playback after reload, against the stable graph rebuilt
     // from the reloaded project. Chromium only, for the reason above.

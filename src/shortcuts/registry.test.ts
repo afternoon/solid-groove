@@ -105,6 +105,21 @@ describe("registry shape", () => {
     expect(shortcutById("transport.play_stop").ableton.kind).toBe("follows");
     expect(shortcutById("help.shortcut_guide").ableton.kind).toBe("solid_groove");
   });
+
+  it("puts the five views on 1-5, in the order of the drill-down (UI-002)", () => {
+    const views = ["arrangement", "sequence", "instrument", "library", "mixer"] as const;
+    for (const [index, view] of views.entries()) {
+      expect(shortcutLabel(`view.show_${view}`, "other")).toBe(String(index + 1));
+    }
+  });
+
+  it("opens a clip on Enter, inserts and goes back on Enter, and stays on Shift+Enter (UI-002)", () => {
+    expect(shortcutLabel("arrangement.open_clip", "other")).toBe("Enter");
+    expect(shortcutById("arrangement.open_clip").contexts).toEqual(["arrangement"]);
+    expect(shortcutLabel("library.insert_and_return", "mac")).toBe("Enter");
+    expect(shortcutLabel("library.insert", "mac")).toBe("Shift+Enter");
+    expect(shortcutById("library.insert_and_return").contexts).toEqual(["library"]);
+  });
 });
 
 describe("conflict rules", () => {
@@ -200,6 +215,7 @@ describe("conflict rules", () => {
       ["editor", "automation_lane", "timeline", "selection"],
       ["dialog"],
       ["dialog", "library"],
+      ["library"],
       ["dialog", "export_tracks"],
       ["editor", "gesture"],
     ];

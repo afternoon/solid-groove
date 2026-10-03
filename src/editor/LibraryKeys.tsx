@@ -23,21 +23,17 @@ const GROUPS: readonly { readonly title: string; readonly rows: readonly KeyRow[
         text: "Previous / next sound, and hear it",
       },
       { keys: ["library.audition"], text: "Hear it again" },
-      { keys: ["library.insert"], text: "Insert and close" },
+      { keys: ["library.insert_and_return"], text: "Insert, and go back" },
+      { keys: ["library.insert"], text: "Insert, and stay to try another" },
       { keys: ["library.like"], text: "Like: favourite the selected sound" },
       { keys: ["library.similar"], text: "Similar sounds" },
       { keys: ["library.shuffle"], text: "Shuffle" },
-      { keys: ["view.close_surface"], text: "Close, and put back the old sound" },
+      { keys: ["view.show_instrument"], text: "Back without inserting" },
     ],
   },
   {
     title: "Categories",
     rows: [
-      {
-        keys: ["library.pick_1", "library.pick_9"],
-        range: true,
-        text: "Pick that category; in Browse packs, open that pack",
-      },
       { keys: ["library.pick_all"], text: "All of the family" },
       {
         keys: ["library.category_previous", "library.category_next"],

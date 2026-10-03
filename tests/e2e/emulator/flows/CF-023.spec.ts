@@ -10,6 +10,7 @@ import {
   expectSelected,
   familyTab,
   insertButton,
+  insertedBackToInstrument,
   library,
   libraryHeader,
   listedNames,
@@ -67,7 +68,7 @@ const GENRE = { slug: "house", label: "House" } as const;
 test.describe("CF-023", () => {
   // `test.fixme` until #817's stack lands: the PR that closes #817 removes this
   // marker in the same diff that makes the flow pass.
-  test.fixme("a producer finds a kick by ear and puts it on a pad", async ({ page }) => {
+  test("a producer finds a kick by ear and puts it on a pad", async ({ page }) => {
     const step = walkthrough(page, {
       id: "CF-023",
       title: "A producer finds a kick by ear and puts it on a pad",
@@ -154,8 +155,8 @@ test.describe("CF-023", () => {
     await step("Press 3: the slot still names the sound it had before");
 
     // 7. Press the slot again, select a different kick, and press Insert. The
-    //    library stays where it is and now shows that kick as the sound in the
-    //    slot. Press 3: the slot names the kick you chose.
+    //    editor goes back to the instrument view, and the slot names the kick
+    //    you chose.
     await sampleSlot(page, "BD").click();
     await expectView(page, "Library");
     await expect(libraryHeader(page)).toContainText("BD");
@@ -166,10 +167,11 @@ test.describe("CF-023", () => {
     await audition(soundList(page), chosen).click();
     await expectSelected(page, chosen);
     await insertButton(page, chosen).click();
-    await expect(readout(page, "In the slot")).toContainText(chosen);
-    await backToInstrument(page);
+    await insertedBackToInstrument(page);
     await expect.poll(() => slotSound(page, "BD")).toBe(chosen);
-    await step("Select a different kick and press Insert: the slot names it");
+    await step(
+      "Select a different kick and press Insert: back on the instrument, the slot names it",
+    );
 
     // 8. Reload the page. The "BD" pad still holds the kick you inserted.
     await reloadOnInstrumentView(page, projectUrl);

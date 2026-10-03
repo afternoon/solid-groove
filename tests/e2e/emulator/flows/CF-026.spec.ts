@@ -6,6 +6,7 @@ import {
   expectSelected,
   goToInstrumentView,
   insertButton,
+  insertedBackToInstrument,
   library,
   libraryHeader,
   listedNames,
@@ -122,9 +123,9 @@ test.describe("CF-026", () => {
       await audition(soundList(page), kick).click();
       await expectSelected(page, kick);
       await insertButton(page, kick).click();
-      await backToInstrument(page);
+      await insertedBackToInstrument(page);
       await expect.poll(() => slotSound(page, "BD")).toBe(kick);
-      await step("Insert it, then press 3: the slot names that kick");
+      await step("Insert it: back on the instrument, the slot names that kick");
 
       // 6. Reload the page. Press 4 and choose Favourites. The kick is still
       //    there, still marked.

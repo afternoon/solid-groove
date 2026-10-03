@@ -206,7 +206,8 @@ export default function DrumMachinePanel(props: DrumMachinePanelProps): JSX.Elem
               <div class="drum-pad-editor-sample">
                 <SampleSlot
                   label={`Sample for ${pad().name}`}
-                  name={sampleName(pad())}
+                  slot={{ kind: "pad", padId: pad().id }}
+                  name={assetOf(pad())?.name ?? null}
                   onBrowse={() => {
                     markFeatureUse();
                     props.onBrowseSample?.(pad().id);
@@ -243,11 +244,17 @@ export default function DrumMachinePanel(props: DrumMachinePanelProps): JSX.Elem
               // A press anywhere on a row selects its pad; the name button is the
               // same thing for the keyboard.
               <tr
+                // Selected is said by the name's pressed button, not the row:
+                // the one current thing in a drum machine is the slot the
+                // Library is aimed at (UI-002).
                 class={[
                   "drum-pad",
-                  { muted: pad().mixer.muted, hit: hitPads().has(pad().id) },
+                  {
+                    muted: pad().mixer.muted,
+                    hit: hitPads().has(pad().id),
+                    selected: selectedPad()?.id === pad().id,
+                  },
                 ]}
-                aria-current={selectedPad()?.id === pad().id ? "true" : undefined}
                 onClick={() => setChosenPad(pad().id)}
               >
                 <td class="pad-index">{String(index() + 1).padStart(2, "0")}</td>
@@ -255,6 +262,7 @@ export default function DrumMachinePanel(props: DrumMachinePanelProps): JSX.Elem
                   <PadName
                     track={props.track}
                     pad={pad()}
+                    selected={selectedPad()?.id === pad().id}
                     dispatch={props.dispatch}
                     onAudition={() => {
                       setChosenPad(pad().id);

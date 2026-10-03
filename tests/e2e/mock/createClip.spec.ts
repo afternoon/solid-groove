@@ -37,7 +37,7 @@ test.describe("creating a clip", () => {
     await timeline.dblclick({ position: await bdRowAt(page, 2.5) });
     await expect(announcement(page)).toHaveText("Selected clip on BD, bar 3");
     // It is created, not opened.
-    await expect(page.getByRole("dialog", { name: "Sequence editor" })).toHaveCount(0);
+    await expect(page.getByRole("region", { name: "Sequence editor" })).toHaveCount(0);
 
     // One undo takes it back.
     await page.keyboard.press("ControlOrMeta+z");

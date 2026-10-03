@@ -336,9 +336,9 @@ describe("DrumMachinePanel selected pad (#447)", () => {
     expect(screen.queryByRole("heading", { name: `${first.name} · sound` })).toBeNull();
     const secondEditor = screen.getByRole("region", { name: `${second.name} pad` });
     expect(within(secondEditor).getByLabelText("Decay")).toBeInTheDocument();
-    expect(
-      document.querySelector('.drum-pad[aria-current="true"]')?.textContent,
-    ).toContain(second.name);
+    expect(document.querySelector(".drum-pad.selected")?.textContent).toContain(
+      second.name,
+    );
   });
 
   it("names the editor's faders apart from the row's, so none is on screen twice", () => {
@@ -363,7 +363,10 @@ describe("DrumMachinePanel selected pad (#447)", () => {
     expect(
       screen.getByRole("region", { name: `${second.name} pad` }),
     ).toBeInTheDocument();
-    expect(rows[1].getAttribute("aria-current")).toBe("true");
+    expect(rows[1]).toHaveClass("selected");
+    expect(
+      screen.getByRole("button", { name: `Audition ${second.name}` }),
+    ).toHaveAttribute("aria-pressed", "true");
     expect(audition).not.toHaveBeenCalled();
   });
 });
