@@ -95,8 +95,11 @@ jobs:
         # representative sample it renders. Needs no credentials or network.
         run: bun run library:validate
 
-  # Browser end-to-end suite. Chromium and Firefox are the P0 gating
-  # browsers (PRD section 10) and fail the workflow. WebKit runs alongside
+  # Browser end-to-end suite. Chrome, Edge and Firefox are the P0 gating
+  # browsers (PRD section 10) and fail the workflow; Chrome and Edge run as
+  # Playwright's `chrome`/`msedge` channels, the current stable release of
+  # each (#75), and Playwright's own Chromium runs too, as the build every
+  # other environment's pre-flight uses. WebKit runs alongside
   # them as a signal only — `continue-on-error` means a WebKit-only failure
   # is reported but never blocks the required checks, per the PRD's
   # supported-environment policy: "WebKit passing is not the same as Safari
@@ -109,7 +112,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        browser: [chromium, firefox, webkit]
+        browser: [chromium, chrome, msedge, firefox, webkit]
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -118,6 +121,9 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
       - name: Install Playwright browser (${{ matrix.browser }})
+        # For `chrome` and `msedge` this installs (or updates to) the current
+        # stable branded build, which is what makes the job a "current
+        # version" check rather than whatever the runner image last shipped.
         run: bunx playwright install --with-deps ${{ matrix.browser }}
       - name: Run browser suite
         run: bunx playwright test --config=tests/e2e/mock/playwright.config.ts --project=${{ matrix.browser }}
@@ -131,8 +137,10 @@ jobs:
   # FND-009's browser E2E suite against a real (local, emulated) backend:
   # proves the foundation vertical slice's "save it, reload it, reproduce
   # playback" step, which the in-memory-backed `browser` job above cannot —
-  # that repository is a fresh, empty store on every page load. Only the two
-  # PRD section 10 P0-gating browsers run here (see tests/e2e/emulator/playwright.config.ts).
+  # that repository is a fresh, empty store on every page load. Every core
+  # flow lives here, so it runs in each PRD section 10 P0-gating browser
+  # (Chrome, Edge, Firefox) plus Playwright's Chromium (#75; see
+  # tests/e2e/emulator/playwright.config.ts).
   browser-emulator:
     name: browser e2e against the emulator (${{ matrix.browser }})
     needs: checks
@@ -140,7 +148,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        browser: [chromium, firefox]
+        browser: [chromium, chrome, msedge, firefox]
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
