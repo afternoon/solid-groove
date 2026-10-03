@@ -5,7 +5,7 @@ import { type ArrangementShell, createArrangementShell } from "./arrangementShel
 import { createArrangementWaveformCache } from "./canvasRenderer";
 import type { Viewport } from "./geometry";
 import { buildArrangementProjection } from "./projection";
-import { useArrangementCanvas } from "./useArrangementCanvas";
+import { useArrangementCanvas, visibleViewportSize } from "./useArrangementCanvas";
 
 const ROW_METRICS = { trackHeightPx: 28, headerHeightPx: 28 };
 
@@ -194,5 +194,29 @@ describe("useArrangementCanvas drawing contract (PRD 9.3)", () => {
     const installed = canvas.observeViewport(document.createElement("div"), () => {});
     expect(installed).toBe(typeof ResizeObserver === "function");
     dispose();
+  });
+});
+
+describe("visibleViewportSize (#964)", () => {
+  function element(client: { width: number; height: number }): HTMLElement {
+    const el = document.createElement("div");
+    Object.defineProperty(el, "clientWidth", { value: client.width });
+    Object.defineProperty(el, "clientHeight", { value: client.height });
+    el.getBoundingClientRect = () => ({ width: 815, height: 415 }) as DOMRect;
+    return el;
+  }
+
+  it("leaves the scrollbars out, so nothing is drawn under them", () => {
+    expect(visibleViewportSize(element({ width: 800, height: 400 }))).toEqual({
+      width: 800,
+      height: 400,
+    });
+  });
+
+  it("falls back to the bounding box on a host that lays nothing out", () => {
+    expect(visibleViewportSize(element({ width: 0, height: 0 }))).toEqual({
+      width: 815,
+      height: 415,
+    });
   });
 });

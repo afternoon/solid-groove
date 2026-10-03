@@ -70,10 +70,26 @@ export interface ArrangementCanvas {
   /** Draws exactly the layers marked dirty since the last frame, sizing the
    * backing stores first. Exposed for the initial paint and for tests. */
   readonly drawDirtyLayers: () => void;
-  /** Observes `element` and pushes its content-box size onto the shell, so
-   * the canvases follow the native scroll viewport. Returns whether an
+  /** Observes `element` and pushes its visible size (`visibleViewportSize`)
+   * onto the shell, so the canvases follow the native scroll viewport. Returns whether an
    * observer was installed (a non-browser test host has none). */
   readonly observeViewport: (element: Element, onResize: () => void) => boolean;
+}
+
+/**
+ * The part of the scroll viewport that actually shows the arrangement: its
+ * client box, which leaves out the scrollbars. Its bounding box takes them in,
+ * which put the right-hand strip of the timeline, and a playhead following
+ * along it, underneath the vertical scrollbar (#964). A host that lays
+ * nothing out (jsdom) reports a zero client box, so it falls back to the
+ * bounding box there.
+ */
+export function visibleViewportSize(element: Element): { width: number; height: number } {
+  if (element.clientWidth > 0 && element.clientHeight > 0) {
+    return { width: element.clientWidth, height: element.clientHeight };
+  }
+  const rect = element.getBoundingClientRect();
+  return { width: rect.width, height: rect.height };
 }
 
 function hostDevicePixelRatio(): number {
@@ -184,8 +200,8 @@ export function useArrangementCanvas(
   function observeViewport(element: Element, onResize: () => void): boolean {
     if (typeof ResizeObserver !== "function") return false;
     const resizeObserver = new ResizeObserver(() => {
-      const rect = element.getBoundingClientRect();
-      options.shell()?.resize(rect.width, rect.height);
+      const size = visibleViewportSize(element);
+      options.shell()?.resize(size.width, size.height);
       onResize();
     });
     resizeObserver.observe(element);

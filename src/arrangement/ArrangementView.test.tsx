@@ -746,6 +746,33 @@ describe("the one arrangement selection (#292)", () => {
     expect(viewport?.scrollLeft).toBeGreaterThan(0);
   });
 
+  it("moves its native scroll with the playhead when follow turns the page (#964)", async () => {
+    const built = buildArrangementProject([[{ startTicks: 0, durationTicks: 40 * BAR }]]);
+    const { session } = await setUpEditing(built.project);
+    const [ticks, setTicks] = createSignal(0);
+    render(() => (
+      <ArrangementView
+        project={session.project}
+        dispatch={session.dispatch.bind(session)}
+        playheadTicks={ticks}
+        isPlaying={() => true}
+      />
+    ));
+    flush();
+    const viewport = document.querySelector<HTMLElement>(".arrangement-viewport");
+    expect(viewport?.scrollLeft).toBe(0);
+    // jsdom's viewport is the shell's initial 960px wide: well past it.
+    const playheadPx = 960 + 500;
+    setTicks(playheadPx / PIXELS_PER_TICK);
+    flush();
+    // The page turned, so the scrollbar and what is on screen agree, and the
+    // playhead sits near the left of the new page rather than off its edge.
+    const scrollLeft = viewport?.scrollLeft ?? 0;
+    expect(scrollLeft).toBeGreaterThan(0);
+    expect(playheadPx - scrollLeft).toBeGreaterThan(0);
+    expect(playheadPx - scrollLeft).toBeLessThan(960 / 4);
+  });
+
   it("zooms to a clicked clip from its button, and has nothing to zoom to without one", async () => {
     const { canvas } = await twoTracks();
     const zoom = screen.getByRole("button", { name: "Zoom to selection" });
