@@ -1,0 +1,14 @@
+{
+  "id": "lib-esc",
+  "title": "Escape in the library search",
+  "steps": [
+    {
+      "file": "01-a-query-typed-in-the-library-s-search-fi.png",
+      "caption": "A query typed in the library's search field"
+    },
+    {
+      "file": "02-after-escape-the-library-is-still-open-t.png",
+      "caption": "After Escape: the library is still open, the search is empty and focused"
+    }
+  ]
+}
