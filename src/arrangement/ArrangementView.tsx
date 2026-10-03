@@ -204,6 +204,12 @@ export interface ArrangementViewProps {
    */
   readonly onOpenPlacement?: (placementId: PlacementId) => void;
   /**
+   * Called when the selection becomes exactly one clip — a click on it, or
+   * anything else that leaves one clip selected (`UI-002`). Selecting a clip
+   * is choosing what `2` edits; a double-click also goes there.
+   */
+  readonly onSelectPlacement?: (placementId: PlacementId) => void;
+  /**
    * Rendered in the header column immediately below the last track, scrolling
    * with it — where the way to add a track belongs, because that is where the
    * song ends and the next track would go. The arrangement positions it and
@@ -395,6 +401,21 @@ export default function ArrangementView(props: ArrangementViewProps) {
     setStateVersion((value) => value + 1);
   }
 
+  // The one clip last reported selected, so a drag over it, which changes
+  // state on every step, does not report it again each time.
+  let reportedPlacementId: PlacementId | null = null;
+  /** Tell the host when exactly one clip has become the selection (`UI-002`). */
+  function reportSelectedPlacement(): void {
+    const selected = editing?.getArrangementSelection();
+    const only =
+      selected?.kind === "clips" && selected.placementIds.length === 1
+        ? selected.placementIds[0]
+        : null;
+    if (only === reportedPlacementId) return;
+    reportedPlacementId = only;
+    if (only) props.onSelectPlacement?.(only);
+  }
+
   /**
    * Point the editor at a track (#228). Clicking a row is how you say "this
    * one" here, exactly as clicking a strip is in the mixer; the arrangement
@@ -441,6 +462,7 @@ export default function ArrangementView(props: ArrangementViewProps) {
       onChange: () => {
         shell?.markDirty("interaction");
         bumpState();
+        reportSelectedPlacement();
       },
     });
     if (props.dispatch) {
