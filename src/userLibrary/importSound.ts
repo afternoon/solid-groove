@@ -65,7 +65,10 @@ export function importFailureMessage(reason: ImportFailure): string {
     case "cancelled":
       return "Cancelled.";
     case "permission_denied":
-      return "You don't have permission to store sounds here. Try signing in again.";
+      // The rules refused it. The client checks every limit it knows before
+      // uploading, so what is left is a limit it could not see (a pack filled
+      // from another tab) or a sign-in that expired: say both, blame neither.
+      return "Your library couldn't take this sound. The pack may be full, or your sign-in may have expired.";
     case "network":
       return "Upload failed. Check your connection and try again.";
     case "not_found":
