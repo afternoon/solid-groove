@@ -24,6 +24,7 @@ const [kickId, clapId] = fixture.padIds;
 const kick =
   trackB.instrument?.kind === "drumMachine" ? trackB.instrument.pads[0] : undefined;
 const device = trackA.devices[0];
+const returnBus = project.song.returns[0];
 const asset = project.song.assets[0];
 const [drumsPack] = fixture.packs;
 const firstEvent =
@@ -326,6 +327,43 @@ const ROWS: Readonly<Record<string, Row>> = {
       payload: { target: insert, deviceId: device.id, parameters: { time: 0.5 } },
     },
     touches: [at(device.id, "faceplate")],
+  },
+
+  // --- Returns and sends (#386): the strip, or the list a removed one was in -
+  "return.create": {
+    command: {
+      type: "return.create",
+      payload: { returnBus: { ...returnBus, id: ABSENT_IDS.return } },
+    },
+    touches: [at(ABSENT_IDS.return, "header")],
+  },
+  "return.delete": {
+    command: { type: "return.delete", payload: { returnId: returnBus.id } },
+    touches: [at("song", "returns")],
+  },
+  "return.update": {
+    command: {
+      type: "return.update",
+      payload: { returnId: returnBus.id, changes: { name: "Plate" } },
+    },
+    touches: [at(returnBus.id, "name")],
+  },
+  "send.add": {
+    command: {
+      type: "send.add",
+      payload: {
+        trackId: trackB.id,
+        send: { returnId: returnBus.id, level: 0.5, preFader: false },
+      },
+    },
+    touches: [at(trackB.id, `sendLevel.${returnBus.id}`)],
+  },
+  "send.remove": {
+    command: {
+      type: "send.remove",
+      payload: { trackId: trackA.id, returnId: returnBus.id },
+    },
+    touches: [at(trackA.id, "sends")],
   },
 
   // --- Song ----------------------------------------------------------------
