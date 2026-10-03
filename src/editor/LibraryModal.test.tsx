@@ -17,13 +17,16 @@ import {
 import { LibraryClient } from "../library/libraryClient";
 import { packAssets, parsePackManifest } from "../library/manifest";
 import { clickAndFlush } from "../testing/events";
-import LibraryModal, { type LibraryActions } from "./LibraryModal";
+import LibraryModal, {
+  type LibraryActions,
+  type LibraryModalProps,
+} from "./LibraryModal";
 
 afterEach(cleanup);
 
 function renderModal(
   overrides: Partial<{
-    onInsert: () => void;
+    onInsert: LibraryModalProps["onInsert"];
     onClose: () => void;
     previewEngine: ReturnType<typeof fakePreviewEngine>;
   }> = {},
@@ -33,7 +36,7 @@ function renderModal(
     <LibraryModal
       client={new LibraryClient(fixtureFetcher())}
       previewEngine={engine}
-      onInsert={overrides.onInsert ?? (() => {})}
+      onInsert={overrides.onInsert ?? (() => undefined)}
       addedPackIds={[]}
       onClose={overrides.onClose ?? (() => {})}
     />
@@ -103,7 +106,7 @@ describe("LibraryModal hot-swap", () => {
         client={new LibraryClient(fixtureFetcher())}
         previewEngine={engine}
         slotAudition={slot}
-        onInsert={() => {}}
+        onInsert={() => undefined}
         addedPackIds={[]}
         onClose={() => {}}
       />
@@ -132,7 +135,7 @@ describe("LibraryModal shell", () => {
 
   function renderShell(
     extra: {
-      onInsert?: () => void;
+      onInsert?: () => undefined;
       onActions?: (a: LibraryActions | null) => void;
       keyLabel?: (a: string) => string;
     } = {},
@@ -141,7 +144,7 @@ describe("LibraryModal shell", () => {
       <LibraryModal
         client={new LibraryClient(fixtureFetcher())}
         previewEngine={fakePreviewEngine()}
-        onInsert={extra.onInsert ?? (() => {})}
+        onInsert={extra.onInsert ?? (() => undefined)}
         addedPackIds={[pack.id]}
         eyebrow="Drums · Pad 1"
         slot="BD"
@@ -337,7 +340,7 @@ describe("LibraryModal footer and rail", () => {
         slot="BD"
         current="Rounded Club Kick"
         keyLabel={label}
-        onInsert={() => {}}
+        onInsert={() => undefined}
         addedPackIds={[drums.id]}
         onClose={() => {}}
       />
@@ -407,7 +410,7 @@ describe("LibraryModal packs", () => {
       <LibraryModal
         client={new LibraryClient(fixtureFetcher())}
         previewEngine={fakePreviewEngine()}
-        onInsert={() => {}}
+        onInsert={() => undefined}
         addedPackIds={addedPackIds}
         onActions={(next) => {
           actions = next;
@@ -521,5 +524,92 @@ describe("LibraryModal packs", () => {
     actions().back();
     await waitFor(() => expect(pack).toHaveAttribute("aria-pressed", "false"));
     expect(screen.queryByRole("heading", { name: bass.name })).toBeNull();
+  });
+});
+
+describe("LibraryModal refused inserts (#892)", () => {
+  async function selectSound(index: number) {
+    const rows = await screen.findAllByRole("listitem");
+    fireEvent.click(rows[index].querySelector(".sound-row-main") as HTMLElement);
+    return waitFor(() => {
+      const button = document.querySelector<HTMLButtonElement>(".library-modal-insert");
+      expect(button).toBeEnabled();
+      return button as HTMLButtonElement;
+    });
+  }
+
+  const upgrade = { packName: "Core Electronic Drums", version: "1.1.0", missing: 2 };
+
+  it("shows a refusal's sentence beside Insert, keeps the window, and clears it on the next selection", async () => {
+    const onClose = vi.fn();
+    renderModal({
+      onInsert: () => ({ ok: false, reason: "Couldn't insert it: no sampler." }),
+      onClose,
+    });
+
+    clickAndFlush(await selectSound(0));
+
+    expect(await screen.findByText("Couldn't insert it: no sampler.")).toBeVisible();
+    expect(screen.getByRole("dialog", { name: "Library" })).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: "Upgrade anyway" })).toBeNull();
+
+    await selectSound(1);
+    await waitFor(() =>
+      expect(screen.queryByText("Couldn't insert it: no sampler.")).toBeNull(),
+    );
+  });
+
+  it("asks before an upgrade that leaves sounds missing, and Upgrade anyway inserts", async () => {
+    const onInsert = vi.fn((_asset: unknown, options: { upgradeAnyway: boolean }) =>
+      options.upgradeAnyway ? { ok: true as const } : { ok: false as const, upgrade },
+    );
+    renderModal({ onInsert });
+
+    clickAndFlush(await selectSound(0));
+
+    expect(
+      await screen.findByText(
+        "Inserting this moves the project to Core Electronic Drums 1.1.0, which leaves 2 sounds in this project missing.",
+      ),
+    ).toBeVisible();
+    expect(onInsert).toHaveBeenLastCalledWith(expect.anything(), {
+      upgradeAnyway: false,
+    });
+    clickAndFlush(screen.getByRole("button", { name: "Upgrade anyway" }));
+
+    await waitFor(() => expect(onInsert).toHaveBeenCalledTimes(2));
+    expect(onInsert).toHaveBeenLastCalledWith(expect.anything(), { upgradeAnyway: true });
+  });
+
+  it("Cancel changes nothing and leaves the couldn't-insert message, still offering the upgrade", async () => {
+    const onInsert = vi.fn(() => ({ ok: false as const, upgrade }));
+    renderModal({ onInsert });
+
+    clickAndFlush(await selectSound(0));
+    clickAndFlush(await screen.findByRole("button", { name: "Cancel" }));
+
+    const notice = document.querySelector(".library-modal-notice");
+    expect(notice).toHaveTextContent(
+      /^Couldn't insert .+: it needs Core Electronic Drums 1\.1\.0, which leaves 2 sounds in this project missing\./,
+    );
+    expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Upgrade anyway" })).toBeVisible();
+    expect(onInsert).toHaveBeenCalledTimes(1);
+  });
+
+  it("says when the newer version could not be checked, and still offers the upgrade", async () => {
+    renderModal({
+      onInsert: () => ({ ok: false, upgrade: { ...upgrade, missing: null } }),
+    });
+
+    clickAndFlush(await selectSound(0));
+
+    expect(
+      await screen.findByText(
+        /didn't load, so this project's sounds couldn't be checked/,
+      ),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Upgrade anyway" })).toBeVisible();
   });
 });

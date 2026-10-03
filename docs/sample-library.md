@@ -169,7 +169,7 @@ Rules that follow from the model:
 - **One rights position per pack.** Every asset in a pack shares its licence and redistribution terms. An asset whose rights differ belongs in a different pack — this is what makes a takedown, an export policy, or a licence question answerable at pack level rather than per file.
 - **A pack is self-contained.** It must be usable on its own for its stated purpose. A genre pack that cannot build a basic loop in its own genre is not finished.
 - **Packs never restrict.** Membership is organization. Any asset from any available pack loads onto any track, instrument, or pad, and clearing a pack filter reveals everything (PRD `LIB-02`).
-- **Versions are pinned by projects.** A project records the packs and versions it uses, so republishing a pack cannot change music someone has already made (section 12).
+- **Versions are pinned by projects, and move only as an explicit, undoable step.** A project records the packs and versions it uses, so republishing a pack cannot change music someone has already made (section 12). Inserting a sound from a newer version of a pack the project already uses moves the project's pin to that version in the same transaction, so one undo takes back both (#892). When every sound the project uses from the pack is still in the newer version (same content-addressed audio), the upgrade happens without asking; when some would go missing, the library's footer says how many and offers **Upgrade anyway** or **Cancel**. Sounds that go missing are reported as missing, never deleted or substituted.
 
 The taxonomy below describes the structure **within** a pack. A pack does not have to cover the whole tree — most will not — but every role it claims in its coverage claim must be genuinely present.
 

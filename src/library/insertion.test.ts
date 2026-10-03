@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CommandHistory, executeTransaction, removeClip } from "../commands";
+import { packVersion } from "../domain/entities";
 import { createFactoryContext } from "../domain/factories";
 import {
   createDrumMachineFixtureProject,
@@ -506,6 +507,106 @@ describe("loadPadSampleCommands (#447)", () => {
     );
     if (!kept.ok) throw new Error(kept.issues[0].message);
     expect(padOf(kept.project)?.name).toBe("My Kick");
+  });
+});
+
+describe("inserting into a project pinned to an older pack version (#892)", () => {
+  /**
+   * The drum-machine fixture with one pad playing a Core Electronic Drums
+   * sound pinned at 1.0.0 — what a project made before #712 moved the factory
+   * packs to 1.1.0 carries.
+   */
+  async function olderPinnedProject() {
+    const [kept, inserted] = (await libraryAssets()).filter((asset) => asset.url);
+    const keptSample = toLibrarySample(kept);
+    const newer = toLibrarySample(inserted);
+    if (!keptSample || !newer) throw new Error("expected insertable samples");
+    const older = { ...keptSample, packVersion: packVersion("1.0.0") };
+    const fixture = createDrumMachineFixtureProject();
+    const track = fixture.song.tracks.find((t) => t.instrument?.kind === "drumMachine");
+    if (track?.instrument?.kind !== "drumMachine") throw new Error("no drum machine");
+    const [first, second] = track.instrument.pads;
+    const seeded = executeTransaction(
+      fixture,
+      loadPadSampleCommands(fixture, track.id, first.id, older, context("older")),
+    );
+    if (!seeded.ok) throw new Error(seeded.issues[0].message);
+    return { project: seeded.project, track, first, second, older, keptSample, newer };
+  }
+
+  it("upgrades the pin in the same transaction, and one undo restores it", async () => {
+    const { project, track, second, older, newer } = await olderPinnedProject();
+    expect(newer.packVersion).not.toBe(older.packVersion);
+    const history = new CommandHistory(project);
+
+    const result = history.execute(
+      loadPadSampleCommands(project, track.id, second.id, newer, context()),
+    );
+
+    if (!result.ok) throw new Error(result.issues[0].message);
+    const next = history.project;
+    expect(next.metadata.revision).toBe(project.metadata.revision + 1);
+    const fromPack = next.song.assets.filter((asset) => asset.packId === newer.packId);
+    expect(fromPack).toHaveLength(2);
+    for (const asset of fromPack) expect(asset.packVersion).toBe(newer.packVersion);
+    expect(next.metadata.packDependencies).toContainEqual({
+      packId: newer.packId,
+      version: newer.packVersion,
+    });
+    expect(next.metadata.addedPacks).toContainEqual({
+      packId: newer.packId,
+      version: newer.packVersion,
+    });
+
+    history.undo();
+    expect(history.project.song.assets).toEqual(project.song.assets);
+    expect(history.project.metadata.packDependencies).toEqual(
+      project.metadata.packDependencies,
+    );
+    expect(history.project.metadata.addedPacks).toEqual(project.metadata.addedPacks);
+  });
+
+  it("reuses the project's own copy of a sound it already had at the older version", async () => {
+    const { project, track, second, keptSample } = await olderPinnedProject();
+
+    const commands = loadPadSampleCommands(
+      project,
+      track.id,
+      second.id,
+      keptSample,
+      context(),
+    );
+    const result = executeTransaction(project, commands);
+
+    if (!result.ok) throw new Error(result.issues[0].message);
+    expect(result.project.song.assets).toHaveLength(project.song.assets.length);
+    expect(carriedAsset(result.project, keptSample)).not.toBeNull();
+  });
+
+  it("upgrades for the sampler and loop paths too", async () => {
+    const { project, newer } = await olderPinnedProject();
+    const sampler = project.song.tracks.find((t) => t.instrument?.kind === "sampler");
+    const loops = (await libraryAssets()).filter((asset) => asset.type === "loop");
+    const loop = toLibrarySample(loops[0]);
+    if (!loop) throw new Error("expected a loop in the pack");
+
+    const loaded = sampler
+      ? executeTransaction(
+          project,
+          loadSampleCommands(project, sampler.id, newer, context("sampler")),
+        )
+      : null;
+    const inserted = executeTransaction(
+      project,
+      insertLoopCommands(project, loop, context("loop"), {
+        order: project.song.tracks.length,
+        existingNames: [],
+        songTempo: project.song.tempo,
+      }),
+    );
+
+    if (loaded && !loaded.ok) throw new Error(loaded.issues[0].message);
+    if (!inserted.ok) throw new Error(inserted.issues[0].message);
   });
 });
 
