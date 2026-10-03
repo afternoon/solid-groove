@@ -1,0 +1,247 @@
+/* The assistant panel (#849), after docs/assistant-panel.html: square, on the
+   lifted panel ground, a hairline edge and a deep shadow while it floats over
+   the view. Above the views and the working window over them (the sequence
+   editor, z-index 80), below the shortcut guide (100). While a modal dialog is
+   open (Export, the library) it drops under the dialog layer and is inert, so
+   the dialog is on top and nothing in the panel can be reached. */
+
+.assistant-panel {
+  /* Its two sizes, set on the element from the remembered layout; these are
+     the sizes each mode starts at. */
+  --assistant-height: 560px;
+  --assistant-width: 384px;
+
+  position: fixed;
+  z-index: 85;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  background: var(--color-background-secondary);
+  color: var(--color-text);
+  box-shadow:
+    0 18px 50px var(--scrim),
+    0 0 0 1px var(--color-border-strong);
+}
+
+.assistant-panel.assistant-panel-under-modal {
+  z-index: 79;
+}
+
+.assistant-panel:focus {
+  outline: none;
+}
+
+.assistant-panel:focus-visible {
+  outline: 1px solid var(--color-accent);
+  outline-offset: -1px;
+}
+
+/* Floating: bottom-right over the view, covering it rather than reflowing it.
+   Never taller than the room under the editor's header (assistantPanelLayout.ts
+   follows the window too), so a short window keeps its transport and its
+   Assistant button in reach, and never wider than the window. The sizes and the
+   inset are set on the element from assistantPanelLayout.ts. */
+.assistant-panel[data-mode="floating"] {
+  right: var(--assistant-inset);
+  bottom: 0;
+  width: var(--assistant-floating-width);
+  max-width: calc(100vw - 2 * var(--assistant-inset));
+  height: var(--assistant-height);
+  max-height: calc(
+    100vh -
+    var(--editor-header-height, 40px) -
+    2 *
+    var(--size-divider, 5px)
+  );
+}
+
+/* Minimised: a bar in the same corner. */
+.assistant-panel[data-mode="minimised"] {
+  right: var(--assistant-inset);
+  bottom: 0;
+  width: var(--assistant-bar-width);
+  height: var(--assistant-bar-height);
+}
+
+/* Docked: a column at the right edge, under the header, from there to the
+   bottom of the window. The editor leaves `--assistant-dock-space` free for
+   it (EditorView.css), so nothing is under it. */
+.assistant-panel[data-mode="docked"] {
+  top: calc(var(--editor-header-height, 40px) + 2 * var(--size-divider, 5px));
+  right: 0;
+  bottom: 0;
+  width: var(--assistant-width);
+  box-shadow: -1px 0 0 var(--color-border);
+}
+
+.assistant-panel-header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 4px 0 12px;
+  background: var(--color-background-highlight);
+  color: var(--color-foreground-bright);
+}
+
+.assistant-panel-grab {
+  flex: 1;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.assistant-panel[data-mode="minimised"] .assistant-panel-grab {
+  cursor: pointer;
+}
+
+.assistant-panel-title {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-size-small);
+  font-weight: 700;
+}
+
+.assistant-panel-status {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--font-size-small);
+  color: var(--color-foreground);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.assistant-panel-button {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  color: var(--color-foreground);
+  cursor: pointer;
+}
+
+.assistant-panel-button:hover {
+  background: var(--color-background-hover);
+  color: var(--color-foreground-bright);
+}
+
+.assistant-panel-button:focus-visible {
+  outline: 1px solid var(--color-accent);
+  outline-offset: -1px;
+}
+
+/* The conversation, empty until the assistant exists (#852). */
+.assistant-panel-log {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 14px;
+}
+
+.assistant-panel-composer {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  border-top: 1px solid var(--color-border);
+}
+
+.assistant-panel-input {
+  box-sizing: border-box;
+  height: 56px;
+  padding: 8px 10px;
+  resize: none;
+  border: none;
+  border-radius: 0;
+  background: var(--color-background);
+  box-shadow: inset 0 0 0 1px var(--color-border-strong);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--font-size-small);
+}
+
+.assistant-panel-input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.assistant-panel-note {
+  margin: 0;
+  font-size: var(--font-size-small);
+  color: var(--color-foreground);
+}
+
+/* The resize edge: an invisible strip astride the panel's top edge while it
+   floats and its left edge while it is docked, showing a white rule under the
+   pointer, while it has focus, and while it is dragged. */
+.assistant-panel-edge {
+  position: absolute;
+  z-index: 1;
+  touch-action: none;
+}
+
+.assistant-panel-edge::after {
+  content: "";
+  position: absolute;
+  background: var(--color-accent);
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+
+.assistant-panel-edge:hover::after,
+.assistant-panel-edge:focus-visible::after,
+.assistant-panel-edge:active::after {
+  opacity: 1;
+}
+
+.assistant-panel-edge:focus-visible {
+  outline: none;
+}
+
+.assistant-panel-edge[aria-orientation="horizontal"] {
+  top: -4px;
+  right: 0;
+  left: 0;
+  height: 8px;
+  cursor: ns-resize;
+}
+
+.assistant-panel-edge[aria-orientation="horizontal"]::after {
+  top: 3px;
+  right: 0;
+  left: 0;
+  height: 2px;
+}
+
+.assistant-panel-edge[aria-orientation="vertical"] {
+  top: 0;
+  bottom: 0;
+  left: -4px;
+  width: 8px;
+  cursor: ew-resize;
+}
+
+.assistant-panel-edge[aria-orientation="vertical"]::after {
+  top: 0;
+  bottom: 0;
+  left: 3px;
+  width: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assistant-panel-edge::after {
+    transition: none;
+  }
+}

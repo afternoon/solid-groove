@@ -34,6 +34,8 @@ import {
   selectOnly,
 } from "../selection";
 import ShortcutGuide from "../shortcuts/ShortcutGuide";
+import AssistantPanel from "./assistant/AssistantPanel";
+import { useAssistantPanel } from "./assistant/useAssistantPanel";
 import EditorHeader from "./EditorHeader";
 import EditorInstrument from "./EditorInstrument";
 import * as model from "./editorViewModel";
@@ -393,7 +395,16 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   const hasArrangementSelection = (): boolean =>
     arrangementEditingActions()?.hasSelection() ?? false;
 
+  // The assistant's panel (#849): where it is and how big, remembered on this
+  // device. One per editor, shared by the panel, the header's button and the
+  // shortcut layer.
+  const assistant = useAssistantPanel({ analytics: () => props.analytics });
+  // Docked, the editor's views leave the panel's column free (EditorView.css).
+  const assistantDockSpace = () =>
+    assistant.layout().mode === "docked" ? `${assistant.layout().width}px` : "0px";
+
   const { shortcuts, editorContexts, keyHint } = useEditorShortcuts({
+    assistant,
     audio,
     session,
     showPianoRoll,
@@ -647,7 +658,10 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   }
 
   return (
-    <main class={["editor", `editor-${props.view}`]}>
+    <main
+      class={["editor", `editor-${props.view}`]}
+      style={{ "--assistant-dock-space": assistantDockSpace() }}
+    >
       <Switch>
         <Match
           when={session.state.loading || session.state.notFound || session.state.error}
@@ -675,6 +689,12 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                 onOpenGuide={() => setGuideOpen(true)}
                 onExportOpenChange={setExportOpen}
                 keyHint={keyHint}
+                assistant={{
+                  open: () => assistant.layout().mode !== "closed",
+                  ariaKeys: shortcuts.platform === "mac" ? "Meta+K" : "Control+K",
+                  toggle: (opener) => assistant.toggle(opener),
+                  bindLauncher: (element) => assistant.bindLauncher(element),
+                }}
               />
               <div class="editor-body">
                 {/*
@@ -853,8 +873,14 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                * The assistant's slot (#849): its panel mounts here, once per
                * editor, floating over the views or docked beside them. Docking
                * moves `--assistant-dock-space` (EditorView.css), the editor's
-               * own layout, and no view learns the panel exists.
+               * own layout, and no view learns the panel exists. A modal
+               * dialog (the same three that make `dialog` the only shortcut
+               * context) puts it under the dialog and out of reach.
                */}
+              <AssistantPanel
+                panel={assistant}
+                underModal={() => guideOpen() || exportOpen() || libraryOpen()}
+              />
               <Show when={guideOpen()}>
                 <ShortcutGuide
                   contexts={editorContexts()}

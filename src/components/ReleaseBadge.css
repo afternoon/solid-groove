@@ -1,6 +1,7 @@
 .release-badge {
   position: fixed;
-  right: 8px;
+  /* Clear of the assistant panel while it is open (#849); zero otherwise. */
+  right: calc(8px + var(--assistant-clearance, 0px));
   bottom: 8px;
   z-index: 1000;
   padding: 2px 6px;

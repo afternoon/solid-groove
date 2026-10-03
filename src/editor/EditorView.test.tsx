@@ -40,6 +40,7 @@ import { detectPlatform, shortcutLabel } from "../shortcuts";
 import { buildArrangementProject } from "../testing/arrangementProject";
 import { clickAndFlush, fireAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
+import { LAYOUT_STORAGE_KEY } from "./assistant/assistantPanelLayout";
 import { editorViewFromPath, editorViewPath } from "./editorViews";
 import { NEW_TRACK_KINDS } from "./trackCreation";
 import { focusedValueField } from "./valueFieldFocus";
@@ -2764,5 +2765,182 @@ describe("EditorView transport controls (PRD AUD-01/AUD-02)", () => {
     expect(
       await screen.findByRole("button", { name: "Disable metronome" }),
     ).toBeInTheDocument();
+  });
+});
+
+/** The assistant panel's place in the editor (#849, AI-004a). */
+describe("EditorView assistant panel", () => {
+  afterEach(() => localStorage.removeItem(LAYOUT_STORAGE_KEY));
+
+  async function renderSlice(transport = createRecordingTransport()) {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createSliceFixtureProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    renderEditor(project.metadata.id, { analytics: recordingAnalytics(transport) });
+    await screen.findByTestId("arrangement-view-ready");
+    return transport;
+  }
+
+  const panel = () => screen.queryByRole("region", { name: "Assistant" });
+  const panelButton = (name: string) =>
+    within(screen.getByRole("region", { name: "Assistant" })).getByRole("button", {
+      name,
+    });
+  const launcher = () => screen.getByRole("button", { name: /^Assistant$/ });
+  const press = (key: string, init: KeyboardEventInit = {}) =>
+    fireAndFlush(() =>
+      fireEvent.keyDown(document.activeElement ?? window, { key, ...init }),
+    );
+  const assistantChord = () =>
+    detectPlatform() === "mac" ? { metaKey: true } : { ctrlKey: true };
+  const dockSpace = () =>
+    (document.querySelector("main.editor") as HTMLElement).style.getPropertyValue(
+      "--assistant-dock-space",
+    );
+
+  it("opens and closes with Cmd/Ctrl+K, logged as the shortcut it is", async () => {
+    // The controller logs `shortcut_used` through the app-wide instance.
+    const log = vi.spyOn(defaultAnalytics, "log");
+    const transport = await renderSlice();
+    expect(panel()).toBeNull();
+    expect(launcher()).toHaveAttribute("aria-pressed", "false");
+    expect(launcher()).toHaveAttribute("aria-keyshortcuts");
+
+    press("k", assistantChord());
+    expect(panel()).toHaveAttribute("data-mode", "floating");
+    expect(panel()).toHaveFocus();
+    expect(launcher()).toHaveAttribute("aria-pressed", "true");
+
+    press("k", assistantChord());
+    expect(panel()).toBeNull();
+    const uses = log.mock.calls.filter(
+      ([name, params]) =>
+        name === "shortcut_used" &&
+        (params as { action_id?: string }).action_id === "assistant.toggle",
+    );
+    expect(uses).toHaveLength(2);
+    expect(
+      transport.named("feature_first_use").map((event) => event.params?.feature),
+    ).toContain("assistant");
+  });
+
+  it("puts the Assistant button first in the header's document zone: Assistant, Export, Help", async () => {
+    await renderSlice();
+    const end = document.querySelector(".editor-header-end") as HTMLElement;
+    const names = within(end)
+      .getAllByRole("button")
+      .map((button) => button.getAttribute("aria-label") ?? button.textContent?.trim());
+    const order = ["Assistant", "Export", "Keyboard shortcuts"].map((name) =>
+      names.indexOf(name),
+    );
+    expect(order.every((index) => index >= 0)).toBe(true);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    expect(order[1] - order[0]).toBe(1);
+    expect(order[2] - order[1]).toBe(1);
+  });
+
+  it("opens from the header button, and gives the button focus back on close", async () => {
+    await renderSlice();
+    launcher().focus();
+    clickAndFlush(launcher());
+    expect(panel()).toHaveFocus();
+    panelButton("Close").focus();
+    clickAndFlush(panelButton("Close"));
+    expect(panel()).toBeNull();
+    expect(launcher()).toHaveFocus();
+  });
+
+  it("minimises a floating panel on Escape, and closes a docked one", async () => {
+    await renderSlice();
+    launcher().focus();
+    press("k", assistantChord());
+    press("Escape");
+    expect(panel()).toHaveAttribute("data-mode", "minimised");
+
+    clickAndFlush(panelButton("Dock to the right"));
+    panelButton("Float").focus();
+    press("Escape");
+    expect(panel()).toBeNull();
+    expect(launcher()).toHaveFocus();
+    // Out of the panel, Escape is not the panel's.
+    press("k", assistantChord());
+    launcher().focus();
+    press("Escape");
+    expect(panel()).toHaveAttribute("data-mode", "docked");
+  });
+
+  it("steps the size from its focused edge, and the arrows mean nothing else there", async () => {
+    // Two tracks in the instrument view, where ↑/↓ otherwise step the
+    // selected track (#533): on the edge they must leave it where it is.
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createDrumMachineFixtureProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    renderEditor(project.metadata.id);
+    await screen.findByTestId("arrangement-view-ready");
+    await goToView("Instrument");
+    const drumRegion = `Drum machine: ${project.song.tracks[0].name}`;
+    expect(screen.getByRole("region", { name: drumRegion })).toBeInTheDocument();
+
+    press("k", assistantChord());
+    const edge = within(panel() as HTMLElement).getByRole("separator");
+    edge.focus();
+    press("ArrowUp");
+    expect(edge).toHaveAttribute("aria-valuenow", "576");
+    press("ArrowDown", { shiftKey: true });
+    expect(edge).toHaveAttribute("aria-valuenow", "512");
+    press("ArrowDown");
+    expect(edge).toHaveAttribute("aria-valuenow", "496");
+    // The selected track is unchanged: the arrows were the edge's alone.
+    expect(screen.getByRole("region", { name: drumRegion })).toBeInTheDocument();
+
+    clickAndFlush(panelButton("Dock to the right"));
+    const docked = within(panel() as HTMLElement).getByRole("separator");
+    docked.focus();
+    press("ArrowLeft", { shiftKey: true });
+    expect(docked).toHaveAttribute("aria-valuenow", "448");
+    press("ArrowRight");
+    expect(docked).toHaveAttribute("aria-valuenow", "432");
+  });
+
+  it("leaves the docked column free in the editor's layout, and only while docked", async () => {
+    await renderSlice();
+    expect(dockSpace()).toBe("0px");
+    press("k", assistantChord());
+    expect(dockSpace()).toBe("0px");
+    clickAndFlush(panelButton("Dock to the right"));
+    expect(dockSpace()).toBe("384px");
+    clickAndFlush(panelButton("Close"));
+    expect(dockSpace()).toBe("0px");
+  });
+
+  it("drops under a modal dialog and out of reach until it closes", async () => {
+    await renderSlice();
+    press("k", assistantChord());
+    expect(panel()).not.toHaveAttribute("inert");
+
+    clickAndFlush(screen.getByRole("button", { name: "Export" }));
+    await screen.findByRole("dialog", { name: "Export" });
+    const region = document.querySelector(".assistant-panel") as HTMLElement;
+    expect(region).toHaveAttribute("inert");
+    expect(region).toHaveClass("assistant-panel-under-modal");
+    // Cmd/Ctrl+K is the editor's, which the dialog stands down.
+    press("k", assistantChord());
+    expect(region).toHaveAttribute("data-mode", "floating");
+
+    clickAndFlush(screen.getByRole("button", { name: "Close export" }));
+    await vi.waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Export" })).not.toBeInTheDocument(),
+    );
+    expect(panel()).not.toHaveAttribute("inert");
+    expect(panel()).not.toHaveClass("assistant-panel-under-modal");
+  });
+
+  it("lists Cmd/Ctrl+K in the shortcut guide", async () => {
+    await renderSlice();
+    press("?");
+    const guide = await screen.findByRole("dialog", { name: /keyboard/i });
+    expect(within(guide).getByText("Open or close the assistant")).toBeInTheDocument();
   });
 });

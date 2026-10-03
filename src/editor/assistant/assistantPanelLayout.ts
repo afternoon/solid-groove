@@ -46,8 +46,12 @@ export const DOCKED_WIDTH: SizeRange = { min: 300, max: 640, initial: 384 };
 /** The floating panel's width, which is fixed. */
 export const FLOATING_WIDTH = 384;
 
-/** The minimised bar's height. */
+/** The minimised bar's height and width. */
 export const MINIMISED_HEIGHT = 40;
+export const MINIMISED_WIDTH = 340;
+
+/** The gap between the window's right edge and the floating panel or its bar. */
+export const FLOATING_INSET = 16;
 
 /** One arrow press on a focused edge, and one with Shift. */
 export const RESIZE_STEP = 16;
@@ -79,6 +83,25 @@ export function isOpen(layout: AssistantPanelLayout): boolean {
 /** Whether the panel shows its body, so has a resize edge and takes focus. */
 export function isExpanded(layout: AssistantPanelLayout): boolean {
   return layout.mode === "floating" || layout.mode === "docked";
+}
+
+/**
+ * How much of the window's right edge the panel takes, in pixels from that
+ * edge: what fixed chrome in the bottom-right corner (the release badge, the
+ * telemetry disclosure) has to stand clear of so it never sits over the
+ * panel's controls. Zero while it is closed.
+ */
+export function rightClearance(layout: AssistantPanelLayout): number {
+  switch (layout.mode) {
+    case "floating":
+      return FLOATING_WIDTH + FLOATING_INSET;
+    case "minimised":
+      return MINIMISED_WIDTH + FLOATING_INSET;
+    case "docked":
+      return layout.width;
+    case "closed":
+      return 0;
+  }
 }
 
 /** The header button and Cmd/Ctrl+K: open where it was last, or close. */
