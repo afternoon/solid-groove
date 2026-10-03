@@ -4,12 +4,13 @@ name: Restack
 # `.github/scripts/restack.sh` for exactly what each event does; in short:
 #
 #  - a PR merges            -> PRs stacked on it are retargeted to its base and
-#                              merge that base in
-#  - a PR's branch is pushed -> PRs stacked on it merge it in
-#  - a PR's base is changed  -> it merges its new base in
+#                              rebased onto it
+#  - a PR's branch is pushed -> PRs stacked on it are rebased onto it
+#  - a PR's base is changed  -> it is rebased onto its new base
 #
-# It merges, never rebases: an agent may have any of these branches checked out.
-# A conflict is labelled `restack-conflict` and handed to @claude in a comment.
+# It rebases and force-pushes with a lease, because GitHub's native stacks
+# (stack-link.yml) only merge with a linear history. It moves only each PR's
+# own commits. A conflict is labelled `restack-conflict` and handed to @claude.
 #
 # RESTACK_TOKEN: a fine-grained PAT (this repo; Contents, Pull requests and
 # Issues read/write). Optional, but without it this falls back to GITHUB_TOKEN,
@@ -57,13 +58,15 @@ jobs:
         env:
           ACTION: ${{ github.event.action }}
           PR: ${{ github.event.pull_request.number }}
+          BEFORE: ${{ github.event.before }}
+          OLD_BASE: ${{ github.event.changes.base.ref.from }}
         run: |
           case "$ACTION" in
-            closed) mode=merged ;;
-            synchronize) mode=pushed ;;
-            edited) mode=rebased ;;
+            closed) mode=merged; extra="" ;;
+            synchronize) mode=pushed; extra="$BEFORE" ;;
+            edited) mode=rebased; extra="$OLD_BASE" ;;
           esac
           # Run a copy: the script checks out other branches as it goes, and bash
           # reads a script lazily, so it must not change underneath itself.
           cp .github/scripts/restack.sh "$RUNNER_TEMP/restack.sh"
-          bash "$RUNNER_TEMP/restack.sh" "$mode" "$PR"
+          bash "$RUNNER_TEMP/restack.sh" "$mode" "$PR" $extra

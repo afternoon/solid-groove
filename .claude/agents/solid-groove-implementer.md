@@ -63,7 +63,7 @@ tried, instead of shipping a speculative fix.
   `bun run test`, plus `bun run test:browser:chromium` (or the emulator variant)
   when you touched browser behaviour. Push every branch. Do **not** open PRs; the
   next stage does.
-- Do not force-push. Do not commit `package-lock.json`.
+- Never merge one stack branch into another: keep the stack linear (a native GitHub stack only merges that way). Do not force-push a branch that has an open PR. Do not commit `package-lock.json`.
 
 ## Screenshots: required whenever any UI changed
 
