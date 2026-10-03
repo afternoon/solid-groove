@@ -27,6 +27,7 @@ import { loadStoredProjectFixture } from "../testing/fixtures";
 import {
   arrangementChunkPath,
   clipDocumentPath,
+  encodeProject,
   projectDocumentPath,
   type RawProjectDocuments,
   songDocumentPath,
@@ -302,6 +303,7 @@ export function describeProjectRepositoryContract(
       const loaded = await repository.loadProject(project.metadata.id);
       expect(loaded.ok).toBe(true);
       if (!loaded.ok) return;
+      expect(loaded.dropped).toBeUndefined();
       expect(loaded.value.song.placements).toHaveLength(2);
       expect(loaded.value.clips.map((clip) => clip.id).sort()).toEqual(
         next.clips.map((clip) => clip.id).sort(),
@@ -328,6 +330,7 @@ export function describeProjectRepositoryContract(
       const loaded = await repository.loadProject(project.metadata.id);
       expect(loaded.ok).toBe(true);
       if (!loaded.ok) return;
+      expect(loaded.dropped).toBeUndefined();
       expect(loaded.value.clips).toEqual([]);
     });
 
@@ -348,6 +351,25 @@ export function describeProjectRepositoryContract(
       expect(loaded.ok).toBe(true);
       if (!loaded.ok) return;
       expect(stringifyProject(loaded.value)).toBe(stringifyProject(project));
+    });
+
+    it("opens a project whose song places a clip that was never stored (#965)", async () => {
+      // What an interrupted save from an older build left behind: the song
+      // with a duplicate's placement, and no document for the duplicate.
+      const project = withDuplicatedClip(createSliceFixtureProject());
+      const encoded = encodeProject(project);
+      await harness.seedStoredDocuments(
+        [encoded.metadata, encoded.song, encoded.clips[0], ...encoded.arrangement].map(
+          (document) => ({ path: document.path, data: document.data }),
+        ),
+      );
+
+      const loaded = await repository.loadProject(project.metadata.id);
+      expect(loaded.ok).toBe(true);
+      if (!loaded.ok) return;
+      expect(loaded.dropped).toEqual({ placements: 1, clipIds: [] });
+      expect(loaded.value.song.placements).toEqual([project.song.placements[0]]);
+      expect(loaded.value.clips).toEqual([project.clips[0]]);
     });
 
     it("deletes every document of a project", async () => {

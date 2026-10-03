@@ -25,7 +25,9 @@ import {
 import { createSliceFixtureProject } from "../domain/fixtures";
 import { type ClipId, packIdSchema } from "../domain/ids";
 import { TRACK_VOLUME } from "../domain/parameters";
+import type { JsonObject } from "../domain/serialize";
 import { TICKS_PER_SIXTEENTH } from "../domain/time";
+import { clipDocumentPath } from "../persistence/documents";
 import { createInMemoryProjectRepository } from "../persistence/inMemoryProjectRepository";
 import { createManualClock } from "../shared/clock";
 import { memoryStorage } from "../testing/storage";
@@ -317,6 +319,40 @@ describe("EditorSession", () => {
       endTicks: bars(4),
       enabled: false,
     });
+  });
+
+  it("writes back what loading dropped, so the store heals (#965)", async () => {
+    const { repository, project, analytics } = ctx;
+    const orphan = `clp_${"o".repeat(21)}` as ClipId;
+    // A clip document whose track is gone, as an interrupted save left it.
+    repository.writeDocument(clipDocumentPath(project.metadata.id, orphan), {
+      ...(repository.readDocument(
+        clipDocumentPath(project.metadata.id, project.clips[0].id),
+      ) as JsonObject),
+      id: orphan,
+      trackId: `trk_${"o".repeat(21)}`,
+    });
+    const loaded = await repository.loadProject(project.metadata.id);
+    if (!loaded.ok) throw new Error("expected the project to load");
+    expect(loaded.dropped).toEqual({ placements: 0, clipIds: [orphan] });
+
+    const reopened = new EditorSession({
+      repository,
+      project: loaded.value,
+      analytics,
+      deviceStorage: memoryStorage(),
+      dropped: loaded.dropped,
+    });
+    expect(reopened.autosave.status.pending).toBe(1);
+    // A repair is a save, not an edit: there is nothing to undo.
+    expect(reopened.history.snapshot().canUndo).toBe(false);
+    await reopened.autosave.flush();
+    reopened.dispose();
+
+    const healed = await repository.loadProject(project.metadata.id);
+    expect(healed.ok).toBe(true);
+    if (!healed.ok) return;
+    expect(healed.dropped).toBeUndefined();
   });
 
   it("persists the shelf again when a pack is removed from it", async () => {

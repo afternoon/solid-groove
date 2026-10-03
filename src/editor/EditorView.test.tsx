@@ -334,6 +334,48 @@ describe("EditorView", () => {
     expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
   });
 
+  it("opens a project whose song places a clip that was never saved, and says so (#965)", async () => {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createSliceFixtureProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    // What an interrupted save left behind: the song carries a duplicate's
+    // placement, and the duplicate's clip document was never written.
+    const [placement] = project.song.placements;
+    const unsaved = {
+      ...placement,
+      id: `plc_${"u".repeat(21)}`,
+      clipId: `clp_${"u".repeat(21)}`,
+      startTicks: toTicks(placement.durationTicks),
+    } as typeof placement;
+    const stored = documentsModule.encodeSong(
+      project.metadata.id,
+      { ...project.song, placements: [placement, unsaved] },
+      project.metadata.revision,
+      project.metadata.modifiedAt,
+    );
+    repository.writeDocument(stored.song.path, stored.song.data);
+
+    renderEditor(project.metadata.id);
+
+    expect(
+      await screen.findByText(/1 clip in the arrangement never saved and was left out/),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Something went wrong/)).not.toBeInTheDocument();
+
+    // The repaired song is written back, so the next open is clean.
+    await waitFor(
+      async () => {
+        const reloaded = await repository.loadProject(project.metadata.id);
+        expect(reloaded.ok && reloaded.dropped === undefined).toBe(true);
+      },
+      { timeout: 3_000 },
+    );
+
+    clickAndFlush(screen.getByRole("button", { name: "Dismiss" }));
+    expect(screen.queryByText(/never saved/)).not.toBeInTheDocument();
+  });
+
   it("renders the tempo-labelled loop panel for a project with an audio loop (LOOP-006)", async () => {
     repository = inMemoryModule.createInMemoryProjectRepository();
     const project = createDrumMachineFixtureProject();
