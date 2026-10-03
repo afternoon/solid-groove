@@ -284,6 +284,9 @@ export const FEATURE_KEYS = [
   "library_pack_preview",
   // The Bars control the step grid and the piano roll share (#869).
   "clip_length",
+  // Moving a project's pin for a pack to a newer version so a sound from it can
+  // go in (#892), whether automatic or chosen with "Upgrade anyway".
+  "pack_upgrade",
 ] as const;
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
 
@@ -331,6 +334,7 @@ export const COMMAND_IDS = [
   "instrument.setSample",
   "pack.add",
   "pack.remove",
+  "pack.setVersion",
   "asset.add",
   "asset.remove",
   "device.add",
@@ -718,6 +722,22 @@ export const ANALYTICS_EVENTS = {
     params: {
       pack_id: slugParam(RESERVED_PACK_IDS),
       pack_kind: enumParam(PACK_KINDS),
+    },
+  },
+
+  library_pack_upgraded: {
+    phase: 1,
+    owners: ["#892"],
+    // An insert moved the project's pin for a pack to the newer version the
+    // sound came from (#892). `choice` says whether that was the automatic,
+    // safe upgrade (every sound the project used is still in the pack) or the
+    // producer's "Upgrade anyway" over sounds that would go missing, and
+    // `missing_sound_count` how many went missing (0 when automatic; absent
+    // when the newer version's manifest could not be read to count them).
+    // Neither the pack nor any sound is named.
+    params: {
+      choice: enumParam(["automatic", "upgrade_anyway"]),
+      missing_sound_count: optionalCountParam(100),
     },
   },
 

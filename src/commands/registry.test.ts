@@ -49,6 +49,7 @@ const EXPECTED_COMMANDS = [
   "instrument.setSample",
   "pack.add",
   "pack.remove",
+  "pack.setVersion",
   "asset.add",
   "asset.remove",
   "device.add",

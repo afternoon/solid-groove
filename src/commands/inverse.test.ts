@@ -53,6 +53,7 @@ import {
   setKey,
   setLoopEnabled,
   setLoopRange,
+  setPackVersion,
   setPadAsset,
   setPadChoke,
   setPadFlag,
@@ -359,6 +360,14 @@ const cases: InverseCase[] = [
         packId: fixture.shelfOnlyPack.id,
         version: fixture.shelfOnlyPack.version,
       }),
+    signature: shelfSignature,
+  },
+  {
+    type: "pack.setVersion",
+    // A pack the fixture's drum pads resolve from, moved to a later version:
+    // the undo has to put both the assets' version and the shelf entry back.
+    build: (fixture) =>
+      setPackVersion(fixture.packs[0].id, fixture.packs[0].version, packVersion("9.1.0")),
     signature: shelfSignature,
   },
   {
