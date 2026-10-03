@@ -1,0 +1,10 @@
+{
+  "id": "75-nowa",
+  "title": "A browser without Web Audio",
+  "steps": [
+    {
+      "file": "01-opening-a-project-without-web-audio.png",
+      "caption": "Opening a project without Web Audio"
+    }
+  ]
+}

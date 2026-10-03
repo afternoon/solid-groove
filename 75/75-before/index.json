@@ -1,0 +1,10 @@
+{
+  "id": "75-before",
+  "title": "Before: a browser without Web Audio",
+  "steps": [
+    {
+      "file": "01-before-opening-a-project-without-web-aud.png",
+      "caption": "Before: opening a project without Web Audio"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "id": "75-block",
+  "title": "The browser blocks sound",
+  "steps": [
+    {
+      "file": "01-pressing-play-when-the-browser-blocks-so.png",
+      "caption": "Pressing Play when the browser blocks sound"
+    }
+  ]
+}
