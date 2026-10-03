@@ -1,0 +1,10 @@
+{
+  "id": "i890-before",
+  "title": "Genre checkbox keeps focus",
+  "steps": [
+    {
+      "file": "01-space-ticks-house-focus-is-on-body.png",
+      "caption": "Space ticks House: focus is on <body>"
+    }
+  ]
+}
