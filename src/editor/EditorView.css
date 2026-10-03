@@ -426,7 +426,7 @@
   margin-right: var(--assistant-dock-space);
 }
 
-/* A working window over a view (the sequence editor, a jumbo dialog) stops
+/* A working window over a view (a jumbo dialog) stops
    at the docked assistant's edge too, so nothing is under the column. A modal
    dialog (Export, the library) does not: it covers the whole window, the
    column included, because while it is open nothing else may be reached. */
