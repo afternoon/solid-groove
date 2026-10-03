@@ -6,6 +6,7 @@ import {
   type JsonFetcher,
   LibraryClient,
   type LibraryIndexError,
+  sharedLibraryClient,
 } from "./libraryClient";
 import { type LibraryPackSummary, libraryUrl, PACK_INDEX_PATH } from "./manifest";
 
@@ -83,6 +84,12 @@ describe("lazy loading (sample-library section 12)", () => {
     await client.loadPack(packs[0]);
     await client.loadPack(packs[0]);
     expect(fetch.mock.calls.filter(([p]) => p === packs[0].manifestPath)).toHaveLength(1);
+  });
+});
+
+describe("the shared client (UI-002)", () => {
+  it("is one instance, so a later visit reuses what an earlier one loaded", () => {
+    expect(sharedLibraryClient()).toBe(sharedLibraryClient());
   });
 });
 

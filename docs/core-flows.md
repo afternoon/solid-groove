@@ -1053,9 +1053,8 @@ with genres.
 6. Press 3. The editor goes back to the instrument view, and the pad's sample
    slot still names the sound it had before. Nothing in the project changed
    while you listened.
-7. Press the slot again, select a different kick, and press Insert. The library
-   stays where it is and now shows that kick as the sound in the slot. Press 3:
-   the slot names the kick you chose.
+7. Press the slot again, select a different kick, and press Insert. The editor
+   goes back to the instrument view, and the slot names the kick you chose.
 8. Reload the page. The "BD" pad still holds the kick you inserted.
 
 **Outcome:** a producer heard several kicks in place, walked away from them
@@ -1091,8 +1090,8 @@ stack lands.
    when you insert one of its sounds.
 5. Choose the FX family, then the Impact category. Only that pack's impacts are
    listed.
-6. Select an impact and press Insert. The library shows it as the sound in the
-   slot. Press 3: the "BD" pad's slot names that impact.
+6. Select an impact and press Insert. The editor goes back to the instrument
+   view, and the "BD" pad's slot names that impact.
 7. Press 4. The library is still aimed at the "BD" pad, and Transitions & FX is
    now listed with the project's own packs.
 8. Reload the page. The "BD" pad still holds the impact, and Transitions & FX is
@@ -1133,8 +1132,8 @@ whose tags overlap.
 5. Choose the first kick in the trail. Its matches come back.
 6. Go back. The list of kicks you started from returns.
 7. Open similar sounds again from any kick, select one of its matches and
-   press Insert. The library shows it as the sound in the slot. Press 3: the
-   slot names that match.
+   press Insert. The editor goes back to the instrument view, and the slot
+   names that match.
 8. Reload the page. The pad still holds it.
 
 **Outcome:** a producer went from "like this, but…" to a sound they chose,
@@ -1162,7 +1161,8 @@ so leaving it without inserting is pressing 3, not closing a window.
 3. Press 3 to go back to the instrument view without inserting anything.
 4. Go back to the dashboard and create a second project. Press its "BD" pad's
    sample slot and choose Favourites. The kick you marked is listed.
-5. Insert it, then press 3. The slot names that kick.
+5. Insert it. The editor goes back to the instrument view, and the slot names
+   that kick.
 6. Reload the page. Press 4 and choose Favourites. The kick is still there,
    still marked.
 
