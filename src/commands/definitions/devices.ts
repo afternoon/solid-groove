@@ -3,6 +3,7 @@ import { defaultDeviceParameters } from "../../domain/devices";
 import { type Device, deviceSchema, type Project } from "../../domain/entities";
 import { type DeviceId, deviceIdSchema } from "../../domain/ids";
 import { MAX_TRACK_INSERTS } from "../../domain/parse";
+import { CONTROL_PARTS, chainEntity, controlAddress } from "../controlAddress";
 import { byOrder, findTrack, renumber, withSong } from "../projectEdits";
 import {
   applied,
@@ -135,6 +136,7 @@ export const deviceAddCommand = defineCommand<DeviceAddPayload>({
   type: "device.add",
   version: 1,
   schema: deviceAddPayloadSchema,
+  touches: (payload) => [controlAddress(payload.device.id, CONTROL_PARTS.faceplate)],
   summarize: (payload) => `Add ${payload.device.type} device`,
   apply(project, payload) {
     const devices = readChain(project, payload.target);
@@ -165,6 +167,9 @@ export const deviceRemoveCommand = defineCommand<DeviceRemovePayload>({
   type: "device.remove",
   version: 1,
   schema: deviceRemovePayloadSchema,
+  touches: (payload) => [
+    controlAddress(chainEntity(payload.target), CONTROL_PARTS.devices),
+  ],
   summarize: () => "Remove device",
   apply(project, payload) {
     const devices = readChain(project, payload.target);
@@ -189,6 +194,7 @@ export const deviceReorderCommand = defineCommand<DeviceReorderPayload>({
   type: "device.reorder",
   version: 1,
   schema: deviceReorderPayloadSchema,
+  touches: (payload) => [controlAddress(payload.deviceId, CONTROL_PARTS.faceplate)],
   summarize: (payload) => `Move device to position ${payload.toIndex + 1}`,
   apply(project, payload) {
     const devices = readChain(project, payload.target);
@@ -222,6 +228,7 @@ export const deviceDuplicateCommand = defineCommand<DeviceDuplicatePayload>({
   type: "device.duplicate",
   version: 1,
   schema: deviceDuplicatePayloadSchema,
+  touches: (payload) => [controlAddress(payload.newDeviceId, CONTROL_PARTS.faceplate)],
   summarize: () => "Duplicate device",
   apply(project, payload) {
     const devices = readChain(project, payload.target);
@@ -255,6 +262,7 @@ export const deviceSetBypassCommand = defineCommand<DeviceSetBypassPayload>({
   type: "device.setBypass",
   version: 1,
   schema: deviceSetBypassPayloadSchema,
+  touches: (payload) => [controlAddress(payload.deviceId, CONTROL_PARTS.bypassed)],
   summarize: (payload) => (payload.bypassed ? "Bypass device" : "Enable device"),
   apply(project, payload) {
     const devices = readChain(project, payload.target);
@@ -281,6 +289,7 @@ export const deviceResetCommand = defineCommand<DeviceResetPayload>({
   type: "device.reset",
   version: 1,
   schema: deviceResetPayloadSchema,
+  touches: (payload) => [controlAddress(payload.deviceId, CONTROL_PARTS.faceplate)],
   summarize: () => "Reset device",
   apply(project, payload) {
     const devices = readChain(project, payload.target);
@@ -323,6 +332,7 @@ export const deviceResetRestoreCommand = defineCommand<DeviceResetRestorePayload
   type: "device.restoreParameters",
   version: 1,
   schema: deviceResetRestorePayloadSchema,
+  touches: (payload) => [controlAddress(payload.deviceId, CONTROL_PARTS.faceplate)],
   summarize: () => "Restore device parameters",
   apply(project, payload) {
     const devices = readChain(project, payload.target);

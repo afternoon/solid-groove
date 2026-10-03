@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { projectMetadataSchema } from "../../domain/entities";
+import { CONTROL_PARTS, controlAddress, SONG_ENTITY } from "../controlAddress";
 import { quoted } from "../projectEdits";
 import {
   applied,
@@ -27,6 +28,7 @@ export const projectRenameCommand = defineCommand<ProjectRenamePayload>({
   type: "project.rename",
   version: 1,
   schema: projectRenamePayloadSchema,
+  touches: () => [controlAddress(SONG_ENTITY, CONTROL_PARTS.name)],
   summarize: (payload) => `Rename project to ${quoted(payload.name)}`,
   apply: (project, payload) =>
     applied({ ...project, metadata: { ...project.metadata, name: payload.name } }),

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { type Asset, assetSchema, type Project } from "../../domain/entities";
 import { type AssetId, assetIdSchema } from "../../domain/ids";
 import { trackAssetIds } from "../../domain/packs";
+import { CONTROL_PARTS, controlAddress, SONG_ENTITY } from "../controlAddress";
 import {
   applied,
   type CommandInput,
@@ -72,6 +73,7 @@ export const assetAddCommand = defineCommand<AssetAddPayload>({
   type: "asset.add",
   version: 1,
   schema: assetAddPayloadSchema,
+  touches: () => [controlAddress(SONG_ENTITY, CONTROL_PARTS.assets)],
   summarize: (payload) => `Add ${payload.asset.name} to the project`,
   apply(project, payload) {
     const assets = project.song.assets;
@@ -95,6 +97,7 @@ export const assetRemoveCommand = defineCommand<AssetRemovePayload>({
   type: "asset.remove",
   version: 1,
   schema: assetRemovePayloadSchema,
+  touches: () => [controlAddress(SONG_ENTITY, CONTROL_PARTS.assets)],
   summarize: (payload, project) =>
     `Remove ${assetLabel(project.song.assets, payload.assetId)} from the project`,
   apply(project, payload) {

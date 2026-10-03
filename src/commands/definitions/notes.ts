@@ -17,6 +17,7 @@ import {
   parameterValueSchema,
 } from "../../domain/parameters";
 import { durationTickSchema, tickSchema } from "../../domain/time";
+import { CONTROL_PARTS, controlAddress } from "../controlAddress";
 import {
   clipLabel,
   findClip,
@@ -84,6 +85,7 @@ export const noteAddCommand = defineCommand<NoteAddPayload>({
   type: "note.add",
   version: 1,
   schema: noteAddPayloadSchema,
+  touches: (payload) => [controlAddress(payload.clipId, CONTROL_PARTS.notes)],
   summarize: (payload, project) =>
     `Add ${pluralize(payload.notes.length, "note")} to ${clipLabel(project, payload.clipId)}`,
   apply(project, payload) {
@@ -116,6 +118,7 @@ export const noteRemoveCommand = defineCommand<NoteRemovePayload>({
   type: "note.remove",
   version: 1,
   schema: noteRemovePayloadSchema,
+  touches: (payload) => [controlAddress(payload.clipId, CONTROL_PARTS.notes)],
   summarize: (payload, project) =>
     `Delete ${pluralize(payload.eventIds.length, "note")} from ${clipLabel(project, payload.clipId)}`,
   apply(project, payload) {
@@ -156,6 +159,7 @@ export const noteUpdateCommand = defineCommand<NoteUpdatePayload>({
   type: "note.update",
   version: 1,
   schema: noteUpdatePayloadSchema,
+  touches: (payload) => [controlAddress(payload.clipId, CONTROL_PARTS.notes)],
   summarize: (payload, project) =>
     `Edit ${pluralize(payload.updates.length, "note")} in ${clipLabel(project, payload.clipId)}`,
   apply(project, payload) {

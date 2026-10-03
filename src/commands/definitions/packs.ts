@@ -6,6 +6,7 @@ import {
   packVersionSchema,
 } from "../../domain/entities";
 import { type PackId, packIdSchema } from "../../domain/ids";
+import { CONTROL_PARTS, controlAddress, SONG_ENTITY } from "../controlAddress";
 import {
   applied,
   type CommandInput,
@@ -73,6 +74,7 @@ export const packAddCommand = defineCommand<PackAddPayload>({
   type: "pack.add",
   version: 1,
   schema: packAddPayloadSchema,
+  touches: () => [controlAddress(SONG_ENTITY, CONTROL_PARTS.packs)],
   summarize: (payload) => `Add pack ${payload.pack.packId} to project`,
   apply(project, payload) {
     const shelf = project.metadata.addedPacks;
@@ -101,6 +103,7 @@ export const packRemoveCommand = defineCommand<PackRemovePayload>({
   type: "pack.remove",
   version: 1,
   schema: packRemovePayloadSchema,
+  touches: () => [controlAddress(SONG_ENTITY, CONTROL_PARTS.packs)],
   summarize: (payload) => `Remove pack ${payload.pack.packId} from project`,
   apply(project, payload) {
     const shelf = project.metadata.addedPacks;
@@ -137,6 +140,7 @@ export const packSetVersionCommand = defineCommand<PackSetVersionPayload>({
   type: "pack.setVersion",
   version: 1,
   schema: packSetVersionPayloadSchema,
+  touches: () => [controlAddress(SONG_ENTITY, CONTROL_PARTS.packs)],
   summarize: (payload) =>
     `Move pack ${payload.packId} from version ${payload.from} to ${payload.to}`,
   apply(project, payload) {

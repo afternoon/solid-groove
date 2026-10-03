@@ -1,6 +1,7 @@
 import type { ZodType } from "zod";
 import type { Project } from "../domain/entities";
 import type { DomainIssue } from "../domain/parse";
+import type { ControlAddress } from "./controlAddress";
 
 /**
  * The shared command layer's vocabulary (PRD section 9.6).
@@ -121,6 +122,14 @@ export interface CommandDefinition<Payload> {
    * previous values rather than re-deriving them.
    */
   invert(payload: Payload, before: Project, after: Project): readonly RawCommandInput[];
+  /**
+   * The on-screen controls this command changes (`UI-004`), read from its
+   * payload. `project` is the state the command applies to, consulted only to
+   * find the parent a deleted entity was listed in. Never empty: a command
+   * that creates, moves or changes something names it, and one that deletes
+   * names its parent, so a reveal always lands somewhere.
+   */
+  touches(payload: Payload, project: Project): readonly ControlAddress[];
 }
 
 /**
@@ -135,6 +144,7 @@ export interface RegisteredCommand {
   summarize(payload: unknown, project: Project): string;
   apply(project: Project, payload: unknown): CommandApplyResult;
   invert(payload: unknown, before: Project, after: Project): readonly RawCommandInput[];
+  touches(payload: unknown, project: Project): readonly ControlAddress[];
 }
 
 export type PayloadParseResult =
@@ -172,6 +182,9 @@ export function eraseCommand<Payload>(
     },
     invert(payload, before, after) {
       return definition.invert(payload as Payload, before, after);
+    },
+    touches(payload, project) {
+      return definition.touches(payload as Payload, project);
     },
   };
 }
