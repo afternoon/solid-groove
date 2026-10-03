@@ -126,6 +126,27 @@ function issueLabels(number) {
   }
 }
 
+/** Of the status labels an issue carries, the one added most recently. */
+function latestStatus(number, currentLabels) {
+  const present = currentLabels.filter((l) => STATUS.has(l));
+  if (present.length < 2) return present[0];
+  try {
+    const events = JSON.parse(
+      gh([
+        "api",
+        "--paginate",
+        "--slurp",
+        `repos/${REPO}/issues/${number}/events?per_page=100`,
+      ]),
+    ).flat();
+    for (let i = events.length - 1; i >= 0; i--) {
+      const e = events[i];
+      if (e.event === "labeled" && present.includes(e.label?.name)) return e.label.name;
+    }
+  } catch {}
+  return undefined;
+}
+
 /**
  * Issues a PR body closes: "Closes #12", "fixes #3", "Resolves #45". Code
  * spans and blocks are skipped, as GitHub skips them: a body that quotes
@@ -176,14 +197,17 @@ function status() {
         appendFileSync(process.env.GITHUB_OUTPUT, `ship=${issue.number}\n`);
         return;
       }
-      // The event's label list is a snapshot from when it fired; another run
-      // may have changed the labels since. Read them fresh, or a stale
-      // snapshot leaves the issue in two columns.
+      // Runs queue, so this event may be handled after newer label changes.
+      // Read the labels fresh and keep whichever status was added last, or a
+      // late run moves the card back (QA passes, then an old in-progress
+      // event lands and undoes it).
       const fresh = issueLabels(issue.number);
+      const current = fresh ? fresh.labels.map((l) => l.name) : labels;
+      if (!current.includes(event.label.name)) return;
       setStatus(
         issue.number,
-        event.label.name,
-        fresh ? fresh.labels.map((l) => l.name) : labels,
+        latestStatus(issue.number, current) ?? event.label.name,
+        current,
       );
     }
     return;
@@ -264,8 +288,9 @@ function column(issue) {
 
 const SHAPING_LABEL = "needs-shaping";
 
-const line = (i) =>
-  `- #${i.number} ${i.title}${i.labels.includes(SHAPING_LABEL) ? " · **needs shaping**" : ""}${i.prs.length ? ` · PR ${i.prs.map((n) => `#${n}`).join(", ")}` : ""}`;
+// GitHub expands a bare "#123" in a list item into the issue's title and
+// state, so a line is only numbers: the issue, then each PR that closes it.
+const line = (i) => [`- #${i.number}`, ...(i.prs ?? []).map((n) => `  #${n}`)].join("\n");
 
 const BACKLOG_PER_MILESTONE = 10;
 
@@ -317,15 +342,7 @@ function renderBody(issues, done, now) {
       const shaping = cards.filter((c) => c.labels.includes(SHAPING_LABEL));
       const rest = cards.filter((c) => !c.labels.includes(SHAPING_LABEL));
       out.push(`## Needs shaping (${shaping.length})`, "");
-      out.push(
-        ...(shaping.length
-          ? shaping.map(
-              (c) =>
-                `- #${c.number} ${c.title}${c.milestone ? ` · ${c.milestone.title}` : ""}`,
-            )
-          : ["_Empty_"]),
-        "",
-      );
+      out.push(...(shaping.length ? shaping.map(line) : ["_Empty_"]), "");
       out.push(`## ${col.title} (${rest.length})`, "");
       out.push(...(rest.length ? backlogLines(rest) : ["_Empty_", ""]));
       continue;
@@ -336,7 +353,7 @@ function renderBody(issues, done, now) {
   out.push(
     `## Done this week (${done.length})`,
     "",
-    ...(done.length ? done.map((i) => `- #${i.number} ${i.title}`) : ["_Nothing yet_"]),
+    ...(done.length ? done.map(line) : ["_Nothing yet_"]),
     "",
   );
   out.push(
