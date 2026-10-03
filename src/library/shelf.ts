@@ -105,16 +105,23 @@ export interface ShelfEntry<K extends string> {
   readonly count: number;
 }
 
-/** Families that have sounds, in shelf order, with counts. */
+/**
+ * The shelf's family tabs, in shelf order: every family `scope` holds, each
+ * counting what `sounds` has of it. `scope` is what is browsable before the
+ * search and filters (#878), so narrowing changes the counts, down to zero, but
+ * never which tabs there are. Without a scope it is the families with sounds.
+ */
 export function shelfFamilies(
   sounds: readonly LibraryAsset[],
+  scope: readonly LibraryAsset[] = sounds,
 ): ShelfEntry<ShelfFamily>[] {
   const counts = new Map<ShelfFamily, number>();
   for (const sound of sounds) {
     const family = shelfFamilyOf(sound);
     if (family) counts.set(family, (counts.get(family) ?? 0) + 1);
   }
-  return SHELF_FAMILIES.filter((f) => counts.has(f)).map((key) => ({
+  const present = new Set(scope.map(shelfFamilyOf));
+  return SHELF_FAMILIES.filter((f) => present.has(f) || counts.has(f)).map((key) => ({
     key,
     label: familyLabel(key),
     count: counts.get(key) ?? 0,
@@ -140,16 +147,21 @@ export function shelfRoles(
  * Keep the selection valid when scope or filters change: a family with no
  * sounds falls back to the first that has some, and a role with none falls back
  * to "all roles". With nothing in view the selection is returned as it is.
+ *
+ * `keepFamily` holds a family the producer has just chosen even when it has no
+ * sounds (#878): a 0-count tab opens on its empty state rather than bouncing.
  */
 export function settle(
   sounds: readonly LibraryAsset[],
   selection: ShelfSelection,
+  keepFamily = false,
 ): ShelfSelection {
   const families = shelfFamilies(sounds);
   if (families.length === 0) return selection;
-  const family = families.some((f) => f.key === selection.family)
-    ? selection.family
-    : families[0].key;
+  const family =
+    keepFamily || families.some((f) => f.key === selection.family)
+      ? selection.family
+      : families[0].key;
   const role =
     family === selection.family &&
     selection.role !== null &&
