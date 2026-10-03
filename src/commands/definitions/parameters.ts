@@ -14,6 +14,13 @@ import {
   TRACK_SEND_LEVEL,
   TRACK_VOLUME,
 } from "../../domain/parameters";
+import {
+  type ControlAddress,
+  MASTER_ENTITY,
+  parameterControl,
+  SONG_ENTITY,
+  sendControl,
+} from "../controlAddress";
 import { findTrack, replaceTrack, withSong } from "../projectEdits";
 import {
   applied,
@@ -87,6 +94,31 @@ export const parameterSetPayloadSchema = z.strictObject({
   value: z.number(),
 });
 export type ParameterSetPayload = z.infer<typeof parameterSetPayloadSchema>;
+
+/**
+ * The control a parameter target is shown on (`UI-004`): the entity that owns
+ * the value plus its bare parameter key. A song or master parameter belongs to
+ * the song or the master bus; an instrument parameter to its track; a device
+ * parameter to the device, whichever chain it sits in.
+ */
+export function parameterTargetControl(target: ParameterTarget): ControlAddress {
+  switch (target.scope) {
+    case "song":
+      return parameterControl(SONG_ENTITY, target.parameterId);
+    case "master":
+      return parameterControl(MASTER_ENTITY, target.parameterId);
+    case "track":
+    case "instrument":
+      return parameterControl(target.trackId, target.parameterId);
+    case "send":
+      return sendControl(target.trackId, target.returnId);
+    case "return":
+      return parameterControl(target.returnId, target.parameterId);
+    case "trackDevice":
+    case "masterDevice":
+      return parameterControl(target.deviceId, target.parameterId);
+  }
+}
 
 /**
  * Resolves one parameter on a device in any insert chain.
@@ -356,6 +388,7 @@ export const parameterSetCommand = defineCommand<ParameterSetPayload>({
   type: "parameter.set",
   version: 1,
   schema: parameterSetPayloadSchema,
+  touches: (payload) => [parameterTargetControl(payload.target)],
   summarize(payload, project) {
     const resolution = resolveParameter(project, payload.target);
     if (isUnresolved(resolution)) {

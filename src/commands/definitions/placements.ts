@@ -8,6 +8,7 @@ import {
   trimHead,
 } from "../../domain/placementOverlap";
 import { toTicks } from "../../domain/time";
+import { arrangementControl, CONTROL_PARTS, controlAddress } from "../controlAddress";
 import { clipLabel, findPlacement, replacePlacement, withSong } from "../projectEdits";
 import {
   applied,
@@ -62,6 +63,7 @@ export const placementCreateCommand = defineCommand<PlacementCreatePayload>({
   type: "placement.create",
   version: 1,
   schema: placementCreatePayloadSchema,
+  touches: (payload) => [controlAddress(payload.placement.id, CONTROL_PARTS.placement)],
   summarize: (payload, project) =>
     `Place ${clipLabel(project, payload.placement.clipId)} at tick ${payload.placement.startTicks}`,
   apply(project, payload) {
@@ -82,6 +84,12 @@ export const placementDeleteCommand = defineCommand<PlacementDeletePayload>({
   type: "placement.delete",
   version: 1,
   schema: placementDeletePayloadSchema,
+  touches: (payload, project) => [
+    arrangementControl(
+      project.song.placements.find((placement) => placement.id === payload.placementId)
+        ?.trackId,
+    ),
+  ],
   summarize(payload, project) {
     const placement = findPlacement(project, payload.placementId);
     return placement
@@ -112,6 +120,7 @@ export const placementUpdateCommand = defineCommand<PlacementUpdatePayload>({
   type: "placement.update",
   version: 1,
   schema: placementUpdatePayloadSchema,
+  touches: (payload) => [controlAddress(payload.placementId, CONTROL_PARTS.placement)],
   summarize(payload, project) {
     const placement = findPlacement(project, payload.placementId);
     const label = placement ? clipLabel(project, placement.clipId) : "a placement";

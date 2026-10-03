@@ -11,6 +11,7 @@ import {
 import { isChromatic, isPitchInKey, nearestPitchInKey } from "../../domain/musicalKey";
 import { clampParameterValue, NOTE_VELOCITY } from "../../domain/parameters";
 import { isTicks, type Ticks, toTicks } from "../../domain/time";
+import { CONTROL_PARTS, controlAddress } from "../controlAddress";
 import {
   clipLabel,
   findClip,
@@ -186,6 +187,7 @@ export const notesTransposeCommand = defineCommand<NotesTransposePayload>({
   type: "notes.transpose",
   version: 1,
   schema: notesTransposePayloadSchema,
+  touches: (payload) => [controlAddress(payload.clipId, CONTROL_PARTS.notes)],
   summarize: (payload, project) =>
     `Transpose ${clipLabel(project, payload.clipId)} by ${signed(payload.semitones)} semitones`,
   apply(project, payload) {
@@ -243,6 +245,7 @@ export const notesQuantizeToScaleCommand = defineCommand<NotesQuantizeToScalePay
   type: "notes.quantizeToScale",
   version: 1,
   schema: notesQuantizeToScalePayloadSchema,
+  touches: (payload) => [controlAddress(payload.clipId, CONTROL_PARTS.notes)],
   summarize: (payload, project) =>
     `Quantize ${clipLabel(project, payload.clipId)} to the key`,
   apply(project, payload) {
@@ -277,6 +280,7 @@ export const notesScaleVelocityCommand = defineCommand<NotesScaleVelocityPayload
   type: "notes.scaleVelocity",
   version: 1,
   schema: notesScaleVelocityPayloadSchema,
+  touches: (payload) => [controlAddress(payload.clipId, CONTROL_PARTS.notes)],
   summarize: (payload, project) =>
     `Scale velocity in ${clipLabel(project, payload.clipId)} by ${round(payload.factor)}x`,
   apply(project, payload) {
@@ -305,6 +309,7 @@ export const notesQuantizeCommand = defineCommand<NotesQuantizePayload>({
   type: "notes.quantize",
   version: 1,
   schema: notesQuantizePayloadSchema,
+  touches: (payload) => [controlAddress(payload.clipId, CONTROL_PARTS.notes)],
   summarize: (payload, project) =>
     `Quantize ${clipLabel(project, payload.clipId)} to ${payload.gridTicks} ticks`,
   apply(project, payload) {
@@ -355,6 +360,7 @@ export const notesDuplicateCommand = defineCommand<NotesDuplicatePayload>({
   type: "notes.duplicate",
   version: 1,
   schema: notesDuplicatePayloadSchema,
+  touches: (payload) => [controlAddress(payload.clipId, CONTROL_PARTS.notes)],
   summarize: (payload, project) =>
     `Duplicate ${pluralize(payload.newIds.length, "note")} in ${clipLabel(project, payload.clipId)}`,
   apply(project, payload) {
@@ -440,6 +446,7 @@ export const notesClearCommand = defineCommand<NotesClearPayload>({
   type: "notes.clear",
   version: 1,
   schema: notesClearPayloadSchema,
+  touches: (payload) => [controlAddress(payload.clipId, CONTROL_PARTS.notes)],
   summarize: (payload, project) =>
     `Clear notes from ${clipLabel(project, payload.clipId)}`,
   apply(project, payload) {
@@ -460,6 +467,7 @@ export const notesVaryCommand = defineCommand<NotesVaryPayload>({
   type: "notes.vary",
   version: 1,
   schema: notesVaryPayloadSchema,
+  touches: (payload) => [controlAddress(payload.clipId, CONTROL_PARTS.notes)],
   summarize: (payload, project) =>
     `Vary ${clipLabel(project, payload.clipId)} (seed ${payload.seed})`,
   apply(project, payload) {

@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import { type MusicalKey, musicalKeySchema } from "../../domain/musicalKey";
+import { CONTROL_PARTS, controlAddress, SONG_ENTITY } from "../controlAddress";
 import { withSong } from "../projectEdits";
 import {
   applied,
@@ -38,6 +39,7 @@ export const keySetCommand = defineCommand<KeySetPayload>({
   type: "key.set",
   version: 1,
   schema: keySetPayloadSchema,
+  touches: () => [controlAddress(SONG_ENTITY, CONTROL_PARTS.key)],
   summarize: (payload) => `Set the key to ${describeKey(payload)}`,
   apply(project, payload) {
     return applied(

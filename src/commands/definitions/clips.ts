@@ -6,6 +6,12 @@ import {
   placementSchema,
 } from "../../domain/entities";
 import { type ClipId, clipIdSchema } from "../../domain/ids";
+import {
+  arrangementControl,
+  CONTROL_PARTS,
+  type ControlAddress,
+  controlAddress,
+} from "../controlAddress";
 import { clipLabel, findClip, replaceClip, withClips, withSong } from "../projectEdits";
 import {
   applied,
@@ -54,10 +60,23 @@ export const clipUpdatePayloadSchema = z.strictObject({
 });
 export type ClipUpdatePayload = z.infer<typeof clipUpdatePayloadSchema>;
 
+/** One address per field a `clip.update` changes: its name, colour or length. */
+function clipChangeControls(clipId: string, changes: ClipChanges): ControlAddress[] {
+  const controls: ControlAddress[] = [];
+  if (changes.name !== undefined)
+    controls.push(controlAddress(clipId, CONTROL_PARTS.name));
+  if (changes.color !== undefined)
+    controls.push(controlAddress(clipId, CONTROL_PARTS.color));
+  if (changes.lengthTicks !== undefined)
+    controls.push(controlAddress(clipId, CONTROL_PARTS.length));
+  return controls;
+}
+
 export const clipCreateCommand = defineCommand<ClipCreatePayload>({
   type: "clip.create",
   version: 1,
   schema: clipCreatePayloadSchema,
+  touches: (payload) => [controlAddress(payload.clip.id, CONTROL_PARTS.notes)],
   summarize: (payload) =>
     payload.placements.length > 0
       ? `Restore clip "${payload.clip.name}"`
@@ -89,6 +108,9 @@ export const clipDeleteCommand = defineCommand<ClipDeletePayload>({
   type: "clip.delete",
   version: 1,
   schema: clipDeletePayloadSchema,
+  touches: (payload, project) => [
+    arrangementControl(project.clips.find((clip) => clip.id === payload.clipId)?.trackId),
+  ],
   summarize: (payload, project) => `Delete clip ${clipLabel(project, payload.clipId)}`,
   apply(project, payload) {
     const clip = findClip(project, payload.clipId);
@@ -126,6 +148,7 @@ export const clipUpdateCommand = defineCommand<ClipUpdatePayload>({
   type: "clip.update",
   version: 1,
   schema: clipUpdatePayloadSchema,
+  touches: (payload) => clipChangeControls(payload.clipId, payload.changes),
   summarize(payload, project) {
     const label = clipLabel(project, payload.clipId);
     if (payload.changes.name !== undefined) {
