@@ -1,0 +1,18 @@
+{
+  "id": "ret",
+  "title": "Return buses and sends",
+  "steps": [
+    {
+      "file": "01-the-mixer-with-add-return-before-the-mas.png",
+      "caption": "The mixer, with Add return before the master"
+    },
+    {
+      "file": "02-a-return-strip-and-a-track-sending-to-it.png",
+      "caption": "A return strip, and a track sending to it"
+    },
+    {
+      "file": "03-the-instrument-view-s-return-mode-the-re.png",
+      "caption": "The instrument view's return mode: the return's own chain"
+    }
+  ]
+}
