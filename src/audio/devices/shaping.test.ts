@@ -151,6 +151,35 @@ describe("overdrive and saturator (FX-01, FX-02)", () => {
     expect(hfEnergy(dark)).toBeLessThan(hfEnergy(bright));
   });
 
+  // #925: Overdrive at Drive 0 is its cleanest setting, so a quiet sine leaves
+  // at its own level, and a sine past full scale is rounded by the knee rather
+  // than flattened by the curve table's edge.
+  describe("at drive 0 (#925)", () => {
+    const clean = device("overdrive", { drive: 0, tone: 1, wet: 1, output: 0 });
+    const sine = (dbfs: number) => ({ wave: "sine", level: 10 ** (dbfs / 20) }) as const;
+    const peak = (data: Float32Array) =>
+      data.reduce((m, s) => Math.max(m, Math.abs(s)), 0);
+
+    it("passes a -30 dBFS sine near unity", async () => {
+      const data = settled(await render(buildOverdrive, clean, sine(-30)));
+      expect(20 * Math.log10(peak(data))).toBeCloseTo(-30, 0);
+    });
+
+    it("rounds a +3 dBFS sine instead of holding it flat at the table's end", async () => {
+      const data = settled(await render(buildOverdrive, clean, sine(3)));
+      const top = data.reduce((m, s) => Math.max(m, s), 0);
+      const bottom = data.reduce((m, s) => Math.min(m, s), 0);
+      // A table that ends at full scale holds every sample over it at the end
+      // value: a quarter of each cycle sits flat at the positive peak. A knee
+      // only touches its peak for an instant.
+      const flat = (edge: number) => data.filter((s) => Math.abs(s - edge) < 1e-4).length;
+      expect(flat(top) / data.length).toBeLessThan(0.02);
+      expect(flat(bottom) / data.length).toBeLessThan(0.02);
+      // Still saturated: the knee, not the input, sets the peak.
+      expect(peak(data)).toBeLessThan(1);
+    });
+  });
+
   it("keeps the saturator's output bounded at its most extreme drive", async () => {
     const data = settled(
       await render(buildSaturator, device("saturator", { drive: 48, character: 1 })),
