@@ -22,7 +22,7 @@ import "./AssistantPanel.css";
 export interface AssistantPanelProps {
   readonly panel: AssistantPanelState;
   /**
-   * Whether a modal dialog (Export, the library, the shortcut guide) is open.
+   * Whether a modal dialog (Export, the shortcut guide) is open.
    * The panel then sits under it and cannot be reached, by pointer or by
    * keyboard, until it closes. The sequence editor is not modal, and the
    * panel floats over it.

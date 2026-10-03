@@ -1153,7 +1153,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                    */}
                   <AssistantPanel
                     panel={assistant}
-                    underModal={() => guideOpen() || exportOpen() || libraryOpen()}
+                    underModal={() => guideOpen() || exportOpen()}
                   />
                   <Show when={guideOpen()}>
                     <ShortcutGuide

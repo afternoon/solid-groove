@@ -2,7 +2,7 @@
    lifted panel ground, a hairline edge and a deep shadow while it floats over
    the view. Above the views and the working window over them (the sequence
    editor, z-index 80), below the shortcut guide (100). While a modal dialog is
-   open (Export, the library) it drops under the dialog layer and is inert, so
+   open (Export, the shortcut guide) it drops under the dialog layer and is inert, so
    the dialog is on top and nothing in the panel can be reached. */
 
 .assistant-panel {
