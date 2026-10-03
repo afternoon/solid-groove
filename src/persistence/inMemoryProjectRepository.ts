@@ -23,6 +23,7 @@ import {
   type DerivedMetadataFields,
   type LoadResult,
   loadFailure,
+  type ProjectChangeSet,
   type ProjectMetadataPatch,
   type ProjectRepository,
   type ProjectWatchEvent,
@@ -180,7 +181,7 @@ export class InMemoryProjectRepository implements ProjectRepository {
     patch: ProjectMetadataPatch,
     baseRevision: number,
   ): Promise<SaveResult> {
-    return this.withRevisionCheck(projectId, baseRevision, () => null, patch);
+    return this.saveChanges(projectId, { metadata: patch }, baseRevision);
   }
 
   async saveSong(
@@ -188,32 +189,7 @@ export class InMemoryProjectRepository implements ProjectRepository {
     song: Song,
     baseRevision: number,
   ): Promise<SaveResult> {
-    return this.withRevisionCheck(
-      projectId,
-      baseRevision,
-      (_metadata, next) => {
-        const encoded = encodeSong(projectId, song, next.revision, next.modifiedAt);
-        const oversized = findOversizedDocuments(encoded);
-        if (oversized.length > 0) {
-          return tooLarge(oversized);
-        }
-        const keep = new Set(encoded.arrangement.map((chunk) => chunk.path));
-        for (const path of this.collectionPaths(arrangementCollectionPath(projectId))) {
-          if (!keep.has(path)) {
-            this.delete(path);
-          }
-        }
-        this.set(encoded.song);
-        for (const chunk of encoded.arrangement) {
-          this.set(chunk);
-        }
-        return null;
-      },
-      {},
-      // The song's assets are what the metadata tier's dependency list is
-      // derived from, so the two are written in the same revision-checked step.
-      { packDependencies: derivePackDependencies(song) },
-    );
+    return this.saveChanges(projectId, { song }, baseRevision);
   }
 
   async saveClip(
@@ -221,21 +197,7 @@ export class InMemoryProjectRepository implements ProjectRepository {
     clip: Clip,
     baseRevision: number,
   ): Promise<SaveResult> {
-    return this.withRevisionCheck(projectId, baseRevision, (_metadata, next) => {
-      const document = encodeClip(projectId, clip, next.revision, next.modifiedAt);
-      const bytes = estimateDocumentBytes(document.path, document.data);
-      if (bytes > CLIP_DOCUMENT_BUDGET_BYTES) {
-        return tooLarge([
-          {
-            path: document.path,
-            bytes,
-            budgetBytes: CLIP_DOCUMENT_BUDGET_BYTES,
-          },
-        ]);
-      }
-      this.set(document);
-      return null;
-    });
+    return this.saveChanges(projectId, { clips: [clip] }, baseRevision);
   }
 
   async deleteClip(
@@ -243,10 +205,49 @@ export class InMemoryProjectRepository implements ProjectRepository {
     clipId: ClipId,
     baseRevision: number,
   ): Promise<SaveResult> {
-    return this.withRevisionCheck(projectId, baseRevision, () => {
-      this.delete(clipDocumentPath(projectId, clipId));
-      return null;
-    });
+    return this.saveChanges(projectId, { deletedClipIds: [clipId] }, baseRevision);
+  }
+
+  /**
+   * Every document in the set is encoded and budget-checked before any is
+   * written, so a refused set leaves the store exactly as it was.
+   */
+  async saveChanges(
+    projectId: ProjectId,
+    changes: ProjectChangeSet,
+    baseRevision: number,
+  ): Promise<SaveResult> {
+    return this.withRevisionCheck(
+      projectId,
+      baseRevision,
+      (_metadata, next) => {
+        const encoded = encodeChangeSet(projectId, changes, next);
+        if (!encoded.ok) {
+          return encoded.failure;
+        }
+        for (const clip of encoded.clips) {
+          this.set(clip);
+        }
+        if (encoded.song) {
+          const keep = new Set(encoded.song.arrangement.map((chunk) => chunk.path));
+          for (const path of this.collectionPaths(arrangementCollectionPath(projectId))) {
+            if (!keep.has(path)) {
+              this.delete(path);
+            }
+          }
+          this.set(encoded.song.song);
+          for (const chunk of encoded.song.arrangement) {
+            this.set(chunk);
+          }
+        }
+        for (const clipId of changes.deletedClipIds ?? []) {
+          this.delete(clipDocumentPath(projectId, clipId));
+        }
+        return null;
+      },
+      changes.metadata,
+      changeSetDerivedFields(changes),
+    );
   }
 
   async deleteProject(projectId: ProjectId): Promise<void> {
@@ -427,6 +428,56 @@ export function toMetadataResult(
     `Stored metadata for ${projectId} could not be read as current-schema metadata`,
     decoded.issues,
   );
+}
+
+/**
+ * The derived metadata a change set rewrites: the song's assets are what the
+ * pack dependency list is derived from, so a set carrying a song rewrites it
+ * in the same revision-checked step.
+ */
+export function changeSetDerivedFields(changes: ProjectChangeSet): DerivedMetadataFields {
+  return changes.song ? { packDependencies: derivePackDependencies(changes.song) } : {};
+}
+
+export type EncodedChangeSet =
+  | {
+      readonly ok: true;
+      readonly song: ReturnType<typeof encodeSong> | null;
+      readonly clips: readonly StoredDocument[];
+    }
+  | { readonly ok: false; readonly failure: SaveResult };
+
+/**
+ * Encodes a change set's song and clip documents at the revision being written
+ * and checks every one against its budget, so both stores refuse an oversized
+ * set before writing any of it.
+ */
+export function encodeChangeSet(
+  projectId: ProjectId,
+  changes: ProjectChangeSet,
+  next: { readonly revision: number; readonly modifiedAt: number },
+): EncodedChangeSet {
+  const song = changes.song
+    ? encodeSong(projectId, changes.song, next.revision, next.modifiedAt)
+    : null;
+  const clips = (changes.clips ?? []).map((clip) =>
+    encodeClip(projectId, clip, next.revision, next.modifiedAt),
+  );
+  const oversized = song ? findOversizedDocuments(song) : [];
+  for (const document of clips) {
+    const bytes = estimateDocumentBytes(document.path, document.data);
+    if (bytes > CLIP_DOCUMENT_BUDGET_BYTES) {
+      oversized.push({
+        path: document.path,
+        bytes,
+        budgetBytes: CLIP_DOCUMENT_BUDGET_BYTES,
+      });
+    }
+  }
+  if (oversized.length > 0) {
+    return { ok: false, failure: tooLarge(oversized) };
+  }
+  return { ok: true, song, clips };
 }
 
 /**

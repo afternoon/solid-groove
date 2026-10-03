@@ -108,6 +108,19 @@ export interface DerivedMetadataFields {
   readonly packDependencies?: readonly PackDependency[];
 }
 
+/**
+ * Every tier change one autosave drain writes. `saveChanges` commits the whole
+ * set as **one** revision-checked write, so the store can never hold a song
+ * whose placements point at clip documents that were not written, or a clip
+ * whose track the stored song has already removed (#965).
+ */
+export interface ProjectChangeSet {
+  readonly metadata?: ProjectMetadataPatch;
+  readonly song?: Song;
+  readonly clips?: readonly Clip[];
+  readonly deletedClipIds?: readonly ClipId[];
+}
+
 export type ProjectWatchEvent =
   | { readonly kind: "metadata"; readonly metadata: ProjectMetadata }
   | { readonly kind: "removed" }
@@ -147,6 +160,18 @@ export interface ProjectRepository {
   deleteClip(
     projectId: ProjectId,
     clipId: ClipId,
+    baseRevision: number,
+  ): Promise<SaveResult>;
+
+  /**
+   * Writes several tiers atomically, as one revision: either every document in
+   * the change set lands, or none does. Each tier is still written only if it
+   * is in the set, so a note edit remains one clip document. The single-tier
+   * writes above are this with one field set.
+   */
+  saveChanges(
+    projectId: ProjectId,
+    changes: ProjectChangeSet,
     baseRevision: number,
   ): Promise<SaveResult>;
 
