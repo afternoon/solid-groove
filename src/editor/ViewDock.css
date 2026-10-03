@@ -1,6 +1,8 @@
-/* The floating dock (UI-001). It hovers over the content rather than taking a
-   band out of the layout, and being `position: fixed`, nothing beneath it can
-   reserve space: each view pads itself by `--view-dock-clearance` instead. */
+/* The floating dock (UI-001, UI-002), Variant A large: five 63px square tiles
+   in a black ring, centred 32px off the bottom. It hovers over the content
+   rather than taking a band out of the layout, and being `position: fixed`,
+   nothing beneath it can reserve space: each view pads itself by
+   `--view-dock-clearance` instead. */
 
 .view-dock {
   position: fixed;
@@ -10,33 +12,42 @@
   z-index: 60;
 }
 
+/* The black ring: 4px of background around the tiles and 2px black gaps
+   between them, so the dock separates from whatever is under it. No grey
+   outline: the ring is the edge. */
 .view-dock-list {
   display: flex;
-  gap: 4px;
+  gap: 2px;
   margin: 0;
-  padding: 0;
+  padding: 4px;
   list-style: none;
-  background: var(--color-background-secondary);
+  background: var(--color-background);
   box-shadow: 0 10px 32px var(--shade-medium);
 }
 
-/* The body size, in the words' own case. Shouting three short nouns in
-   capitals bought emphasis the dock does not need — it is the only floating
-   thing on the page — and cost legibility at a glance, which is the one job a
-   tab bar has. Square and flush like every other panel: the current view's
-   fill runs to the dock's edge, so the highlight reads as part of the control
-   rather than a box drawn on top of it. */
+.view-dock-item {
+  position: relative;
+}
+
 .view-dock-link {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  min-width: 104px;
-  padding: 10px;
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 63px;
+  height: 63px;
+  box-sizing: border-box;
+  background: var(--color-background-tertiary);
   color: var(--color-foreground);
-  font-size: var(--font-size-base);
-  letter-spacing: 0.01em;
   text-decoration: none;
+}
+
+.view-dock-key {
+  position: absolute;
+  top: 5px;
+  left: 7px;
+  font-size: 12px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
 }
 
 .view-dock-icon {
@@ -44,9 +55,16 @@
   line-height: 0;
 }
 
+/* Hover is the raised step. */
 .view-dock-link:hover {
-  background: var(--color-accent-wash);
+  background: var(--color-background-hover);
   color: var(--color-text);
+}
+
+/* A view the selection does not fit (Sequence with no clip): dimmed, but its
+   key and its tile still go there. */
+.view-dock-dimmed {
+  color: var(--color-foreground-muted);
 }
 
 /* State is brightness, not hue: the current view is the brightest thing here. */
@@ -55,7 +73,39 @@
   color: var(--color-on-accent);
 }
 
+/* The focus ring stands 2px off its tile, past the 2px black gap, so it lies
+   over the next tile's edge: the focused tile is lifted over its neighbours,
+   or the next tile paints over that side of its ring. */
+.view-dock-item:focus-within {
+  z-index: 1;
+}
+
 .view-dock-link:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
+}
+
+/* Something set: the Library's target. A small square, like every mark here. */
+.view-dock-dot {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 6px;
+  height: 6px;
+  background: currentColor;
+}
+
+/* The hover tip: the view's key and name, and what it will open. */
+.view-dock-tip {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 10px;
+  white-space: nowrap;
+  font-size: var(--font-size-small);
+  background: var(--color-background);
+  color: var(--color-text);
+  box-shadow: 0 4px 16px var(--shade-medium);
+  pointer-events: none;
 }

@@ -156,7 +156,8 @@ export const INSTRUMENT_TYPES = ["synth", "sampler", "drum_machine"] as const;
 export type InstrumentTypeKey = (typeof INSTRUMENT_TYPES)[number];
 
 /**
- * The editor's three views (`UI-001`), as `view_changed`'s `view`.
+ * The editor's views (`UI-001`), as `view_changed`'s `view`, in the order of
+ * their keys.
  *
  * A view is a low-cardinality *place in the editor*, not a surface: `SURFACES`
  * stays `landing / dashboard / editor`, because every one of these is the
@@ -164,17 +165,35 @@ export type InstrumentTypeKey = (typeof INSTRUMENT_TYPES)[number];
  * segment, dock order — over this list, so the analytics vocabulary and the
  * addresses cannot drift apart.
  */
-export const EDITOR_VIEWS = ["arrangement", "instrument", "mixer"] as const;
+export const EDITOR_VIEWS = [
+  "arrangement",
+  "sequence",
+  "instrument",
+  "library",
+  "mixer",
+] as const;
 export type EditorViewName = (typeof EDITOR_VIEWS)[number];
 
 /**
- * How a view was reached. Three entrypoints exist and they must stay
- * equivalent, so the one that was used is the interesting half of the event:
- * `dock` is the floating tab bar, `keyboard` is `1`/`2`/`3`, and `url` is
- * everything the address bar does on its own — the back button, a deep link
- * followed within the session, a restored session.
+ * How a view was reached. The entrypoints must stay equivalent, so the one
+ * that was used is the interesting half of the event: `dock` is the floating
+ * tab bar, `keyboard` is `1`-`5`, and `url` is everything the address bar does
+ * on its own — the back button, a deep link followed within the session, a
+ * restored session. `arrangement` is opening a clip from the timeline (a
+ * double-click, or `Enter` on a selected clip), `slot` is pressing a sample
+ * slot, which aims the Library at it, `empty_screen` is the fix button on
+ * a view that had nothing to show, and `library_insert` is the Library's
+ * Insert button, which inserts and goes back (`UI-002`).
  */
-export const VIEW_CHANGE_SOURCES = ["dock", "keyboard", "url"] as const;
+export const VIEW_CHANGE_SOURCES = [
+  "dock",
+  "keyboard",
+  "url",
+  "arrangement",
+  "slot",
+  "empty_screen",
+  "library_insert",
+] as const;
 export type ViewChangeSource = (typeof VIEW_CHANGE_SOURCES)[number];
 
 /**
@@ -384,8 +403,11 @@ export const SHORTCUT_ACTION_IDS = [
   "view.zoom_in",
   "view.zoom_out",
   "view.show_arrangement",
+  "view.show_sequence",
   "view.show_instrument",
+  "view.show_library",
   "view.show_mixer",
+  "arrangement.open_clip",
   "view.close_surface",
   "help.shortcut_guide",
   "device.move_earlier",
@@ -412,18 +434,10 @@ export const SHORTCUT_ACTION_IDS = [
   "library.select_next",
   "library.audition",
   "library.insert",
+  "library.insert_and_return",
   "library.like",
   "library.similar",
   "library.shuffle",
-  "library.pick_1",
-  "library.pick_2",
-  "library.pick_3",
-  "library.pick_4",
-  "library.pick_5",
-  "library.pick_6",
-  "library.pick_7",
-  "library.pick_8",
-  "library.pick_9",
   "library.pick_all",
   "library.category_previous",
   "library.category_next",
@@ -760,7 +774,7 @@ export const ANALYTICS_EVENTS = {
 
   view_changed: {
     phase: 1,
-    owners: ["UI-001"],
+    owners: ["UI-001", "UI-002"],
     // Which view, and how it was reached. The editor is one job at a time
     // (UI-001), so how often a producer switches — and whether the dock or the
     // keyboard is what they reach for — is the measure that says whether the

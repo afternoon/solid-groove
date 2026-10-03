@@ -12,7 +12,7 @@ async function goToView(page: Page, name: "Arrangement" | "Mixer"): Promise<void
     .click();
   await expect(
     page.getByRole("navigation", { name: "Views" }).locator("[aria-current='page']"),
-  ).toHaveText(name);
+  ).toHaveAccessibleName(name);
 }
 
 // `LOOP-007`: the mixer's continuous controls are the shared fill slider

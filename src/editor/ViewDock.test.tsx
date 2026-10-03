@@ -1,7 +1,7 @@
-import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import { createSignal, flush } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { EditorViewName } from "./editorViews";
+import { EDITOR_VIEWS, type EditorViewName } from "./editorViews";
 import ViewDock from "./ViewDock";
 
 afterEach(cleanup);
@@ -17,7 +17,7 @@ function renderDock(
         `/projects/prj_abc${target === "arrangement" ? "" : `/${target}`}`
       }
       onSelect={onSelect}
-      keyHint={(target) => ({ arrangement: "1", instrument: "2", mixer: "3" })[target]}
+      keyHint={(target) => String(EDITOR_VIEWS.indexOf(target) + 1)}
     />
   ));
 }
@@ -51,12 +51,12 @@ describe("ViewDock", () => {
     ));
     const current = () => dock().querySelectorAll("[aria-current='page']");
     expect(current()).toHaveLength(1);
-    expect(current()[0]).toHaveTextContent("Arrangement");
+    expect(current()[0]).toHaveAccessibleName("Arrangement");
 
     setView("mixer");
     flush();
     expect(current()).toHaveLength(1);
-    expect(current()[0]).toHaveTextContent("Mixer");
+    expect(current()[0]).toHaveAccessibleName("Mixer");
   });
 
   it("reports a plain click instead of letting the browser follow the link", () => {
@@ -91,24 +91,79 @@ describe("ViewDock", () => {
     expect(event.defaultPrevented).toBe(false);
   });
 
-  it("puts the key in the tooltip and hides the icon, leaving the label as the name", () => {
+  it("draws five tiles in key order, each its icon and key, named for its view", () => {
     renderDock("arrangement");
-    expect(screen.getByRole("link", { name: "Instrument" })).toHaveAttribute(
-      "title",
-      "Instrument (2)",
-    );
-    for (const icon of dock().querySelectorAll(".view-dock-icon")) {
-      expect(icon).toHaveAttribute("aria-hidden", "true");
+    const tiles = within(dock()).getAllByRole("link");
+    expect(tiles.map((tile) => tile.getAttribute("aria-label"))).toEqual([
+      "Arrangement",
+      "Sequence",
+      "Instrument",
+      "Library",
+      "Mixer",
+    ]);
+    for (const [index, tile] of tiles.entries()) {
+      expect(tile).toHaveTextContent(String(index + 1));
+      expect(tile).toHaveAttribute("aria-keyshortcuts", String(index + 1));
+      expect(tile.querySelector(".view-dock-icon")).toHaveAttribute(
+        "aria-hidden",
+        "true",
+      );
+      expect(tile).not.toHaveAttribute("title");
     }
+  });
+
+  it("names the view, its key and what it will open in a hover tip", () => {
+    render(() => (
+      <ViewDock
+        view="arrangement"
+        href={(target) => `#${target}`}
+        onSelect={() => {}}
+        keyHint={(target) => String(EDITOR_VIEWS.indexOf(target) + 1)}
+        opens={(target) => (target === "sequence" ? "Bass loop" : undefined)}
+      />
+    ));
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    const sequence = screen.getByRole("link", { name: "Sequence" });
+    fireEvent.pointerEnter(sequence);
+    flush();
+    expect(screen.getByRole("tooltip")).toHaveTextContent("2 Sequence · Bass loop");
+    expect(sequence).toHaveAccessibleDescription("2 Sequence · Bass loop");
+    fireEvent.pointerLeave(sequence);
+    fireEvent.focus(screen.getByRole("link", { name: "Mixer" }));
+    flush();
+    expect(screen.getAllByRole("tooltip")).toHaveLength(1);
+    expect(screen.getByRole("tooltip")).toHaveTextContent(/^5 Mixer$/);
+  });
+
+  it("dims a view the selection does not fit, and dots one with something set", () => {
+    render(() => (
+      <ViewDock
+        view="arrangement"
+        href={(target) => `#${target}`}
+        onSelect={() => {}}
+        keyHint={() => "1"}
+        dimmed={(target) => target === "sequence"}
+        marked={(target) => target === "library"}
+      />
+    ));
+    const sequence = screen.getByRole("link", { name: "Sequence" });
+    expect(sequence).toHaveClass("view-dock-dimmed");
+    expect(sequence).toHaveAttribute("href", "#sequence");
+    expect(
+      screen.getByRole("link", { name: "Library" }).querySelector(".view-dock-dot"),
+    ).not.toBeNull();
+    expect(
+      screen.getByRole("link", { name: "Mixer" }).querySelector(".view-dock-dot"),
+    ).toBeNull();
   });
 
   it("is keyboard operable, because every entry is a real link", () => {
     const onSelect = vi.fn();
     renderDock("arrangement", onSelect);
-    // Three focusable links, and Enter on one dispatches a click — which the
+    // One focusable link per view, and Enter on one dispatches a click — which the
     // dock treats as a pointer activation rather than handling keys itself.
     const links = dock().querySelectorAll("a[href]:not([tabindex='-1'])");
-    expect(links).toHaveLength(3);
+    expect(links).toHaveLength(EDITOR_VIEWS.length);
     fireEvent.click(screen.getByRole("link", { name: "Instrument" }));
     expect(onSelect).toHaveBeenCalledWith("instrument");
   });

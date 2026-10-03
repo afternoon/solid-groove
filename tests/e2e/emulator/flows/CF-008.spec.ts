@@ -87,7 +87,8 @@ async function expectFillsPage(page: Page, region: Locator): Promise<void> {
 }
 
 test.describe("CF-008", () => {
-  test.fixme(
+  // biome-ignore format: unparked by removing only test.fixme, so the frozen body keeps its lines
+  test(
     "a producer moves between the five views by dock and by keyboard",
     async ({ page }) => {
       const step = walkthrough(page, {

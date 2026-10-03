@@ -164,7 +164,7 @@ async function openStarterClip(page: Page): Promise<Locator> {
       y: await firstRowCentreY(ready),
     },
   });
-  const editor = page.getByRole("dialog", { name: "Sequence editor" });
+  const editor = page.getByRole("region", { name: "Sequence editor" });
   await expect(editor).toBeVisible();
   return editor;
 }
@@ -188,17 +188,16 @@ test.describe("new project", () => {
     await editor.getByRole("button", { name: "BD, step 2, off" }).click();
     await expect(editor.getByRole("button", { name: "BD, step 2, on" })).toBeVisible();
 
-    // Undo reverts it through the same shared history the toggle used. From
-    // the keyboard, because the editor is a modal over the header the button
-    // lives in — and because `edit.undo` reaching through it is exactly what
-    // the `sequence_editor` context is for (UI-001).
+    // Undo reverts it through the same shared history the toggle used, from
+    // the keyboard, which the `sequence_editor` context keeps live (UI-001).
     await page.keyboard.press("ControlOrMeta+z");
     await expect(editor.getByRole("button", { name: "BD, step 2, off" })).toBeVisible();
   });
 
-  // #538: a jumbo dialog sits `--dialog-jumbo-gap` (100px) from every browser
-  // edge on a normal desktop window. Only a real layout can say so.
-  test("leaves a 100px gap around the sequence editor", async ({ page }) => {
+  // UI-002: the sequence view is the whole body under the header, running to
+  // the bottom of the window as the arrangement does. Only a real layout can
+  // say so.
+  test("fills the page with the sequence view", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/dashboard");
     await page.getByRole("button", { name: "New Project" }).click();
@@ -206,25 +205,32 @@ test.describe("new project", () => {
 
     const box = await editor.boundingBox();
     expect(box).not.toBeNull();
-    const { x, y, width, height } = box as NonNullable<typeof box>;
-    expect([x, y, 1440 - (x + width), 900 - (y + height)]).toEqual([100, 100, 100, 100]);
+    const { x, width, height } = box as NonNullable<typeof box>;
+    expect(width).toBeGreaterThan(1440 - 2 * 8);
+    expect(x).toBeLessThan(8);
+    expect(height).toBeGreaterThan(900 * 0.8);
   });
 
   // The dialog shell: the scrim stays clear under the pointer (app.css's global
-  // `button:hover` fill used to win), and the contents start where the title does.
+  // `button:hover` fill used to win). The sequence view's contents start where
+  // its title does.
   test("keeps the scrim clear on hover and aligns content with the title", async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto("/dashboard");
     await page.getByRole("button", { name: "New Project" }).click();
-    const editor = await openStarterClip(page);
+    await page.getByTestId("arrangement-view-ready").waitFor();
+    await page.getByRole("button", { name: "Export", exact: true }).click();
+    await expect(page.getByRole("dialog", { name: "Export" })).toBeVisible();
 
     await page.mouse.move(20, 450);
     await expect(page.locator(".dialog-scrim")).toHaveCSS(
       "background-color",
       "rgba(0, 0, 0, 0)",
     );
+    await page.keyboard.press("Escape");
+    const editor = await openStarterClip(page);
 
     const title = await editor.locator(".sequence-editor-title").boundingBox();
     const body = await editor.locator(".sequence-editor-body").boundingBox();

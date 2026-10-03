@@ -17,8 +17,9 @@ const DOCUMENTS = `http://${firestoreEmulatorHost}/v1/projects/demo-solid-groove
 const CURRENT = "1.1.0";
 const OLDER = "1.0.0";
 
+// The Library view (#817), as the core flows name it.
 const library = (page: Page): Locator =>
-  page.getByRole("dialog", { name: "Library", exact: true });
+  page.getByRole("region", { name: "Library", exact: true });
 
 /** A Firestore REST value, as far as rewriting pack versions needs. */
 type FirestoreValue = {
@@ -84,7 +85,9 @@ test("inserting a 1.1.0 sound into a project pinned to 1.0.0 lands, and survives
   const drums = page.getByRole("region", { name: "Drum machine: BD" });
   await drums.getByRole("button", { name: "Audition BD", exact: true }).click();
   const slot = drums.getByRole("button", { name: "Sample for BD", exact: true });
-  const was = (await slot.textContent())?.trim();
+  // The slot's name alone: the slot also carries the Library's key (#817).
+  const slotName = slot.locator(".sample-slot-name");
+  const was = (await slotName.textContent())?.trim();
   await slot.click();
   await expect(library(page)).toBeVisible();
 
@@ -109,8 +112,9 @@ test("inserting a 1.1.0 sound into a project pinned to 1.0.0 lands, and survives
     .getByRole("button", { name: `Insert ${chosen}` })
     .click();
 
+  // Insert goes back to the instrument, where the slot shows the new sound.
   await expect(library(page)).toBeHidden();
-  await expect(slot).toHaveText(chosen);
+  await expect(slotName).toHaveText(chosen);
 
   // Saved at the new pin: a reload from the emulator still plays it.
   await expect(page.locator(".save-status")).toHaveText("Saved", { timeout: 15_000 });
@@ -118,6 +122,7 @@ test("inserting a 1.1.0 sound into a project pinned to 1.0.0 lands, and survives
   await expect(
     page
       .getByRole("region", { name: "Drum machine: BD" })
-      .getByRole("button", { name: "Sample for BD", exact: true }),
+      .getByRole("button", { name: "Sample for BD", exact: true })
+      .locator(".sample-slot-name"),
   ).toHaveText(chosen);
 });

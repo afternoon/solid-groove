@@ -1,5 +1,5 @@
-import { expect, type Locator, test } from "@playwright/test";
-import { openBdSlot, soundList } from "./support/libraryModal";
+import { expect, type Locator, type Page, test } from "@playwright/test";
+import { newProjectOnInstrumentView, openPadSlot, soundList } from "./support/library";
 
 // #812: the pointer is still over a sound row right after it is clicked to
 // select it. The global `button:hover` fill then landed on the row's main
@@ -14,6 +14,12 @@ const resolved = (locator: Locator, property: "backgroundColor" | "color") =>
   locator.evaluate((element, key) => getComputedStyle(element)[key], property);
 
 const TRANSPARENT = "rgba(0, 0, 0, 0)";
+
+/** A new project, its "BD" pad's sample slot pressed: the Library view (#817). */
+async function openBdSlot(page: Page): Promise<void> {
+  await newProjectOnInstrumentView(page);
+  await openPadSlot(page, "BD");
+}
 
 test.describe("library sound rows", () => {
   test("the selected row stays one white band under the pointer", async ({ page }) => {

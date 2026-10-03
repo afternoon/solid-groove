@@ -1,0 +1,61 @@
+/* The shared empty screen (UI-002): centred in the view it stands in for,
+   quiet, with the fix as the one control on it. */
+.empty-view {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  min-height: 0;
+  padding: 32px var(--size-divider);
+  background-color: var(--color-background-secondary);
+  text-align: center;
+}
+
+.empty-view-icon {
+  color: var(--color-foreground-muted);
+}
+
+.empty-view-title {
+  margin: 0;
+  font-size: var(--font-size-base);
+  color: var(--color-text);
+}
+
+.empty-view-body {
+  max-width: 44ch;
+  margin: 0;
+  font-size: var(--font-size-small);
+  color: var(--color-text-secondary);
+}
+
+.empty-view-fixes {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.empty-view-fix {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 32px;
+  padding: 0 12px;
+  border: none;
+  background-color: var(--color-background-tertiary);
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.empty-view-fix:hover,
+.empty-view-fix:focus-visible {
+  background-color: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.empty-view-key {
+  min-width: 1.5em;
+  font-family: inherit;
+  font-size: var(--font-size-small);
+}

@@ -197,49 +197,6 @@ export function sampleName(project: Project | null, track: Track | null): string
   return project?.song.assets.find((asset) => asset.id === current.assetId)?.name ?? null;
 }
 
-/** What the library was opened for, named for its header (`LIB-010`). */
-export interface LibrarySlotHeader {
-  /** The small label over the slot: the track, and for a pad its position. */
-  readonly eyebrow: string;
-  /** The slot itself, large: a pad's own name ("BD"), else what it holds. */
-  readonly slot: string;
-  readonly current: string | null;
-  /** What the slot is, so the library opens on its family. */
-  readonly kind: "drum-pad" | "sampler" | "loop-track";
-  /** A drum pad's sound, as a storage ref: the library reads its role off it. */
-  readonly currentRef?: string | null;
-}
-
-export function librarySlotHeader(
-  project: Project | null,
-  track: Track | null,
-  pad: { readonly padId: string } | null,
-  loops: boolean,
-): LibrarySlotHeader {
-  if (loops)
-    return { eyebrow: "Library", slot: "Loops", current: null, kind: "loop-track" };
-  const instrument = editedInstrument(track);
-  if (pad && instrument?.kind === "drumMachine") {
-    const index = instrument.pads.findIndex((entry) => entry.id === pad.padId);
-    const found = instrument.pads[index];
-    const asset = project?.song.assets.find((entry) => entry.id === found?.assetId);
-    return {
-      // The instrument and the pad's place in it; the pad's own name is the title.
-      eyebrow: `Drums · Pad ${index + 1}`,
-      slot: found?.name ?? "Pad",
-      current: asset?.name ?? null,
-      kind: "drum-pad",
-      currentRef: asset?.storageRef ?? null,
-    };
-  }
-  return {
-    eyebrow: track?.name ?? "Sampler",
-    slot: "Sample",
-    current: sampleName(project, track),
-    kind: "sampler",
-  };
-}
-
 /**
  * A synth or sampler track's note clip gets the CLP-03 piano roll instead of
  * the FND-009 step grid: both are tonal instruments (#496), and pitched notes

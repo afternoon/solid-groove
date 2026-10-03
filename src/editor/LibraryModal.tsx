@@ -1,10 +1,9 @@
 import { For, type JSX, Show } from "@solidjs/web";
 import { createMemo, createSignal, onSettled } from "solid-js";
 import type { Analytics } from "../analytics/analytics";
-import Dialog from "../components/Dialog";
 import { loadEveryAsset } from "../library/allAssets";
 import type { PreviewEngine } from "../library/audition";
-import { LibraryClient } from "../library/libraryClient";
+import { type LibraryClient, sharedLibraryClient } from "../library/libraryClient";
 import type {
   LibraryAsset,
   LibraryAssetType,
@@ -23,6 +22,7 @@ import LibraryHint, { type LibraryPlace } from "./LibraryHint";
 import LibraryKeys from "./LibraryKeys";
 import { ClearIcon, DiceIcon, GridIcon, SearchIcon } from "./libraryIcons";
 import type { LibraryInsertOptions, LibraryInsertOutcome } from "./libraryInsert";
+import ViewFrame from "./ViewFrame";
 import "./LibraryModal.css";
 
 /** What the rail can show. Only `all` is built; the rest are placeholders for later parts. */
@@ -57,11 +57,10 @@ const RECENT: RailItem = { id: "recent", label: "Recently viewed" };
  */
 export interface LibraryActions {
   showView(view: LibraryView): void;
-  insertSelected(): boolean;
+  /** Inserts the selected sound; resolves true when the insert committed. */
+  insertSelected(): Promise<boolean>;
   /** Runs a `library.*` key on the visible view, which knows what it means. */
   press(action: ShortcutActionId): void;
-  /** `1`-`9`: open that pack over the grid of packs, else pick that category. */
-  pick(n: number): void;
   /** Open similar sounds for the selected sound; false when none is selected. */
   similar(): boolean;
   /**
@@ -71,7 +70,7 @@ export interface LibraryActions {
   back(): boolean;
   /** `?`: open or close the sheet of the library's own keys. */
   toggleKeys(): void;
-  /** Close that sheet; false when it was not open, so Escape closes the window. */
+  /** Close that sheet; false when it was not open, so Escape leaves the view. */
   closeKeys(): boolean;
 }
 
@@ -98,8 +97,9 @@ export interface LibraryModalProps {
   /** Restrict to these asset types — the Loop button opens it on loops. */
   readonly assetTypes?: readonly LibraryAssetType[];
   readonly heading?: string;
-  /** The small label over the slot's name: its track, and a pad's position. */
-  readonly eyebrow?: string;
+  /** What inserting fills, as a path: "BD › Drum machine › BD" (`UI-002`). */
+  readonly path?: string;
+  /** The slot's own name, for the footer's hint: a pad's name. */
   readonly slot?: string;
   readonly trackColor?: string;
   /** What the library opens for, so the shelf can open on the slot's family. */
@@ -113,8 +113,12 @@ export interface LibraryModalProps {
   /** Key badge text for a registry action, from the registry, never hard-coded. */
   keyLabel?(action: ShortcutActionId): string;
   onActions?(actions: LibraryActions | null): void;
-  onClose(): void;
+  /** After the Insert button's insert commits: go back, as Enter does. */
+  onInsertAndReturn?(): void;
 }
+
+/** How long a committed insert stays marked on the slot's readout. */
+const INSERTED_MARK_MS = 1600;
 
 /** A boxed key badge. `hidden` when its control already names its key. */
 function Key(props: { label?: string; hidden?: boolean }): JSX.Element {
@@ -225,12 +229,12 @@ function InsertNoticeView(props: {
 }
 
 /**
- * The library window (`UI-001`, `LIB-010`): a header naming the slot with
- * **Was** and **Hearing** readouts, a rail of places to look, and a footer with
+ * The library window (`UI-001`, `LIB-010`): a header naming what it inserts
+ * into (`UI-002`) with **In the slot** and **Hearing** readouts, a rail of places to look, and a footer with
  * one large Insert button. Hearing a sound selects it and inserting is a second
  * step, so browsing never edits the project. Views other than All sounds are
- * placeholders until they land. `EditorView` hands it the `dialog` and
- * `library` shortcut contexts.
+ * placeholders until they land. It is the view on `4` (`UI-002`), not a
+ * window: `EditorView` hands it the `library` shortcut context.
  */
 export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   const [view, setView] = createSignal<LibraryView>("all");
@@ -252,8 +256,8 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   // The pack whose sounds the sounds view is scoped to (`null`: no scope). The
   // sounds view reads this; Browse packs and In this project set it.
   const [packScope, setPackScope] = createSignal<string | null>(null);
-  let openNthPack: ((n: number) => void) | null = null;
-  const client = props.client ?? new LibraryClient();
+  // Shared, so a second visit opens on what the first loaded.
+  const client = props.client ?? sharedLibraryClient();
   // Similar sounds swaps in over whichever place opened it.
   const [similarOf, setSimilarOf] = createSignal<LibraryAsset | null>(null);
   // What the sounds list in view is called, so similar sounds' way back names it.
@@ -300,11 +304,6 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
     return true;
   }
 
-  /** A digit opens a pack over the grid, and picks a category over sounds. */
-  function pick(n: number): void {
-    if (showsPacks()) openNthPack?.(n);
-    else if (showsSounds()) soundsKeys?.(`library.pick_${n}` as SoundsKeyAction);
-  }
   const keyOf = (action?: ShortcutActionId) =>
     action ? props.keyLabel?.(action) : undefined;
 
@@ -329,9 +328,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
     ) {
       active.blur();
     }
-    const digit = /^library\.pick_(\d)$/.exec(action)?.[1];
-    if (digit) pick(Number(digit));
-    else if (showsSounds()) soundsKeys?.(action as SoundsKeyAction);
+    if (showsSounds()) soundsKeys?.(action as SoundsKeyAction);
   }
 
   function toggleKeys(): void {
@@ -349,16 +346,25 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
     focusSearch();
   }
 
-  function insertSelected(): boolean {
+  // The sound an insert just put in the slot, marked on its readout for a
+  // moment: an insert can stay here, so this is what shows it worked (UI-002).
+  const [inserted, setInserted] = createSignal<string | null>(null);
+  let insertedTimer: ReturnType<typeof setTimeout> | undefined;
+
+  async function insertSelected(): Promise<boolean> {
     const asset = selected();
     if (!asset) return false;
-    void insert(asset, false);
-    return true;
+    return insert(asset, false);
   }
 
-  /** Runs one insert and keeps what came back for the footer to show. */
-  async function insert(asset: LibraryAsset, upgradeAnyway: boolean): Promise<void> {
-    if (inserting()) return;
+  /**
+   * Runs one insert: a committed one marks the slot's readout, and anything
+   * else is kept for the footer to show (#892). True when it committed.
+   */
+  async function insert(asset: LibraryAsset, upgradeAnyway: boolean): Promise<boolean> {
+    if (inserting()) return false;
+    clearTimeout(insertedTimer);
+    setInserted(null);
     setNotice(null);
     setInserting(true);
     let outcome: LibraryInsertOutcome | undefined;
@@ -367,9 +373,24 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
     } finally {
       setInserting(false);
     }
+    if (!outcome || outcome.ok) {
+      setInserted(asset.name);
+      insertedTimer = setTimeout(() => setInserted(null), INSERTED_MARK_MS);
+      return true;
+    }
     // A selection made while it ran is what the footer is about now.
-    if (!outcome || outcome.ok || selected() !== asset) return;
-    setNotice(noticeFor(asset, outcome));
+    if (selected() === asset) setNotice(noticeFor(asset, outcome));
+    return false;
+  }
+
+  /** The Insert button: insert, and go back once it has committed, as Enter does. */
+  async function insertAndReturn(): Promise<void> {
+    if (await insertSelected()) props.onInsertAndReturn?.();
+  }
+
+  /** "Upgrade anyway" is the Insert it was asked from, so it goes back too. */
+  async function upgradeAndReturn(asset: LibraryAsset): Promise<void> {
+    if (await insert(asset, true)) props.onInsertAndReturn?.();
   }
 
   /** "Cancel" on the upgrade question: nothing changes, and the footer says so. */
@@ -390,15 +411,15 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
       showView,
       insertSelected,
       press,
-      pick,
       similar,
       back,
       toggleKeys,
       closeKeys,
     });
     return () => {
+      clearTimeout(insertedTimer);
       props.onActions?.(null);
-      // Escape, close and Insert all end here: the slot plays its own sound.
+      // Leaving the view ends here: the slot plays its own sound again.
       props.slotAudition?.clear();
     };
   });
@@ -426,27 +447,32 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   }
 
   return (
-    <Dialog
+    <ViewFrame
       label="Library"
-      size="modal"
-      flush
-      onClose={() => props.onClose()}
+      class="library-view"
       header={
         <div class="library-modal-head">
           <span
             class="library-modal-bar"
             style={{ background: props.trackColor ?? "var(--color-accent)" }}
           />
-          <div class={["library-modal-slot", MASK_CONTENT]}>
-            <Show when={props.eyebrow}>
-              <span class="library-modal-label">{props.eyebrow}</span>
-            </Show>
-            <b>{props.slot ?? props.heading ?? "Library"}</b>
-          </div>
-          <fieldset class="library-modal-readout">
-            <legend class="library-modal-label">Was</legend>
+          {/* A track's and a pad's names are the user's (ADR 0002). */}
+          <h2 class={["library-modal-slot", MASK_CONTENT]}>
+            <span class="library-modal-label">Inserting into </span>
+            <b>{props.path ?? props.heading ?? "Library"}</b>
+          </h2>
+          <fieldset
+            class={[
+              "library-modal-readout",
+              { "library-modal-readout-inserted": inserted() !== null },
+            ]}
+          >
+            <legend class="library-modal-label">In the slot</legend>
             <b>{props.current ?? "Empty"}</b>
           </fieldset>
+          <output class="library-modal-inserted">
+            {inserted() ? `Inserted ${inserted()}` : ""}
+          </output>
           <fieldset class="library-modal-readout">
             <legend class="library-modal-label">Hearing</legend>
             <b>{selected()?.name ?? "Nothing yet"}</b>
@@ -491,7 +517,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
             {(shown) => (
               <InsertNoticeView
                 notice={shown()}
-                onUpgrade={() => void insert(shown().asset, true)}
+                onUpgrade={() => void upgradeAndReturn(shown().asset)}
                 onCancel={cancelUpgrade}
               />
             )}
@@ -519,10 +545,10 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
             class="library-modal-insert"
             disabled={selected() === null || inserting()}
             aria-keyshortcuts="Enter"
-            onClick={() => insertSelected()}
+            onClick={() => void insertAndReturn()}
           >
             <span>{selected() ? `Insert ${selected()?.name}` : "Insert"}</span>
-            <Key label={keyOf("library.insert")} hidden />
+            <Key label={keyOf("library.insert_and_return")} hidden />
           </button>
         </>
       }
@@ -589,9 +615,6 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
               projectPackIds={props.addedPackIds}
               keyLabel={props.keyLabel}
               onOpenPack={setPackScope}
-              onRegisterOpenNth={(open) => {
-                openNthPack = open;
-              }}
             />
           </Show>
           {/* Stays mounted while another place shows, so leaving and coming back
@@ -630,6 +653,6 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
           </Show>
         </div>
       </div>
-    </Dialog>
+    </ViewFrame>
   );
 }

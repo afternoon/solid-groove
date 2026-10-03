@@ -32,7 +32,6 @@ export interface PacksViewProps {
   keyLabel?(action: ShortcutActionId): string | undefined;
   onOpenPack(slug: string): void;
   /** Hands the host a way to open the nth visible pack, for the digit keys. */
-  onRegisterOpenNth?(openNth: ((n: number) => void) | null): void;
 }
 
 /**
@@ -58,22 +57,11 @@ export default function PacksView(props: PacksViewProps): JSX.Element {
 
   onSettled(() => {
     analytics.logFeatureFirstUse("pack_browser");
-    props.onRegisterOpenNth?.((n) => {
-      const entry = visible()[n - 1];
-      if (entry) props.onOpenPack(entry.pack.slug);
-    });
     const cancel = watchPackCatalog(props.client, setEntries);
     return () => {
       cancel();
-      props.onRegisterOpenNth?.(null);
     };
   });
-
-  /** The badge for the nth cover: only the first nine have a key. */
-  const pickKey = (index: number) =>
-    index < 9
-      ? props.keyLabel?.(`library.pick_${index + 1}` as ShortcutActionId)
-      : undefined;
 
   function stopHearing(): void {
     clearTimeout(timer);
@@ -141,7 +129,7 @@ export default function PacksView(props: PacksViewProps): JSX.Element {
       >
         <ul class="packs-grid">
           <For each={visible()}>
-            {(entry, index) => (
+            {(entry) => (
               <li class="pack-card">
                 <button
                   type="button"
@@ -153,9 +141,6 @@ export default function PacksView(props: PacksViewProps): JSX.Element {
                     <Show when={isProject(entry.pack.id)}>
                       {/* Spaced so the cover reads as words, not "CEIn project1". */}
                       <span class="pack-tag">{" In project "}</span>
-                    </Show>
-                    <Show when={pickKey(index())}>
-                      {(label) => <kbd class="pack-key">{label()}</kbd>}
                     </Show>
                   </PackCover>
                   <b class="pack-name">{entry.pack.name}</b>

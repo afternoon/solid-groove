@@ -14,6 +14,8 @@ export interface PadNameProps {
   dispatch(
     commands: RawCommandInput | readonly RawCommandInput[],
   ): TransactionResult | undefined;
+  /** Whether this is the selected pad: its audition button reads pressed. */
+  readonly selected?: boolean;
   /** Plays the pad; the small button beside the name. */
   onAudition(): void;
   /** A name was committed through the command layer. */
@@ -123,6 +125,7 @@ export default function PadName(props: PadNameProps): JSX.Element {
           props.onAudition();
         }}
         aria-label={`Audition ${props.pad.name}`}
+        aria-pressed={props.selected ? "true" : "false"}
         title={`Audition ${props.pad.name}`}
       >
         <HiSolidPlay size={12} />

@@ -5,7 +5,7 @@ import {
 } from "../analytics/catalog";
 
 /**
- * The editor's three views, and the addresses they live at (`UI-001`).
+ * The editor's views, and the addresses they live at (`UI-001`, `UI-002`).
  *
  * The editor does one job at a time, and which one you are on is **the URL**,
  * not a signal — so a deep link opens that view, the back button moves between
@@ -42,10 +42,22 @@ export const EDITOR_VIEW_SPECS: readonly EditorViewSpec[] = [
     actionId: "view.show_arrangement",
   },
   {
+    view: "sequence",
+    label: "Sequence",
+    segment: "sequence",
+    actionId: "view.show_sequence",
+  },
+  {
     view: "instrument",
     label: "Instrument",
     segment: "instrument",
     actionId: "view.show_instrument",
+  },
+  {
+    view: "library",
+    label: "Library",
+    segment: "library",
+    actionId: "view.show_library",
   },
   { view: "mixer", label: "Mixer", segment: "mixer", actionId: "view.show_mixer" },
 ];
@@ -86,7 +98,7 @@ export function editorViewFromPath(pathname: string): EditorViewName {
 /**
  * The non-empty path segments, for the route table's `matchFilters`.
  *
- * The three views are **one** route (`/projects/:id/:view?`), not three: the
+ * The views are **one** route (`/projects/:id/:view?`), not three: the
  * router unmounts a route's component when it leaves it, and remounting the
  * editor on every switch would reload the project and rebuild the audio graph —
  * the one thing switching views must never do. A filter is what keeps that

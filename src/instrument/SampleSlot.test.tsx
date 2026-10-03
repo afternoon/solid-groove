@@ -2,6 +2,7 @@ import { cleanup, render, screen } from "@solidjs/testing-library";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { clickAndFlush } from "../testing/events";
 import SampleSlot from "./SampleSlot";
+import { SampleSlotTargetingContext } from "./sampleSlotTargeting";
 
 afterEach(cleanup);
 
@@ -24,7 +25,7 @@ describe("SampleSlot (#447)", () => {
     );
   });
 
-  it("carries the library's sound icon, and says what an empty slot holds", () => {
+  it("carries the Library's icon, and says what an empty slot holds", () => {
     render(() => (
       <SampleSlot
         label="Loop for Break"
@@ -35,7 +36,38 @@ describe("SampleSlot (#447)", () => {
     ));
     const slot = screen.getByRole("button", { name: "Loop for Break" });
     expect(slot).toHaveTextContent("No loop loaded");
-    expect(slot).toHaveAttribute("aria-haspopup", "dialog");
+    // It goes to a view now, not a window (UI-002).
+    expect(slot).not.toHaveAttribute("aria-haspopup");
     expect(slot.querySelector(".sample-slot-icon svg")).not.toBeNull();
+  });
+
+  it("shows the Library's key, and marks the slot the Library is aimed at", () => {
+    const targeting = {
+      keyLabel: "4",
+      isTarget: (slot: { kind: string; padId?: string }) => slot.padId === "pad_a",
+    };
+    render(() => (
+      <SampleSlotTargetingContext value={targeting}>
+        <SampleSlot
+          label="Sample for A"
+          name="Kick"
+          slot={{ kind: "pad", padId: "pad_a" }}
+          onBrowse={() => {}}
+        />
+        <SampleSlot
+          label="Sample for B"
+          name="Snare"
+          slot={{ kind: "pad", padId: "pad_b" }}
+          onBrowse={() => {}}
+        />
+      </SampleSlotTargetingContext>
+    ));
+    const a = screen.getByRole("button", { name: "Sample for A" });
+    expect(a).toHaveAttribute("aria-current", "true");
+    expect(a).toHaveTextContent("4");
+    expect(a.querySelector(".sample-slot-name")).toHaveTextContent(/^Kick$/);
+    expect(screen.getByRole("button", { name: "Sample for B" })).not.toHaveAttribute(
+      "aria-current",
+    );
   });
 });

@@ -107,6 +107,32 @@ describe("SoundsView pack scope (LIB-010)", () => {
   });
 });
 
+describe("SoundsView loading (UI-002)", () => {
+  it("shows the loader while the library is still loading", async () => {
+    renderView({ client: new LibraryClient(() => new Promise(() => undefined)) });
+    expect(await screen.findByText("Loading library")).toBeInTheDocument();
+  });
+
+  it("opens straight on the list when the library has already loaded", async () => {
+    const client = new LibraryClient(fixtureFetcher());
+    renderView({ client });
+    await rows();
+    cleanup();
+
+    // A second visit with the same client: the loader never mounts.
+    const shown = vi.fn();
+    const observer = new MutationObserver(() => {
+      if (document.body.textContent?.includes("Loading library")) shown();
+    });
+    observer.observe(document.body, { subtree: true, childList: true });
+    renderView({ client });
+    await rows();
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    observer.disconnect();
+    expect(shown).not.toHaveBeenCalled();
+  });
+});
+
 describe("SoundsView", () => {
   it("lists every pack's sounds as compact rows", async () => {
     renderView();
@@ -307,20 +333,22 @@ describe("SoundsView shelf", () => {
     expect(names().length).toBeLessThanOrEqual(bass.length);
   });
 
-  it("badges the first nine categories and All with their registry keys", async () => {
+  it("badges All with its registry key, and no category with a digit (UI-002)", async () => {
     renderView();
     await rows();
 
     const [all, first] = [...chips()];
     expect(all.querySelector("kbd")?.textContent).toBe("<library.pick_all>");
-    expect(first.querySelector("kbd")?.textContent).toBe("<library.pick_1>");
+    expect(first.querySelector("kbd")).toBeNull();
   });
 
   it("picks categories and families from the keys", async () => {
     const { press } = renderView({ slot: { kind: "loop-track" } });
     await rows();
 
-    press("library.pick_2");
+    press("library.category_next");
+    await waitFor(() => expect(chips()[1]).toHaveAttribute("aria-pressed", "true"));
+    press("library.category_next");
     await waitFor(() => expect(chips()[2]).toHaveAttribute("aria-pressed", "true"));
     press("library.category_next");
     await waitFor(() => expect(chips()[3]).toHaveAttribute("aria-pressed", "true"));
@@ -328,8 +356,7 @@ describe("SoundsView shelf", () => {
     await waitFor(() => expect(chips()[2]).toHaveAttribute("aria-pressed", "true"));
     press("library.pick_all");
     await waitFor(() => expect(chips()[0]).toHaveAttribute("aria-pressed", "true"));
-    // A digit past the last category does nothing.
-    press("library.pick_9");
+    // Previous from All holds.
     press("library.category_previous");
     expect(chips()[0]).toHaveAttribute("aria-pressed", "true");
 
