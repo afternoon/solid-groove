@@ -1,6 +1,8 @@
 import * as Tone from "tone";
 import type { AudioHost, AudioProjectScope } from "../audio/AudioRuntime";
 import { playAudioLoop } from "../audio/audioLoopPlayer";
+import { StoredAudioUnavailableError } from "../audio/storedAudio";
+import { decodeStoredAudio } from "../audio/toneBufferLoader";
 import {
   AuditionError,
   type PreviewEngine,
@@ -48,11 +50,7 @@ export class ToneAuditionEngine implements PreviewEngine {
     if (this.disposed) {
       throw new AuditionError("asset_missing", "Audition engine is disposed");
     }
-    if (!asset.url) {
-      throw new AuditionError("asset_missing", `Asset "${asset.id}" has no audio`);
-    }
-
-    const buffer = await this.load(asset.url);
+    const buffer = asset.url ? await this.load(asset.url) : await this.loadStored(asset);
     if (this.disposed) {
       buffer.dispose();
       throw new AuditionError("asset_missing", "Audition engine is disposed");
@@ -140,6 +138,25 @@ export class ToneAuditionEngine implements PreviewEngine {
       if (error instanceof AuditionError) throw error;
       throw new AuditionError(
         "network",
+        error instanceof Error ? error.message : "Failed to load asset",
+      );
+    }
+  }
+
+  /**
+   * A producer's own sound (#282): no URL, its bytes read from where it is
+   * stored as the signed-in user. Not readable is missing; read but not
+   * decodable is a decode failure.
+   */
+  private async loadStored(asset: LibraryAsset): Promise<Tone.ToneAudioBuffer> {
+    if (asset.storageRef === undefined) {
+      throw new AuditionError("asset_missing", `Asset "${asset.id}" has no audio`);
+    }
+    try {
+      return await decodeStoredAudio(asset.storageRef);
+    } catch (error) {
+      throw new AuditionError(
+        error instanceof StoredAudioUnavailableError ? "asset_missing" : "decode_failed",
         error instanceof Error ? error.message : "Failed to load asset",
       );
     }

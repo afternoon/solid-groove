@@ -1,12 +1,19 @@
 import { z } from "zod";
+import type { Project } from "../domain/entities";
 import { packVersion } from "../domain/entities";
-import { type AssetId, assetIdSchema, type PackId, packIdSchema } from "../domain/ids";
-import type { AvailablePack } from "../domain/packs";
+import { assetIdSchema, type PackId, packIdSchema } from "../domain/ids";
+import {
+  type AvailablePack,
+  type MissingAsset,
+  type MissingPack,
+  resolvePackAvailability,
+} from "../domain/packs";
 import {
   type LibraryAsset,
   type LibraryPackSummary,
   WAVEFORM_PEAK_COUNT,
 } from "../library/manifest";
+import { parseUserDataPath } from "../userData/userData";
 
 /**
  * A producer's own packs (#282; PRD LIB-03, LIB-05 `kind: "user"`).
@@ -50,10 +57,13 @@ export const userPackAssetSchema = z.strictObject({
   type: z.enum(["one-shot", "loop"]),
   family: z.string().min(1),
   role: z.string().min(1),
-  /** Where the audio lives in Cloud Storage. */
+  /**
+   * Where the audio lives in Cloud Storage, and the only way to it. There is
+   * deliberately no download URL: one is a bearer token, and a pack's sounds
+   * travel into projects other people can read (#282). The owner's browser
+   * reads the bytes at this path as the owner instead.
+   */
   storagePath: z.string().min(1),
-  /** The download URL the browser decodes it from. */
-  url: z.string().min(1),
   contentType: z.string().min(1),
   sizeBytes: z.number().int().min(0),
   durationSeconds: z.number().min(0),
@@ -182,7 +192,9 @@ export function userPackAssets(pack: UserPack): LibraryAsset[] {
     packSlug: pack.id,
     packName: pack.name,
     packVersion: pack.version,
-    url: asset.url,
+    // No URL: the audio is read from `storageRef` as its owner, never fetched
+    // from a link that would work for anyone holding it.
+    url: null,
     storageKey: null,
     storageRef: asset.storagePath,
     licence: USER_CONTENT_LICENCE,
@@ -196,13 +208,19 @@ export function userPackAssets(pack: UserPack): LibraryAsset[] {
 }
 
 /**
- * The pack as `resolvePackAvailability` reads it: the version the owner holds
- * and every sound in it. Sounds are only ever added to a version or removed
- * from one, so this current version holds every sound any earlier version did
- * unless it was deleted — which is what lets a project pinned to 1.0.0 resolve
- * against 1.3.0, and what reports a deleted sound as missing.
+ * The pack as `resolvePackAvailability` reads it for one project: the version
+ * the owner holds and which of the project's sounds it still has. Sounds are
+ * only ever added to a version or removed from one, so this current version
+ * holds every sound any earlier version did unless it was deleted — which is
+ * what lets a project pinned to 1.0.0 resolve against 1.3.0, and what reports
+ * a deleted sound as missing.
+ *
+ * A project names its sounds with IDs of its own, not the pack's, so they are
+ * matched by where the audio is stored: a stored sound's path is unique to it
+ * and never reused.
  */
-export function userPackHoldings(pack: UserPack): AvailablePack {
+export function userPackHoldings(pack: UserPack, project: Project): AvailablePack {
+  const stored = new Set(pack.assets.map((asset) => asset.storagePath));
   return {
     pack: {
       id: pack.id,
@@ -217,6 +235,45 @@ export function userPackHoldings(pack: UserPack): AvailablePack {
         attributionRequired: false,
       },
     },
-    assetIds: pack.assets.map((asset) => asset.id as AssetId),
+    assetIds: project.song.assets
+      .filter((asset) => asset.packId === pack.id && stored.has(asset.storageRef))
+      .map((asset) => asset.id),
+  };
+}
+
+/** What of a project's personal sounds the owner's packs no longer hold. */
+export interface UserSoundAvailability {
+  /** Sounds deleted from a pack the owner still has. */
+  readonly missingAssets: readonly MissingAsset[];
+  /** Packs the owner no longer has at all, with the sounds they took along. */
+  readonly missingPacks: readonly MissingPack[];
+}
+
+/**
+ * Resolves a project's personal sounds against the signed-in owner's packs
+ * (#282): the report a deleted sound leaves behind, naming the tracks and
+ * clips it took down. Only `kind: "user"` packs are judged — a dependency is
+ * one when its sounds are stored under `users/` — since factory packs resolve
+ * through the library, not here. And only `owner`'s: a collaborator's
+ * personal sound is not in this user's packs, and is not theirs to report.
+ */
+export function userPackAvailability(
+  project: Project,
+  packs: readonly UserPack[],
+  owner: string,
+): UserSoundAvailability {
+  const personal = new Set(
+    project.song.assets
+      .filter((asset) => parseUserDataPath(asset.storageRef)?.uid === owner)
+      .map((asset) => asset.packId as string),
+  );
+  if (personal.size === 0) return { missingAssets: [], missingPacks: [] };
+  const report = resolvePackAvailability(
+    project,
+    packs.map((pack) => userPackHoldings(pack, project)),
+  );
+  return {
+    missingAssets: report.missingAssets.filter((entry) => personal.has(entry.packId)),
+    missingPacks: report.missing.filter((entry) => personal.has(entry.packId)),
   };
 }

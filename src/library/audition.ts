@@ -1,4 +1,4 @@
-import type { LibraryAsset } from "./manifest";
+import { hasAudio, type LibraryAsset } from "./manifest";
 
 /**
  * Sync-aware audition of a single library asset through the shared audio runtime
@@ -110,7 +110,7 @@ export class AuditionController {
   async play(asset: LibraryAsset): Promise<void> {
     if (this.disposed) return;
     this.stop();
-    if (!asset.url) {
+    if (!hasAudio(asset)) {
       this.callbacks.onError?.(
         asset,
         new AuditionError("asset_missing", `Asset "${asset.id}" has no audio`),

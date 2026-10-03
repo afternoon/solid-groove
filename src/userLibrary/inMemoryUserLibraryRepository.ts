@@ -1,3 +1,4 @@
+import { parseUserDataPath } from "../userData/userData";
 import {
   type UploadOptions,
   UserLibraryError,
@@ -39,6 +40,7 @@ export function createInMemoryUserLibraryRepository(
 ): InMemoryUserLibraryRepository {
   const packs = new Map<string, Map<string, UserPack>>();
   const objects = new Map<string, number>();
+  const blobs = new Map<string, Blob>();
   const extraUsage = new Map<string, number>();
   const packListeners = new Map<string, Set<(packs: readonly UserPack[]) => void>>();
   const usageListeners = new Map<string, Set<(bytes: number) => void>>();
@@ -134,22 +136,33 @@ export function createInMemoryUserLibraryRepository(
       if (failure) throw new UserLibraryError(failure, "Upload failed");
       onProgress?.(1);
       objects.set(path, file.size);
+      blobs.set(path, file);
       notifyUsage(ownerOf(path));
-      return objectUrl(file, path);
+    },
+
+    async readAudio(path) {
+      const blob = parseUserDataPath(path) ? blobs.get(path) : undefined;
+      if (!blob) throw new UserLibraryError("not_found", "No such audio");
+      return bytesOf(blob);
     },
 
     async deleteAudio(path) {
       objects.delete(path);
+      blobs.delete(path);
       notifyUsage(ownerOf(path));
     },
   };
 }
 
-/** A URL the page can decode the stored file from, where the platform offers one. */
-function objectUrl(file: Blob, path: string): string {
-  return typeof URL.createObjectURL === "function"
-    ? URL.createObjectURL(file)
-    : `memory://${path}`;
+/** A blob's bytes, through `FileReader` where `Blob.arrayBuffer` is missing (jsdom). */
+function bytesOf(blob: Blob): Promise<ArrayBuffer> {
+  if (typeof blob.arrayBuffer === "function") return blob.arrayBuffer();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as ArrayBuffer);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsArrayBuffer(blob);
+  });
 }
 
 function delay(ms: number, signal: AbortSignal | undefined): Promise<void> {

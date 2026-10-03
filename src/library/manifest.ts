@@ -301,6 +301,15 @@ export interface LibraryAsset {
   readonly peaks: readonly number[] | null;
 }
 
+/**
+ * Whether an asset has audio to play: a delivered URL, or — a producer's own
+ * sound (#282), which deliberately has no URL — a stored path its owner reads
+ * the bytes from.
+ */
+export function hasAudio(asset: Pick<LibraryAsset, "url" | "storageRef">): boolean {
+  return asset.url !== null || asset.storageRef !== undefined;
+}
+
 /** A pack as the index lists it, before its manifest is fetched. */
 export interface LibraryPackSummary {
   readonly id: string;

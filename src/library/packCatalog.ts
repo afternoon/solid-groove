@@ -1,5 +1,5 @@
 import type { LibraryClient } from "./libraryClient";
-import type { LibraryAsset, LibraryPackSummary } from "./manifest";
+import { hasAudio, type LibraryAsset, type LibraryPackSummary } from "./manifest";
 import {
   familyLabel,
   roleLabel,
@@ -80,7 +80,7 @@ export function packHasFamily(
  * first, one-shots before loops, at most `limit`.
  */
 export function heardSounds(assets: readonly LibraryAsset[], limit = 6): LibraryAsset[] {
-  const playable = assets.filter((asset) => asset.url !== null);
+  const playable = assets.filter(hasAudio);
   const pool = playable.some((asset) => asset.type === "one-shot")
     ? playable.filter((asset) => asset.type === "one-shot")
     : playable;

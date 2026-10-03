@@ -34,7 +34,6 @@ function soundIn(packId: string, owner: string, id: string): NewUserPackAsset {
     family: "drums",
     role: "kick",
     storagePath: packAudioPath(owner, packId, id),
-    url: "https://example.test/audio",
     contentType: "audio/wav",
     sizeBytes: 8,
     durationSeconds: 0.1,
@@ -139,19 +138,33 @@ export function describeUserLibraryRepositoryContract(
       const repository = h.repositoryFor(owner);
       const path = packAudioPath(owner, PACK_ID, "ast_contractcontractcont3");
       const progress: number[] = [];
-      const url = await repository.uploadAudio(
+      await repository.uploadAudio(
         path,
         new Blob([new Uint8Array(32).fill(7)]),
         "audio/wav",
         { onProgress: (fraction) => progress.push(fraction) },
       );
-      expect(url).toBeTruthy();
       expect(progress.at(-1)).toBe(1);
       expect(await h.hasAudio(path)).toBe(true);
+      // The owner reads the bytes back through the repository: there is no
+      // URL to hand around (#282).
+      const bytes = new Uint8Array(await repository.readAudio(path));
+      expect([...bytes]).toEqual(new Array(32).fill(7));
       await repository.deleteAudio(path);
       expect(await h.hasAudio(path)).toBe(false);
       // Deleting what is already gone is not an error.
       await repository.deleteAudio(path);
+    });
+
+    it("reads only user data, and reports audio that is gone as not found", async () => {
+      const owner = uid();
+      const repository = h.repositoryFor(owner);
+      await expect(
+        repository.readAudio(packAudioPath(owner, PACK_ID, "ast_contractcontractcont5")),
+      ).rejects.toMatchObject({ reason: "not_found" });
+      await expect(repository.readAudio("library/audio/kick.wav")).rejects.toMatchObject({
+        reason: "not_found",
+      });
     });
 
     it("stores nothing for a cancelled upload", async () => {

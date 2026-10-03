@@ -62,13 +62,24 @@ export interface UserLibraryRepository {
   ): Promise<UserPack>;
   /** Delete the pack document. Its audio is deleted by the caller first. */
   deletePack(uid: string, packId: string): Promise<void>;
-  /** Store one file's audio at `path`; resolves with the URL it plays from. */
+  /**
+   * Store one file's audio at `path`. Nothing comes back to hand around: a
+   * stored sound is named by its path alone, and read back through
+   * {@link readAudio}, so no bearer URL to it ever reaches a pack, a project
+   * or a drag (#282).
+   */
   uploadAudio(
     path: string,
     file: Blob,
     contentType: string,
     options?: UploadOptions,
-  ): Promise<string>;
+  ): Promise<void>;
+  /**
+   * The bytes stored at a user-data `path`, read as the signed-in user, so the
+   * storage rules decide who may hear it: only its owner. Anything that is not
+   * user data, or is gone, fails `not_found`.
+   */
+  readAudio(path: string): Promise<ArrayBuffer>;
   /** Delete stored audio. Deleting what is already gone succeeds. */
   deleteAudio(path: string): Promise<void>;
 }

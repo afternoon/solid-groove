@@ -111,9 +111,8 @@ export async function importSound(options: ImportSoundOptions): Promise<UserPack
 
   const assetId = options.ids("asset");
   const path = packAudioPath(uid, packId, assetId);
-  let url: string;
   try {
-    url = await repository.uploadAudio(path, file, contentType, {
+    await repository.uploadAudio(path, file, contentType, {
       onProgress: options.onProgress,
       signal,
     });
@@ -134,7 +133,6 @@ export async function importSound(options: ImportSoundOptions): Promise<UserPack
           family: analysis.family,
           role: analysis.role,
           storagePath: path,
-          url,
           contentType,
           sizeBytes: file.size,
           durationSeconds: analysis.durationSeconds,

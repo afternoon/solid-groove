@@ -203,4 +203,20 @@ describe("failure", () => {
     expect(start).not.toHaveBeenCalled();
     expect(onError.mock.calls[0][1].reason).toBe("asset_missing");
   });
+
+  it("auditions a personal sound, which has no url, from where it is stored", async () => {
+    const onError = vi.fn();
+    const start = vi.fn(async () => ({ stop() {} }));
+    const engine: PreviewEngine = { start, dispose() {} };
+    const controller = new AuditionController(engine, { onError });
+    await controller.play(
+      asset({
+        url: null,
+        storageKey: null,
+        storageRef: "users/u1/packs/pak_a/ast_a",
+      }),
+    );
+    expect(onError).not.toHaveBeenCalled();
+    expect(start).toHaveBeenCalledTimes(1);
+  });
 });

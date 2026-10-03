@@ -13,13 +13,13 @@ import {
   connectStorageEmulator,
   deleteObject,
   type FirebaseStorage,
-  getDownloadURL,
+  getBytes,
   getStorage,
   ref,
   uploadBytesResumable,
 } from "firebase/storage";
 import { resolveEmulatorHosts } from "../devBackend";
-import { usageDocPath } from "../userData/userData";
+import { parseUserDataPath, usageDocPath } from "../userData/userData";
 import {
   type StorageFailure,
   type UploadOptions,
@@ -39,8 +39,11 @@ import { parseUserPack, type UserPack } from "./userPacks";
  * this module reports their refusals as coded {@link UserLibraryError}s.
  *
  * Audio is stored with headers that keep it private and inert: `private`
- * caching so no shared cache keeps a copy, and `attachment` so opening its URL
- * downloads it rather than rendering it in the app's origin.
+ * caching so no shared cache keeps a copy, and `attachment` so any URL to it
+ * downloads rather than renders. The app itself never asks for a download URL
+ * (which would be a bearer token anyone holding it could use): it reads the
+ * bytes with {@link FirebaseUserLibraryRepository.readAudio}, as the signed-in
+ * user, so `storage.rules` keep every sound its owner's alone.
  */
 
 const AUDIO_HEADERS = {
@@ -126,14 +129,14 @@ export class FirebaseUserLibraryRepository implements UserLibraryRepository {
     file: Blob,
     contentType: string,
     options: UploadOptions = {},
-  ): Promise<string> {
+  ): Promise<void> {
     const object = ref(this.storage, path);
     const task = uploadBytesResumable(object, file, { contentType, ...AUDIO_HEADERS });
     const abort = () => task.cancel();
     if (options.signal?.aborted) abort();
     options.signal?.addEventListener("abort", abort);
     options.onProgress?.(0);
-    return new Promise<string>((resolve, reject) => {
+    return new Promise<void>((resolve, reject) => {
       task.on(
         "state_changed",
         (snapshot) => {
@@ -142,11 +145,20 @@ export class FirebaseUserLibraryRepository implements UserLibraryRepository {
           }
         },
         (error) => reject(toLibraryError(error)),
-        () => {
-          getDownloadURL(object).then(resolve, (error) => reject(toLibraryError(error)));
-        },
+        () => resolve(),
       );
     }).finally(() => options.signal?.removeEventListener("abort", abort));
+  }
+
+  async readAudio(path: string): Promise<ArrayBuffer> {
+    if (!parseUserDataPath(path)) {
+      throw new UserLibraryError("not_found", "Not user data");
+    }
+    try {
+      return await getBytes(ref(this.storage, path));
+    } catch (error) {
+      throw toLibraryError(error);
+    }
   }
 
   async deleteAudio(path: string): Promise<void> {

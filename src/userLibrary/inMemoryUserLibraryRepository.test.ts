@@ -29,7 +29,6 @@ function packWith(ids: string[]): UserPack {
         family: "drums",
         role: "kick",
         storagePath: `users/${UID}/packs/${PACK_ID}/${id}`,
-        url: "u",
         contentType: "audio/wav",
         sizeBytes: 10,
         durationSeconds: 0.1,

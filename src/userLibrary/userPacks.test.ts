@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { Project } from "../domain/entities";
 import {
   availablePacksFor,
   createDrumMachineFixtureProject,
@@ -18,6 +19,7 @@ import {
   renamePack,
   type UserPack,
   userPackAssets,
+  userPackAvailability,
   userPackHoldings,
   userPackSummary,
 } from "./userPacks";
@@ -32,7 +34,6 @@ function sound(id: string, name = "tape kick"): NewUserPackAsset {
     family: "drums",
     role: "kick",
     storagePath: `users/u1/packs/${PACK_ID}/${id}`,
-    url: "https://storage.test/kick",
     contentType: "audio/wav",
     sizeBytes: 8_864,
     durationSeconds: 0.1,
@@ -126,7 +127,8 @@ describe("a personal pack in the library", () => {
       packId: PACK_ID,
       packName: "Field Recordings",
       packVersion: "1.1.0",
-      url: "https://storage.test/kick",
+      url: null,
+      storageRef: `users/u1/packs/${PACK_ID}/${KICK}`,
       durationSeconds: 0.1,
       sampleRate: 44_100,
     });
@@ -136,7 +138,9 @@ describe("a personal pack in the library", () => {
     const sample = toLibrarySample(userPackAssets(pack)[0]);
     expect(sample).toMatchObject({
       storageRef: `users/u1/packs/${PACK_ID}/${KICK}`,
-      url: "https://storage.test/kick",
+      // No URL travels into the project: one would let anyone who can read
+      // the project fetch the owner's audio.
+      url: null,
       packId: PACK_ID,
       packVersion: "1.1.0",
     });
@@ -144,37 +148,89 @@ describe("a personal pack in the library", () => {
 });
 
 describe("resolving a project against a personal pack", () => {
-  // The fixture's drum pack stands in for a personal pack: same IDs, so the
-  // project's references resolve against what the pack document holds.
-  const project = createDrumMachineFixtureProject();
+  // The fixture's drum pack stands in for a personal pack. Its sounds are
+  // stored under the owner, as an inserted personal sound's are, and the
+  // project knows them by IDs of its own: the pack matches them by path.
+  const fixture = createDrumMachineFixtureProject();
   const packs = drumMachineFixturePacks();
-  const loops = availablePacksFor(project, [packs.loops]);
+  const loops = availablePacksFor(fixture, [packs.loops]);
+  const storedAt = (assetId: string) => `users/u1/packs/${packs.drums.id}/${assetId}`;
+  const project: Project = {
+    ...fixture,
+    song: {
+      ...fixture.song,
+      assets: fixture.song.assets.map((asset) =>
+        asset.packId === packs.drums.id
+          ? { ...asset, storageRef: storedAt(asset.id) }
+          : asset,
+      ),
+    },
+  };
   const drumAssets = project.song.assets.filter(
     (asset) => asset.packId === packs.drums.id,
   );
 
   function personalDrums(): UserPack {
     let pack: UserPack = { ...newUserPack(packs.drums.id, "Drums", 1) };
-    for (const asset of drumAssets) pack = addSound(pack, sound(asset.id, asset.name), 2);
+    drumAssets.forEach((asset, index) => {
+      pack = addSound(
+        pack,
+        {
+          ...sound(`ast_packsound${String(index).padStart(12, "0")}`, asset.name),
+          storagePath: asset.storageRef,
+        },
+        2,
+      );
+    });
     return pack;
   }
 
   it("still resolves a project pinned to an earlier version after a sound is added", () => {
     const later = addSound(personalDrums(), sound("ast_newsoundnewsoundnews1"), 3);
     expect(later.version).not.toBe(packs.drums.version);
-    const report = resolvePackAvailability(project, [...loops, userPackHoldings(later)]);
+    const report = resolvePackAvailability(project, [
+      ...loops,
+      userPackHoldings(later, project),
+    ]);
     expect(report).toEqual({ satisfied: true, missing: [], missingAssets: [] });
+    expect(userPackAvailability(project, [later], "u1")).toEqual({
+      missingAssets: [],
+      missingPacks: [],
+    });
   });
 
   it("reports a deleted sound as missing, naming its tracks and clips", () => {
     const clap = drumAssets.find((asset) => asset.name === "909 Clap");
     if (!clap) throw new Error("fixture has no clap");
-    const after = removeSound(personalDrums(), clap.id, 3);
-    const report = resolvePackAvailability(project, [...loops, userPackHoldings(after)]);
-    expect(report.missing).toEqual([]);
+    const before = personalDrums();
+    const packClap = before.assets.find((asset) => asset.storagePath === clap.storageRef);
+    if (!packClap) throw new Error("pack has no clap");
+    const after = removeSound(before, packClap.id, 3);
+    const report = userPackAvailability(project, [after], "u1");
+    expect(report.missingPacks).toEqual([]);
     expect(report.missingAssets).toHaveLength(1);
     expect(report.missingAssets[0]).toMatchObject({ name: "909 Clap" });
     expect(report.missingAssets[0].tracks.map((track) => track.name)).toEqual(["Drums"]);
     expect(report.missingAssets[0].clips.map((clip) => clip.name)).toEqual(["Beat"]);
+  });
+
+  it("reports a deleted pack's sounds, and never judges the factory packs", () => {
+    const report = userPackAvailability(project, [], "u1");
+    expect(report.missingAssets).toEqual([]);
+    expect(report.missingPacks.map((entry) => entry.packId)).toEqual([packs.drums.id]);
+  });
+
+  it("leaves a collaborator's personal sounds to them", () => {
+    expect(userPackAvailability(project, [], "u2")).toEqual({
+      missingAssets: [],
+      missingPacks: [],
+    });
+  });
+
+  it("has nothing to say about a project with no personal sounds", () => {
+    expect(userPackAvailability(fixture, [], "u1")).toEqual({
+      missingAssets: [],
+      missingPacks: [],
+    });
   });
 });
