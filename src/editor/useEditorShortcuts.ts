@@ -344,10 +344,10 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     "library.audition": onSelectedSound((a) => a.press("library.audition")),
     "library.back": inLibrary((a) => a.back()),
     // Escape closes the innermost surface: the guide, then the library's keys
-    // sheet (#813), then a query typed in the library's search field (#877,
-    // only while that field has focus). Nothing here compares a key — this is
-    // the registry's `view.close_surface`, like every other close. A clip
-    // drag in flight is innermost of all: Escape cancels it (ARR-011). The
+    // sheet (#813), then its genre menu (#874), then a query typed in the
+    // library's search field (#877, only while that field has focus). Nothing
+    // here compares a key — this is the registry's `view.close_surface`, like
+    // every other close. A clip drag in flight is innermost of all: Escape cancels it (ARR-011). The
     // sequence and library views are views, not dialogs (UI-002), so Escape
     // does not leave them: a view key does. With no surface open, it clears the arrangement's
     // selection (#835).
@@ -357,7 +357,9 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
         else if (guideOpen()) setGuideOpen(false);
         else if (libraryOpen()) {
           const actions = libraryActions();
-          if (!actions?.closeKeys()) actions?.escapeSearch();
+          if (!actions?.closeKeys() && !actions?.closeMenu()) {
+            actions?.escapeSearch();
+          }
         } else {
           arrangementEditingActions()?.clearSelection();
           // "No selection" means no track for Delete either (#960).
