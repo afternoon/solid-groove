@@ -9,6 +9,9 @@
  * unit-tested there; this file only connects Cloud Storage's events to a
  * Firestore transaction.
  *
+ * A blocking `beforeSignIn` function (#854) keeps the alpha to its allowlist:
+ * it is the enforcement, and `src/access/signInGate.ts` is its decision.
+ *
  * Every kind of user data (packs today, recordings and presets later) is a
  * folder under `users/{uid}/`, so a new kind is counted as soon as it is added
  * to `USER_DATA_KINDS` — nothing here changes.
@@ -22,11 +25,19 @@ import { type Firestore, getFirestore, type Transaction } from "firebase-admin/f
 import { getStorage } from "firebase-admin/storage";
 import { logger } from "firebase-functions";
 import { setGlobalOptions } from "firebase-functions/v2";
+import { beforeUserSignedIn, HttpsError } from "firebase-functions/v2/identity";
 import {
   onObjectDeleted,
   onObjectFinalized,
   type StorageEvent,
 } from "firebase-functions/v2/storage";
+import {
+  allowlistDocPath,
+  NOT_ON_ALLOWLIST,
+  type SignInAttempt,
+  signInAttemptDocPath,
+} from "../../src/access/allowlist";
+import { gateSignIn, type SignInGateStore } from "../../src/access/signInGate";
 import type { VersionedPack } from "../../src/userData/packVersions";
 import { withdrawRefusedSound } from "../../src/userData/refusedSound";
 import {
@@ -148,3 +159,38 @@ export const userDataUsageWritten = onObjectFinalized((event) =>
 export const userDataUsageDeleted = onObjectDeleted((event) =>
   record(event, recordObjectDeleted),
 );
+
+/** The sign-in gate's store over Firestore, with the admin credential. */
+function firestoreGate(db: Firestore): SignInGateStore {
+  return {
+    async isListed(email) {
+      return (await db.doc(allowlistDocPath(email)).get()).exists;
+    },
+    async recordAttempt(email, update) {
+      const ref = db.doc(signInAttemptDocPath(email));
+      await db.runTransaction(async (tx) => {
+        const snapshot = await tx.get(ref);
+        tx.set(ref, update(snapshot.exists ? (snapshot.data() as SignInAttempt) : null));
+      });
+    },
+  };
+}
+
+/**
+ * Only allowlisted addresses sign in during the alpha (#854). Runs before
+ * every sign-in, a guest linking Google included; a refused one is recorded
+ * in `signInAttempts` for an admin to approve. The refusal's message carries
+ * {@link NOT_ON_ALLOWLIST}, which is how the browser knows to show the
+ * "not on the alpha list" page rather than a generic failure. Nothing logged
+ * here names the address.
+ */
+export const alphaAllowlistGate = beforeUserSignedIn(async (event) => {
+  const decision = await gateSignIn(
+    firestoreGate(getFirestore()),
+    { email: event.data?.email ?? null },
+    Date.now(),
+  );
+  if (decision.allowed) return;
+  logger.info("a sign-in was refused", { reason: decision.reason });
+  throw new HttpsError("permission-denied", NOT_ON_ALLOWLIST);
+});

@@ -192,5 +192,39 @@ service cloud.firestore {
       allow create, update: if isUser(userId)
         && validFavourite(favouriteId, request.resource.data);
     }
+
+    // The alpha allowlist (#854). Only an account with the `admin: true`
+    // custom claim (granted by `bun run admin:grant`) reaches either
+    // collection from a client; everyone else, the person on the list
+    // included, can neither read nor write it. The blocking `beforeSignIn`
+    // function and the terminal scripts use the admin credential, which rules
+    // do not apply to. `src/access/allowlist.ts` owns the shapes, and
+    // `allowlist.test.ts` checks these field lists against it.
+    function isAdmin() {
+      return signedIn() && request.auth.token.get('admin', false) == true;
+    }
+
+    // One document per normalised (trimmed, lower-cased) address, whose ID is
+    // that address.
+    function validAllowlistEntry(email, data) {
+      return data.keys().hasOnly(['email', 'addedAt'])
+        && data.keys().hasAll(['email', 'addedAt'])
+        && data.email == email
+        && email == email.lower()
+        && email.matches('^[^\\s@]+@[^\\s@]+[.][^\\s@.]+$')
+        && data.addedAt is int && data.addedAt >= 0;
+    }
+
+    match /allowlist/{email} {
+      allow read, delete: if isAdmin();
+      allow create, update: if isAdmin() && validAllowlistEntry(email, request.resource.data);
+    }
+
+    // Refused sign-ins, written by the blocking function only. An admin reads
+    // them to approve, and approving deletes the address's attempt.
+    match /signInAttempts/{email} {
+      allow read, delete: if isAdmin();
+      allow create, update: if false;
+    }
   }
 }
