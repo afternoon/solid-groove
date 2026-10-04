@@ -59,7 +59,8 @@ describe("trimRenderedTail", () => {
   });
 
   it("does not touch a level anywhere it keeps (nothing is normalized)", () => {
-    const data = Float32Array.from({ length: 50 }, (_, i) => (i < 40 ? 0.25 : 0));
+    // The silence after the sound runs longer than the settling window.
+    const data = Float32Array.from({ length: 100 }, (_, i) => (i < 40 ? 0.25 : 0));
     const trimmed = trimRenderedTail([data], rate, 10);
     expect(Array.from(trimmed.channels[0])).toEqual(Array.from(data.slice(0, 40)));
     // A copy: the caller's buffer is not a view of the result.
@@ -67,15 +68,28 @@ describe("trimRenderedTail", () => {
     expect(data[0]).toBe(0.25);
   });
 
+  it("does not count a constant offset after the song as a tail (#962)", () => {
+    // A shaper can turn silence into a small DC level: -78 dBFS here, over the
+    // silence threshold on every sample, but a flat line, not sound.
+    const offset = -0.00013;
+    const data = new Float32Array(400).fill(offset);
+    for (let i = 0; i < 100; i++) data[i] = offset + 0.5 * Math.sin(i / 3);
+    data[150] = offset + 0.01; // a real tail sample, riding on the offset
+    const trimmed = trimRenderedTail([data, data], rate, 100);
+    expect(trimmed.frames).toBe(151);
+    expect(trimmed.truncated).toBe(false);
+  });
+
   it("fades a tail still sounding at the end of the budget instead of cutting it", () => {
-    const data = new Float32Array(200).fill(0.5);
+    // A tone, not a flat line: a constant level is an offset, not a tail.
+    const data = Float32Array.from({ length: 200 }, (_, i) => (i % 2 ? -0.5 : 0.5));
     const trimmed = trimRenderedTail([data], rate, 100);
     const fadeFrames = Math.round(TRUNCATION_FADE_SECONDS * rate);
     expect(trimmed.truncated).toBe(true);
     expect(trimmed.frames).toBe(200);
-    expect(trimmed.channels[0][199]).toBe(0);
-    expect(trimmed.channels[0][200 - fadeFrames - 1]).toBe(0.5);
+    expect(trimmed.channels[0][199]).toBe(-0);
+    expect(Math.abs(trimmed.channels[0][200 - fadeFrames - 1])).toBe(0.5);
     // The song itself is never faded.
-    expect(trimmed.channels[0][99]).toBe(0.5);
+    expect(Math.abs(trimmed.channels[0][99])).toBe(0.5);
   });
 });
