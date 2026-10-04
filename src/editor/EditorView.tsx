@@ -25,7 +25,6 @@ import type { PreviewEngine } from "../library/audition";
 import { type LibraryClient, sharedLibraryClient } from "../library/libraryClient";
 import { getProjectRepository } from "../projectRepositoryClient";
 import type { ArrangementSelection } from "../selection";
-import { timeoutScheduler } from "../shared/scheduler";
 import ShortcutGuide from "../shortcuts/ShortcutGuide";
 import { getUserLibraryRepository } from "../userLibrary/userLibraryClient";
 import type { UserLibraryRepository } from "../userLibrary/userLibraryRepository";
@@ -38,12 +37,7 @@ import CompatibilityNotice from "./CompatibilityNotice";
 import { compatibilityNoticeItems } from "./compatibilityNoticeItems";
 import { DeviceSpectrumContext, type DeviceSpectrumSource } from "./deviceSpectrum";
 import EditorHeader from "./EditorHeader";
-import {
-  createEditorControls,
-  type EditorControls,
-  EditorControlsContext,
-  type EditorLocation,
-} from "./editorControls";
+import { type EditorControls, EditorControlsContext } from "./editorControls";
 import { type EditorViewName, editorViewSpec } from "./editorViews";
 import InstrumentPane from "./InstrumentPane";
 import LibraryPane from "./LibraryPane";
@@ -59,6 +53,7 @@ import {
 } from "./trackCreation";
 import { useEditingSurfaces } from "./useEditingSurfaces";
 import { useEditorNavigation } from "./useEditorNavigation";
+import { useEditorReveal } from "./useEditorReveal";
 import { useEditorSession } from "./useEditorSession";
 import { useEditorShortcuts } from "./useEditorShortcuts";
 import { useLibraryTarget } from "./useLibraryTarget";
@@ -230,7 +225,6 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     opened,
     selectPlacement,
     track,
-    selectPad,
     selectedReturn,
     selectReturn,
   } = trackSelection;
@@ -272,33 +266,14 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     return target ? `sounds for ${track()?.name ?? "the track"}` : undefined;
   }
 
-  // Finding and showing a control by its address (`UI-004`). A reveal moves
-  // only UI state — the view (a navigation, logged as `reveal`), the
-  // selection, the clip `2` edits — and hands back where the editor was, so
-  // the caller can put it back. Nothing here reaches the project, its history
-  // or a save.
-  const editorControls = createEditorControls({
+  // Finding and showing a control by its address (`UI-004`): UI state only.
+  const editorControls = useEditorReveal({
     registry: controls,
     project,
-    location: (): EditorLocation => ({
-      view: props.view,
-      ...trackSelection.location(),
-    }),
-    goTo(home) {
-      if (home.view) selectView(home.view, "reveal");
-      if (home.trackId) {
-        selectTrack(home.trackId);
-        if (home.padId) selectPad(home.trackId, home.padId);
-      }
-      if (home.placementId !== undefined) selectPlacement(home.placementId);
-    },
-    restore(location) {
-      selectView(location.view, "reveal");
-      trackSelection.restore(location);
-    },
-    scheduler: timeoutScheduler,
+    view: () => props.view,
+    navigation,
+    selection: trackSelection,
   });
-  onCleanup(() => editorControls.dispose());
   props.onControlsReady?.(editorControls);
   // The assistant's panel (#849): where it is and how big, remembered on this
   // device. One per editor, shared by the panel, the header's button and the
