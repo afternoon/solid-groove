@@ -297,16 +297,19 @@ describe("EditorSession", () => {
 
   it("writes a loop edit to the song tier only, never rewriting a clip (LOOP-017)", async () => {
     const { session, repository, project } = ctx;
-    const saveSong = vi.spyOn(repository, "saveSong");
-    const saveClip = vi.spyOn(repository, "saveClip");
+    const saveChanges = vi.spyOn(repository, "saveChanges");
 
     session.dispatch(setLoopRange(bars(2), bars(4)));
     session.dispatch(setLoopEnabled(false));
     expect(session.autosave.status.pending).toBe(1);
     await session.autosave.flush();
 
-    expect(saveSong).toHaveBeenCalledTimes(1);
-    expect(saveClip).not.toHaveBeenCalled();
+    expect(saveChanges).toHaveBeenCalledTimes(1);
+    expect(saveChanges.mock.calls[0]?.[1]).toMatchObject({
+      song: expect.anything(),
+      clips: [],
+      deletedClipIds: [],
+    });
     const loaded = await repository.loadProject(project.metadata.id);
     if (!loaded.ok) throw new Error("expected the project to load");
     expect(loaded.value.song.loop).toEqual({

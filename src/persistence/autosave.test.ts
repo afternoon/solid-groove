@@ -1,19 +1,21 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
 import {
   createRecordingTransport,
   type RecordingTransport,
 } from "../analytics/transport";
-import type { Project } from "../domain/entities";
+import type { Clip, Project } from "../domain/entities";
 import { createSliceFixtureProject } from "../domain/fixtures";
+import type { ClipId, EventId, PlacementId } from "../domain/ids";
+import type { Ticks } from "../domain/time";
 import { createManualClock } from "../shared/clock";
 import { createManualScheduler, type ManualScheduler } from "../shared/scheduler";
 import { memoryStorage } from "../testing/storage";
 import { ProjectAutosave, type SaveStatus } from "./autosave";
 import { clipDocumentPath, songDocumentPath } from "./documents";
 import { InMemoryProjectRepository } from "./inMemoryProjectRepository";
-import type { ProjectRepository } from "./projectRepository";
+import { type ProjectRepository, saveFailure } from "./projectRepository";
 
 function createTestAnalytics(): {
   analytics: Analytics;
@@ -30,7 +32,7 @@ function createTestAnalytics(): {
 }
 
 /**
- * Wraps a repository so the first `saveSong` blocks until the test releases it.
+ * Wraps a repository so the first song write blocks until the test releases it.
  * It stands in for network latency: the value handed to the repository is the
  * one captured when the write started, so an edit made during the await is a
  * genuinely newer value that must still reach the store.
@@ -59,10 +61,87 @@ function gateFirstSongSave(inner: ProjectRepository): {
     },
     saveClip: (projectId, clip, base) => inner.saveClip(projectId, clip, base),
     deleteClip: (projectId, clipId, base) => inner.deleteClip(projectId, clipId, base),
+    saveChanges: async (projectId, changes, base) => {
+      if (changes.song && gated) {
+        gated = false;
+        await gate;
+      }
+      return inner.saveChanges(projectId, changes, base);
+    },
     deleteProject: (projectId) => inner.deleteProject(projectId),
     watchProject: (projectId, listener) => inner.watchProject(projectId, listener),
   };
   return { repository, release: () => release() };
+}
+
+const WRITE_METHODS = new Set([
+  "saveMetadata",
+  "saveSong",
+  "saveClip",
+  "deleteClip",
+  "saveChanges",
+]);
+
+/**
+ * Lets the first `allowed` repository writes through and fails every one after
+ * them, as a tab that unloads mid-drain does: the writes already committed
+ * stay committed, and nothing queued behind them ever lands (#965).
+ */
+function interruptAfter(inner: ProjectRepository, allowed: number): ProjectRepository {
+  let remaining = allowed;
+  return new Proxy(inner, {
+    get(target, property, receiver) {
+      const value = Reflect.get(target, property, receiver);
+      if (typeof value !== "function") return value;
+      if (!WRITE_METHODS.has(String(property))) return value.bind(target);
+      return (...args: unknown[]) => {
+        if (remaining <= 0) {
+          return Promise.resolve(saveFailure("unavailable", "The page unloaded"));
+        }
+        remaining -= 1;
+        return value.apply(target, args);
+      };
+    },
+  });
+}
+
+/** The fixture with its one clip duplicated `count` times along the arrangement. */
+function withDuplicatedClip(project: Project, count: number): Project {
+  const [clip] = project.clips;
+  const [placement] = project.song.placements;
+  // Prefixed IDs carry a 21-character suffix.
+  const suffix = (index: number) => `duplicate${index}`.padEnd(21, "x");
+  const copyClip = (index: number): Clip => {
+    if (clip.content.kind !== "notes") throw new Error("Expected a note clip");
+    return {
+      ...clip,
+      id: `clp_${suffix(index)}` as ClipId,
+      content: {
+        ...clip.content,
+        events: clip.content.events.map((event, at) => ({
+          ...event,
+          id: `evt_${suffix(index * 100 + at)}` as EventId,
+        })),
+      },
+    };
+  };
+  const copies = Array.from({ length: count }, (_, index) => ({
+    clip: copyClip(index),
+    placement: {
+      ...placement,
+      id: `plc_${suffix(index)}` as PlacementId,
+      clipId: `clp_${suffix(index)}` as ClipId,
+      startTicks: (placement.startTicks + (index + 1) * placement.durationTicks) as Ticks,
+    },
+  }));
+  return {
+    ...project,
+    song: {
+      ...project.song,
+      placements: [...project.song.placements, ...copies.map((copy) => copy.placement)],
+    },
+    clips: [...project.clips, ...copies.map((copy) => copy.clip)],
+  };
 }
 
 describe("ProjectAutosave", () => {
@@ -222,24 +301,99 @@ describe("ProjectAutosave", () => {
     }
   });
 
-  it("writes each edited entity once, in the order the edits were made", async () => {
+  it("writes every queued entity once, as one revision", async () => {
     autosave.queueMetadata({ name: "Renamed" });
     autosave.queueClip(project.clips[0]);
     autosave.queueSong(renamedSong(126));
 
     await autosave.flush();
 
+    // Clips land ahead of the song that places them, and the metadata
+    // document's revision bump closes the one write.
     expect(repository.writes.map((write) => write.path)).toEqual([
-      `projects/${project.metadata.id}`,
       clipDocumentPath(project.metadata.id, project.clips[0].id),
-      `projects/${project.metadata.id}`,
       songDocumentPath(project.metadata.id),
       `projects/${project.metadata.id}`,
     ]);
     expect(autosave.status).toMatchObject({
       state: "saved",
       pending: 0,
-      revision: project.metadata.revision + 3,
+      revision: project.metadata.revision + 1,
+    });
+  });
+
+  describe("never stores a song that references unwritten clips (#965)", () => {
+    // `EditorSession` queues the song before the clips a structural edit
+    // created, which is the order a run of Ctrl+D duplicates produces.
+    for (const allowed of [0, 1, 2, 3, 4]) {
+      it(`leaves a loadable project when the page unloads after ${allowed} write(s)`, async () => {
+        const next = withDuplicatedClip(project, 3);
+        const controller = new ProjectAutosave({
+          repository: interruptAfter(repository, allowed),
+          projectId: project.metadata.id,
+          revision: project.metadata.revision,
+          scheduler,
+        });
+        controller.queueSong(next.song);
+        for (const clip of next.clips.slice(1)) {
+          controller.queueClip(clip);
+        }
+
+        await controller.flush();
+
+        const loaded = await repository.loadProject(project.metadata.id);
+        expect(loaded.ok ? [] : loaded.issues).toEqual([]);
+      });
+    }
+
+    it("writes clips ahead of the song when there are too many for one write", async () => {
+      // 250 new clips is more than one backend transaction takes, so the
+      // queue is split. Every split point must still be a loadable project.
+      const next = withDuplicatedClip(project, 250);
+      for (const allowed of [1, 2]) {
+        const store = new InMemoryProjectRepository({
+          clock: createManualClock(1_700_000_100_000),
+        });
+        await store.createProject(project);
+        const saveChanges = vi.spyOn(store, "saveChanges");
+        const controller = new ProjectAutosave({
+          repository: interruptAfter(store, allowed),
+          projectId: project.metadata.id,
+          revision: project.metadata.revision,
+          scheduler,
+        });
+        controller.queueSong(next.song);
+        for (const clip of next.clips.slice(1)) {
+          controller.queueClip(clip);
+        }
+
+        await controller.flush();
+
+        expect(saveChanges.mock.calls[0]?.[1].song).toBeUndefined();
+        const loaded = await store.loadProject(project.metadata.id);
+        expect(loaded.ok ? [] : loaded.issues).toEqual([]);
+        if (!loaded.ok) continue;
+        expect(loaded.value.song.placements).toHaveLength(allowed === 1 ? 1 : 251);
+        expect(loaded.value.clips).toHaveLength(allowed === 1 ? 201 : 251);
+      }
+    });
+
+    it("never stores a clip whose track the stored song has removed", async () => {
+      // A track deletion removes the track and its clip together: the song
+      // write and the clip deletion must land as one.
+      const controller = new ProjectAutosave({
+        repository: interruptAfter(repository, 1),
+        projectId: project.metadata.id,
+        revision: project.metadata.revision,
+        scheduler,
+      });
+      controller.queueSong({ ...project.song, tracks: [], placements: [] });
+      controller.queueClipDeletion(project.clips[0].id);
+
+      await controller.flush();
+
+      const loaded = await repository.loadProject(project.metadata.id);
+      expect(loaded.ok ? [] : loaded.issues).toEqual([]);
     });
   });
 
