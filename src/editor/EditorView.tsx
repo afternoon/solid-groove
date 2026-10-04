@@ -123,6 +123,7 @@ import {
 } from "./trackCreation";
 import { deleteTrack, type TrackDeletionContext } from "./trackDeletion";
 import type { TrackSelectionSource } from "./trackSurface";
+import { useEditorNavigation } from "./useEditorNavigation";
 import { useEditorSession } from "./useEditorSession";
 import { useEditorShortcuts } from "./useEditorShortcuts";
 import { useProjectAudio } from "./useProjectAudio";
@@ -251,48 +252,13 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   // under the editor registers here when it mounts. UI-only, like selection.
   const controls = createControlRegistry();
 
-  // --- Views (UI-001) -------------------------------------------------------
-  //
-  // The view lives in the URL, so switching is a navigation and this component
-  // holds no "current view" state to fall out of step with the address bar.
-  // What it does hold is *how* the next switch was asked for, because the
-  // address alone cannot say whether the dock, the keyboard, or the back button
-  // moved you — and which entrypoint producers actually reach for is the
-  // measure `view_changed` exists to take.
-  let lastView: EditorViewName | undefined;
-  let pendingVia: ViewChangeSource | null = null;
-  // Where leaving the Library goes back to (`UI-002`): the view it came from.
-  let libraryReturn: EditorViewName = "instrument";
-
-  function selectView(next: EditorViewName, via: ViewChangeSource): void {
-    // Asking for the view you are already on is not a switch, so it neither
-    // navigates nor logs — otherwise clicking the current dock entry twice
-    // would report two switches that never happened.
-    if (next === props.view) return;
-    if (next === "library") libraryReturn = props.view;
-    pendingVia = via;
-    props.onSelectView(next);
-  }
-
-  // One event per switch, whatever moved: the dock and the keyboard set
-  // `pendingVia` on their way through `selectView`, and anything else — the
-  // back button, a deep link followed in-session — is `url` by elimination.
-  // The first run only records where we arrived: opening a project is not a
-  // switch, and `project_opened` already measures it.
-  createEffect(
-    // Both reactive reads are in the compute half, which is the only tracked
-    // one: an `props.analytics` read moved into the apply half below would be
-    // read once and never again.
-    () => ({ view: props.view, analytics: props.analytics ?? defaultAnalytics }),
-    ({ view, analytics }) => {
-      const previous = lastView;
-      lastView = view;
-      const via = pendingVia ?? "url";
-      pendingVia = null;
-      if (previous === undefined || previous === view) return;
-      analytics.log("view_changed", { view, via });
-    },
-  );
+  const analytics = () => props.analytics ?? defaultAnalytics;
+  // The views (UI-001): switching is a navigation, logged as `view_changed`.
+  const { selectView, libraryReturn } = useEditorNavigation({
+    view: () => props.view,
+    onSelectView: (view) => props.onSelectView(view),
+    analytics,
+  });
 
   // The piano roll owns its own note selection, but the KEY-01 registry — not
   // the roll — dispatches delete/duplicate/select-all. The roll hands its
@@ -331,7 +297,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   const returnFromInsert = (via: ViewChangeSource) =>
     selectView(
       AIMS_BACK.has((insertedInto ?? libraryTargetOf())?.kind)
-        ? libraryReturn
+        ? libraryReturn()
         : "instrument",
       via,
     );
