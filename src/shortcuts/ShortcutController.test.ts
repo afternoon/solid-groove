@@ -161,7 +161,7 @@ describe("dispatch", () => {
     const { press, transport } = setup({
       handlers: {
         "library.audition": { run: audition },
-        "library.insert": { run: insert },
+        "library.insert_and_return": { run: insert },
       },
       contexts: ["library"],
     });
@@ -201,7 +201,7 @@ describe("dispatch", () => {
   it("keeps suppressing a held key's repeats after its action closed the surface (#961)", () => {
     const insert = vi.fn();
     const { press, setHandlers, setContexts, transport } = setup({
-      handlers: { "library.insert": { run: insert } },
+      handlers: { "library.insert_and_return": { run: insert } },
       contexts: ["library"],
     });
 
