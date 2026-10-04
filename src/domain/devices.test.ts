@@ -7,6 +7,8 @@ import {
   deviceParameters,
   deviceTypeDefinition,
   deviceTypes,
+  EQ_BANDS,
+  eqBandHasGain,
   isRegisteredDeviceType,
 } from "./devices";
 import { createSeededIdFactory } from "./ids";
@@ -20,7 +22,7 @@ import {
 const deviceId = createSeededIdFactory("devices-test")("device");
 
 describe("device type registry", () => {
-  it("registers the six alpha core device types", () => {
+  it("registers the alpha's core device types", () => {
     expect(deviceTypes().map((d) => d.type)).toEqual([
       "filter",
       "overdrive",
@@ -28,6 +30,7 @@ describe("device type registry", () => {
       "compressor",
       "delay",
       "reverb",
+      "eq",
     ]);
   });
 
@@ -123,6 +126,68 @@ describe("FX-01 required controls", () => {
     // throwing, so a hostile stored value cannot break the audio graph.
     expect(delayDivision(-5)).toBe(DELAY_DIVISIONS[0]);
     expect(delayDivision(99)).toBe(DELAY_DIVISIONS[DELAY_DIVISIONS.length - 1]);
+  });
+});
+
+describe("EQ bands (LOOP-022)", () => {
+  function parameterIds(type: string): string[] {
+    return deviceParameters(type).map((p) => bareParameterId(p.id));
+  }
+
+  it("has six bands, low to high: low cut, low shelf, two peaks, high shelf, high cut", () => {
+    expect(EQ_BANDS.map((band) => band.kind)).toEqual([
+      "lowCut",
+      "lowShelf",
+      "peak",
+      "peak",
+      "highShelf",
+      "highCut",
+    ]);
+  });
+
+  it("gives every band a switch, frequency and Q, and only shelves and peaks a gain", () => {
+    const ids = parameterIds("eq");
+    for (const band of EQ_BANDS) {
+      expect(ids).toEqual(
+        expect.arrayContaining([`${band.id}On`, `${band.id}Freq`, `${band.id}Q`]),
+      );
+      expect(ids.includes(`${band.id}Gain`)).toBe(eqBandHasGain(band.kind));
+    }
+    // An output trim, but no dry/wet: a blended EQ comb-filters.
+    expect(ids).toContain("output");
+    expect(ids).not.toContain("wet");
+  });
+
+  it("treats each band's switch as a discrete, non-automatable mode", () => {
+    for (const band of EQ_BANDS) {
+      const on = getParameterDefinition(`eq.${band.id}On`);
+      expect(on).toMatchObject({
+        min: 0,
+        max: 1,
+        step: 1,
+        clampPolicy: "reject",
+        automatable: false,
+      });
+    }
+  });
+
+  it("starts flat: every gain at 0 dB and both cuts switched out", () => {
+    const defaults = defaultDeviceParameters("eq");
+    for (const band of EQ_BANDS) {
+      if (eqBandHasGain(band.kind)) {
+        expect(defaults[`${band.id}Gain`]).toBe(0);
+        expect(defaults[`${band.id}On`]).toBe(1);
+      } else {
+        expect(defaults[`${band.id}On`]).toBe(0);
+      }
+    }
+    expect(defaults.output).toBe(0);
+  });
+
+  it("orders the default band frequencies low to high", () => {
+    const defaults = defaultDeviceParameters("eq");
+    const frequencies = EQ_BANDS.map((band) => defaults[`${band.id}Freq`]);
+    expect(frequencies).toEqual([...frequencies].sort((a, b) => a - b));
   });
 });
 

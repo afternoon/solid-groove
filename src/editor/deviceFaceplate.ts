@@ -1,3 +1,4 @@
+import { EQ_BANDS } from "../domain/devices";
 import type { ParameterDefinition } from "../domain/parameters";
 import { bareParameterId } from "../domain/parameters";
 
@@ -38,6 +39,17 @@ const DEVICE_GROUPS: Readonly<
     ["Space", ["size", "decay", "predelay"]],
     ["Colour", ["filter"]],
     ["Mix", ["wet", "output"]],
+  ],
+  // One bank per band, low to high: its switch, then where and how much.
+  eq: [
+    ...EQ_BANDS.map(
+      (band) =>
+        [
+          band.label,
+          [`${band.id}On`, `${band.id}Freq`, `${band.id}Gain`, `${band.id}Q`],
+        ] as const,
+    ),
+    ["Mix", ["output"]],
   ],
 };
 

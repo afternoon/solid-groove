@@ -89,7 +89,7 @@ function buildRichProject(seed = "duplicate-fixture"): Project {
     type: "eq",
     order: 0,
     bypassed: false,
-    parameters: { gain: 0 },
+    parameters: { peak1Gain: 0 },
     preset: null,
   };
 

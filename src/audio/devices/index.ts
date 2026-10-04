@@ -5,6 +5,7 @@ import { compressorLatencyFrames, createCompressorCore } from "./compressor";
 import { createDelayCore } from "./delay";
 import { buildDeviceNode } from "./deviceNode";
 import { createOverdriveCore, createSaturatorCore } from "./distortion";
+import { createEqCore } from "./eq";
 import { createFilterCore } from "./filter";
 import { createReverbCore } from "./reverb";
 import type { DeviceCoreFactory, DeviceGraphContext } from "./types";
@@ -24,7 +25,7 @@ interface DeviceCoreEntry {
 }
 
 /**
- * The alpha's six core processing devices, keyed by the `type` string
+ * The alpha's core processing devices, keyed by the `type` string
  * `src/domain/devices.ts` registers them under (PRD FX-01). This map is the one
  * place a `device.type` becomes real DSP; adding a seventh device is a new core
  * module plus one entry here.
@@ -43,6 +44,7 @@ const DEVICE_CORES: Readonly<Record<string, DeviceCoreEntry>> = {
   },
   delay: { createCore: createDelayCore, latencyFrames: NO_LATENCY },
   reverb: { createCore: createReverbCore, latencyFrames: NO_LATENCY },
+  eq: { createCore: createEqCore, latencyFrames: NO_LATENCY },
 };
 
 /**

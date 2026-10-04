@@ -196,9 +196,26 @@ function lastSound(data: Float32Array, threshold = 1e-3): number {
   return -1;
 }
 
+/** An EQ with every kind of band in use (LOOP-022). */
+const EQ_IN_USE = () =>
+  device("eq", {
+    lowCutOn: 1,
+    lowCutFreq: 80,
+    lowShelfGain: 3,
+    peak1Gain: -4,
+    peak2Gain: 5,
+    peak2Q: 3,
+    highShelfGain: -3,
+    highShelfQ: 2,
+    highCutOn: 1,
+    highCutFreq: 12_000,
+  });
+
 /** The synth song the parity renders share: a track strip, inserts, a send to
- * a return with a tempo-synced delay, and a master chain, all off default. */
-function paritySong(): Project {
+ * a return with a tempo-synced delay, and a master chain, all off default.
+ * `eq` adds an EQ to the track's inserts (`true` for {@link EQ_IN_USE}), so an export of one is proven to be
+ * what playback sounds like. */
+function paritySong(options: { eq?: boolean | Device } = {}): Project {
   const bus = {
     ...createReturnBus(createFactoryContext({ ids }), { name: "FX", order: 0 }),
   };
@@ -210,7 +227,15 @@ function paritySong(): Project {
     (track) => ({
       ...track,
       instrument: { kind: "synth", parameters: { filterCutoff: 1_200, ampRelease: 0.3 } },
-      devices: [device("filter", { cutoff: 2_500 }), device("saturator", { drive: 0.6 })],
+      // Each insert takes its place in the chain from its position here. Left
+      // at the helper's order 0, ties fall back to comparing IDs, which every
+      // build mints afresh: the saturator and the EQ would swap places from
+      // one build to the next, and so would the sound.
+      devices: [
+        device("filter", { cutoff: 2_500 }),
+        device("saturator", { drive: 0.6 }),
+        ...(options.eq === true ? [EQ_IN_USE()] : options.eq ? [options.eq] : []),
+      ].map((insert, order) => ({ ...insert, order })),
       sendConfig: [createSend(bus.id, 0.5)],
       mixer: { ...track.mixer, volume: -6, pan: 0.4 },
     }),
@@ -280,71 +305,111 @@ describe("offline reference renders: duration and tails", () => {
   });
 });
 
+/**
+ * Builds the song twice and renders each, and asserts not one sample differs
+ * (#867). Each build mints fresh IDs, so this also proves no ID leaks into the
+ * sound.
+ */
+async function expectDeterministic(build: () => Project): Promise<void> {
+  const first = await render(build(), 2);
+  const second = await render(build(), 2);
+  expect(second.frames).toBe(first.frames);
+  for (const channel of [0, 1]) {
+    const a = first.channels[channel];
+    const b = second.channels[channel];
+    let differing = 0;
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) differing++;
+    expect(differing, `channel ${channel}`).toBe(0);
+  }
+}
+
+/**
+ * Renders `project` offline and through the graph live playback builds, and
+ * asserts the two are the same samples, near enough. Returns the latency the
+ * live graph compensates for, which the render drops from its front.
+ */
+async function expectLiveParity(project: Project): Promise<number> {
+  const projection = buildAudioProjection(project);
+  const trackId = project.song.tracks[0].id;
+  const graphModule = await import("./ProjectAudioGraph");
+  let liveLatency = Number.NaN;
+  // Live: the graph live playback builds — on its default transport, the
+  // global one, which is this render's while the callback runs — auditioning
+  // the same note now. An audition is an immediate trigger, so it needs no
+  // transport clock to sound.
+  const live = await Tone.Offline(
+    async ({ destination }) => {
+      const runtime = new runtimeModule.AudioRuntime();
+      const graph = new graphModule.ProjectAudioGraph(
+        {
+          getDestination: () => destination,
+          getSampleRate: () => RATE,
+          resume: async () => {},
+          openProjectScope: (owner) => runtime.openProjectScope(owner),
+        },
+        "live",
+        { now: () => 0 },
+      );
+      graph.reconcile(projection);
+      liveLatency = graph.latencyCompensation?.totalFrames ?? Number.NaN;
+      graph.auditionTrack(trackId, { kind: "pitch", pitch: 57 }, 96, 0.8);
+    },
+    1.5,
+    2,
+    RATE,
+  );
+  const offline = await render(project, 2);
+  const latency = liveLatency;
+  for (const channel of [0, 1]) {
+    const heard = live.getChannelData(channel).subarray(latency);
+    const rendered = offline.channels[channel];
+    expect(rms(rendered.subarray(0, RATE))).toBeGreaterThan(1e-3);
+    let worst = 0;
+    const frames = Math.min(heard.length, rendered.length);
+    for (let i = 0; i < frames; i++) {
+      worst = Math.max(worst, Math.abs(heard[i] - rendered[i]));
+    }
+    expect(worst, `channel ${channel}`).toBeLessThan(1e-4);
+  }
+  return latency;
+}
+
 describe("offline reference renders: parity with live playback", () => {
   it("renders a note exactly as the live graph plays it, every parameter included", async () => {
-    const project = paritySong();
-    const projection = buildAudioProjection(project);
-    const trackId = project.song.tracks[0].id;
-    const graphModule = await import("./ProjectAudioGraph");
-    let liveLatency = Number.NaN;
-    // Live: the graph live playback builds — on its default transport, the
-    // global one, which is this render's while the callback runs — auditioning
-    // the same note now. An audition is an immediate trigger, so it needs no
-    // transport clock to sound.
-    const live = await Tone.Offline(
-      async ({ destination }) => {
-        const runtime = new runtimeModule.AudioRuntime();
-        const graph = new graphModule.ProjectAudioGraph(
-          {
-            getDestination: () => destination,
-            getSampleRate: () => RATE,
-            resume: async () => {},
-            openProjectScope: (owner) => runtime.openProjectScope(owner),
-          },
-          "live",
-          { now: () => 0 },
-        );
-        graph.reconcile(projection);
-        liveLatency = graph.latencyCompensation?.totalFrames ?? Number.NaN;
-        graph.auditionTrack(trackId, { kind: "pitch", pitch: 57 }, 96, 0.8);
-      },
-      1.5,
-      2,
-      RATE,
-    );
-    const offline = await render(project, 2);
+    const latency = await expectLiveParity(paritySong());
     // Live, the song reaches the output as late as its latency; the render
     // drops exactly that from its front. The master compressor and the
     // limiter are both in it.
-    expect(liveLatency).toBe(
+    expect(latency).toBe(
       master.masterLimiterLatencyFrames(RATE) +
         (await import("./devices")).deviceLatencyFrames("compressor", RATE),
     );
-    const latency = liveLatency;
-    for (const channel of [0, 1]) {
-      const heard = live.getChannelData(channel).subarray(latency);
-      const rendered = offline.channels[channel];
-      expect(rms(rendered.subarray(0, RATE))).toBeGreaterThan(1e-3);
-      let worst = 0;
-      const frames = Math.min(heard.length, rendered.length);
-      for (let i = 0; i < frames; i++) {
-        worst = Math.max(worst, Math.abs(heard[i] - rendered[i]));
-      }
-      expect(worst, `channel ${channel}`).toBeLessThan(1e-4);
-    }
   });
 
   it("renders the same song to the same samples every time", async () => {
-    const first = await render(paritySong(), 2);
-    const second = await render(paritySong(), 2);
-    expect(second.frames).toBe(first.frames);
-    for (const channel of [0, 1]) {
-      const a = first.channels[channel];
-      const b = second.channels[channel];
-      let differing = 0;
-      for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) differing++;
-      expect(differing, `channel ${channel}`).toBe(0);
-    }
+    await expectDeterministic(() => paritySong());
+  });
+
+  it("renders an EQ exactly as the live graph plays it (LOOP-022)", async () => {
+    await expectLiveParity(paritySong({ eq: true }));
+  });
+
+  it("renders an EQ to the same samples every time (LOOP-022)", async () => {
+    await expectDeterministic(() => paritySong({ eq: true }));
+  });
+
+  it("renders an EQ's cuts alone to the same samples every time (LOOP-022)", async () => {
+    await expectDeterministic(() =>
+      paritySong({
+        eq: device("eq", {
+          lowCutOn: 1,
+          lowCutFreq: 120,
+          highCutOn: 1,
+          highCutFreq: 8_000,
+          highCutQ: 2,
+        }),
+      }),
+    );
   });
 });
 
