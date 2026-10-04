@@ -89,7 +89,8 @@ test.describe("library keys", () => {
   test("held Space auditions the selection and never presses a focused button", async ({
     page,
   }) => {
-    await openBdSlot(page);
+    await newProjectOnInstrumentView(page);
+    await openPadSlot(page, "BD");
     // A clicked row keeps focus while the arrows move the selection on.
     const rows = soundList(page).getByRole("button", { name: /^Audition / });
     await rows.nth(0).click();
@@ -108,7 +109,8 @@ test.describe("library keys", () => {
   });
 
   test("held Space with focus on Close leaves the library open", async ({ page }) => {
-    await openBdSlot(page);
+    await newProjectOnInstrumentView(page);
+    await openPadSlot(page, "BD");
     await selectSecondSound(page);
 
     await page.keyboard.down(" ");
@@ -123,7 +125,8 @@ test.describe("library keys", () => {
   // button; the repeats that follow land there, where no shortcut maps Enter,
   // and once pressed the library reopened.
   test("held Enter inserts once and the library stays closed", async ({ page }) => {
-    await openBdSlot(page);
+    await newProjectOnInstrumentView(page);
+    await openPadSlot(page, "BD");
     const rows = soundList(page).getByRole("button", { name: /^Audition / });
     await rows.nth(0).click();
     await page.keyboard.press("ArrowDown");
@@ -138,7 +141,7 @@ test.describe("library keys", () => {
     await page.keyboard.down("Enter");
     await page.keyboard.up("Enter");
 
-    await expect(sampleSlot(page)).toContainText(name);
+    await expect.poll(() => slotSound(page, "BD")).toBe(name);
     await page.waitForTimeout(300);
     await expect(library(page)).toBeHidden();
   });

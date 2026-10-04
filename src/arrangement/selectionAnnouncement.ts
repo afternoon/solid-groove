@@ -9,6 +9,8 @@
  * - a point: "Position 3.1.1"
  * - one clip: "Selected clip on BD, bar 1"
  * - several clips: "2 clips selected"
+ * - a track chosen on its header, with no clip selected: "Selected track BD"
+ *   (#960), so the one state Delete removes a whole track in is never silent
  *
  * There is no range wording: a drag selects whole clips, so a stretch of time
  * is never the selection (the 2026-09-25 model).
@@ -21,6 +23,7 @@
  */
 
 import type { Project } from "../domain/entities";
+import type { TrackId } from "../domain/ids";
 import { TICKS_PER_BAR, ticksToBarsBeatsSixteenths } from "../domain/time";
 import { type ArrangementSelection, selectedPlacementIds } from "../selection";
 
@@ -44,13 +47,21 @@ export function describeSpan(startTicks: number, endTicks: number): string {
   return first === last ? `bar ${first}` : `bars ${first} to ${last}`;
 }
 
-/** The announcement for `selection` in `project`. */
+/** The announcement for `selection` in `project`, with `chosenTrackId` the
+ * track chosen on its header, if any. A clip selection outranks the track,
+ * as it does for Delete; the track outranks a point, which Delete ignores. */
 export function describeArrangementSelection(
   selection: ArrangementSelection | null,
   project: Project,
+  chosenTrackId: TrackId | null = null,
 ): string {
-  if (selection?.kind === "point") return `Position ${formatPosition(selection.ticks)}`;
   const ids = selectedPlacementIds(selection, project);
+  const chosen =
+    ids.length === 0
+      ? project.song.tracks.find((t) => t.id === chosenTrackId)
+      : undefined;
+  if (chosen) return `Selected track ${chosen.name}`;
+  if (selection?.kind === "point") return `Position ${formatPosition(selection.ticks)}`;
   if (ids.length > 1) return `${ids.length} clips selected`;
   const clip = project.song.placements.find((p) => p.id === ids[0]);
   if (!clip) return "No selection";

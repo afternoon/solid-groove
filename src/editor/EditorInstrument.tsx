@@ -31,6 +31,7 @@ import type { NewTrackKindSpec } from "./trackCreation";
 import { deleteTrack } from "./trackDeletion";
 import type { TrackLevel } from "./trackLevels";
 import { moveTrack } from "./trackReorder";
+import type { TrackSelectionSource } from "./trackSurface";
 import "./EditorInstrument.css";
 
 export interface EditorInstrumentProps {
@@ -61,7 +62,10 @@ export interface EditorInstrumentProps {
   ) => () => void;
   /** Follows a sound's decoded waveform for the sampler's well (#447). */
   readonly watchPeaks?: WatchPeaks;
-  onSelectTrack(trackId: TrackId): void;
+  /** Points the editor at a track, saying how (#960): see `TrackSelectionSource`. */
+  onSelectTrack(trackId: TrackId, how: TrackSelectionSource): void;
+  /** The track the user chose on its header (#960), framed in the rail. */
+  readonly chosenTrackId?: TrackId | null;
   /**
    * The drum pad selected on the shown track, when the host owns it (#643):
    * the step grid's selected row is the same selection, so it outlives a
@@ -165,7 +169,8 @@ export default function EditorInstrument(props: EditorInstrumentProps): JSX.Elem
       <TrackRail
         tracks={props.project.song.tracks}
         selectedTrackId={props.track?.id ?? null}
-        onSelect={props.onSelectTrack}
+        chosenTrackId={props.chosenTrackId}
+        onSelect={(trackId) => props.onSelectTrack(trackId, "header")}
         onAddTrack={props.onAddTrack}
         onAddLoop={props.onAddLoop}
         dispatch={props.dispatch}
@@ -177,7 +182,7 @@ export default function EditorInstrument(props: EditorInstrumentProps): JSX.Elem
             {
               project: () => props.project,
               dispatch: props.dispatch,
-              select: props.onSelectTrack,
+              select: (trackId) => props.onSelectTrack(trackId, "follow"),
               analytics,
             },
             trackId,

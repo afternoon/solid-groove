@@ -23,6 +23,7 @@ import {
   parsePackManifest,
 } from "./manifest";
 import SoundsView from "./SoundsView";
+import { shelfFamilyOf } from "./shelf";
 import type { SoundsKeyAction } from "./soundKeys";
 import type { ShelfSlot } from "./useShelf";
 
@@ -375,6 +376,113 @@ const count = () =>
   Number(document.querySelector(".filter-count")?.textContent?.match(/\d+/)?.[0]);
 const button = (name: string | RegExp) => screen.getByRole("button", { name });
 const picker = () => document.querySelector(".filter-pick") as HTMLElement;
+
+/**
+ * {@link fixtureFetcher}, except the texture pack's last one-shot is filed
+ * under FX, so the library has all five one-shot families (the committed
+ * fixture has no FX sound of its own).
+ */
+function fiveFamilyFetcher() {
+  const base = fixtureFetcher();
+  return async (path: string) => {
+    const doc = (await base(path)) as {
+      assets?: { type: string; family: string; role: string }[];
+    };
+    if (!Array.isArray(doc.assets) || !doc.assets.some((a) => a.family === "texture"))
+      return doc;
+    const last = doc.assets.findLastIndex((a) => a.type === "one-shot");
+    return {
+      ...doc,
+      assets: doc.assets.map((asset, i) =>
+        i === last ? { ...asset, family: "fx", role: "impact" } : asset,
+      ),
+    };
+  };
+}
+
+describe("SoundsView family tabs during a search (#878)", () => {
+  const familyTabs = () =>
+    tabs().map((tab) => [
+      tab.querySelector(".shelf-family-name")?.textContent,
+      tab.querySelector(".shelf-family-count")?.textContent,
+    ]);
+
+  it("keeps every family's tab, with its match count, when the search matches one family", async () => {
+    renderView({
+      client: new LibraryClient(fiveFamilyFetcher()),
+      assetTypes: ["one-shot"],
+      query: "kick",
+    });
+    const kicks = (await rows()).length;
+    expect(kicks).toBeGreaterThan(0);
+
+    expect(familyTabs()).toEqual([
+      ["Drums", String(kicks)],
+      ["Bass", "0"],
+      ["Tonal", "0"],
+      ["Texture", "0"],
+      ["FX", "0"],
+    ]);
+  });
+
+  it("selects a 0-count tab on click and shows the empty state as it is", async () => {
+    renderView({
+      client: new LibraryClient(fiveFamilyFetcher()),
+      assetTypes: ["one-shot"],
+      query: "kick",
+    });
+    await rows();
+
+    fireEvent.click(screen.getByRole("tab", { name: /^Bass/ }));
+
+    await waitFor(() => expect(selectedTab()).toHaveTextContent(/^Bass/));
+    expect(screen.getByText("No sounds match these filters.")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Clear the filters" })).toBeVisible();
+    expect(screen.queryByRole("list", { name: "Sounds" })).toBeNull();
+    expect(tabs()).toHaveLength(5);
+  });
+
+  it("keeps every tab at zero when nothing matches", async () => {
+    renderView({
+      client: new LibraryClient(fiveFamilyFetcher()),
+      assetTypes: ["one-shot"],
+      query: "zzzz-no-such-sound",
+    });
+
+    expect(await screen.findByText("No sounds match these filters.")).toBeVisible();
+    expect(familyTabs()).toEqual([
+      ["Drums", "0"],
+      ["Bass", "0"],
+      ["Tonal", "0"],
+      ["Texture", "0"],
+      ["FX", "0"],
+    ]);
+  });
+
+  it("keeps every tab the pack has inside a pack", async () => {
+    const assets = await libraryAssets();
+    const familiesOf = (slug: string) =>
+      new Set(
+        assets
+          .filter((a) => a.packSlug === slug)
+          .map(shelfFamilyOf)
+          .filter((family) => family !== null),
+      );
+    const slug = FIXTURE_PACK_INDEX_DOC.packs
+      .map((p) => p.slug)
+      .find((s) => familiesOf(s).size > 1 && familiesOf(s).has("drums"));
+    if (!slug) throw new Error("No fixture pack spans drums and another family");
+    renderView({ packSlug: slug, query: "kick" });
+    const kicks = (await rows()).length;
+
+    expect(tabs()).toHaveLength(familiesOf(slug).size);
+    expect(screen.getByRole("tab", { name: /^Drums/ })).toHaveTextContent(
+      new RegExp(`${kicks}$`),
+    );
+    for (const tab of tabs().filter((t) => !/^Drums/.test(t.textContent ?? "")))
+      expect(tab).toHaveTextContent(/ 0$/);
+  });
+});
 
 describe("SoundsView filters", () => {
   it("shows the live count, which follows the shelf", async () => {

@@ -26,14 +26,23 @@ export interface ShelfSlot {
  *
  * `sounds` is what the shelf counts (scope and filters already applied); `all`
  * is the whole library, where the slot's own sound is looked up so that typing
- * in search never moves the opening position.
+ * in search never moves the opening position; `scope` is what is browsable
+ * before the search and filters, and decides which family tabs show (#878).
  */
 export function useShelf(
   sounds: Accessor<readonly LibraryAsset[]>,
   all: Accessor<readonly LibraryAsset[]>,
   slot: Accessor<ShelfSlot | undefined>,
+  scope: Accessor<readonly LibraryAsset[]> = sounds,
 ) {
-  const [picked, setPicked] = createSignal<ShelfSelection | null>(null);
+  // A choice remembers the sounds it was made against: until the search or a
+  // filter changes them, a chosen family stays even with nothing in it.
+  const [picked, setPicked] = createSignal<{
+    readonly selection: ShelfSelection;
+    readonly against: readonly LibraryAsset[];
+  } | null>(null);
+  const choose = (selection: ShelfSelection) =>
+    setPicked({ selection, against: sounds() });
 
   const opening = createMemo<ShelfSelection>(() => {
     const at = slot();
@@ -47,22 +56,28 @@ export function useShelf(
     );
   });
 
-  const selection = createMemo(() => settle(sounds(), picked() ?? opening()));
-  const families = createMemo(() => shelfFamilies(sounds()));
+  const selection = createMemo(() => {
+    const choice = picked();
+    const current = sounds();
+    return settle(
+      current,
+      choice?.selection ?? opening(),
+      choice !== null && choice.against === current,
+    );
+  });
+  const families = createMemo(() => shelfFamilies(sounds(), scope()));
   // Keyed on the family alone, so choosing a category keeps the chips (and the
   // focus on the one just pressed) rather than rebuilding them.
   const family = createMemo(() => selection().family);
   const roles = createMemo(() => shelfRoles(sounds(), family()));
   const inView = createMemo(() => soundsInView(sounds(), selection()));
 
-  const setFamily = (family: ShelfSelection["family"]) =>
-    setPicked({ family, role: null });
-  const setRole = (role: string | null) =>
-    setPicked({ family: selection().family, role });
+  const setFamily = (family: ShelfSelection["family"]) => choose({ family, role: null });
+  const setRole = (role: string | null) => choose({ family: selection().family, role });
 
   /** Jump straight to a family and category, as a search's role jump does. */
   const select = (family: ShelfSelection["family"], role: string | null) =>
-    setPicked({ family, role });
+    choose({ family, role });
 
   /** `0` is all of the family, `1`-`9` the nth category; a missing one does nothing. */
   function pick(digit: number): void {
@@ -84,6 +99,10 @@ export function useShelf(
 
   return {
     selection,
+    /** The producer's own choice (`null`: none yet), to put back later. */
+    picked,
+    /** Put back a choice `picked` handed out. */
+    restore: setPicked,
     families,
     roles,
     inView,

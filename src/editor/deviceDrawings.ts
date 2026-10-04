@@ -3,22 +3,12 @@
  * (#447). Each mirrors its engine in `src/audio/devices` — the same transfer
  * functions, gains and size scaling — so the drawing is the sound's shape, not
  * an illustration. Most are written out here because the engine's own copies
- * live inside Tone node factories the editor cannot import; the Saturator's
- * live in a Tone-free module both sides import.
+ * live inside Tone node factories the editor cannot import; the Overdrive's
+ * and the Saturator's live in Tone-free modules both sides import.
  */
 
-/** A Web Audio waveshaper holds its input to -1..1 before the curve. */
-const shaped = (curve: (x: number) => number, x: number) =>
-  curve(Math.max(-1, Math.min(1, x)));
-
-const overdriveCurve = (x: number) => Math.tanh(3 * (x < 0 ? 1.4 : 1) * x) / Math.tanh(3);
-
-/** Overdrive output for input `x` at `drive` (0..1): gain in, part given back. */
-export function overdriveTransfer(drive: number, x: number): number {
-  const gain = 1 + drive ** 2 * 39;
-  return gain ** -0.5 * shaped(overdriveCurve, gain * x);
-}
-
+/** The Overdrive's curve has no Tone in it, so this is the engine's own copy. */
+export { overdriveTransfer } from "../audio/devices/overdriveCurves";
 /** The Saturator's curves have no Tone in them, so this is the engine's own copy. */
 export { saturatorTransfer } from "../audio/devices/saturatorCurves";
 
