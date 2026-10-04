@@ -161,7 +161,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        browser: [chromium, chrome, msedge, firefox]
+        # Branded Chrome stands in for Playwright's own Chromium here: same
+        # engine, and the per-PR `browser-sanity` job already runs Chromium.
+        browser: [chrome, msedge, firefox]
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -187,6 +189,47 @@ jobs:
         if: ${{ !cancelled() }}
         with:
           name: playwright-report-emulator-${{ matrix.browser }}
+          path: playwright-report/
+          retention-days: 7
+      - name: List tests that only passed on a retry
+        # CI retries a failed test twice, so a flaky test passes quietly. Name
+        # them, so the daily report can file them (`browser-pass-report`).
+        if: ${{ !cancelled() }}
+        run: node scripts/list-flaky-tests.mjs playwright-results.json | tee flaky-${{ matrix.browser }}.txt
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: flaky-emulator-${{ matrix.browser }}
+          path: flaky-${{ matrix.browser }}.txt
+          retention-days: 7
+
+  # The per-push browser check: the emulator suite's `@sanity` subset (one pass
+  # through each major surface, about a minute of tests) in Chromium. The full
+  # suite, in every browser, runs daily (`browser-emulator`).
+  browser-sanity:
+    name: browser sanity (chromium)
+    needs: checks
+    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Install Playwright browser (chromium)
+        run: bunx playwright install --with-deps chromium
+      - name: Run the sanity subset against the Firebase Emulator
+        run: bunx firebase emulators:exec --only firestore,auth,storage --project demo-solid-groove "bunx playwright test --config=tests/e2e/emulator/playwright.config.ts --project=chromium --grep @sanity"
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report-sanity
           path: playwright-report/
           retention-days: 7
 
@@ -277,9 +320,9 @@ jobs:
   # full secret/variable list and how to add them.
   deploy:
     name: deploy to Firebase Hosting
-    # The browser suites run daily, not per push, so they do not gate a deploy;
-    # a red daily pass files a bug instead (`browser-pass-failed`).
-    needs: [checks, emulator, build]
+    # The full browser suites run daily, not per push, so only the sanity subset
+    # gates a deploy; a red daily pass files a bug instead (`browser-pass-report`).
+    needs: [checks, browser-sanity, emulator, build]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: prod
@@ -437,30 +480,50 @@ jobs:
           path: playwright-report/
           retention-days: 7
 
-  # A failed daily browser pass becomes a bug on the board, not a red run nobody
-  # opens: one open issue, commented on by each later failure until it is closed.
-  browser-pass-failed:
-    name: report a failed daily browser pass
+  # The daily pass reports to the board, not to a red run nobody opens: a
+  # failure opens (or comments on) one bug, and tests that only passed on a
+  # retry open (or comment on) one flaky-tests issue.
+  browser-pass-report:
+    name: report the daily browser pass
     needs: [browser, browser-emulator]
-    if: failure() && github.event_name == 'schedule'
+    if: ${{ always() && github.event_name == 'schedule' }}
     runs-on: ubuntu-latest
     permissions:
       issues: write
     env:
-      # The PAT, so opening the issue triggers milestone.yml and the board;
+      # The PAT, so opening an issue triggers milestone.yml and the board;
       # issues opened with GITHUB_TOKEN start no workflows.
       GH_TOKEN: ${{ secrets.RESTACK_TOKEN || github.token }}
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      FAILED: ${{ contains(needs.*.result, 'failure') }}
     steps:
-      - name: Open or update the issue
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: flaky-*
+          merge-multiple: true
+          path: flaky
+      - name: Open or update the issues
         run: |
-          title="Bug: daily browser pass failed"
-          body="The scheduled browser pass on \`main\` (${GITHUB_SHA::7}) failed: $RUN_URL. Each failing job's Playwright report is attached to the run as an artifact."
-          n=$(gh api "repos/$GITHUB_REPOSITORY/issues?state=open&labels=bug&per_page=100" \
-            --jq '[.[] | select(.title == "Bug: daily browser pass failed")][0].number // empty')
-          if [ -n "$n" ]; then
-            gh api "repos/$GITHUB_REPOSITORY/issues/$n/comments" -f body="Failed again: $RUN_URL" --jq .html_url
-          else
-            gh api "repos/$GITHUB_REPOSITORY/issues" -f title="$title" -f body="$body" \
-              -f 'labels[]=bug' -f 'labels[]=status:backlog' --jq .html_url
+          # $1 title, $2 body for a new issue, $3 comment on an open one.
+          file_issue() {
+            n=$(gh api "repos/$GITHUB_REPOSITORY/issues?state=open&labels=bug&per_page=100" \
+              --jq "[.[] | select(.title == \"$1\")][0].number // empty")
+            if [ -n "$n" ]; then
+              gh api "repos/$GITHUB_REPOSITORY/issues/$n/comments" -f body="$3" --jq .html_url
+            else
+              gh api "repos/$GITHUB_REPOSITORY/issues" -f title="$1" -f body="$2" \
+                -f 'labels[]=bug' -f 'labels[]=status:backlog' --jq .html_url
+            fi
+          }
+          if [ "$FAILED" = true ]; then
+            file_issue "Bug: daily browser pass failed" \
+              "The scheduled browser pass on \`main\` (${GITHUB_SHA::7}) failed: $RUN_URL. Each failing job's Playwright report is attached to the run as an artifact." \
+              "Failed again: $RUN_URL"
+          fi
+          flaky=$(cat flaky/*.txt 2>/dev/null | sort -u)
+          if [ -n "$flaky" ]; then
+            list=$(printf '%s\n' "$flaky" | sed 's/^/- /')
+            body=$(printf 'These tests failed and then passed on a retry in the daily browser pass (%s). Make each one deterministic; never skip or quarantine it.\n\n%s\n' "$RUN_URL" "$list")
+            again=$(printf 'Flaky again in %s:\n\n%s\n' "$RUN_URL" "$list")
+            file_issue "Bug: flaky browser tests" "$body" "$again"
           fi

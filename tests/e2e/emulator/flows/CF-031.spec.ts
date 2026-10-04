@@ -46,7 +46,8 @@ const returnChain = (page: Page): Locator =>
 const returnDevices = (page: Page): Locator =>
   returnChain(page).getByRole("list", { name: "Return chain" }).getByRole("listitem");
 
-test.describe("CF-031", () => {
+// Part of the per-PR `@sanity` subset (.github/workflows/ci.yml).
+test.describe("CF-031", { tag: "@sanity" }, () => {
   test("a producer sends a track to a reverb return", async ({ page }) => {
     test.setTimeout(120_000);
 

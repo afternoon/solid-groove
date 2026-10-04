@@ -86,7 +86,8 @@ async function expectFillsPage(page: Page, region: Locator): Promise<void> {
   expect(box.height).toBeGreaterThan(viewport.height * 0.7);
 }
 
-test.describe("CF-008", () => {
+// Part of the per-PR `@sanity` subset (.github/workflows/ci.yml).
+test.describe("CF-008", { tag: "@sanity" }, () => {
   // biome-ignore format: unparked by removing only test.fixme, so the frozen body keeps its lines
   test(
     "a producer moves between the five views by dock and by keyboard",

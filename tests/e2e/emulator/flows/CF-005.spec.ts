@@ -100,7 +100,8 @@ async function loopAtAnotherTempo(
   );
 }
 
-test.describe("CF-005", () => {
+// Part of the per-PR `@sanity` subset (.github/workflows/ci.yml).
+test.describe("CF-005", { tag: "@sanity" }, () => {
   // `test.fixme` until #817's stack lands: the PR that closes #817 removes this
   // marker in the same diff that makes the flow pass.
   test("a producer brings a library loop into their project", async ({ page }) => {

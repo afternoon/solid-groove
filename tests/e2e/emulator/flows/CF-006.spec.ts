@@ -131,7 +131,8 @@ async function dropAudioFiles(
   await target.dispatchEvent("drop", { dataTransfer });
 }
 
-test.describe("CF-006", () => {
+// Part of the per-PR `@sanity` subset (.github/workflows/ci.yml).
+test.describe("CF-006", { tag: "@sanity" }, () => {
   test("a producer brings their own sounds into a pack", async ({
     page,
     browserName,

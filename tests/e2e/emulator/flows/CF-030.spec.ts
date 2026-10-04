@@ -61,7 +61,8 @@ const select = async (page: Page, name: string): Promise<void> => {
   await expect(readout(page, "Hearing")).toContainText(name);
 };
 
-test.describe("CF-030", () => {
+// Part of the per-PR `@sanity` subset (.github/workflows/ci.yml).
+test.describe("CF-030", { tag: "@sanity" }, () => {
   // biome-ignore format: unparked by removing only test.fixme, so the frozen body keeps its lines
   test(
     "a producer tries several kicks on a pad without leaving the library",
