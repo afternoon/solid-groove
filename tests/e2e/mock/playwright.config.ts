@@ -4,11 +4,16 @@ import { chromiumLaunchOptions } from "../../playwright.chromium";
 const PORT = 3000;
 const baseURL = `http://127.0.0.1:${PORT}`;
 
-// Browser E2E suite. `bun run test:browser` runs Chromium and Firefox — the
-// P0 gating browsers per PRD section 10 — plus WebKit as a non-gating
-// signal: it always runs, but CI treats a WebKit-only failure as a warning
-// rather than a blocker (see .github/workflows/ci.yml). Edge is Chromium
-// under the hood and is not separately covered here.
+// Browser E2E suite. `bun run test:browser` runs the PRD section 10 P0
+// gating browsers — Firefox, and the branded Chrome and Edge builds through
+// Playwright's `chrome`/`msedge` channels (#75) — plus Playwright's own
+// Chromium, which is what an environment that can install nothing else runs
+// as its pre-flight, and WebKit as a non-gating signal: it always runs, but
+// CI treats a WebKit-only failure as a warning rather than a blocker (see
+// .github/workflows/ci.yml). A channel resolves to the *current* stable
+// release installed on the machine; Playwright cannot pin the previous major,
+// so that half of "current and previous" is the manual checklist's
+// (docs/runbooks/cross-browser.md).
 //
 // Playwright drives the app against the in-memory mock backend
 // (`VITE_DEV_BACKEND=mock`, see src/projectRepositoryClient.ts and
@@ -90,6 +95,12 @@ export default defineConfig({
         launchOptions: chromiumLaunchOptions,
       },
     },
+    // Branded Chrome and Edge (#75): Chromium underneath, but each ships its
+    // own media stack, codecs and autoplay policy, which is what PRD section
+    // 10 gates on. Neither takes `chromiumLaunchOptions`: a channel is the
+    // installed browser, never a supplied Chromium build.
+    { name: "chrome", use: { ...devices["Desktop Chrome"], channel: "chrome" } },
+    { name: "msedge", use: { ...devices["Desktop Edge"], channel: "msedge" } },
     { name: "firefox", use: { ...devices["Desktop Firefox"] } },
     { name: "webkit", use: { ...devices["Desktop Safari"] } },
   ],

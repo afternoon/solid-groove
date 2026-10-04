@@ -26,9 +26,12 @@ const authEmulatorHost = process.env.FIREBASE_AUTH_EMULATOR_HOST ?? "127.0.0.1:9
 // `src/firebaseConfig.ts`'s emulator wiring), so a reload here answers from
 // the emulator the way it would from production.
 //
-// Only the two PRD section 10 P0-gating browsers run here (chromium,
-// firefox) — this suite is additional coverage for one task's slice, not a
-// third full cross-browser matrix.
+// Every core flow (docs/core-flows.md) lives here, so this is the suite that
+// proves "every core journey" in each PRD section 10 P0-gating browser:
+// Firefox, and branded Chrome and Edge through Playwright's `chrome`/`msedge`
+// channels (#75), plus Playwright's own Chromium, the pre-flight an
+// environment that can install nothing else runs. WebKit is not run here; the
+// mock suite carries the best-effort Safari signal.
 export default defineConfig({
   testDir: ".",
   // Test artifacts stay at the repo root even though this config now lives in
@@ -119,6 +122,30 @@ export default defineConfig({
         launchOptions: chromiumLaunchOptions,
       },
       dependencies: ["warmup:chromium"],
+    },
+    // Branded Chrome and Edge (#75): the installed stable release of each, so
+    // no `chromiumLaunchOptions` (that override is for a supplied Chromium).
+    {
+      name: "warmup:chrome",
+      testMatch: /warmDevServer\.setup\.ts/,
+      use: { ...devices["Desktop Chrome"], channel: "chrome" },
+    },
+    {
+      name: "chrome",
+      testIgnore: /warmDevServer\.setup\.ts/,
+      use: { ...devices["Desktop Chrome"], channel: "chrome" },
+      dependencies: ["warmup:chrome"],
+    },
+    {
+      name: "warmup:msedge",
+      testMatch: /warmDevServer\.setup\.ts/,
+      use: { ...devices["Desktop Edge"], channel: "msedge" },
+    },
+    {
+      name: "msedge",
+      testIgnore: /warmDevServer\.setup\.ts/,
+      use: { ...devices["Desktop Edge"], channel: "msedge" },
+      dependencies: ["warmup:msedge"],
     },
     {
       name: "warmup:firefox",

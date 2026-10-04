@@ -260,15 +260,15 @@ jobs upload. Download them from the run's summary page.
 
 ## Which browsers run where
 
-The two browser suites below run three browsers, but not every environment can
-install three browsers. The split is deliberate, and knowing which half you are
+The two browser suites below run up to five browsers, but not every environment
+can install five browsers. The split is deliberate, and knowing which half you are
 in is the difference between a useful pre-flight and a false claim of
 cross-browser coverage.
 
 | Environment | Browsers it runs | What a green run proves |
 | --- | --- | --- |
-| CI (`.github/workflows/ci.yml`) | chromium, firefox, webkit | **The gate.** Chromium and Firefox are P0 and block; WebKit is `continue-on-error` signal |
-| A local machine | whatever `bun run test:browser:install` fetched — normally all three | The same as CI, if all three installed |
+| CI (`.github/workflows/ci.yml`) | chromium, chrome, msedge, firefox, webkit (the emulator suite: all but webkit) | **The gate.** Chrome, Edge and Firefox are P0 and block, as does Playwright's Chromium; WebKit is `continue-on-error` signal |
+| A local machine | whatever `bun run test:browser:install` fetched (chromium, firefox, webkit), plus Chrome and Edge if they are installed | The same as CI, for the browsers that are there |
 | A container that cannot reach `cdn.playwright.dev` (Claude Code on the web) | chromium only | A pre-flight. Says nothing about Firefox or WebKit |
 
 CI runs on `push` to `main` and `claude/**` as well as on `pull_request`, and
@@ -333,13 +333,13 @@ bun run test:browser:emulator
 
 Config: `tests/e2e/emulator/playwright.config.ts`. Unlike the suite above, this points the *real* Firebase SDK at a local Firestore + Auth emulator (`VITE_FIRESTORE_EMULATOR_HOST`/`VITE_AUTH_EMULATOR_HOST`, wired in `src/firebaseConfig.ts`) instead of the in-memory mock — `bun run test:browser:emulator` runs `firebase emulators:exec --only firestore,auth` around the Playwright run, the same pattern `test:emulator` uses. This is what proves the `FND-009` slice's "save it, reload it, reproduce playback" step against a real backend: the in-memory repository above is a fresh, empty store on every page load, so it cannot prove anything survives an actual `page.reload()`.
 
-Suite location: `tests/e2e/emulator/`. `tests/e2e/emulator/slice.spec.ts` exercises the whole `FND-009` slice in the gating browsers (chromium, firefox — see `tests/e2e/emulator/playwright.config.ts`): anonymous start, create a project, toggle steps on the grid, press play, undo a step, confirm the save status settles, reload the page, and confirm the reloaded project shows the same steps and the same pack dependency it saved.
+Suite location: `tests/e2e/emulator/`. `tests/e2e/emulator/slice.spec.ts` exercises the whole `FND-009` slice in the gating browsers (chromium, chrome, msedge, firefox — see `tests/e2e/emulator/playwright.config.ts`): anonymous start, create a project, toggle steps on the grid, press play, undo a step, confirm the save status settles, reload the page, and confirm the reloaded project shows the same steps and the same pack dependency it saved.
 
 `tests/e2e/emulator/dashboard.spec.ts` is `LOOP-001`'s access-control and destructive-confirmation coverage — the reason it needs the real emulator rather than the mock backend: a second `browser.newContext()` gets its own anonymous Firebase identity, so it can prove a project created by one anonymous session neither appears in another session's listing nor opens by URL (Firestore's security rules deny the read; the repository maps that `permission-denied` onto the same "not found" state an unknown ID would produce). The same file confirms a cancelled delete leaves a project in place and a confirmed one is gone after a real `page.reload()`.
 
 ### Playback is asserted in Chromium only — a known, tracked gap
 
-`slice.spec.ts` runs in both gating browsers, but its two playback assertions are guarded by `browserName === "chromium"`. `LOOP-014` added the same guard to the keyboard-shortcut test in `tests/e2e/mock/smoke.spec.ts`, for the same reason and with the same annotation — pressing `Space` dispatches identically in Firefox, but the transport button it would flip depends on the same `resume()` that never settles there. Everything else — add a note, save, revision advance, undo, reload, pack dependency — runs in Chromium *and* Firefox, so the persistence path this suite exists to prove keeps full coverage.
+`slice.spec.ts` runs in every gating browser, but its two playback assertions are guarded by `browserName === "chromium"`. Playwright reports the `chrome` and `msedge` channels as `browserName === "chromium"` too, so playback *is* asserted in branded Chrome and Edge; the gap is Firefox's. `LOOP-014` added the same guard to the keyboard-shortcut test in `tests/e2e/mock/smoke.spec.ts`, for the same reason and with the same annotation — pressing `Space` dispatches identically in Firefox, but the transport button it would flip depends on the same `resume()` that never settles there. Everything else — add a note, save, revision advance, undo, reload, pack dependency — runs in Chromium *and* Firefox, so the persistence path this suite exists to prove keeps full coverage.
 
 **Why.** In Firefox here, `useProjectAudio.play()` never reaches `setIsPlaying(true)`, so the transport button never becomes "Stop playback". What is known, from instrumenting the spec:
 
@@ -394,7 +394,13 @@ Creating a project in the warm-up cannot disturb `slice.spec.ts`'s `No projects 
 
 Note for anyone extending this suite: do not wait on `networkidle`. The app holds an open Firestore listener, so the network never goes idle and the wait can only time out. Wait for real elements — those locators re-resolve across a reload, which is the behaviour you want.
 
-Three projects run: `chromium`, `firefox`, `webkit`. Per the PRD section 10 supported-environment policy, Chromium and Firefox are P0-gating; WebKit runs alongside them as a signal only (`.github/workflows/ci.yml` marks the WebKit job `continue-on-error`) — WebKit passing is evidence, not proof, about real Safari.
+Five projects run: `chromium`, `chrome`, `msedge`, `firefox`, `webkit`. Per the PRD section 10 supported-environment policy, Chrome, Edge and Firefox are P0-gating; WebKit runs alongside them as a signal only (`.github/workflows/ci.yml` marks the WebKit job `continue-on-error`) — WebKit passing is evidence, not proof, about real Safari. `chromium` is Playwright's own build: it is not a browser anyone ships, but it is the one every environment can install, so it stays as the pre-flight and keeps gating alongside the branded two.
+
+### Chrome and Edge, and what "current and previous" means here
+
+`chrome` and `msedge` are Playwright **channels** (#75): they drive the branded Google Chrome and Microsoft Edge installed on the machine, not a Playwright download, so they carry each browser's own media stack, codecs and autoplay policy — the differences PRD section 10 gates on. `bunx playwright install --with-deps chrome msedge` installs (or updates to) the current stable release of each, which is what CI's `chrome`/`msedge` jobs do on every run. It needs `sudo` on Linux and installs the browsers system-wide, which is why `bun run test:browser:install` does not do it for you; on a machine with neither installed, run the suites with `--project=chromium --project=firefox --project=webkit` and let CI run the branded two.
+
+A channel resolves to whichever release is installed, and Playwright has no way to pin a previous major (`chrome-beta`/`msedge-beta` move the other way). So the automated suites prove **current** Chrome, Edge and Firefox; the **previous** major of each is covered by the manual pass in [`docs/runbooks/cross-browser.md`](./runbooks/cross-browser.md), which a release has to complete. Firefox in CI is Playwright's pinned Firefox build, current stable at the time of the pin.
 
 `bun run test:browser:install` (`playwright install --with-deps chromium firefox webkit`) downloads browser binaries from Playwright's CDN. That download needs outbound access to `cdn.playwright.dev`; a locked-down sandbox that blocks that host cannot install Firefox or WebKit even though the config and tests are otherwise valid (verify with `bunx playwright test --list`, which does not need the binaries). That is not a reason to stop testing there — see "Which browsers run where" above for the Chromium-only pre-flight and why CI is the browser gate.
 
@@ -415,8 +421,8 @@ bun run check     # tsc --noEmit && biome check
 `.github/workflows/ci.yml` runs on every push to `main` and every pull request:
 
 1. **`checks`** — `bun run typecheck`, `bun run check:ci`, then a null-ALSA-device setup step (see "Unit and component tests" above) before `bun run test`, and finally `bun run library:validate` (see "Starter sound library" below), which validates the whole 200-asset catalogue rather than the representative sample the unit suite renders. Everything else depends on this. Uploads the run's JSON report as the `vitest-report-unit` artifact, pass or fail (see "Vitest JSON run reports" above).
-2. **`browser`** — the Playwright suite, matrixed over `chromium`, `firefox`, `webkit`. Chromium/Firefox failures block the workflow; WebKit failures are reported but do not (`continue-on-error`).
-3. **`browser-emulator`** — `bun run test:browser:emulator` (`FND-009`), matrixed over the gating browsers `chromium`/`firefox` only, with a JDK installed for the Firestore emulator, exercising the foundation slice's add/play/undo/save/reload journey against a real (emulated) backend.
+2. **`browser`** — the Playwright suite, matrixed over `chromium`, `chrome`, `msedge`, `firefox`, `webkit`. Chromium/Chrome/Edge/Firefox failures block the workflow; WebKit failures are reported but do not (`continue-on-error`).
+3. **`browser-emulator`** — `bun run test:browser:emulator` (`FND-009`, and every core flow), matrixed over `chromium`, `chrome`, `msedge` and `firefox`, with a JDK installed for the Firestore emulator, exercising the foundation slice's add/play/undo/save/reload journey against a real (emulated) backend.
 4. **`emulator`** — `bun run test:emulator`, with a JDK installed for the Firestore emulator. Uploads its JSON report as the `vitest-report-emulator` artifact, pass or fail.
 5. **`build`** — `bun run build`, then `bun run verify:bundle` and `bun run verify:budget` (see "Deploy" below). Runs unconditionally, needs no Firebase project or credentials, and gates merges like every job above.
 6. **`deploy`** — builds, stamps, and ships the release to Firebase Hosting; see "Deploy" below for what it does and why it usually no-ops.
