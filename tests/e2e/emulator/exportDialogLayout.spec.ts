@@ -9,7 +9,7 @@ import { expect, type Page, test } from "@playwright/test";
  * ten-minute project "renders" without rendering a second of audio.
  */
 
-const HARNESS = "/tests/e2e/mock/support/exportDialogHarness.tsx";
+const HARNESS = "/tests/e2e/emulator/support/exportDialogHarness.tsx";
 
 type Rect = readonly [number, number, number, number];
 

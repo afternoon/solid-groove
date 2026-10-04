@@ -60,8 +60,8 @@ tried, instead of shipping a speculative fix.
 - Branch from `origin/main`: `claude/<issue>-<slug>`, and for later stack
   branches `claude/<issue>-<slug>-2`, `-3`, … each off the previous branch.
 - Every branch is green on its own commit: `bun run typecheck`, `bun run check`,
-  `bun run test`, plus `bun run test:browser:chromium` (or the emulator variant)
-  when you touched browser behaviour. Push every branch. Do **not** open PRs; the
+  `bun run test`, plus `bun run test:browser:emulator:chromium` when you
+  touched browser behaviour. Push every branch. Do **not** open PRs; the
   next stage does.
 - Never merge one stack branch into another: keep the stack linear (a native GitHub stack only merges that way). Do not force-push a branch that has an open PR. Do not commit `package-lock.json`.
 
@@ -71,17 +71,17 @@ Markup, CSS or copy: if a user can see a difference, capture it. Show the
 changed state (and the before state when the contrast is the point); usually one
 to five images, never every step, never none.
 
-1. Write a throwaway spec, e.g. `tests/e2e/mock/<slug>.screens.spec.ts`
+1. Write a throwaway spec, e.g. `tests/e2e/emulator/<slug>.screens.spec.ts`
    (gitignored), that opens the app, gets to the change, and calls `step()` from
    `tests/e2e/support/walkthrough.ts` with `walkthrough(page, { id: "<short>",
    title: "<heading>" })`. Use a short `id`; it is part of every image URL.
    For a before image, run it once on `origin/main` before your change.
-2. `bun run screenshots -- tests/e2e/mock/<slug>.screens.spec.ts`
+2. `bun run screenshots -- tests/e2e/emulator/<slug>.screens.spec.ts`
 3. `bun run walkthrough:publish -- --issue <n>` and return the Markdown it prints.
    Check every image URL is under 150 characters.
 
-If the app cannot be driven to the change in the mock backend, use an emulator
-flow spec with `bun run walkthrough:capture`. Saying screenshots were impossible
+If the change is on a core flow's path, `bun run walkthrough:capture` captures
+from the flow specs instead. Saying screenshots were impossible
 needs a concrete reason.
 
 ## Report

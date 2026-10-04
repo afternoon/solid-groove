@@ -45,6 +45,6 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   // Chromium only. This is a post-deploy health check, not the
-  // cross-browser compatibility suite -- that is `test:browser`'s job.
+  // cross-browser compatibility suite -- that is `test:browser:emulator`'s job.
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
 });

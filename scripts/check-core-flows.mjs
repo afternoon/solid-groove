@@ -83,13 +83,13 @@ for (const file of existsSync(SUITE) ? readdirSync(SUITE) : []) {
   else specs.set(id, { path, code: stripComments(readFileSync(path, "utf8")) });
 }
 
-// A flow left behind in the retired mock flows directory would otherwise be
-// invisible here: it is not in SUITE, so its ID reads as "registered with no
-// spec" and the real cause — the wrong directory — goes unsaid.
-const RETIRED_SUITE = "tests/e2e/mock/flows";
+// A spec left behind in the retired mock-backend browser suite would otherwise
+// be invisible: no config runs it any more, so a flow there reads as
+// "registered with no spec" and any other test there silently never runs.
+const RETIRED_SUITE = "tests/e2e/mock";
 if (existsSync(RETIRED_SUITE))
   failures.push(
-    `${RETIRED_SUITE} still exists. Every core flow lives in ${SUITE} (TEST-001), because a flow's outcome includes surviving a reload and the mock backend cannot answer one.`,
+    `${RETIRED_SUITE} still exists, but that browser suite was retired and nothing runs it. Every browser test lives in tests/e2e/emulator, and every core flow in ${SUITE} (TEST-001), because a flow's outcome includes surviving a reload and the mock backend cannot answer one.`,
   );
 
 for (const [id, title] of registered)

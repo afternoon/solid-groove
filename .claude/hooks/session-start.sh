@@ -12,7 +12,7 @@
 #   - no audio device     -> importing `tone` throws "cpal backend error during
 #                            default_output_config: DeviceUnavailable" and every
 #                            suite under `src/audio/` fails at load time
-#   - Playwright mismatch -> `bun run test:browser` finds no browser binary even
+#   - Playwright mismatch -> `bun run test:browser:emulator:chromium` finds no browser binary even
 #                            though the image ships one
 #
 # Doing them here means an agent never has to diagnose them, and never reaches

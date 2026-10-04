@@ -84,10 +84,11 @@ made. The in-memory mock backend cannot answer that: it is a fresh, empty store
 on every page load, so a reload there proves the opposite of what a flow needs
 to claim.
 
-The mock browser E2E suite (`tests/e2e/mock/`) remains, and remains the right
-home for a fast, dependency-free browser test of a single surface. It just does
-not hold flows. `bun run verify:core-flows` enforces the single location, and
-`bun run walkthrough:capture` captures from it.
+A browser test of a single surface that is not a journey lives in the same
+suite, beside the flows: `tests/e2e/emulator/*.spec.ts`. (The mock-backend
+browser suite that used to hold those was retired.) `bun run verify:core-flows`
+enforces the flows' single location, and `bun run walkthrough:capture` captures
+from it.
 
 See [`docs/testing.md`](./testing.md) for what each suite covers and how CI gates
 on them.
