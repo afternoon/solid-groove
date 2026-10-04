@@ -14,7 +14,7 @@ import {
   TRACK_SEND_LEVEL,
   TRACK_VOLUME,
 } from "../domain";
-import { addDevice, masterChain, setParameter } from ".";
+import { addDevice, masterChain, returnChain, setParameter } from ".";
 import { executeCommand } from "./execute";
 import { findTrack } from "./projectEdits";
 import {
@@ -260,6 +260,60 @@ describe("parameter.set", () => {
         ),
       );
       expect(result.ok).toBe(false);
+    });
+  });
+
+  describe("a device on a return bus's chain (#386)", () => {
+    const SIZE = "size";
+    let deviceId: DeviceId;
+    let withReverb: Project;
+    const returnDevice = () => withReverb.song.returns[0].devices[0];
+    const target = () => ({
+      scope: "returnDevice" as const,
+      returnId: fixture.returnId,
+      deviceId,
+      parameterId: SIZE,
+    });
+
+    beforeEach(() => {
+      deviceId = createTestFactoryContext("return-device").ids("device");
+      withReverb = apply(
+        fixture.project,
+        addDevice(returnChain(fixture.returnId), createDevice(deviceId, "reverb", 0)),
+      );
+    });
+
+    it("writes the value onto the return's device and nothing else", () => {
+      const next = apply(withReverb, setParameter(target(), 0.7));
+      expect(next.song.returns[0].devices[0].parameters[SIZE]).toBe(0.7);
+      expect(next.song.returns[0].mixer).toEqual(withReverb.song.returns[0].mixer);
+      expect(next.song.master).toEqual(withReverb.song.master);
+      expect(next.song.tracks).toEqual(withReverb.song.tracks);
+    });
+
+    it("inverts to the value the device held before", () => {
+      const before = returnDevice().parameters[SIZE];
+      const result = executeCommand(withReverb, setParameter(target(), 0.7));
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const undone = apply(result.project, result.inverse[0]);
+      expect(undone.song.returns[0].devices[0].parameters[SIZE]).toBe(before);
+    });
+
+    it("rejects an absent return and an absent device", () => {
+      const absentReturn = executeCommand(
+        withReverb,
+        setParameter({ ...target(), returnId: ABSENT_IDS.return }, 0.5),
+      );
+      expect(absentReturn.ok).toBe(false);
+      const absentDevice = executeCommand(
+        withReverb,
+        setParameter({ ...target(), deviceId: ABSENT_IDS.device }, 0.5),
+      );
+      expect(absentDevice.ok).toBe(false);
+      if (!absentDevice.ok) {
+        expect(absentDevice.issues[0].message).toMatch(/has no device/);
+      }
     });
   });
 

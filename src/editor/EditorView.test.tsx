@@ -1954,6 +1954,69 @@ describe("EditorView track selection keys (#533)", () => {
   });
 });
 
+/** Return mode (#386): the instrument view showing a return's chain. */
+describe("EditorView return mode (#386)", () => {
+  const press = (key: string, init: KeyboardEventInit = {}) =>
+    fireAndFlush(() => fireEvent.keyDown(window, { key, ...init }));
+  const returnEffects = () => screen.queryByRole("region", { name: "Return effects" });
+  const railTrack = (name: string) =>
+    within(screen.getByRole("list", { name: "Tracks" })).queryByRole("button", {
+      name: `Edit ${name}`,
+    });
+
+  /** Chooses the first track in the mixer, adds Return A, and edits it. */
+  async function enterReturnMode() {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createDrumMachineFixtureProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    renderEditor(project.metadata.id);
+    await screen.findByTestId("arrangement-view-ready");
+    await goToView("Mixer");
+    const [drums, breakTrack] = project.song.tracks;
+    clickAndFlush(mixerSelect(drums.name));
+    clickAndFlush(screen.getByRole("button", { name: "Add return" }));
+    clickAndFlush(screen.getByRole("button", { name: "Edit Return A" }));
+    await goToView("Instrument");
+    expect(returnEffects()).toBeInTheDocument();
+    return { drums, breakTrack };
+  }
+
+  it("leaves the tracks alone on Backspace, since none is on screen", async () => {
+    const { drums, breakTrack } = await enterReturnMode();
+    press("Backspace");
+    expect(returnEffects()).toBeInTheDocument();
+    expect(railTrack(drums.name)).toBeInTheDocument();
+    expect(railTrack(breakTrack.name)).toBeInTheDocument();
+  });
+
+  it("leaves return mode when a track is selected", async () => {
+    const { breakTrack } = await enterReturnMode();
+    clickAndFlush(railTrack(breakTrack.name) as HTMLElement);
+    expect(returnEffects()).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: `${breakTrack.name} loop` }),
+    ).toBeInTheDocument();
+  });
+
+  it("falls back to the track when its return is deleted, and undo does not go back", async () => {
+    const { drums } = await enterReturnMode();
+    await goToView("Mixer");
+    clickAndFlush(screen.getByRole("button", { name: "Delete Return A" }));
+    await goToView("Instrument");
+    expect(returnEffects()).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: `Drum machine: ${drums.name}` }),
+    ).toBeInTheDocument();
+
+    press("z", { ctrlKey: true });
+    expect(returnEffects()).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: `Drum machine: ${drums.name}` }),
+    ).toBeInTheDocument();
+  });
+});
+
 describe("EditorView keyboard shortcuts", () => {
   async function renderSlice(
     project: Project = createStepGridProject(),

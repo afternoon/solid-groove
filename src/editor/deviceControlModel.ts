@@ -94,9 +94,8 @@ export function readDeviceControl(
 /**
  * The `parameter.set` target for one parameter of a device in `chain`: a
  * track's inserts write through `trackDevice`, the master's through
- * `masterDevice`. The device's controls are the same component either way;
- * only this address differs. Return buses have no device parameter scope yet,
- * and no surface renders their chains.
+ * `masterDevice`, a return bus's through `returnDevice`. The device's controls
+ * are the same component in every chain; only this address differs.
  */
 export function deviceParameterTarget(
   chain: DeviceChainTarget,
@@ -109,7 +108,7 @@ export function deviceParameterTarget(
     case "master":
       return { scope: "masterDevice", deviceId, parameterId };
     case "return":
-      throw new Error("A return bus's devices have no parameter.set scope");
+      return { scope: "returnDevice", returnId: chain.returnId, deviceId, parameterId };
   }
 }
 

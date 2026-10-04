@@ -86,6 +86,14 @@ export const parameterTargetSchema = z.discriminatedUnion("scope", [
     deviceId: deviceIdSchema,
     parameterId: z.string().min(1),
   }),
+  // A device in one return bus's insert chain (#386): `return` is the bus's
+  // own strip, this is a device on its chain.
+  z.strictObject({
+    scope: z.literal("returnDevice"),
+    returnId: returnIdSchema,
+    deviceId: deviceIdSchema,
+    parameterId: z.string().min(1),
+  }),
 ]);
 export type ParameterTarget = z.infer<typeof parameterTargetSchema>;
 
@@ -115,6 +123,7 @@ export function parameterTargetControl(target: ParameterTarget): ControlAddress 
     case "return":
       return parameterControl(target.returnId, target.parameterId);
     case "trackDevice":
+    case "returnDevice":
     case "masterDevice":
       return parameterControl(target.deviceId, target.parameterId);
   }
@@ -127,8 +136,9 @@ export function parameterTargetControl(target: ParameterTarget): ControlAddress 
  * validates a stored device parameter value and how `src/domain/devices.ts`
  * registers them — so which chain the device sits in changes only *where the
  * new parameter map is written back*, never how the definition is found. That
- * is the entire difference between the `trackDevice` and `masterDevice` cases
- * below, which is why they share this and differ only in their `write`.
+ * is the entire difference between the `trackDevice`, `masterDevice` and
+ * `returnDevice` cases below, which is why they share this and differ only in
+ * their `write`.
  */
 function resolveDeviceParameter(
   device: Device | undefined,
@@ -341,6 +351,33 @@ function resolveParameter(project: Project, target: ParameterTarget): Resolution
                   : candidate,
               ),
             },
+          }),
+      );
+    }
+    case "returnDevice": {
+      const bus = project.song.returns.find(
+        (candidate) => candidate.id === target.returnId,
+      );
+      if (!bus) {
+        return { error: `Return bus ${target.returnId} does not exist` };
+      }
+      return resolveDeviceParameter(
+        bus.devices.find((candidate) => candidate.id === target.deviceId),
+        target.parameterId,
+        `Return bus ${bus.id} has no device ${target.deviceId}`,
+        (parameters) =>
+          withSong(project, {
+            ...project.song,
+            returns: project.song.returns.map((candidate) =>
+              candidate.id === bus.id
+                ? {
+                    ...candidate,
+                    devices: candidate.devices.map((device) =>
+                      device.id === target.deviceId ? { ...device, parameters } : device,
+                    ),
+                  }
+                : candidate,
+            ),
           }),
       );
     }
