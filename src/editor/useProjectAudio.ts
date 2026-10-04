@@ -3,6 +3,7 @@ import { type Analytics, analytics as defaultAnalytics } from "../analytics/anal
 import type { ErrorCode } from "../analytics/errorCodes";
 import type { BufferSubscription } from "../audio/AudioBufferCache";
 import { type AudioHost, getAudioRuntime } from "../audio/AudioRuntime";
+import type { SpectrumReading } from "../audio/DeviceChain";
 import { ProjectAudioGraph } from "../audio/ProjectAudioGraph";
 import {
   type LoopRange,
@@ -14,7 +15,7 @@ import { createTriggerFeed } from "../audio/triggerFeed";
 import { UnderrunMonitor } from "../audio/underrun";
 import { webAudioAvailable } from "../browser/capabilities";
 import type { NoteTrigger, Project } from "../domain/entities";
-import type { AssetId, PadId, TrackId } from "../domain/ids";
+import type { AssetId, DeviceId, PadId, TrackId } from "../domain/ids";
 import { toLibrarySample } from "../library/insertion";
 import type { LibraryAsset } from "../library/manifest";
 import { CodedError, codeFor, reportError } from "../monitoring/errorReporting";
@@ -128,6 +129,13 @@ export interface ProjectAudioControls {
    * stop.
    */
   watchTriggers(trackId: TrackId, onTrigger: (trigger: NoteTrigger) => void): () => void;
+  /**
+   * The spectrum leaving one device now, for a panel that draws it behind its
+   * controls (the EQ, LOOP-022), or `null` while the transport is stopped or
+   * the device draws none. The panel polls it on its own frames, and only
+   * while it is on screen and the transport plays.
+   */
+  readDeviceSpectrum(deviceId: DeviceId): SpectrumReading | null;
 }
 
 export interface UseProjectAudioOptions {
@@ -643,5 +651,7 @@ export function useProjectAudio(
     clearPreview,
     watchAssetPeaks,
     watchTriggers,
+    readDeviceSpectrum: (deviceId) =>
+      transport?.isPlaying ? (graph?.readDeviceSpectrum(deviceId) ?? null) : null,
   };
 }

@@ -1,8 +1,9 @@
 import * as Tone from "tone";
+import type { DeviceId } from "../domain/ids";
 import type { AudioMasterProjection } from "../projection/audioProjection";
 import type { AudioProjectScope } from "./AudioRuntime";
 import { CompensationDelay } from "./compensationDelay";
-import { DeviceChain, type DeviceNodeFactory } from "./DeviceChain";
+import { DeviceChain, type DeviceNode, type DeviceNodeFactory } from "./DeviceChain";
 import { type DeclaredLatency, dynamicsLookaheadFrames } from "./latency";
 import { SummingBus } from "./summingBus";
 
@@ -136,6 +137,11 @@ export class MasterAudioGraph {
     this.deviceChain.reconcile(next.devices, reapplyDevices);
     this.volume.volume.rampTo(next.volume, 0.02);
     this.lastProjection = next;
+  }
+
+  /** The live node for one of this bus's devices, for a panel readout. */
+  deviceNode(id: DeviceId): DeviceNode | undefined {
+    return this.deviceChain.deviceNode(id);
   }
 
   /** Tears down every node the master bus owns. Safe to call more than once. */

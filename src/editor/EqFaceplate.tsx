@@ -29,6 +29,8 @@ import {
   formatDeviceValue,
   readDeviceParameter,
 } from "./deviceControlModel";
+import { useDeviceSpectrum } from "./deviceSpectrum";
+import EqSpectrum, { type FrameScheduler } from "./EqSpectrum";
 import {
   dbAt,
   dbDepth,
@@ -48,6 +50,8 @@ export interface EqFaceplateProps {
   beginGesture(options?: GestureOptions): Gesture | undefined;
   /** Defaults to the application singleton; injectable for tests. */
   readonly analytics?: Analytics;
+  /** The spectrum's frame scheduler; injectable for tests. */
+  readonly frames?: FrameScheduler;
 }
 
 /** The band a press picked, and its handle's offset from the pointer. */
@@ -63,8 +67,9 @@ const DECADES = [100, 1_000, 10_000];
 const DB_LINES = [12, 0, -12];
 
 /**
- * The EQ's faceplate (LOOP-022, #447): its response curve in a well, a handle
- * per band to drag, and the controls of the band being edited.
+ * The EQ's faceplate (LOOP-022, #447): its response curve in a well over a
+ * live spectrum of what leaves it, a handle per band to drag, and the controls
+ * of the band being edited.
  *
  * Dragging a handle moves its band's frequency left and right and, for a
  * shelf or a peak, its gain up and down, from where the handle was: it does not
@@ -78,6 +83,7 @@ const DB_LINES = [12, 0, -12];
  */
 export default function EqFaceplate(props: EqFaceplateProps): JSX.Element {
   const analytics = () => props.analytics ?? defaultAnalytics;
+  const spectrum = useDeviceSpectrum();
   const [selected, setSelected] = createSignal<string>("peak1");
   const band = () => EQ_BANDS.find((b) => b.id === selected()) ?? EQ_BANDS[0];
 
@@ -172,6 +178,15 @@ export default function EqFaceplate(props: EqFaceplateProps): JSX.Element {
               );
             }}
           </For>
+          {spectrum && (
+            <EqSpectrum
+              deviceId={props.device.id}
+              source={spectrum}
+              width={WIDTH}
+              height={HEIGHT}
+              frames={props.frames}
+            />
+          )}
           <path
             class="well-area"
             d={`${curve()} L${WIDTH},${dbDepth(0) * HEIGHT} L0,${dbDepth(0) * HEIGHT} Z`}

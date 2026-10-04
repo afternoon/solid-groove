@@ -35,6 +35,21 @@ export interface DeviceNode {
    * the stored parameters alone.
    */
   resolvedDelaySeconds?(): number;
+  /**
+   * The spectrum of what is leaving the device now. Only a device that draws
+   * one implements it — the EQ, behind its curve (LOOP-022) — and it costs
+   * nothing until it is first read: the analyser is built on that read, so an
+   * offline render, which never reads it, never builds one.
+   */
+  readSpectrum?(): SpectrumReading;
+}
+
+/** One reading of a device's output spectrum. */
+export interface SpectrumReading {
+  /** Each FFT bin's level in dBFS, lowest frequency first; silence is `-Infinity`. */
+  readonly db: Float32Array;
+  /** How many hertz apart the bins are. */
+  readonly binHz: number;
 }
 
 /**

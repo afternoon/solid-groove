@@ -68,6 +68,11 @@ export interface DeviceCore {
    * than stepped.
    */
   resolvedDelaySeconds?(): number;
+  /**
+   * Whether the device's panel draws a live spectrum of its output, so its
+   * node offers `readSpectrum()`. Only the EQ does (LOOP-022).
+   */
+  readonly spectrum?: boolean;
 }
 
 /** A device's parameter values, by bare id, with every default filled in. */

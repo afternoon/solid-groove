@@ -105,3 +105,10 @@
   outline: 2px solid var(--color-accent);
   outline-offset: 1px;
 }
+
+/* The live spectrum behind the curve: what leaves the EQ, as a grey ground
+   the curve is read against, never brighter than the curve itself. */
+.eq-well .eq-spectrum {
+  fill: var(--color-background-tertiary);
+  stroke: none;
+}
