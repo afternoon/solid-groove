@@ -1,0 +1,954 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Audio Graph Explorer</title>
+<meta name="description" content="Groove's Tone.js audio graphs, one per instrument, device and strip, drawn from src/audio." />
+<link rel="stylesheet" href="../src/theme.css" />
+<!--
+  HOW TO KEEP THIS PAGE TRUE
+  ==========================
+  This page is a hand-kept picture of src/audio. It is not generated, so it is
+  only as good as the last change that updated it. If you change how nodes are
+  built or wired in any of these files, update the matching entry in GRAPHS
+  below in the same PR:
+
+    src/audio/instruments/{sampler,synth,drumMachine}.ts
+    src/audio/devices/*.ts (and deviceNode.ts, the shared mix stage)
+    src/audio/{TrackAudioGraph,ReturnAudioGraph,MasterAudioGraph,DeviceChain,
+               summingBus,audioLoopPlayer,orderedGrainPlayer}.ts
+
+  A graph is { id, group, title, files, summary, nodes, edges, groups }.
+    node:  { id, label, type, kind, params?, note? }
+           kind: "io"    — where the graph meets the outside (drawn white)
+                 "node"  — a persistent node, built once, edited in place
+                 "voice" — built per trigger and disposed when done (dashed)
+                 "bus"   — a SummingBus stage (#867)
+                 "tap"   — a fan-out read by the UI (meters); never an insert
+    edge:  [from, to, { label?, kind? }]
+           kind: "audio" (default), "control" (data/trigger, not signal),
+                 "back" (a feedback loop; ignored by the layout)
+    group: { label, nodes: [ids], kind? } — a dashed box around members
+  Layout is automatic (left to right by signal order), so only list facts.
+-->
+<style>
+:root {
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--color-background);
+  color: var(--color-text);
+  font: 14px/1.5 var(--sans);
+  display: grid;
+  grid-template-columns: 260px 1fr 320px;
+  grid-template-rows: auto 1fr;
+  grid-template-areas: "head head head" "nav stage info";
+  overflow: hidden;
+}
+header {
+  grid-area: head;
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--color-border);
+}
+header h1 { margin: 0; font-size: 18px; font-weight: 700; color: var(--color-foreground-bright); }
+header p { margin: 0; color: var(--color-foreground); font-size: 12px; }
+nav {
+  grid-area: nav;
+  overflow-y: auto;
+  border-right: 1px solid var(--color-border);
+  background: var(--color-background-secondary);
+  padding: 8px 0 24px;
+}
+nav h2 {
+  margin: 16px 16px 6px;
+  font-size: 10px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--color-foreground-muted);
+  font-weight: 600;
+}
+nav button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: none;
+  color: var(--color-text-secondary);
+  font: 13px var(--sans);
+  padding: 7px 16px;
+  cursor: pointer;
+}
+nav button:hover { background: var(--color-background-hover); color: var(--color-text); }
+nav button[aria-current="true"] {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font-weight: 600;
+}
+nav select { display: none; }
+main {
+  grid-area: stage;
+  position: relative;
+  overflow: hidden;
+  background: var(--color-background);
+  touch-action: none;
+  cursor: grab;
+}
+main.dragging { cursor: grabbing; }
+svg#stage { width: 100%; height: 100%; display: block; }
+.controls {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  gap: 1px;
+  background: var(--color-border);
+}
+.controls button {
+  border: 0;
+  background: var(--color-background-tertiary);
+  color: var(--color-text);
+  font: 600 13px var(--sans);
+  min-width: 36px;
+  height: 32px;
+  cursor: pointer;
+}
+.controls button:hover { background: var(--color-background-hover); }
+.zoom-read {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  font: 11px var(--mono);
+  color: var(--color-foreground-muted);
+}
+aside {
+  grid-area: info;
+  overflow-y: auto;
+  border-left: 1px solid var(--color-border);
+  background: var(--color-background-secondary);
+  padding: 16px;
+}
+aside h2 { margin: 0 0 4px; font-size: 16px; color: var(--color-foreground-bright); }
+aside h3 {
+  margin: 20px 0 6px;
+  font-size: 10px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--color-foreground-muted);
+}
+aside p { margin: 0 0 8px; color: var(--color-text-secondary); font-size: 13px; }
+aside code, aside .files li { font: 12px var(--mono); color: var(--color-text); }
+aside ul { margin: 0; padding-left: 18px; color: var(--color-text-secondary); font-size: 13px; }
+aside .files { list-style: none; padding: 0; }
+.node-card {
+  background: var(--color-background-tertiary);
+  padding: 12px;
+  margin-top: 8px;
+}
+.node-card .type { font: 12px var(--mono); color: var(--color-foreground); }
+.legend { display: grid; grid-template-columns: 34px 1fr; gap: 6px 10px; align-items: center; font-size: 12px; color: var(--color-text-secondary); }
+.legend svg { width: 34px; height: 18px; }
+
+/* graph marks */
+.n rect { fill: var(--color-background-tertiary); stroke: var(--color-border-strong); stroke-width: 1; }
+.n text { fill: var(--color-text); font: 12px var(--sans); pointer-events: none; }
+.n .t { fill: var(--color-foreground); font: 10.5px var(--mono); }
+.n .p { fill: var(--color-foreground-muted); font: 10.5px var(--mono); }
+.n { cursor: pointer; }
+.n:hover rect { stroke: var(--color-accent-dim); }
+.n.io rect { fill: var(--color-accent); stroke: var(--color-accent); }
+.n.io text, .n.io .t, .n.io .p { fill: var(--color-on-accent); }
+.n.voice rect { fill: var(--color-background-secondary); stroke-dasharray: 5 3; stroke: var(--color-accent-deep); }
+.n.bus rect { fill: var(--color-background-secondary); stroke: var(--color-border-strong); }
+.n.tap rect { fill: var(--color-background); stroke-dasharray: 1 3; stroke: var(--color-accent-deep); }
+.n.tap text { fill: var(--color-foreground); }
+.n.sel rect { stroke: var(--color-accent); stroke-width: 2; }
+.n.dim { opacity: .3; }
+.e { fill: none; stroke: var(--color-accent-deep); stroke-width: 1.4; }
+.e.control { stroke-dasharray: 4 4; stroke: var(--color-border-strong); }
+.e.back { stroke: var(--color-accent-dim); stroke-dasharray: 8 3; }
+.e.hi { stroke: var(--color-accent); stroke-width: 2; }
+.e.dim { opacity: .2; }
+.el { fill: var(--color-foreground); font: 10px var(--mono); pointer-events: none; }
+.el.dim { opacity: .2; }
+.g rect { fill: var(--tint-faint); stroke: var(--color-border-strong); stroke-dasharray: 3 4; }
+.g text { fill: var(--color-foreground-muted); font: 600 10px var(--sans); letter-spacing: .12em; text-transform: uppercase; }
+.g.voice rect { fill: none; stroke: var(--color-accent-deep); }
+
+@media (max-width: 900px) {
+  body {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto minmax(360px, 60vh) auto;
+    grid-template-areas: "head" "nav" "stage" "info";
+    overflow: auto;
+    height: auto;
+  }
+  header { flex-direction: column; gap: 2px; }
+  nav { border-right: 0; border-bottom: 1px solid var(--color-border); padding: 10px 16px; }
+  nav h2, nav button { display: none; }
+  nav select {
+    display: block;
+    width: 100%;
+    font: 14px var(--sans);
+    padding: 8px;
+    background: var(--color-background-tertiary);
+    color: var(--color-text);
+    border: 1px solid var(--color-border-strong);
+    border-radius: 0;
+  }
+  aside { border-left: 0; border-top: 1px solid var(--color-border); }
+}
+</style>
+</head>
+<body>
+<header>
+  <h1>Audio Graph Explorer</h1>
+  <p>The Tone.js node graphs in <code>src/audio</code>, one per instrument, device and strip. Drag to pan, scroll or pinch to zoom, click a node for detail.</p>
+</header>
+<nav id="nav" aria-label="Graphs"></nav>
+<main id="main">
+  <svg id="stage" role="img" aria-label="Audio graph">
+    <defs>
+      <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0 0 L10 5 L0 10 z" fill="var(--color-accent-deep)" />
+      </marker>
+      <marker id="arrow-hi" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0 0 L10 5 L0 10 z" fill="var(--color-accent)" />
+      </marker>
+    </defs>
+    <g id="viewport"></g>
+  </svg>
+  <div class="zoom-read" id="zoomRead"></div>
+  <div class="controls">
+    <button type="button" id="zoomOut" aria-label="Zoom out">−</button>
+    <button type="button" id="fit" aria-label="Fit to view">Fit</button>
+    <button type="button" id="zoomIn" aria-label="Zoom in">+</button>
+  </div>
+</main>
+<aside id="info" aria-live="polite"></aside>
+
+<script>
+/* ------------------------------------------------------------------ */
+/* Data. Keep in step with src/audio — see the comment in <head>.      */
+/* ------------------------------------------------------------------ */
+
+/** The wrapper every device shares (src/audio/devices/deviceNode.ts). */
+function deviceGraph({ id, title, files, summary, core, coreIn, coreOut, coreEdges, dryAlign, wet, trim }) {
+  const nodes = [
+    { id: "prev", label: "Previous device", type: "DeviceChain link", kind: "io", note: "DeviceChain.input or the previous device's output. Reordering relinks; it never rebuilds the node." },
+    { id: "in", label: "input", type: "Tone.Gain(1)", kind: "node", note: "Fans out to the dry leg and the core." },
+    { id: "dry", label: "dry", type: "Tone.Gain", kind: "node", params: ["gain = 1 − mix"], note: "mix = bypassed ? 0 : " + (wet ? `${id}.wet` : "1") + ". Bypass is the same two gains driven full dry, so the core keeps ringing (tails survive un-bypass)." },
+    ...core,
+    { id: "wet", label: "wet", type: "Tone.Gain", kind: "node", params: ["gain = mix"] },
+    { id: "trim", label: "trim", type: "Tone.Volume", kind: "node", params: [trim ? `volume = ${id}.output dB (0 when bypassed)` : "volume = 0 dB (no output param)"] },
+    { id: "out", label: "output", type: "Tone.Gain(1)", kind: "node" },
+    { id: "next", label: "Next device", type: "DeviceChain link", kind: "io" },
+  ];
+  const edges = [
+    ["prev", "in"],
+    ["in", coreIn],
+    ...coreEdges,
+    [coreOut, "wet"],
+    ["dry", "trim"],
+    ["wet", "trim"],
+    ["trim", "out"],
+    ["out", "next"],
+  ];
+  if (dryAlign) {
+    nodes.push(dryAlign);
+    edges.push(["in", dryAlign.id], [dryAlign.id, "dry"]);
+  } else {
+    edges.push(["in", "dry"]);
+  }
+  return {
+    id, group: "Devices", title, files: [...files, "src/audio/devices/deviceNode.ts"], summary,
+    nodes, edges,
+    // Only the core is boxed: everything outside it is the shared mix stage.
+    groups: [{ label: `${id} core`, nodes: core.map((n) => n.id) }],
+  };
+}
+
+const GRAPHS = [
+  /* ---------------- Instruments ---------------- */
+  {
+    id: "sampler", group: "Instruments", title: "Sampler",
+    files: ["src/audio/instruments/sampler.ts", "src/audio/instruments/assetVoice.ts", "src/audio/summingBus.ts"],
+    summary: "Each note builds a short-lived voice (player → velocity gain → amp envelope) that joins a SummingBus, so a chord sums in one fixed order. Settings are read when a note starts; there is no persistent node to smooth. C4 (MIDI 60) plays the sample as recorded.",
+    nodes: [
+      { id: "trig", label: "Note trigger", type: "trigger(pitch, time, duration, velocity)", kind: "io" },
+      { id: "buf", label: "Asset buffer", type: "AudioBufferCache subscription", kind: "io", note: "attachAssetVoice subscribes to the decoded buffer. An asset swap reattaches; a stale decode can never reconnect." },
+      { id: "player", label: "player", type: "Tone.Player(buffer)", kind: "voice", params: ["playbackRate = 2^((note − 60 + sampler.pitch)/12)", "start(offset = sampleStart·len, window)"], note: "window = (sampleEnd − sampleStart) · buffer length. Disposed on stop with its gain." },
+      { id: "vel", label: "velocity", type: "Tone.Gain(velocity)", kind: "voice" },
+      { id: "env", label: "amp envelope", type: "Tone.AmplitudeEnvelope", kind: "voice", params: ["sampler.ampAttack/Decay/Sustain/Release", "hold = min(window / rate, note length)"], note: "Disposed release + 50 ms after the player stops, so the tail rings out." },
+      { id: "prevStage", label: "earlier voices", type: "SummingBus stages 1…n−1", kind: "bus" },
+      { id: "stage", label: "stage n", type: "Tone.Gain(1)", kind: "bus", note: "One stage per source; stage n hears stage n−1 and source n only (#867)." },
+      { id: "out", label: "voices.output", type: "Tone.Gain(1)", kind: "bus", note: "InstrumentNode.output." },
+      { id: "trim", label: "Track instrumentTrim", type: "TrackAudioGraph", kind: "io" },
+    ],
+    edges: [
+      ["trig", "player", { kind: "control", label: "per note" }],
+      ["buf", "player", { kind: "control", label: "buffer" }],
+      ["player", "vel"], ["vel", "env"], ["env", "stage"],
+      ["prevStage", "stage"], ["stage", "out"], ["out", "trim"],
+    ],
+    groups: [
+      { label: "per-note voice", kind: "voice", nodes: ["player", "vel", "env"] },
+    ],
+  },
+  {
+    id: "synth", group: "Instruments", title: "Synth",
+    files: ["src/audio/instruments/synth.ts", "src/audio/summingBus.ts"],
+    summary: "A polyphonic subtractive synth: one Tone.Synth per note (oscillator + amp envelope) summed through a SummingBus into one shared low-pass filter. Waveform and envelope apply to the next note; cutoff and Q ramp over 20 ms so a live sweep never clicks.",
+    nodes: [
+      { id: "trig", label: "Note trigger", type: "trigger(pitch, time, duration, velocity)", kind: "io" },
+      { id: "osc", label: "oscillator", type: "Tone.OmniOscillator", kind: "voice", params: ["type = synth.waveform", "frequency = MIDI pitch"] },
+      { id: "env", label: "amp envelope", type: "Tone.AmplitudeEnvelope", kind: "voice", params: ["synth.ampAttack/Decay/Sustain/Release"], note: "Voice disposes on onsilence, after its release." },
+      { id: "prevStage", label: "earlier voices", type: "SummingBus stages 1…n−1", kind: "bus" },
+      { id: "stage", label: "stage n", type: "Tone.Gain(1)", kind: "bus" },
+      { id: "bus", label: "voices.output", type: "Tone.Gain(1)", kind: "bus" },
+      { id: "filter", label: "filter", type: "Tone.Filter lowpass", kind: "node", params: ["frequency ← synth.filterCutoff (ramp 20 ms)", "Q ← synth.filterResonance (ramp 20 ms)"] },
+      { id: "out", label: "output", type: "Tone.Gain(1)", kind: "node", note: "InstrumentNode.output." },
+      { id: "trim", label: "Track instrumentTrim", type: "TrackAudioGraph", kind: "io" },
+    ],
+    edges: [
+      ["trig", "osc", { kind: "control", label: "per note" }],
+      ["osc", "env"], ["env", "stage"], ["prevStage", "stage"], ["stage", "bus"],
+      ["bus", "filter"], ["filter", "out"], ["out", "trim"],
+    ],
+    groups: [
+      { label: "per-note Tone.Synth", kind: "voice", nodes: ["osc", "env"] },
+    ],
+  },
+  {
+    id: "drum-machine", group: "Instruments", title: "Drum machine",
+    files: ["src/audio/instruments/drumMachine.ts", "src/audio/instruments/assetVoice.ts"],
+    summary: "Each pad keeps a persistent strip (its hits bus → panner → level). Each hit builds a throwaway player + AD envelope gain. Two pads are drawn here; a kit has one strip per pad. Mute/solo is decided at trigger time; a choke group stops other pads' sounding voices with a 5 ms ramp.",
+    nodes: [
+      { id: "trigA", label: "Pad A trigger", type: "trigger(padId, …)", kind: "io" },
+      { id: "trigB", label: "Pad B trigger", type: "trigger(padId, …)", kind: "io", note: "Pad B is in the same choke group as Pad A." },
+      { id: "pA", label: "player", type: "Tone.Player(pad buffer)", kind: "voice", params: ["playbackRate = 2^(pad.pitch/12)", "stop at min(attack + decay, note)"] },
+      { id: "eA", label: "AD envelope", type: "Tone.Gain(0)", kind: "voice", params: ["0 → velocity over pad.attack", "→ 0 over pad.decay"] },
+      { id: "hA", label: "hits", type: "SummingBus", kind: "bus" },
+      { id: "panA", label: "panner", type: "Tone.Panner", kind: "node", params: ["pan ← pad.mixer.pan (ramp 20 ms)"] },
+      { id: "lvA", label: "level", type: "Tone.Gain", kind: "node", params: ["gain ← pad.mixer.volume dB (0 if muted)"] },
+      { id: "pB", label: "player", type: "Tone.Player(pad buffer)", kind: "voice", params: ["playbackRate = 2^(pad.pitch/12)"] },
+      { id: "eB", label: "AD envelope", type: "Tone.Gain(0)", kind: "voice" },
+      { id: "hB", label: "hits", type: "SummingBus", kind: "bus" },
+      { id: "panB", label: "panner", type: "Tone.Panner", kind: "node" },
+      { id: "lvB", label: "level", type: "Tone.Gain", kind: "node" },
+      { id: "out", label: "output", type: "SummingBus (one stage per pad)", kind: "bus", note: "InstrumentNode.output is this bus's output." },
+      { id: "trim", label: "Track instrumentTrim", type: "TrackAudioGraph", kind: "io" },
+    ],
+    edges: [
+      ["trigA", "pA", { kind: "control", label: "per hit" }],
+      ["trigB", "pB", { kind: "control", label: "per hit" }],
+      ["trigB", "eA", { kind: "control", label: "choke" }],
+      ["pA", "eA"], ["eA", "hA"], ["hA", "panA"], ["panA", "lvA"], ["lvA", "out"],
+      ["pB", "eB"], ["eB", "hB"], ["hB", "panB"], ["panB", "lvB"], ["lvB", "out"],
+      ["out", "trim"],
+    ],
+    groups: [
+      { label: "pad A hit", kind: "voice", nodes: ["pA", "eA"] },
+      { label: "pad A strip", nodes: ["hA", "panA", "lvA"] },
+      { label: "pad B hit", kind: "voice", nodes: ["pB", "eB"] },
+      { label: "pad B strip", nodes: ["hB", "panB", "lvB"] },
+    ],
+  },
+  {
+    id: "audio-loop", group: "Instruments", title: "Audio loop (audio track)",
+    files: ["src/audio/audioLoopPlayer.ts", "src/audio/orderedGrainPlayer.ts", "src/audio/ProjectAudioGraph.ts"],
+    summary: "An audio-loop clip plays straight into its track's inputs bus. At the loop's own tempo it is a plain Tone.Player; otherwise an OrderedGrainPlayer time-stretches at tempo / sourceTempo so pitch is kept, its grains summing through a SummingBus.",
+    nodes: [
+      { id: "ev", label: "Loop event", type: "scheduled audioLoop placement", kind: "io" },
+      { id: "plain", label: "player (rate = 1)", type: "Tone.Player", kind: "voice", note: "Used when the stretch rate is exactly 1: no granular cost." },
+      { id: "grain", label: "grain player", type: "OrderedGrainPlayer", kind: "voice", params: ["walk rate = tempo / sourceTempo", "grains at native pitch"] },
+      { id: "grains", label: "grains", type: "Tone.ToneBufferSource × n", kind: "voice" },
+      { id: "gbus", label: "grain bus", type: "SummingBus", kind: "bus" },
+      { id: "gout", label: "output", type: "Tone.Gain", kind: "node" },
+      { id: "inputs", label: "Track inputs bus", type: "TrackAudioGraph.audioInput", kind: "io" },
+    ],
+    edges: [
+      ["ev", "plain", { kind: "control", label: "rate = 1" }],
+      ["ev", "grain", { kind: "control", label: "rate ≠ 1" }],
+      ["grain", "grains", { kind: "control", label: "ticks" }],
+      ["grains", "gbus"], ["gbus", "gout"],
+      ["plain", "inputs"], ["gout", "inputs"],
+    ],
+    groups: [{ label: "OrderedGrainPlayer", kind: "voice", nodes: ["grain", "grains", "gbus", "gout"] }],
+  },
+
+  /* ---------------- Devices ---------------- */
+  deviceGraph({
+    id: "filter", title: "Filter / EQ", files: ["src/audio/devices/filter.ts"],
+    summary: "One biquad in low-pass, high-pass or band-pass. Mode swaps the existing node's type; cutoff and resonance ramp. Wet defaults to 1; no output trim.",
+    core: [{ id: "biquad", label: "filter", type: "Tone.Filter", kind: "node", params: ["type ← filter.mode", "frequency ← filter.cutoff", "Q ← filter.resonance"] }],
+    coreIn: "biquad", coreOut: "biquad", coreEdges: [], wet: true, trim: false,
+  }),
+  deviceGraph({
+    id: "overdrive", title: "Overdrive", files: ["src/audio/devices/distortion.ts"],
+    summary: "Gain into a fixed asymmetric tanh curve, then a low-pass tone tilt. Drive is a gain into the curve (a WaveShaper curve can only be set once), and post-gain pulls the level back as drive climbs.",
+    core: [
+      { id: "pre", label: "pre-gain", type: "Tone.Gain", kind: "node", params: ["gain = 1 + drive² · 39"] },
+      { id: "shaper", label: "shaper", type: "Tone.WaveShaper", kind: "node", params: ["fixed asymmetric tanh(3x)"] },
+      { id: "post", label: "post-gain", type: "Tone.Gain", kind: "node", params: ["gain = pre^−0.5"] },
+      { id: "tone", label: "tone", type: "Tone.Filter lowpass", kind: "node", params: ["frequency = 400 · 50^tone"] },
+    ],
+    coreIn: "pre", coreOut: "tone", coreEdges: [["pre", "shaper"], ["shaper", "post"], ["post", "tone"]], wet: true, trim: true,
+  }),
+  deviceGraph({
+    id: "saturator", title: "Saturator", files: ["src/audio/devices/distortion.ts", "src/audio/devices/saturatorCurves.ts"],
+    summary: "Input gain into two static shapers in parallel — a soft tape knee and a hard sine fold — crossfaded by character, then output compensation. Drive is in dB, up to +48.",
+    core: [
+      { id: "pre", label: "pre-gain", type: "Tone.Gain", kind: "node", params: ["gain = 10^(drive/20) / HEADROOM"] },
+      { id: "soft", label: "soft curve", type: "Tone.WaveShaper", kind: "node", params: ["saturatorSoftCurve"] },
+      { id: "hard", label: "fold curve", type: "Tone.WaveShaper", kind: "node", params: ["saturatorFoldCurve"] },
+      { id: "sg", label: "soft gain", type: "Tone.Gain", kind: "node", params: ["gain = 1 − character"] },
+      { id: "hg", label: "fold gain", type: "Tone.Gain", kind: "node", params: ["gain = character"] },
+      { id: "post", label: "post-gain", type: "Tone.Gain", kind: "node", params: ["gain = 10^(−drive/40)"] },
+    ],
+    coreIn: "pre", coreOut: "post",
+    coreEdges: [["pre", "soft"], ["pre", "hard"], ["soft", "sg"], ["hard", "hg"], ["sg", "post"], ["hg", "post"]],
+    wet: true, trim: true,
+  }),
+  deviceGraph({
+    id: "compressor", title: "Compressor", files: ["src/audio/devices/compressor.ts", "src/audio/devices/compressorMakeup.ts"],
+    summary: "One DynamicsCompressorNode then a makeup stage that also cancels the node's built-in auto-makeup (#884). The dry leg runs through an identical never-compressing node so it lines up with the wet leg's lookahead (#490). No output trim; wet defaults to 1.",
+    core: [
+      { id: "comp", label: "compressor", type: "Tone.Compressor", kind: "node", params: ["threshold, ratio, attack, release", "knee = 6 dB (fixed)"], note: "gainReductionDb() reads its reduction for the panel meter." },
+      { id: "makeup", label: "makeup", type: "Tone.Volume", kind: "node", params: ["makeup − builtInMakeupGainDb(...)"] },
+    ],
+    coreIn: "comp", coreOut: "makeup", coreEdges: [["comp", "makeup"]],
+    dryAlign: { id: "align", label: "dry align", type: "Tone.Compressor", kind: "node", params: ["1:1, knee 0, threshold 0"], note: "A pure delay of exactly the compressor's lookahead, in every browser." },
+    wet: true, trim: false,
+  }),
+  deviceGraph({
+    id: "delay", title: "Delay", files: ["src/audio/devices/delay.ts"],
+    summary: "Stereo delay: split, one delay line per side (spread offsets the right), merge. Feedback runs through the damping filter and a tanh limiter back into the input, so repeats darken and the loop stays bounded even at 0.99. Synced time follows the song tempo.",
+    core: [
+      { id: "din", label: "core input", type: "Tone.Gain(1)", kind: "node" },
+      { id: "split", label: "split", type: "Tone.Split", kind: "node" },
+      { id: "L", label: "left", type: "Tone.Delay (max 4 s)", kind: "node", params: ["delayTime = base"] },
+      { id: "R", label: "right", type: "Tone.Delay (max 4 s)", kind: "node", params: ["delayTime = base · (1 + spread)"] },
+      { id: "merge", label: "merge", type: "Tone.Merge", kind: "node" },
+      { id: "damp", label: "damping", type: "Tone.Filter lowpass", kind: "node", params: ["frequency ← delay.filter"] },
+      { id: "fb", label: "feedback", type: "Tone.Gain", kind: "node", params: ["gain ← delay.feedback"] },
+      { id: "lim", label: "feedback limit", type: "Tone.WaveShaper tanh", kind: "node" },
+      { id: "dout", label: "core output", type: "Tone.Gain(1)", kind: "node" },
+    ],
+    coreIn: "din", coreOut: "dout",
+    coreEdges: [
+      ["din", "split"], ["split", "L", { label: "ch 0" }], ["split", "R", { label: "ch 1" }],
+      ["L", "merge"], ["R", "merge"], ["merge", "dout"], ["merge", "damp"],
+      ["damp", "fb"], ["fb", "lim"], ["lim", "din", { kind: "back", label: "feedback" }],
+    ],
+    wet: true, trim: true,
+  }),
+  deviceGraph({
+    id: "reverb", title: "Reverb", files: ["src/audio/devices/reverb.ts"],
+    summary: "A ConvolverNode over a seeded, decaying noise impulse (same settings → same impulse → same export, #867), then a damping filter. Decay, size and pre-delay rebuild the impulse only when one of them changes.",
+    core: [
+      { id: "rin", label: "core input", type: "Tone.Gain", kind: "node" },
+      { id: "conv", label: "convolver", type: "ConvolverNode (native)", kind: "node", params: ["impulse(decay · (0.5 + size), predelay + size · 0.05)"] },
+      { id: "damp", label: "damping", type: "Tone.Filter lowpass", kind: "node", params: ["frequency ← reverb.filter"] },
+    ],
+    coreIn: "rin", coreOut: "damp", coreEdges: [["rin", "conv"], ["conv", "damp"]], wet: true, trim: true,
+  }),
+  {
+    id: "passthrough", group: "Devices", title: "Unknown type (passthrough)",
+    files: ["src/audio/DeviceChain.ts", "src/audio/devices/index.ts"],
+    summary: "A device.type with no registered core (say, a project saved by a future build) gets an inert unity gain, so the rest of the chain still loads and plays.",
+    nodes: [
+      { id: "prev", label: "Previous device", type: "DeviceChain link", kind: "io" },
+      { id: "g", label: "passthrough", type: "Tone.Gain(1)", kind: "node", note: "No parameters to apply or smooth." },
+      { id: "next", label: "Next device", type: "DeviceChain link", kind: "io" },
+    ],
+    edges: [["prev", "g"], ["g", "next"]],
+  },
+
+  /* ---------------- Strips and buses ---------------- */
+  {
+    id: "track", group: "Strips & buses", title: "Track strip",
+    files: ["src/audio/TrackAudioGraph.ts", "src/audio/DeviceChain.ts"],
+    summary: "Instrument → −12 dB headroom trim → inputs bus → device chain → mute → pan/volume → master mix. Meters tap post-fader as fan-outs. A send taps pre-fader (after devices) or post-fader into its return's bus.",
+    nodes: [
+      { id: "inst", label: "Instrument", type: "InstrumentNode.output", kind: "io", note: "Rebuilt only when the instrument kind changes; other edits call update()." },
+      { id: "loop", label: "Audio loop players", type: "audioLoopPlayer", kind: "io", note: "Only on an audio-type track." },
+      { id: "trim", label: "instrument trim", type: "Tone.Gain(−12 dB)", kind: "node", params: ["INSTRUMENT_HEADROOM_DB"] },
+      { id: "inputs", label: "inputs", type: "SummingBus", kind: "bus" },
+      { id: "chainIn", label: "chain input", type: "Tone.Gain(1)", kind: "node" },
+      { id: "devs", label: "devices…", type: "DeviceNode × n, in order", kind: "node", note: "See the Devices graphs. Empty chain = input wired to output." },
+      { id: "chainOut", label: "chain output", type: "Tone.Gain(1)", kind: "node", note: "Also the pre-fader send tap." },
+      { id: "mute", label: "mute", type: "Tone.Gain", kind: "node", params: ["0 when muted or soloed out"], note: "Its own stage, not PanVol.mute, so a volume ramp under mute is not lost." },
+      { id: "panvol", label: "pan / volume", type: "Tone.PanVol (2 ch)", kind: "node", params: ["pan, volume (ramped)"], note: "Its output is the post-fader send tap." },
+      { id: "meter", label: "meter", type: "Tone.Meter", kind: "tap" },
+      { id: "peak", label: "peak tap", type: "Tone.Analyser waveform", kind: "tap", note: "Feeds the clip state of the level meter." },
+      { id: "sendPre", label: "pre-fader send", type: "Tone.Gain(send.level)", kind: "node" },
+      { id: "sendPost", label: "post-fader send", type: "Tone.Gain(send.level)", kind: "node" },
+      { id: "ret", label: "Return input bus", type: "ReturnAudioGraph.input", kind: "io" },
+      { id: "master", label: "Master mix", type: "MasterAudioGraph.mix", kind: "io" },
+    ],
+    edges: [
+      ["inst", "trim"], ["trim", "inputs"], ["loop", "inputs"], ["inputs", "chainIn"],
+      ["chainIn", "devs"], ["devs", "chainOut"], ["chainOut", "mute"], ["mute", "panvol"],
+      ["panvol", "master"], ["panvol", "meter"], ["panvol", "peak"],
+      ["chainOut", "sendPre", { label: "preFader" }], ["panvol", "sendPost", { label: "post" }],
+      ["sendPre", "ret"], ["sendPost", "ret"],
+    ],
+    groups: [
+      { label: "DeviceChain", nodes: ["chainIn", "devs", "chainOut"] },
+      { label: "sends (one per return)", nodes: ["sendPre", "sendPost"] },
+    ],
+  },
+  {
+    id: "return", group: "Strips & buses", title: "Return strip",
+    files: ["src/audio/ReturnAudioGraph.ts"],
+    summary: "Track sends sum in one fixed order on the return's bus, run through its device chain and pan/volume, and join the master mix.",
+    nodes: [
+      { id: "s1", label: "Track A send", type: "Tone.Gain", kind: "io" },
+      { id: "s2", label: "Track B send", type: "Tone.Gain", kind: "io" },
+      { id: "sends", label: "sends", type: "SummingBus", kind: "bus" },
+      { id: "chain", label: "device chain", type: "DeviceChain", kind: "node" },
+      { id: "panvol", label: "pan / volume", type: "Tone.PanVol (2 ch)", kind: "node" },
+      { id: "master", label: "Master mix", type: "MasterAudioGraph.mix", kind: "io" },
+    ],
+    edges: [["s1", "sends"], ["s2", "sends"], ["sends", "chain"], ["chain", "panvol"], ["panvol", "master"]],
+  },
+  {
+    id: "master", group: "Strips & buses", title: "Master",
+    files: ["src/audio/MasterAudioGraph.ts"],
+    summary: "Tracks and returns sum on the mix bus, then device chain → volume → a transparent −0.5 dB safety limiter → the destination. The metronome joins after the mix, at the chain input. The meter taps the limited signal.",
+    nodes: [
+      { id: "tracks", label: "Tracks", type: "TrackAudioGraph × n", kind: "io" },
+      { id: "returns", label: "Returns", type: "ReturnAudioGraph × n", kind: "io" },
+      { id: "metro", label: "Metronome", type: "Transport click", kind: "io" },
+      { id: "mix", label: "mix", type: "SummingBus", kind: "bus" },
+      { id: "chain", label: "device chain", type: "DeviceChain", kind: "node", note: "MasterAudioGraph.input is this chain's input." },
+      { id: "vol", label: "volume", type: "Tone.Volume", kind: "node" },
+      { id: "lim", label: "limiter", type: "Tone.Limiter(−0.5 dB)", kind: "node", params: ["MASTER_LIMITER_THRESHOLD_DB"] },
+      { id: "meter", label: "meter", type: "Tone.Meter", kind: "tap" },
+      { id: "dest", label: "Destination", type: "context destination / offline", kind: "io" },
+    ],
+    edges: [
+      ["tracks", "mix"], ["returns", "mix"], ["mix", "chain"], ["metro", "chain"],
+      ["chain", "vol"], ["vol", "lim"], ["lim", "dest"], ["lim", "meter"],
+    ],
+  },
+  {
+    id: "project", group: "Strips & buses", title: "Whole project",
+    files: ["src/audio/ProjectAudioGraph.ts"],
+    summary: "The stable, ID-keyed graph ProjectAudioGraph reconciles from the audio projection. An edit to one track, return or placement only touches that entity's subgraph.",
+    nodes: [
+      { id: "i1", label: "Sampler", type: "track 1 instrument", kind: "node" },
+      { id: "i2", label: "Drum machine", type: "track 2 instrument", kind: "node" },
+      { id: "i3", label: "Audio loop", type: "track 3 (audio)", kind: "node" },
+      { id: "t1", label: "Track 1 strip", type: "TrackAudioGraph", kind: "node" },
+      { id: "t2", label: "Track 2 strip", type: "TrackAudioGraph", kind: "node" },
+      { id: "t3", label: "Track 3 strip", type: "TrackAudioGraph", kind: "node" },
+      { id: "r1", label: "Return A", type: "ReturnAudioGraph", kind: "node" },
+      { id: "m", label: "Master", type: "MasterAudioGraph", kind: "node" },
+      { id: "dest", label: "Output", type: "AudioRuntime context", kind: "io" },
+    ],
+    edges: [
+      ["i1", "t1"], ["i2", "t2"], ["i3", "t3"],
+      ["t1", "m"], ["t2", "m"], ["t3", "m"],
+      ["t1", "r1", { label: "send" }], ["t2", "r1", { label: "send" }],
+      ["r1", "m"], ["m", "dest"],
+    ],
+  },
+  {
+    id: "summing-bus", group: "Strips & buses", title: "SummingBus",
+    files: ["src/audio/summingBus.ts"],
+    summary: "Web Audio sums a node's inputs in an unstable order, and float addition is not associative, so exports differed (#867). A SummingBus gives each source its own unity stage and chains them, so no node has more than two inputs and the sum order is fixed. Removing a source relinks its neighbours.",
+    nodes: [
+      { id: "a", label: "Source 1", type: "ToneAudioNode", kind: "io" },
+      { id: "b", label: "Source 2", type: "ToneAudioNode", kind: "io" },
+      { id: "c", label: "Source 3", type: "ToneAudioNode", kind: "io" },
+      { id: "s1", label: "stage 1", type: "Tone.Gain(1)", kind: "bus" },
+      { id: "s2", label: "stage 2", type: "Tone.Gain(1)", kind: "bus" },
+      { id: "s3", label: "stage 3", type: "Tone.Gain(1)", kind: "bus" },
+      { id: "out", label: "output", type: "Tone.Gain(1)", kind: "bus" },
+    ],
+    edges: [["a", "s1"], ["s1", "s2"], ["b", "s2"], ["s2", "s3"], ["c", "s3"], ["s3", "out"]],
+  },
+];
+
+/* ------------------------------------------------------------------ */
+/* Layout: layers by longest path (left to right), then barycentre      */
+/* sweeps to cut crossings. Back edges are drawn but not laid out.      */
+/* ------------------------------------------------------------------ */
+
+const NODE_H_BASE = 40;
+const PARAM_LINE = 14;
+const COL_GAP = 70;
+const ROW_GAP = 56;
+const PAD = 40;
+
+function measure(node) {
+  const lines = [node.label, node.type, ...(node.params || [])];
+  const widest = Math.max(...lines.map((l, i) => l.length * (i === 0 ? 7.2 : 6.4)));
+  node.w = Math.max(120, Math.ceil(widest) + 24);
+  node.h = NODE_H_BASE + (node.params ? node.params.length * PARAM_LINE + 4 : 0);
+}
+
+function layout(graph) {
+  const nodes = new Map(graph.nodes.map((n) => [n.id, { ...n }]));
+  nodes.forEach(measure);
+  const edges = graph.edges.map(([from, to, opts = {}]) => ({ from, to, ...opts }));
+  const forward = edges.filter((e) => e.kind !== "back");
+
+  // Longest-path layering.
+  const rank = new Map();
+  const preds = new Map([...nodes.keys()].map((id) => [id, []]));
+  forward.forEach((e) => preds.get(e.to).push(e.from));
+  const visit = (id, seen = new Set()) => {
+    if (rank.has(id)) return rank.get(id);
+    if (seen.has(id)) return 0;
+    seen.add(id);
+    const r = preds.get(id).length ? Math.max(...preds.get(id).map((p) => visit(p, seen) + 1)) : 0;
+    rank.set(id, r);
+    return r;
+  };
+  nodes.forEach((_, id) => visit(id));
+  // Pull pure sources right, next to the node they feed.
+  const succs = new Map([...nodes.keys()].map((id) => [id, []]));
+  forward.forEach((e) => succs.get(e.from).push(e.to));
+  nodes.forEach((_, id) => {
+    if (!preds.get(id).length && succs.get(id).length) {
+      rank.set(id, Math.min(...succs.get(id).map((s) => rank.get(s))) - 1);
+    }
+  });
+
+  const layers = [];
+  nodes.forEach((n, id) => {
+    const r = rank.get(id);
+    (layers[r] ||= []).push(n);
+  });
+  const order = new Map();
+  layers.forEach((layer) => layer.forEach((n, i) => order.set(n.id, i)));
+  const bary = (n, of) => {
+    const ns = of.get(n.id);
+    return ns.length ? ns.reduce((s, p) => s + order.get(p), 0) / ns.length : order.get(n.id);
+  };
+  for (let sweep = 0; sweep < 6; sweep++) {
+    const down = sweep % 2 === 0;
+    const seq = down ? layers.slice(1) : layers.slice(0, -1).reverse();
+    seq.forEach((layer) => {
+      if (!layer) return;
+      layer.sort((a, b) => bary(a, down ? preds : succs) - bary(b, down ? preds : succs));
+      layer.forEach((n, i) => order.set(n.id, i));
+    });
+  }
+
+  // Coordinates: columns sized to their widest node, rows centred.
+  let x = PAD;
+  const heights = layers.map((l) => (l || []).reduce((s, n) => s + n.h + ROW_GAP, -ROW_GAP));
+  const tallest = Math.max(...heights);
+  layers.forEach((layer, i) => {
+    if (!layer) return;
+    const colW = Math.max(...layer.map((n) => n.w));
+    let y = PAD + (tallest - heights[i]) / 2;
+    layer.forEach((n) => {
+      n.x = x + (colW - n.w) / 2;
+      n.y = y;
+      y += n.h + ROW_GAP;
+    });
+    x += colW + COL_GAP;
+  });
+  return { nodes, edges, width: x - COL_GAP + PAD, height: tallest + PAD * 2 + 40 };
+}
+
+/* ------------------------------------------------------------------ */
+/* Rendering                                                           */
+/* ------------------------------------------------------------------ */
+
+const NS = "http://www.w3.org/2000/svg";
+const svg = document.getElementById("stage");
+const viewport = document.getElementById("viewport");
+const info = document.getElementById("info");
+const nav = document.getElementById("nav");
+let current = null;
+let laid = null;
+let selected = null;
+
+function el(name, attrs = {}, parent) {
+  const node = document.createElementNS(NS, name);
+  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+  if (parent) parent.appendChild(node);
+  return node;
+}
+
+function edgePath(a, b, back) {
+  if (back) {
+    const sx = a.x + a.w / 2, sy = a.y + a.h;
+    const tx = b.x + b.w / 2, ty = b.y + b.h;
+    const drop = Math.max(sy, ty) + 50;
+    return { d: `M${sx},${sy} C${sx},${drop} ${tx},${drop} ${tx},${ty}`, lx: (sx + tx) / 2, ly: drop - 18 };
+  }
+  const sx = a.x + a.w, sy = a.y + a.h / 2;
+  const tx = b.x, ty = b.y + b.h / 2;
+  const dx = Math.max(30, (tx - sx) / 2);
+  return { d: `M${sx},${sy} C${sx + dx},${sy} ${tx - dx},${ty} ${tx},${ty}`, lx: (sx + tx) / 2, ly: (sy + ty) / 2 - 5 };
+}
+
+function render(graph) {
+  viewport.textContent = "";
+  laid = layout(graph);
+  const { nodes, edges } = laid;
+
+  const groupLayer = el("g", {}, viewport);
+  for (const g of graph.groups || []) {
+    const members = g.nodes.map((id) => nodes.get(id)).filter(Boolean);
+    if (!members.length) continue;
+    const x0 = Math.min(...members.map((n) => n.x)) - 14;
+    const y0 = Math.min(...members.map((n) => n.y)) - 26;
+    const x1 = Math.max(...members.map((n) => n.x + n.w)) + 14;
+    const y1 = Math.max(...members.map((n) => n.y + n.h)) + 12;
+    const gg = el("g", { class: `g ${g.kind || ""}` }, groupLayer);
+    el("rect", { x: x0, y: y0, width: x1 - x0, height: y1 - y0 }, gg);
+    el("text", { x: x0 + 8, y: y0 + 15 }, gg).textContent = g.label;
+  }
+
+  const edgeLayer = el("g", {}, viewport);
+  edges.forEach((e) => {
+    const p = edgePath(nodes.get(e.from), nodes.get(e.to), e.kind === "back");
+    e.path = el("path", { d: p.d, class: `e ${e.kind || ""}`, "marker-end": "url(#arrow)" }, edgeLayer);
+    if (e.label) {
+      e.text = el("text", { x: p.lx, y: p.ly, class: "el", "text-anchor": "middle" }, edgeLayer);
+      e.text.textContent = e.label;
+    }
+  });
+
+  const nodeLayer = el("g", {}, viewport);
+  nodes.forEach((n) => {
+    const g = el("g", { class: `n ${n.kind}`, transform: `translate(${n.x},${n.y})`, tabindex: 0, role: "button", "aria-label": `${n.label}, ${n.type}` }, nodeLayer);
+    el("rect", { width: n.w, height: n.h }, g);
+    el("text", { x: 12, y: 18, "font-weight": 600 }, g).textContent = n.label;
+    el("text", { x: 12, y: 33, class: "t" }, g).textContent = n.type;
+    (n.params || []).forEach((p, i) => {
+      el("text", { x: 12, y: 50 + i * PARAM_LINE, class: "p" }, g).textContent = p;
+    });
+    g.addEventListener("click", (ev) => { ev.stopPropagation(); select(n.id); });
+    g.addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); select(n.id); } });
+    n.el = g;
+  });
+}
+
+function select(id) {
+  selected = selected === id ? null : id;
+  const linked = new Set(selected ? [selected] : []);
+  laid.edges.forEach((e) => {
+    const on = selected && (e.from === selected || e.to === selected);
+    if (on) { linked.add(e.from); linked.add(e.to); }
+    e.path.classList.toggle("hi", !!on);
+    e.path.classList.toggle("dim", !!selected && !on);
+    e.path.setAttribute("marker-end", on ? "url(#arrow-hi)" : "url(#arrow)");
+    e.text?.classList.toggle("dim", !!selected && !on);
+  });
+  laid.nodes.forEach((n) => {
+    n.el.classList.toggle("sel", n.id === selected);
+    n.el.classList.toggle("dim", !!selected && !linked.has(n.id));
+  });
+  renderInfo();
+}
+
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+}
+
+const KIND_TEXT = {
+  io: "Boundary — where this graph meets the rest of the engine.",
+  node: "Persistent — built once; edits ramp or set its params in place.",
+  voice: "Per trigger — built for one note or hit, disposed when it ends.",
+  bus: "SummingBus stage — fixed-order sum (#867).",
+  tap: "Tap — a fan-out the UI polls; it never colours the signal.",
+};
+
+function renderInfo() {
+  const g = current;
+  const n = selected && laid.nodes.get(selected);
+  const ins = n ? laid.edges.filter((e) => e.to === n.id).map((e) => laid.nodes.get(e.from).label) : [];
+  const outs = n ? laid.edges.filter((e) => e.from === n.id).map((e) => laid.nodes.get(e.to).label) : [];
+  info.innerHTML = `
+    <h2>${esc(g.title)}</h2>
+    <p>${esc(g.summary)}</p>
+    ${n ? `
+      <h3>Selected node</h3>
+      <div class="node-card">
+        <strong>${esc(n.label)}</strong>
+        <div class="type">${esc(n.type)}</div>
+        <p style="margin-top:8px">${esc(KIND_TEXT[n.kind])}</p>
+        ${n.params ? `<ul>${n.params.map((p) => `<li><code>${esc(p)}</code></li>`).join("")}</ul>` : ""}
+        ${n.note ? `<p style="margin-top:8px">${esc(n.note)}</p>` : ""}
+        ${ins.length ? `<p>From: ${ins.map(esc).join(", ")}</p>` : ""}
+        ${outs.length ? `<p>To: ${outs.map(esc).join(", ")}</p>` : ""}
+      </div>` : `<p style="color:var(--color-foreground-muted)">Click a node for detail.</p>`}
+    <h3>Source</h3>
+    <ul class="files">${g.files.map((f) => `<li>${esc(f)}</li>`).join("")}</ul>
+    <h3>Key</h3>
+    <div class="legend">
+      ${legendBox("io")}<span>Boundary</span>
+      ${legendBox("node")}<span>Persistent node</span>
+      ${legendBox("voice")}<span>Per-trigger voice</span>
+      ${legendBox("bus")}<span>SummingBus stage</span>
+      ${legendBox("tap")}<span>Meter tap</span>
+      ${legendLine("")}<span>Audio</span>
+      ${legendLine("control")}<span>Trigger / data</span>
+      ${legendLine("back")}<span>Feedback loop</span>
+    </div>`;
+}
+
+function legendBox(kind) {
+  return `<svg viewBox="0 0 34 18"><g class="n ${kind}"><rect x="1" y="1" width="32" height="16"/></g></svg>`;
+}
+function legendLine(kind) {
+  return `<svg viewBox="0 0 34 18"><path class="e ${kind}" d="M2,9 L32,9"/></svg>`;
+}
+
+/* ------------------------------------------------------------------ */
+/* Pan and zoom                                                        */
+/* ------------------------------------------------------------------ */
+
+const view = { x: 0, y: 0, k: 1 };
+const zoomRead = document.getElementById("zoomRead");
+function apply() {
+  viewport.setAttribute("transform", `translate(${view.x},${view.y}) scale(${view.k})`);
+  zoomRead.textContent = `${Math.round(view.k * 100)}%`;
+}
+function zoomAt(factor, cx, cy) {
+  const k = Math.min(4, Math.max(0.15, view.k * factor));
+  const f = k / view.k;
+  view.x = cx - (cx - view.x) * f;
+  view.y = cy - (cy - view.y) * f;
+  view.k = k;
+  apply();
+}
+function fit() {
+  const r = svg.getBoundingClientRect();
+  const k = Math.min(1.4, (r.width - 20) / laid.width, (r.height - 20) / laid.height);
+  view.k = k;
+  view.x = (r.width - laid.width * k) / 2;
+  view.y = (r.height - laid.height * k) / 2;
+  apply();
+}
+
+/** The opening view: the whole graph if it reads at that size, otherwise a
+ * readable zoom from the graph's left edge (its input), panned for the rest. */
+const READABLE = matchMedia("(max-width: 900px)").matches ? 0.6 : 0.85;
+function home() {
+  fit();
+  if (view.k >= READABLE) return;
+  const r = svg.getBoundingClientRect();
+  view.k = READABLE;
+  view.x = 0;
+  view.y = (r.height - laid.height * view.k) / 2;
+  apply();
+}
+
+svg.addEventListener("wheel", (ev) => {
+  ev.preventDefault();
+  const r = svg.getBoundingClientRect();
+  // Wheel and trackpad pinch both zoom about the pointer; drag pans.
+  const lines = ev.deltaMode === 1 ? 16 : ev.deltaMode === 2 ? 400 : 1;
+  const rate = ev.ctrlKey ? 0.01 : 0.0015;
+  zoomAt(Math.exp(-ev.deltaY * lines * rate), ev.clientX - r.left, ev.clientY - r.top);
+}, { passive: false });
+
+const pointers = new Map();
+let pinch = null;
+const main = document.getElementById("main");
+svg.addEventListener("pointerdown", (ev) => {
+  if (ev.target.closest(".n")) return;
+  svg.setPointerCapture(ev.pointerId);
+  pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+  main.classList.add("dragging");
+  if (pointers.size === 2) {
+    const [a, b] = [...pointers.values()];
+    pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) };
+  }
+});
+svg.addEventListener("pointermove", (ev) => {
+  const prev = pointers.get(ev.pointerId);
+  if (!prev) return;
+  const next = { x: ev.clientX, y: ev.clientY };
+  pointers.set(ev.pointerId, next);
+  if (pointers.size === 2 && pinch) {
+    const [a, b] = [...pointers.values()];
+    const d = Math.hypot(a.x - b.x, a.y - b.y);
+    const r = svg.getBoundingClientRect();
+    zoomAt(d / pinch.d, (a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top);
+    pinch.d = d;
+  } else if (pointers.size === 1) {
+    view.x += next.x - prev.x;
+    view.y += next.y - prev.y;
+    apply();
+  }
+});
+const endPointer = (ev) => {
+  pointers.delete(ev.pointerId);
+  if (pointers.size < 2) pinch = null;
+  if (!pointers.size) main.classList.remove("dragging");
+};
+svg.addEventListener("pointerup", endPointer);
+svg.addEventListener("pointercancel", endPointer);
+svg.addEventListener("click", (ev) => { if (!ev.target.closest(".n") && selected) select(selected); });
+
+const centre = () => { const r = svg.getBoundingClientRect(); return [r.width / 2, r.height / 2]; };
+document.getElementById("zoomIn").onclick = () => zoomAt(1.25, ...centre());
+document.getElementById("zoomOut").onclick = () => zoomAt(0.8, ...centre());
+document.getElementById("fit").onclick = fit;
+window.addEventListener("resize", () => current && home());
+
+/* ------------------------------------------------------------------ */
+/* Navigation                                                          */
+/* ------------------------------------------------------------------ */
+
+const select_ = document.createElement("select");
+select_.setAttribute("aria-label", "Graph");
+const groups = [...new Set(GRAPHS.map((g) => g.group))];
+for (const group of groups) {
+  const h = document.createElement("h2");
+  h.textContent = group;
+  nav.appendChild(h);
+  const og = document.createElement("optgroup");
+  og.label = group;
+  for (const g of GRAPHS.filter((x) => x.group === group)) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = g.title;
+    b.dataset.id = g.id;
+    b.onclick = () => { location.hash = g.id; };
+    nav.appendChild(b);
+    const o = document.createElement("option");
+    o.value = g.id;
+    o.textContent = g.title;
+    og.appendChild(o);
+  }
+  select_.appendChild(og);
+}
+select_.onchange = () => { location.hash = select_.value; };
+nav.prepend(select_);
+
+function show() {
+  const id = location.hash.slice(1);
+  const graph = GRAPHS.find((g) => g.id === id) || GRAPHS[0];
+  current = graph;
+  selected = null;
+  nav.querySelectorAll("button").forEach((b) => b.setAttribute("aria-current", String(b.dataset.id === graph.id)));
+  select_.value = graph.id;
+  document.title = `${graph.title} · Audio Graph Explorer`;
+  render(graph);
+  renderInfo();
+  home();
+}
+window.addEventListener("hashchange", show);
+show();
+</script>
+</body>
+</html>
