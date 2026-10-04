@@ -62,16 +62,18 @@ export default function FilterRow(props: {
         <Show when={props.menuOpen}>
           <fieldset class="filter-menu" aria-label="Genres">
             <div class="filter-menu-options">
-              <For each={props.genres}>
+              {/* Keyed by genre: a toggle re-counts the menu, and the row (and
+                  the focus on its checkbox) must survive that (#890). */}
+              <For each={props.genres} keyed={(entry) => entry.genre}>
                 {(entry) => (
                   <label class="filter-option">
                     <input
                       type="checkbox"
-                      checked={props.selectedGenres.includes(entry.genre)}
-                      onChange={() => props.onGenre(entry.genre)}
+                      checked={props.selectedGenres.includes(entry().genre)}
+                      onChange={() => props.onGenre(entry().genre)}
                     />
-                    {genreLabel(entry.genre)}{" "}
-                    <small class="filter-option-count">{entry.count}</small>
+                    {genreLabel(entry().genre)}{" "}
+                    <small class="filter-option-count">{entry().count}</small>
                   </label>
                 )}
               </For>
