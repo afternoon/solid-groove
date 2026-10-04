@@ -4,7 +4,15 @@
 // ships"). `FND-004` extended this from the prototype's single
 // `projects/{id}` document to the schema-v1 three-tier layout.
 import type { RulesTestEnvironment } from "@firebase/rules-unit-testing";
-import { deleteDoc, doc, getDoc, setDoc, updateDoc } from "firebase/firestore";
+import {
+  collection,
+  deleteDoc,
+  doc,
+  getDoc,
+  getDocs,
+  setDoc,
+  updateDoc,
+} from "firebase/firestore";
 import { afterAll, afterEach, beforeAll, describe, it } from "vitest";
 import { SCHEMA_VERSION } from "../../src/domain/entities";
 import {
@@ -362,5 +370,81 @@ describe("firestore.rules: song, clip, and arrangement tiers", () => {
     );
     const db = testEnv.authenticatedContext("owner-a").firestore();
     await assertSucceeds(deleteDoc(doc(db, "projects", PROJECT_A, "clips", CLIP_A)));
+  });
+});
+
+describe("firestore.rules: users/{uid}/favourites/{favouriteId}", () => {
+  const KICK_ID = `${PACK_A}~sg-one-shot-drums-kick-0001`;
+
+  function favourite(overrides: Record<string, unknown> = {}) {
+    return {
+      schemaVersion: 1,
+      packId: PACK_A,
+      assetId: "sg-one-shot-drums-kick-0001",
+      favouritedAt: 1_700_000_000_000,
+      ...overrides,
+    };
+  }
+
+  it("lets the owner add, read, list and remove their favourites", async () => {
+    const db = testEnv.authenticatedContext("owner-a").firestore();
+    const ref = doc(db, "users", "owner-a", "favourites", KICK_ID);
+    await assertSucceeds(setDoc(ref, favourite()));
+    await assertSucceeds(setDoc(ref, favourite({ favouritedAt: 1_700_000_000_001 })));
+    await assertSucceeds(getDoc(ref));
+    await assertSucceeds(getDocs(collection(db, "users", "owner-a", "favourites")));
+    await assertSucceeds(deleteDoc(ref));
+  });
+
+  it("lets an anonymous identity keep favourites of its own", async () => {
+    const db = anonymousContext(testEnv, "anon-1").firestore();
+    const ref = doc(db, "users", "anon-1", "favourites", KICK_ID);
+    await assertSucceeds(setDoc(ref, favourite()));
+    await assertSucceeds(getDoc(ref));
+  });
+
+  it("denies another user reading, listing, writing or removing them", async () => {
+    await seed(["users", "owner-a", "favourites", KICK_ID], favourite());
+    const db = testEnv.authenticatedContext("owner-b").firestore();
+    const ref = doc(db, "users", "owner-a", "favourites", KICK_ID);
+    await assertFails(getDoc(ref));
+    await assertFails(getDocs(collection(db, "users", "owner-a", "favourites")));
+    await assertFails(setDoc(ref, favourite()));
+    await assertFails(deleteDoc(ref));
+  });
+
+  it("denies an anonymous identity another anonymous identity's favourites", async () => {
+    await seed(["users", "anon-1", "favourites", KICK_ID], favourite());
+    const db = anonymousContext(testEnv, "anon-2").firestore();
+    await assertFails(getDoc(doc(db, "users", "anon-1", "favourites", KICK_ID)));
+  });
+
+  it("denies access without authentication", async () => {
+    await seed(["users", "owner-a", "favourites", KICK_ID], favourite());
+    const db = testEnv.unauthenticatedContext().firestore();
+    const ref = doc(db, "users", "owner-a", "favourites", KICK_ID);
+    await assertFails(getDoc(ref));
+    await assertFails(setDoc(ref, favourite()));
+  });
+
+  it("denies a favourite carrying anything but its reference and time", async () => {
+    const db = testEnv.authenticatedContext("owner-a").firestore();
+    const ref = doc(db, "users", "owner-a", "favourites", KICK_ID);
+    await assertFails(setDoc(ref, favourite({ name: "Rounded Club Kick" })));
+    await assertFails(setDoc(ref, favourite({ url: "https://example.com/kick.wav" })));
+    await assertFails(
+      setDoc(ref, { packId: PACK_A, assetId: "sg-one-shot-drums-kick-0001" }),
+    );
+    await assertFails(setDoc(ref, favourite({ schemaVersion: 2 })));
+    await assertFails(setDoc(ref, favourite({ packId: "drums" })));
+    await assertFails(setDoc(ref, favourite({ assetId: "" })));
+    await assertFails(setDoc(ref, favourite({ assetId: "x".repeat(201) })));
+    await assertFails(setDoc(ref, favourite({ favouritedAt: "today" })));
+  });
+
+  it("denies a favourite stored under another pack's ID", async () => {
+    const db = testEnv.authenticatedContext("owner-a").firestore();
+    const ref = doc(db, "users", "owner-a", "favourites", `${PROJECT_B}~kick`);
+    await assertFails(setDoc(ref, favourite()));
   });
 });

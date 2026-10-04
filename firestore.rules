@@ -113,5 +113,33 @@ service cloud.firestore {
         allow delete: if memberOfProject(projectId);
       }
     }
+
+    // Per-user favourite sounds (LIB-011, #691). Favourites belong to the
+    // person, so the whole subtree is readable and writable by its owner only.
+    // An anonymous identity owns its favourites like a registered one, and an
+    // account upgrade keeps the uid, so they follow the person.
+    function isUser(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    // One document per sound: a pack-qualified reference and when it was
+    // favourited, nothing else (no names, URLs or user-entered text). The
+    // document ID is `{packId}~{encoded assetId}`, so it must start with the
+    // pack the document names; the decoder checks the rest.
+    function validFavourite(favouriteId, data) {
+      return data.keys().hasOnly(['schemaVersion', 'packId', 'assetId', 'favouritedAt'])
+        && data.keys().hasAll(['schemaVersion', 'packId', 'assetId', 'favouritedAt'])
+        && data.schemaVersion == 1
+        && data.packId is string && data.packId.matches('^pak_[A-Za-z0-9_-]{21}$')
+        && data.assetId is string && data.assetId.size() > 0 && data.assetId.size() <= 200
+        && data.favouritedAt is int && data.favouritedAt >= 0
+        && favouriteId.matches('^' + data.packId + '~.+$');
+    }
+
+    match /users/{userId}/favourites/{favouriteId} {
+      allow read, delete: if isUser(userId);
+      allow create, update: if isUser(userId)
+        && validFavourite(favouriteId, request.resource.data);
+    }
   }
 }
