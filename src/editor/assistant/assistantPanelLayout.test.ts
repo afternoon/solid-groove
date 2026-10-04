@@ -19,6 +19,7 @@ import {
   resetSize,
   resizable,
   resizeBy,
+  rightClearance,
   saveLayout,
   serializeLayout,
   setSize,
@@ -171,5 +172,15 @@ describe("remembered per device", () => {
     ).toEqual({ mode: "docked", home: "floating", height: 560, width: 384 });
     // A minimised mode is never stored, so it is not trusted if it appears.
     expect(parseLayout(JSON.stringify({ mode: "minimised" })).mode).toBe("closed");
+  });
+});
+
+describe("the room it takes at the window's right edge", () => {
+  it("is the panel or its bar plus its inset, the docked width, or nothing when closed", () => {
+    expect(rightClearance(DEFAULT_LAYOUT)).toBe(0);
+    expect(rightClearance(floating)).toBe(400);
+    expect(rightClearance(minimise(floating))).toBe(356);
+    expect(rightClearance(docked)).toBe(384);
+    expect(rightClearance(setSize(docked, 500))).toBe(500);
   });
 });

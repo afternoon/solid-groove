@@ -198,7 +198,9 @@ describe("the theme is the only place a colour is written down", () => {
     // `TrackRail` sets the last three from the arrangement's own `ROW_METRICS`,
     // `HEADER_WIDTH_PX` and `RULER_HEIGHT_PX`, so a track's row is the same
     // size and place in both views without either one writing the numbers
-    // down twice (`UI-001`, #447).
+    // down twice (`UI-001`, #447). The assistant panel (#849) sets its
+    // floating width, bar size and inset from `assistantPanelLayout.ts`, and
+    // publishes `--assistant-clearance` on the root for the corner chrome.
     const setFromMarkup = new Set([
       "--step-count",
       "--velocity",
@@ -206,6 +208,11 @@ describe("the theme is the only place a colour is written down", () => {
       "--track-column-width",
       "--track-ruler-height",
       "--waveform-fill",
+      "--assistant-floating-width",
+      "--assistant-bar-width",
+      "--assistant-bar-height",
+      "--assistant-inset",
+      "--assistant-clearance",
     ]);
     const declared = new Set(
       Object.values(stylesheets).flatMap((source) =>

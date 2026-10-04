@@ -10,6 +10,8 @@ import {
 } from "../shortcuts";
 import { isTextEntry } from "../shortcuts/textEntry";
 import { arrangementHasFocus } from "./arrangementFocus";
+import { RESIZE_STEP, RESIZE_STEP_LARGE } from "./assistant/assistantPanelLayout";
+import type { AssistantPanel } from "./assistant/useAssistantPanel";
 import type { EditorViewName } from "./editorViews";
 import type { LibraryActions } from "./LibraryModal";
 import type { PianoRollActions } from "./pianoRoll/rollActions";
@@ -77,6 +79,12 @@ export interface UseEditorShortcutsOptions {
    * `undefined` while no track is chosen. Escape and any Delete that removes
    * something inside the track call it. */
   readonly dropTrackChoice: () => (() => void) | undefined;
+  /** The assistant panel (#849): Cmd/Ctrl+K, Escape inside it, and its
+   * resize edge's arrows. */
+  readonly assistant: Pick<
+    AssistantPanel,
+    "toggle" | "resizeBy" | "dismissAction" | "edgeHasFocus"
+  >;
 }
 
 /** Controls that use the vertical arrows themselves, so a track step must not
@@ -137,6 +145,7 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     adjacentTrack,
     deleteSelectedTrack,
     dropTrackChoice,
+    assistant,
   } = options;
 
   /**
@@ -230,6 +239,12 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
   const onSelectedSound = (run: (actions: LibraryActions) => void) => ({
     ...inLibrary(run),
     isEnabled: () => libraryActions() !== null && !focusKeepsKey(),
+  });
+
+  /** One resize step on the assistant's focused edge (#849). */
+  const resizeEdge = (by: number) => ({
+    run: () => assistant.resizeBy(by),
+    isEnabled: () => assistant.edgeHasFocus(),
   });
 
   const handlers = (): ShortcutHandlers => ({
@@ -349,12 +364,16 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     // here compares a key — this is the registry's `view.close_surface`, like
     // every other close. A clip drag in flight is innermost of all: Escape cancels it (ARR-011). The
     // sequence and library views are views, not dialogs (UI-002), so Escape
-    // does not leave them: a view key does. With no surface open, it clears the arrangement's
-    // selection (#835).
+    // does not leave them: a view key does. With focus in the assistant
+    // (#849), Escape is the panel's: it minimises a floating panel and closes
+    // a docked one, before the library view under it. With no surface open,
+    // it clears the arrangement's selection (#835).
     "view.close_surface": {
       run: () => {
+        const dismissAssistant = assistant.dismissAction();
         if (arrangementDragging()) arrangementEditingActions()?.cancelDrag();
         else if (guideOpen()) setGuideOpen(false);
+        else if (dismissAssistant) dismissAssistant();
         else if (libraryOpen()) {
           const actions = libraryActions();
           if (!actions?.closeKeys() && !actions?.closeMenu()) {
@@ -371,10 +390,18 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
         !exportOpen() &&
         (arrangementDragging() ||
           guideOpen() ||
+          assistant.dismissAction() !== undefined ||
           libraryOpen() ||
           arrangementClearable() ||
           trackChoiceDroppable()),
     },
+    // The assistant (#849): Cmd/Ctrl+K opens it where it was or closes it, and
+    // the arrows on its focused resize edge step its size.
+    "assistant.toggle": { run: () => assistant.toggle() },
+    "assistant.grow": resizeEdge(RESIZE_STEP),
+    "assistant.shrink": resizeEdge(-RESIZE_STEP),
+    "assistant.grow_more": resizeEdge(RESIZE_STEP_LARGE),
+    "assistant.shrink_more": resizeEdge(-RESIZE_STEP_LARGE),
     // A focused Transform value field (ARR-010): ↑/↓ nudge it, in place of
     // the roll's note moves, which its context replaces.
     "value.nudge_up": {
@@ -514,7 +541,11 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     const withGesture: readonly ShortcutContext[] = arrangementDragging()
       ? [...withSequence, "gesture"]
       : withSequence;
-    return loopBraceFocused() ? [...withGesture, "loop_brace"] : withGesture;
+    const withLoopBrace: readonly ShortcutContext[] = loopBraceFocused()
+      ? [...withGesture, "loop_brace"]
+      : withGesture;
+    // The assistant's focused resize edge takes the arrows (#849).
+    return assistant.edgeHasFocus() ? [...withLoopBrace, "resize_edge"] : withLoopBrace;
   };
 
   // While a modal is open it is the only active context, so nothing behind it
