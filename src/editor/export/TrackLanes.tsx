@@ -1,5 +1,5 @@
 import type { JSX } from "@solidjs/web";
-import { createEffect, createSignal, onSettled } from "solid-js";
+import { createEffect, createSignal, onSettled, untrack } from "solid-js";
 import BatchGutter from "./BatchGutter";
 import LaneMap from "./LaneMap";
 import "./TrackLanes.css";
@@ -69,7 +69,10 @@ export default function TrackLanes(props: TrackLanesProps): JSX.Element {
   createEffect(
     () => props.scrollToRowId ?? null,
     (id) => {
-      const index = id === null ? -1 : props.rows.findIndex((row) => row.id === id);
+      // A scroll request, not the rows changing, is what scrolls: the rows are
+      // read once, knowingly, under `untrack` (#844).
+      const index =
+        id === null ? -1 : untrack(() => props.rows.findIndex((row) => row.id === id));
       if (index < 0) return;
       scroller.scrollTo?.({
         top: index * ROW_HEIGHT_PX,

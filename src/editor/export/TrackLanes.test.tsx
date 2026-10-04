@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
+import { createSignal, flush } from "solid-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clickAndFlush, fireAndFlush } from "../../testing/events";
 import TrackLanes, { type TrackLanesProps } from "./TrackLanes";
@@ -110,6 +111,30 @@ describe("TrackLanes", () => {
     vi.stubGlobal("matchMedia", () => ({ matches: true }));
     renderLanes({ scrollToRowId: "d" });
     expect(scrollTo).toHaveBeenLastCalledWith({ top: 72, behavior: "auto" });
+  });
+
+  // #844: the scroll effect read `rows` in its untracked apply half, so a
+  // scroll request logged a Solid dev warning when the rows were reactive.
+  it("scrolls to a row without a STRICT_READ_UNTRACKED warning (#844)", () => {
+    const warn = vi.spyOn(console, "warn");
+    const [current] = createSignal(rows);
+    const [target, setTarget] = createSignal<string | undefined>(undefined);
+    render(() => (
+      <TrackLanes
+        rows={current()}
+        bars={32}
+        scrollToRowId={target()}
+        onRowClick={vi.fn()}
+        onPickAction={vi.fn()}
+      />
+    ));
+    setTarget("c");
+    flush();
+    expect(scrollTo).toHaveBeenLastCalledWith({ top: 48, behavior: "smooth" });
+    const strictReads = warn.mock.calls.filter(([message]) =>
+      String(message).includes("STRICT_READ_UNTRACKED"),
+    );
+    expect(strictReads).toHaveLength(0);
   });
 
   it("draws the lanes once it has a width", () => {

@@ -7,6 +7,7 @@ import {
   createUniqueId,
   onCleanup,
   onSettled,
+  untrack,
 } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import type {
@@ -396,9 +397,13 @@ export default function ArrangementView(props: ArrangementViewProps) {
 
   // Picking a track up or putting it down changes how its lane is drawn even
   // when the rows have not moved yet, so redraw the canvas on either edge.
+  //
+  // `invalidateAll` re-clamps scroll against the projection memo; that read is
+  // deliberate and covered by the projection effect below, so it runs under
+  // `untrack` rather than logging `STRICT_READ_UNTRACKED` (#844).
   createEffect(
     () => trackDrag.dragging(),
-    () => shell?.invalidateAll(),
+    () => untrack(() => shell?.invalidateAll()),
   );
 
   /** One arrangement interaction the user initiated: the once-per-account
@@ -569,20 +574,21 @@ export default function ArrangementView(props: ArrangementViewProps) {
   // The apply half re-reads the same memo indirectly — `invalidateAll` clamps
   // scroll against the shell's own `getProjection` closure, `syncSpacer` reads
   // it for the logical size, `reconcile` reads `props.project` behind it — and
-  // in dev each of those logs `STRICT_READ_UNTRACKED`. Here that diagnostic is
-  // a false positive rather than a missed dependency: the compute half above
-  // subscribes to exactly the memo those reads resolve, so the effect does
-  // re-run and they do see the new value. Silencing it would mean either
-  // `untrack` or threading the projection value through `ArrangementShell` and
-  // `PlacementEditing`, neither of which belongs in a framework migration.
+  // in dev each of those would log `STRICT_READ_UNTRACKED` (#844). Here that
+  // diagnostic is a false positive rather than a missed dependency: the compute
+  // half above subscribes to exactly the memo those reads resolve, so the
+  // effect does re-run and they do see the new value. So the apply half runs
+  // under a deliberate `untrack`, which is Solid's way of saying "read once,
+  // knowingly" and keeps the diagnostic for reads that really are missed.
   createEffect(
     () => projection(),
-    () => {
-      shell?.invalidateAll();
-      editing?.reconcile();
-      syncSpacer();
-      bumpState();
-    },
+    () =>
+      untrack(() => {
+        shell?.invalidateAll();
+        editing?.reconcile();
+        syncSpacer();
+        bumpState();
+      }),
   );
 
   // Transport playhead follow: seek the shell to the live position while

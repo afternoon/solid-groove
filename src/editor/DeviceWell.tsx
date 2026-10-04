@@ -1,4 +1,5 @@
 import { For, type JSX } from "@solidjs/web";
+import { untrack } from "solid-js";
 import type {
   DeviceChainTarget,
   Gesture,
@@ -168,7 +169,9 @@ export default function DeviceWell(props: DeviceWellProps): JSX.Element {
       props.dispatch(commands),
     beginGesture: (options?: GestureOptions) => props.beginGesture(options),
   };
-  const type = props.device.type;
+  // The panel keys its cards on the device's id, and a device never changes
+  // type, so which well to draw is decided once, knowingly untracked (#844).
+  const type = untrack(() => props.device.type);
   const p = (id: string) => parameter(type, id) as ParameterDefinition;
   const show = (definition: ParameterDefinition) =>
     formatDeviceValue(definition, value(definition));
@@ -385,7 +388,7 @@ export default function DeviceWell(props: DeviceWellProps): JSX.Element {
   const cutoff = parameter("filter", "cutoff");
   const resonance = parameter("filter", "resonance");
   const mode = parameter("filter", "mode");
-  if (props.device.type !== "filter" || !cutoff || !resonance || !mode) return null;
+  if (type !== "filter" || !cutoff || !resonance || !mode) return null;
   const shape = () => FILTER_MODES[Math.round(value(mode))] ?? "lowpass";
 
   return (

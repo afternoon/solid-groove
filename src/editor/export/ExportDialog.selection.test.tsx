@@ -71,6 +71,22 @@ describe("ExportDialog: choosing the tracks in a stem export", () => {
     expect(requests.map((r) => r.trackIds)).toEqual([[bass.id]]);
   });
 
+  // #844: the effect that starts the export over read the phase in its
+  // untracked apply half, so every toggle logged a Solid dev warning.
+  it("toggles a stem without a STRICT_READ_UNTRACKED warning (#844)", () => {
+    const warn = vi.spyOn(console, "warn");
+    const project = createStemFixtureProject();
+    renderDialog(project);
+    const [lead] = ordered(project);
+    toggle(lead.name);
+    toggle(lead.name);
+    const strictReads = warn.mock.calls.filter(([message]) =>
+      String(message).includes("STRICT_READ_UNTRACKED"),
+    );
+    warn.mockRestore();
+    expect(strictReads).toHaveLength(0);
+  });
+
   it("turns Export off with no track on, and says why", () => {
     const project = createStemFixtureProject();
     const { requests } = renderDialog(project);
