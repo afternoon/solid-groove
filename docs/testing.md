@@ -18,6 +18,7 @@ This document is the map of "which suite do I run, and how." It does not restate
 | Browser E2E | `bun run test:browser` | Playwright (`playwright.config.ts`) | Real browsers (Chromium, Firefox, WebKit) | A local dev server (`bun run dev`) against the in-memory mock backend |
 | Browser E2E against the emulator | `bun run test:browser:emulator` | Playwright (`tests/e2e/emulator/playwright.config.ts`), wrapped by `firebase emulators:exec` | Real browsers (Chromium, Firefox) | A local dev server against a local Firestore + Auth emulator, started and torn down automatically |
 | Post-deploy smoke test | `bun run smoke:hosted` | Playwright (`tests/e2e/hosted/playwright.config.ts`) | Real browser (Chromium) | The real deployed Hosting URL (`SMOKE_URL`), real Firebase Auth/Firestore — see "Deploy" below |
+| Scheduled QA sweep | `.github/workflows/qa-sweep.yml` (weekly, or run it by hand) | Agents driving Playwright (`tests/e2e/hosted/qa-sweep/playwright.config.ts`) | Real browser (Chromium) | The live app, real Firebase Auth/Firestore, as a fresh guest — see "Scheduled QA sweep" below |
 
 ### The unit suite's six projects
 
@@ -533,6 +534,18 @@ Visiting the hosted alpha with `?internal=1` (e.g. `https://trygroove.app/?inter
 ### Post-deploy smoke test
 
 `tests/e2e/hosted/smoke.spec.ts` (config: `tests/e2e/hosted/playwright.config.ts`, command: `bun run smoke:hosted`) is a separate Playwright suite from `e2e/`: it requires `SMOKE_URL` (the real deployed Hosting URL) and drives real Firebase Authentication and Firestore, never the mock backend. It covers exactly PRD OPS-01's list — app load, anonymous session start, project open, and audio start after a user gesture — by creating a project (the hosted alpha has no seeded project) and clicking the transport's play button. It cannot run without a real deployed URL, so it has never been executed against a real environment as part of this task; the `deploy` job is where it runs for real, once the project above exists.
+
+### Scheduled QA sweep
+
+`.github/workflows/qa-sweep.yml` (#859) sends a few agents at the live app every Monday, or whenever it is run by hand from the Actions tab. It is exploratory testing, not a gate: nothing waits on it, and what it produces is issues.
+
+- **Plan.** `scripts/qa-sweep/plan.mjs` picks the flows: the next few in a weekly rotation through `docs/core-flows.md`, so successive runs cover the whole register, or the ones named in the `flows` input. A flow whose spec is still `test.fixme` is walked too, as *parked*: its agent is told the unbuilt parts are not bugs.
+- **Explore.** One job per flow. `session.sweep.ts` makes a fresh guest session (the live app has no other kind of test account; a guest owns nothing, so it cannot touch anyone's projects) marked as internal traffic. The agent follows [`.github/qa-sweep/explorer.md`](../.github/qa-sweep/explorer.md): walk the flow, then try odd input, rapid clicks, keyboard-only use, resizing and reloads on everything it reached, and write `findings.json`. Its specs import `tests/e2e/hosted/qa-sweep/fixtures.ts`, which fails any test that lost the guest's session. Then, whatever the agent did, `cleanup.sweep.ts` deletes every project the guest owns and records the result.
+- **File.** `scripts/qa-sweep/file.mjs` is the only step that writes to GitHub (the agents' token is read-only). It files each new finding as a `Bug: …` issue (symptom, expected, steps, environment with the live build's SHA, a screenshot published to `claude/walkthroughs`), which `milestone.yml` then milestones; comments on an open issue instead when the agent named it as the duplicate or the titles match; and posts the run summary (flows covered, issues filed, issues re-seen, anything over the cap, cleanup) on the pinned **QA sweep** issue, which it creates if there is none. The board and the milestone workflow leave that issue alone (its `qa-sweep` label). Each write stands alone: one GitHub refuses (a rate limit, a 5xx) is listed in the summary and turns the run red, and the rest still go. Agent text is pasted in with its `@mentions` broken, so a finding can neither start `claude.yml` nor ping anyone, and every body is cut short of GitHub's 65,536-character limit. A screenshot is published only if it is a real PNG inside the agent's output directory; symlinks are deleted before the report is uploaded.
+- **Budget.** At most 5 agents and 15 new issues a run, across all agents. Change them per run with the `agents` and `issues` inputs, or for every run with the `QA_SWEEP_MAX_AGENTS` and `QA_SWEEP_MAX_ISSUES` repository variables; either is clamped to 10 and 50. When the cap bites, the most severe findings are filed first and the rest are listed in the summary. Re-seen issues do not count towards it. `dry_run` walks and reports but writes nothing to GitHub.
+- **Running the harness by hand.** `bunx playwright test --config=tests/e2e/hosted/qa-sweep/playwright.config.ts --project=explore` runs whatever specs are in `tmp/qa-sweep/specs/` as a new guest (made on the first run, reused after), and `--project=cleanup` deletes that guest's projects. Delete `tmp/qa-sweep/` to start over as a new guest, after cleaning up.
+
+The sweep cannot delete a pack a guest uploads sounds into, so the brief tells agents not to upload any; that part of a flow is explored up to the upload.
 
 ### Rollback
 

@@ -1,0 +1,171 @@
+name: QA sweep
+
+# The scheduled agent QA sweep (#859). Once a week a few agents each walk one
+# core flow from docs/core-flows.md in the live app, explore every screen and
+# control it reaches, and report the bugs they find. See docs/testing.md,
+# "Scheduled QA sweep".
+#
+#   plan     picks the flows (a weekly rotation, or the ones asked for) and
+#            resolves the budget: agents per run and new issues per run.
+#   explore  one job per flow. A fresh guest session, the agent (read-only:
+#            it reports, it never files), then the guest's projects deleted
+#            whatever the agent did, and its report uploaded.
+#   file     the only job that writes to GitHub: new `Bug: …` issues up to the
+#            cap, comments on open issues seen again, screenshots, and the run
+#            summary on the pinned "QA sweep" issue.
+#
+# Budget: the `agents` and `issues` inputs, else the QA_SWEEP_MAX_AGENTS and
+# QA_SWEEP_MAX_ISSUES repository variables, else 5 and 15. Clamped to 10 and 50
+# by scripts/qa-sweep/sweep.mjs.
+on:
+  schedule:
+    # Mondays, 05:23 UTC.
+    - cron: "23 5 * * 1"
+  workflow_dispatch:
+    inputs:
+      agents:
+        description: "Agents to start (blank: QA_SWEEP_MAX_AGENTS, else 5; at most 10)"
+        required: false
+        default: ""
+      issues:
+        description: "New issues to file at most (blank: QA_SWEEP_MAX_ISSUES, else 15; at most 50)"
+        required: false
+        default: ""
+      flows:
+        description: "Flow IDs to walk instead of this week's rotation, e.g. CF-001 CF-007"
+        required: false
+        default: ""
+      dry_run:
+        description: "Walk and report, but write nothing to GitHub"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: qa-sweep
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      flows: ${{ steps.plan.outputs.flows }}
+      agents: ${{ steps.plan.outputs.agents }}
+      issues: ${{ steps.plan.outputs.issues }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            docs/core-flows.md
+            scripts/qa-sweep
+            tests/e2e/emulator/flows
+          sparse-checkout-cone-mode: false
+      - id: plan
+        env:
+          QA_SWEEP_AGENTS_INPUT: ${{ inputs.agents }}
+          QA_SWEEP_AGENTS_VAR: ${{ vars.QA_SWEEP_MAX_AGENTS }}
+          QA_SWEEP_ISSUES_INPUT: ${{ inputs.issues }}
+          QA_SWEEP_ISSUES_VAR: ${{ vars.QA_SWEEP_MAX_ISSUES }}
+          QA_SWEEP_FLOWS: ${{ inputs.flows }}
+        run: node scripts/qa-sweep/plan.mjs
+
+  explore:
+    needs: plan
+    name: Walk ${{ matrix.flow.id }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    # Read-only on purpose: an agent can search issues for duplicates but can
+    # file, comment or push nothing. The `file` job does every write, which is
+    # what makes the issue cap hold whatever an agent does.
+    permissions:
+      contents: read
+      issues: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      max-parallel: ${{ fromJSON(needs.plan.outputs.agents) }}
+      matrix:
+        flow: ${{ fromJSON(needs.plan.outputs.flows) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/claude-env
+      - name: Install Chromium
+        run: bunx playwright install --with-deps chromium
+      - name: Start the run's guest session
+        run: bunx playwright test --config=tests/e2e/hosted/qa-sweep/playwright.config.ts --project=session
+      - name: Walk and explore ${{ matrix.flow.id }}
+        # A step timeout, not just the job's: the steps after this one must
+        # still run, or the guest's projects are never deleted.
+        timeout-minutes: 75
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
+          show_full_output: true
+          prompt: |
+            You are a QA sweep agent. Your flow is ${{ matrix.flow.id }}, "${{ matrix.flow.title }}"${{ matrix.flow.parked && ', which is PARKED (its spec is still test.fixme, so parts of it may not be built yet)' || '' }}.
+
+            Read `.github/qa-sweep/explorer.md` and follow it exactly: walk the flow in the live app, explore everything it reaches, and write `tmp/qa-sweep/out/findings.json`. The run's guest session already exists. You have about an hour; leave time to confirm your findings and write the report. Do not file issues, comment, commit or push: you report, and a later step files.
+          claude_args: |
+            --model opus
+            --max-turns 200
+            --allowedTools "Read,Write,Edit,MultiEdit,Glob,Grep,LS,TodoWrite,Bash"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          QA_SWEEP_FLOW: ${{ matrix.flow.id }}
+      - name: Delete the guest's projects
+        if: always()
+        run: bunx playwright test --config=tests/e2e/hosted/qa-sweep/playwright.config.ts --project=cleanup
+      - name: Drop anything in the report that is not a plain file or directory
+        # upload-artifact follows symlinks: an agent's `out/x.png -> ~/.config/…`
+        # would upload the target. The file job also refuses a symlink.
+        if: always()
+        run: |
+          mkdir -p tmp/qa-sweep/out
+          find tmp/qa-sweep/out ! -type f ! -type d -print -delete
+      - name: Upload the report
+        # tmp/qa-sweep/out only: the session file beside it holds the guest's
+        # refresh token and must never leave the runner.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-sweep-${{ matrix.flow.id }}
+          path: tmp/qa-sweep/out/
+          if-no-files-found: warn
+          retention-days: 30
+
+  file:
+    needs: [plan, explore]
+    # Whatever the agents did, file what they reported and say what happened.
+    if: always() && needs.plan.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+    env:
+      GH_TOKEN: ${{ secrets.RESTACK_TOKEN || github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The screenshots are pushed to the claude/walkthroughs branch.
+          token: ${{ secrets.RESTACK_TOKEN || github.token }}
+      - uses: actions/download-artifact@v4
+        # No reports at all (every agent failed before uploading) is still a
+        # run to summarise: file.mjs reports each flow as "no report".
+        continue-on-error: true
+        with:
+          pattern: qa-sweep-*
+          path: tmp/qa-sweep/artifacts
+      - name: Set the commit identity for the screenshots
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+      - name: File the findings and post the summary
+        env:
+          QA_SWEEP_FLOWS_JSON: ${{ needs.plan.outputs.flows }}
+          QA_SWEEP_AGENTS: ${{ needs.plan.outputs.agents }}
+          QA_SWEEP_ISSUES: ${{ needs.plan.outputs.issues }}
+          QA_SWEEP_DRY_RUN: ${{ inputs.dry_run }}
+        run: node scripts/qa-sweep/file.mjs
