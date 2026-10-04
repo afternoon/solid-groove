@@ -1,4 +1,3 @@
-import { expect, type Page, test } from "@playwright/test";
 import {
   backToInstrument,
   library,
@@ -9,6 +8,7 @@ import {
   slotSound,
   soundList,
 } from "./support/library";
+import { expect, type Page, test } from "./support/test";
 import { expectView } from "./support/views";
 
 // #860: the library's Enter (insert) and Space (audition again) let the

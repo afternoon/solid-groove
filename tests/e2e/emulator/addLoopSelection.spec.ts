@@ -1,4 +1,4 @@
-import { expect, type Locator, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "./support/test";
 
 // #879: inserting a loop through Add loop made its new audio track, but left
 // the editor on the track selected before, so the instrument view went on

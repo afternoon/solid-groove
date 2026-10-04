@@ -56,7 +56,9 @@ export const APP_EVENTS = {
   landing_cta_click: {
     phase: 1,
     owners: ["LOOP-001b"],
-    params: { cta_id: enumParam(["start_free", "log_in"]) },
+    // `start_free` was guest start, retired by #854 and kept so its history
+    // stays readable; `log_in` is the Sign in button.
+    params: { cta_id: enumParam(["start_free", "log_in", "request_access"]) },
   },
 
   anon_session_created: {

@@ -29,8 +29,7 @@ import { backToArrangement, expectView, sequenceView } from "../support/views";
  * The precondition, an address on the list, is set up the way an admin would
  * (`../support/access`), and the sign-in goes through the Auth emulator's own
  * account chooser, so the blocking `beforeSignIn` function decides it exactly
- * as it does in production. Parked at `test.fixme` until #854's stack lands;
- * the PR that closes #854 removes the marker.
+ * as it does in production.
  *
  * Runs against the Firestore/Auth emulator, like every core flow (`TEST-001`).
  * CF-001's register entry claims nothing about persistence, and this spec
@@ -63,11 +62,7 @@ const rowCentreY = async (page: Page, rowIndex: number): Promise<number> => {
 const timeline = (page: Page): Locator => page.locator(".arrangement-layer-interactive");
 
 // Part of the per-PR `@sanity` subset (.github/workflows/ci.yml).
-//
-// `test.fixme` (on the describe, so the body keeps its indentation) until
-// #854's stack lands: the PR that closes it removes this marker in the same
-// diff that makes the flow pass.
-test.describe.fixme("CF-001", { tag: "@sanity" }, () => {
+test.describe("CF-001", { tag: "@sanity" }, () => {
   test("an invited producer signs in and reaches a playing loop", async ({
     page,
     browserName,

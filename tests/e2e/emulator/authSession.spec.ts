@@ -6,10 +6,10 @@ import { seedRegisteredSession } from "./support/authSession";
  * whose precondition is "signed in to an account" to its starting line without
  * driving the login control (see that module for why).
  *
- * It needs proving *here* rather than in the flow that uses it, because that
- * flow (`CF-006`) is still `test.fixme`: a mechanism exercised only by a skipped
- * test is a mechanism nobody has run. These are the tests that fail if the SDK
- * changes how it persists a user. Against the emulator rather than the mock
+ * It needs proving *here* rather than only in the flows that use it: every
+ * flow that starts signed in rests on it (#854 retired guest start), so a
+ * failure here explains a wall of red flows in one line. These are the tests
+ * that fail if the SDK changes how it persists a user. Against the emulator rather than the mock
  * backend for the obvious reason — a session that restores from storage is
  * exactly what the mock backend has none of.
  */
@@ -43,21 +43,25 @@ test.describe("a seeded registered session", { tag: "@sanity" }, () => {
     await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
 
     // The step every flow ends on. If the session only lived in the page's
-    // memory, this is where it would fall back to a fresh anonymous start.
+    // memory, this is where it would be sent back to the landing page.
     await page.reload();
 
     await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
     await expect(page.getByText(GUEST_NOTICE)).toHaveCount(0);
   });
 
-  // Without this, the two assertions above would pass just as happily against a
-  // dashboard that had stopped telling guests they are guests.
-  test("is a different state from the anonymous start, which does show the notice", async ({
+  // Without this, the assertions above would pass just as happily against an
+  // app that let anyone in: a visitor with no session is not signed in as
+  // anyone (#854), and the dashboard sends them to the landing page.
+  test("is a different state from no session at all, which is sent to the landing page", async ({
     page,
   }) => {
     await page.goto("/projects");
 
-    await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
-    await expect(page.getByText(GUEST_NOTICE)).toBeVisible();
+    await expect(page).toHaveURL(/\/$/);
+    await expect(
+      page.getByRole("heading", { level: 1, name: /Bring a loop/ }),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "New Project" })).toHaveCount(0);
   });
 });

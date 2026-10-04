@@ -618,7 +618,9 @@ Neither GA4 nor Sentry can be verified from the unit suite — the last mile is 
 | Event | How to trigger it | Check |
 | --- | --- | --- |
 | `app_opened` | Load `/projects` or a project. Then, in a fresh session, load `/` and click through to the dashboard — that navigation is client-side, so it must be checked separately. Staying on the landing page fires nothing; that surface measures `landing_cta_click` instead. | Fires once per app load on reaching the dashboard or editor, whichever way the session got there, with `surface` and `release_sha`. |
-| `landing_cta_click` | On `/`, click "Start in your browser" (or either "Start free"). Then, in a fresh session, click "Log in". | Fires once per click, with `cta_id: start_free` or `cta_id: log_in` and `surface: landing`. |
+| `landing_cta_click` | On `/`, click any "Request access". Then, in a fresh session, click "Sign in". | Fires once per click, with `cta_id: request_access` or `cta_id: log_in` and `surface: landing`. (`start_free` is guest start's, retired by #854.) |
+| `sign_in_blocked` | Sign in with a Google address that is not on the alpha allowlist (#854). | Fires once per refusal, with `source: landing` (or `log_in`/`upgrade` from a guest session), and no address. |
+| `allowlist_approved` | As an admin, approve addresses on `/admin` (#854). | Fires once per approval, with `source: paste` or `attempt` and the three counts, and no address. |
 | `first_edit` | Make the first edit in a project. | Fires once for that project, never again — reload and edit again to confirm. |
 | `feature_first_use` | Use a feature for the first time in that browser. | Fires once per `feature`, carrying the feature key. |
 | `save_failed` | Go offline (DevTools → Network → Offline) and make an edit. | Fires with a stable `error_code` and a `retry_count`. |

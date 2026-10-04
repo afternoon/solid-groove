@@ -3,7 +3,6 @@ import { isMockBackend } from "../devBackend";
 
 export interface AuthService {
   signInWithGoogle(): Promise<void>;
-  signInAnonymously(): Promise<void>;
   linkWithGoogle(): Promise<void>;
   signOut(): Promise<void>;
   onAuthStateChanged(callback: (user: User | null) => void): () => void;
@@ -60,12 +59,6 @@ class FirebaseAuthService implements AuthService {
     await signInWithPopup(auth, provider);
   }
 
-  async signInAnonymously(): Promise<void> {
-    const auth = await this.ready;
-    const { signInAnonymously } = await import("firebase/auth");
-    await signInAnonymously(auth);
-  }
-
   async linkWithGoogle(): Promise<void> {
     const auth = await this.ready;
     const { GoogleAuthProvider, linkWithPopup } = await import("firebase/auth");
@@ -113,9 +106,26 @@ class FirebaseAuthService implements AuthService {
   }
 }
 
+/**
+ * The mock backend's one account: an invited (allowlisted) Google user. The
+ * alpha has no guest start (#854), so the mock begins signed in as this user
+ * rather than as nobody, which keeps `dev:mock` and the mock browser suite one
+ * step from the editor. Like every mock store it is fresh on each page load:
+ * signing out lasts until the next reload.
+ */
+function mockInvitedUser(): User {
+  return {
+    uid: "mock-user-123",
+    email: "test@example.com",
+    displayName: "Test User",
+    photoURL: null,
+    isAnonymous: false,
+  } as User;
+}
+
 // Mock implementation for development/testing
 class MockAuthService implements AuthService {
-  private mockUser: User | null = null;
+  private mockUser: User | null = mockInvitedUser();
   private callbacks = new Set<(user: User | null) => void>();
   // Tracks which callbacks have already been sent the current `mockUser`
   // value, so the deferred "report current state" delivery in
@@ -131,24 +141,7 @@ class MockAuthService implements AuthService {
   }
 
   async signInWithGoogle(): Promise<void> {
-    this.mockUser = {
-      uid: "mock-user-123",
-      email: "test@example.com",
-      displayName: "Test User",
-      photoURL: null,
-      isAnonymous: false,
-    } as User;
-    this.notify();
-  }
-
-  async signInAnonymously(): Promise<void> {
-    this.mockUser = {
-      uid: "mock-anon-123",
-      email: null,
-      displayName: null,
-      photoURL: null,
-      isAnonymous: true,
-    } as User;
+    this.mockUser = mockInvitedUser();
     this.notify();
   }
 

@@ -1,4 +1,4 @@
-import { expect, type Locator, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "./support/test";
 
 // #876: the library took focus on open, but nothing kept it there. Shift+Tab
 // from its search field walked out to the editor behind the scrim ("Add reverb

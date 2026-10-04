@@ -1,4 +1,3 @@
-import { expect, type Page, test } from "@playwright/test";
 import {
   library,
   newProjectOnInstrumentView,
@@ -7,6 +6,7 @@ import {
   railButton,
   soundList,
 } from "./support/library";
+import { expect, type Page, test } from "./support/test";
 
 // #875: an opened pack's banner close, "Back to all sounds", landed on the
 // Browse packs grid with "Browse packs" current, whichever way the pack was

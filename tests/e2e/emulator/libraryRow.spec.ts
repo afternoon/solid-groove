@@ -1,5 +1,5 @@
-import { expect, type Locator, type Page, test } from "@playwright/test";
 import { newProjectOnInstrumentView, openPadSlot, soundList } from "./support/library";
+import { expect, type Locator, type Page, test } from "./support/test";
 
 // #812: the pointer is still over a sound row right after it is clicked to
 // select it. The global `button:hover` fill then landed on the row's main

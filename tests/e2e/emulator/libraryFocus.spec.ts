@@ -1,10 +1,10 @@
-import { expect, test } from "@playwright/test";
 import {
   library,
   newProjectOnInstrumentView,
   openPadSlot,
   soundList,
 } from "./support/library";
+import { expect, test } from "./support/test";
 
 // #880: the library left focus where it was while the arrow keys moved the
 // selection, so a screen reader never named the selected sound and Tab walked

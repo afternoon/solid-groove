@@ -2,6 +2,7 @@ import { cleanup, render, screen, waitFor } from "@solidjs/testing-library";
 import userEvent from "@testing-library/user-event";
 import type { User } from "firebase/auth";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { requestAccessUrl } from "../../site.config.mjs";
 import { NOT_ON_ALLOWLIST } from "../access/allowlist";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
@@ -83,6 +84,9 @@ function setup(
   return { transport, signInWithGoogle, onAuthStateChanged, unsubscribe, reportError };
 }
 
+/** The header's Sign in; the hero repeats it. */
+const signIn = () => screen.getAllByRole("button", { name: "Sign in" })[0];
+
 describe("LandingPage (PRD PRJ-06)", () => {
   describe("what the page says", () => {
     it("states the product promise", () => {
@@ -97,7 +101,9 @@ describe("LandingPage (PRD PRJ-06)", () => {
       expect(
         screen.getByText(/music studio that runs in your browser/i),
       ).toBeInTheDocument();
-      expect(screen.getByText(/no account, no install/i)).toBeInTheDocument();
+      expect(screen.getByText(/the alpha is invite-only/i)).toHaveTextContent(
+        /nothing to install/i,
+      );
     });
 
     it("names the browsers it is tested in, and Safari's weaker status", () => {
@@ -115,32 +121,14 @@ describe("LandingPage (PRD PRJ-06)", () => {
       );
     });
 
-    it("states the DEC-001 guest retention promise", () => {
+    // #854: the alpha is invite-only, so the page says so rather than offering
+    // a start with no account that no longer exists.
+    it("says the alpha is invite-only, and offers no start without an account", () => {
       setup();
-      expect(
-        screen.getByText(/kept for 180 days after you last open them/i),
-      ).toBeInTheDocument();
-    });
-
-    // This page's "Log in" is `signInWithGoogle`, which swaps the uid rather
-    // than linking, so it does not make a guest's projects permanent — it
-    // makes them unreachable. `linkWithGoogle` is what keeps the promise, and
-    // it lives behind the dashboard's upgrade prompt ("Sign up with Google").
-    // A returning guest quietly losing their work is the failure this pins.
-    it("points the retention promise at the control that keeps it, not at Log in", () => {
-      setup();
-
-      const note = screen.getByText(/kept for 180 days after you last open them/i);
-      expect(note).toHaveTextContent(/Sign up with Google/i);
-      expect(note).toHaveTextContent(/projects page/i);
-      expect(note.textContent ?? "").not.toMatch(/log in[^.]*to keep them indefinitely/i);
-    });
-
-    it("says plainly that logging in does not carry guest projects across", () => {
-      setup();
-      expect(
-        screen.getByText(/does not move guest projects into it/i),
-      ).toBeInTheDocument();
+      expect(screen.getByText(/the alpha is invite-only/i)).toBeInTheDocument();
+      expect(screen.queryByText(/no account/i)).not.toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: /start/i })).not.toBeInTheDocument();
+      expect(screen.queryByText(/kept for 180 days/i)).not.toBeInTheDocument();
     });
 
     // PRD PRJ-06: the page "does not advertise capabilities beyond the current
@@ -163,45 +151,51 @@ describe("LandingPage (PRD PRJ-06)", () => {
     });
   });
 
-  describe("entry points (PRJ-01 anonymous start)", () => {
-    it("drops the visitor into the anonymous-start flow with no account", async () => {
+  describe("entry points (#854: Request access and Sign in)", () => {
+    it("points every Request access control at the request-access form", () => {
       setup();
-
-      await userEvent.click(screen.getByRole("link", { name: "Start in your browser" }));
-
-      expect(navigate).toHaveBeenCalledWith("/projects");
+      const links = screen.getAllByRole("link", { name: "Request access" });
+      // The header, the hero and the closing section.
+      expect(links).toHaveLength(3);
+      for (const link of links) expect(link).toHaveAttribute("href", requestAccessUrl);
     });
 
-    it("offers the same start from the header and the closing section", async () => {
-      setup();
-
-      await userEvent.click(screen.getByRole("link", { name: "Start free" }));
-      await userEvent.click(
-        screen.getByRole("link", { name: "Start free — no account needed" }),
-      );
-
-      expect(navigate).toHaveBeenCalledTimes(2);
-      expect(navigate).toHaveBeenLastCalledWith("/projects");
-    });
-
-    // The start path deliberately signs nobody in: `AuthProvider` owns the
-    // anonymous start, which is what keeps `anon_session_created` firing for a
-    // visitor who arrives through this page.
-    it("does not sign in on the start path", async () => {
+    it("leaves Request access to the browser, and signs nobody in", async () => {
       const { signInWithGoogle } = setup();
 
-      await userEvent.click(screen.getByRole("link", { name: "Start in your browser" }));
+      const event = new MouseEvent("click", { bubbles: true, cancelable: true });
+      let cancelledByThePage: boolean | undefined;
+      document.addEventListener(
+        "click",
+        (bubbled) => {
+          cancelledByThePage = bubbled.defaultPrevented;
+          bubbled.preventDefault();
+        },
+        { once: true },
+      );
+      screen.getAllByRole("link", { name: "Request access" })[0].dispatchEvent(event);
 
+      expect(cancelledByThePage).toBe(false);
+      expect(navigate).not.toHaveBeenCalled();
       expect(signInWithGoogle).not.toHaveBeenCalled();
     });
 
-    it("leads an existing user to log in, then into the app", async () => {
+    it("signs an invited producer in, then into the app", async () => {
       const { signInWithGoogle } = setup();
 
-      await userEvent.click(screen.getByRole("button", { name: "Log in" }));
+      await userEvent.click(signIn());
 
       await waitFor(() => expect(signInWithGoogle).toHaveBeenCalledTimes(1));
       await waitFor(() => expect(navigate).toHaveBeenCalledWith("/projects"));
+    });
+
+    it("offers Sign in in the hero as well as the header", async () => {
+      const { signInWithGoogle } = setup();
+      expect(screen.getAllByRole("button", { name: "Sign in" })).toHaveLength(2);
+
+      await userEvent.click(screen.getAllByRole("button", { name: "Sign in" })[1]);
+
+      await waitFor(() => expect(signInWithGoogle).toHaveBeenCalledTimes(1));
     });
 
     // #308: a returning visitor who was already signed in went through Google's
@@ -212,7 +206,7 @@ describe("LandingPage (PRD PRJ-06)", () => {
         restoredUser: persistedUser(false),
       });
 
-      await userEvent.click(screen.getByRole("button", { name: "Log in" }));
+      await userEvent.click(signIn());
 
       await waitFor(() => expect(navigate).toHaveBeenCalledWith("/projects"));
       expect(signInWithGoogle).not.toHaveBeenCalled();
@@ -220,19 +214,20 @@ describe("LandingPage (PRD PRJ-06)", () => {
       expect(unsubscribe).toHaveBeenCalled();
     });
 
-    // Logging in over a guest session is still a real sign-in: Firebase does not
-    // auto-link, so this is the uid swap this page's copy warns about.
-    it("still signs in when the persisted session is only a guest", async () => {
+    // #854: a guest session from before the alpha closed keeps its projects
+    // until it upgrades, so Sign in takes it back to them rather than swapping
+    // it for a Google account and leaving its work behind.
+    it("takes a guest from before the alpha closed back to their projects", async () => {
       const { signInWithGoogle } = setup({ restoredUser: persistedUser(true) });
 
-      await userEvent.click(screen.getByRole("button", { name: "Log in" }));
+      await userEvent.click(signIn());
 
-      await waitFor(() => expect(signInWithGoogle).toHaveBeenCalledTimes(1));
       await waitFor(() => expect(navigate).toHaveBeenCalledWith("/projects"));
+      expect(signInWithGoogle).not.toHaveBeenCalled();
     });
 
     // A restored state that never arrives must not leave the button on
-    // "Logging in…" forever: the click falls back to the provider.
+    // "Signing in…" forever: the click falls back to the provider.
     it("signs in anyway when the session state never resolves", async () => {
       const unsubscribe = vi.fn();
       const { signInWithGoogle } = setup({
@@ -240,84 +235,82 @@ describe("LandingPage (PRD PRJ-06)", () => {
         sessionRestoreTimeoutMs: 5,
       });
 
-      await userEvent.click(screen.getByRole("button", { name: "Log in" }));
+      await userEvent.click(signIn());
 
       await waitFor(() => expect(signInWithGoogle).toHaveBeenCalledTimes(1));
       await waitFor(() => expect(navigate).toHaveBeenCalledWith("/projects"));
       expect(unsubscribe).toHaveBeenCalled();
     });
 
-    it("emits landing_cta_click once for a session it recognises", async () => {
-      const { transport } = setup({ restoredUser: persistedUser(false) });
-
-      await userEvent.click(screen.getByRole("button", { name: "Log in" }));
-
-      await waitFor(() => expect(navigate).toHaveBeenCalledWith("/projects"));
-      const events = transport.named("landing_cta_click");
-      expect(events).toHaveLength(1);
-      expect(events[0]?.params.cta_id).toBe("log_in");
-      // Reading the session creates nothing: minting a guest is
-      // `AuthProvider`'s no-user branch, not this subscription.
-      expect(transport.named("anon_session_created")).toHaveLength(0);
-    });
-
-    it("recovers from a failed log-in without leaving the page", async () => {
+    it("recovers from a failed sign-in without leaving the page", async () => {
       const { reportError } = setup({
         signInWithGoogle: () => Promise.reject(new Error("popup closed")),
       });
 
-      await userEvent.click(screen.getByRole("button", { name: "Log in" }));
+      await userEvent.click(signIn());
 
       const alert = await screen.findByRole("alert");
-      expect(alert).toHaveTextContent(/could not log in/i);
+      expect(alert).toHaveTextContent(/could not sign in/i);
       expect(navigate).not.toHaveBeenCalled();
       // Non-fatal: the visitor is still on a working page (PRD OPS-03).
       expect(reportError).toHaveBeenCalledWith(expect.any(Error), {
         area: "shell",
         fatal: false,
       });
-      // And both paths are available again afterwards.
-      expect(
-        screen.getByRole("link", { name: "Start in your browser" }),
-      ).not.toHaveAttribute("aria-disabled");
-      expect(screen.getByRole("button", { name: "Log in" })).toBeEnabled();
+      expect(signIn()).toBeEnabled();
+    });
+
+    it("shows Signing in… on both buttons while a sign-in is in flight", async () => {
+      setup({ signInWithGoogle: () => new Promise(() => {}) });
+
+      await userEvent.click(signIn());
+
+      await waitFor(() =>
+        expect(screen.getAllByRole("button", { name: "Signing in…" })).toHaveLength(2),
+      );
+      for (const button of screen.getAllByRole("button", { name: "Signing in…" })) {
+        expect(button).toBeDisabled();
+      }
     });
   });
 
   describe("analytics (PRD OPS-02)", () => {
-    it("emits landing_cta_click once per start-free activation", async () => {
+    it("emits landing_cta_click once per Request access activation", () => {
       const { transport } = setup();
+      document.addEventListener("click", (event) => event.preventDefault(), {
+        once: true,
+      });
 
-      await userEvent.click(screen.getByRole("link", { name: "Start in your browser" }));
+      screen.getAllByRole("link", { name: "Request access" })[1].click();
 
       const events = transport.named("landing_cta_click");
       expect(events).toHaveLength(1);
-      expect(events[0]?.params.cta_id).toBe("start_free");
+      expect(events[0]?.params.cta_id).toBe("request_access");
       expect(events[0]?.params.surface).toBe("landing");
     });
 
-    it("distinguishes the log-in path with its own cta_id", async () => {
+    it("distinguishes the sign-in path with its own cta_id", async () => {
       const { transport } = setup();
 
-      await userEvent.click(screen.getByRole("button", { name: "Log in" }));
+      await userEvent.click(signIn());
 
       const events = transport.named("landing_cta_click");
       expect(events).toHaveLength(1);
       expect(events[0]?.params.cta_id).toBe("log_in");
     });
 
-    it("counts the intent even when the log-in it starts fails", async () => {
+    it("counts the intent even when the sign-in it starts fails", async () => {
       const { transport } = setup({
         signInWithGoogle: () => Promise.reject(new Error("popup closed")),
       });
 
-      await userEvent.click(screen.getByRole("button", { name: "Log in" }));
+      await userEvent.click(signIn());
 
       await screen.findByRole("alert");
       expect(transport.named("landing_cta_click")).toHaveLength(1);
     });
 
-    it("keeps both paths working when analytics is blocked", async () => {
+    it("keeps signing in working when analytics is blocked", async () => {
       const analytics = new Analytics({
         transport: createFailingTransport(),
         consent: new ConsentStore(memoryStorage()),
@@ -342,11 +335,9 @@ describe("LandingPage (PRD PRJ-06)", () => {
         />
       ));
 
-      await userEvent.click(screen.getByRole("link", { name: "Start in your browser" }));
-      expect(navigate).toHaveBeenCalledWith("/projects");
-
-      await userEvent.click(screen.getByRole("button", { name: "Log in" }));
+      await userEvent.click(signIn());
       await waitFor(() => expect(signInWithGoogle).toHaveBeenCalledTimes(1));
+      await waitFor(() => expect(navigate).toHaveBeenCalledWith("/projects"));
     });
 
     // DEC-009 / FND-001c: the disclosure and opt-out surface belong on this page.
@@ -377,95 +368,18 @@ describe("LandingPage (PRD PRJ-06)", () => {
 
     it("gives every call to action a real accessible name", () => {
       setup();
-      // The start paths are links because they lead somewhere; "Log in" is a
+      // Request access is a link because it leads somewhere; Sign in is a
       // button because it opens a provider popup and goes nowhere on its own.
-      for (const name of [
-        "Start free",
-        "Start in your browser",
-        "Start free — no account needed",
-      ]) {
-        expect(screen.getByRole("link", { name })).toBeInTheDocument();
-      }
-      expect(screen.getByRole("button", { name: "Log in" })).toBeInTheDocument();
+      expect(screen.getAllByRole("link", { name: "Request access" })).toHaveLength(3);
+      expect(screen.getAllByRole("button", { name: "Sign in" })).toHaveLength(2);
     });
 
-    it("announces a failed log-in to assistive technology", async () => {
+    it("announces a failed sign-in to assistive technology", async () => {
       setup({ signInWithGoogle: () => Promise.reject(new Error("nope")) });
 
-      await userEvent.click(screen.getByRole("button", { name: "Log in" }));
+      await userEvent.click(signIn());
 
       expect(await screen.findByRole("alert")).toBeInTheDocument();
-    });
-  });
-
-  // The start controls are anchors with a real destination, so a visitor who
-  // clicks during the window before this page's JavaScript has loaded still
-  // gets where they were going -- the browser takes the click instead.
-  describe("the start path survives without JavaScript", () => {
-    it("points every start control at the dashboard", () => {
-      setup();
-
-      for (const name of [
-        "Start free",
-        "Start in your browser",
-        "Start free — no account needed",
-      ]) {
-        expect(screen.getByRole("link", { name })).toHaveAttribute("href", "/projects");
-      }
-    });
-
-    it("cancels the browser's own navigation once it can route in place", async () => {
-      setup();
-
-      const event = new MouseEvent("click", { bubbles: true, cancelable: true });
-      screen.getByRole("link", { name: "Start in your browser" }).dispatchEvent(event);
-
-      expect(event.defaultPrevented).toBe(true);
-      expect(navigate).toHaveBeenCalledWith("/projects");
-    });
-
-    it("leaves a new-tab click to the browser, and still counts the intent", () => {
-      const { transport } = setup();
-
-      // Read whether the page cancelled the click, then cancel it ourselves so
-      // jsdom does not try to perform the navigation it cannot perform. The
-      // listener is on `document`, so it runs after the anchor's own handler.
-      let cancelledByThePage: boolean | undefined;
-      document.addEventListener(
-        "click",
-        (bubbled) => {
-          cancelledByThePage = bubbled.defaultPrevented;
-          bubbled.preventDefault();
-        },
-        { once: true },
-      );
-
-      const event = new MouseEvent("click", {
-        bubbles: true,
-        cancelable: true,
-        metaKey: true,
-      });
-      screen.getByRole("link", { name: "Start in your browser" }).dispatchEvent(event);
-
-      expect(cancelledByThePage).toBe(false);
-      expect(navigate).not.toHaveBeenCalled();
-      const events = transport.named("landing_cta_click");
-      expect(events).toHaveLength(1);
-      expect(events[0]?.params.cta_id).toBe("start_free");
-    });
-
-    it("cancels a start click while a log-in is still in flight", async () => {
-      setup({ signInWithGoogle: () => new Promise(() => {}) });
-
-      await userEvent.click(screen.getByRole("button", { name: "Log in" }));
-      const cta = screen.getByRole("link", { name: "Start in your browser" });
-      await waitFor(() => expect(cta).toHaveAttribute("aria-disabled", "true"));
-
-      const event = new MouseEvent("click", { bubbles: true, cancelable: true });
-      cta.dispatchEvent(event);
-
-      expect(event.defaultPrevented).toBe(true);
-      expect(navigate).not.toHaveBeenCalled();
     });
   });
 
@@ -484,7 +398,7 @@ describe("LandingPage (PRD PRJ-06)", () => {
         signInWithGoogle: () => Promise.reject(refusal()),
       });
 
-      await userEvent.click(screen.getByRole("button", { name: "Log in" }));
+      await userEvent.click(signIn());
 
       await waitFor(() => expect(navigate).toHaveBeenCalledWith("/not-invited"));
       expect(navigate).not.toHaveBeenCalledWith("/projects");
@@ -495,7 +409,7 @@ describe("LandingPage (PRD PRJ-06)", () => {
     it("counts the refusal once, naming only where it happened", async () => {
       const { transport } = setup({ signInWithGoogle: () => Promise.reject(refusal()) });
 
-      await userEvent.click(screen.getByRole("button", { name: "Log in" }));
+      await userEvent.click(signIn());
 
       await waitFor(() => expect(transport.named("sign_in_blocked")).toHaveLength(1));
       expect(transport.named("sign_in_blocked")[0].params).toMatchObject({

@@ -1,4 +1,3 @@
-import { expect, test } from "@playwright/test";
 import { walkthrough } from "../../support/walkthrough";
 import {
   arrangement,
@@ -16,6 +15,7 @@ import {
   swingPercent,
   volume,
 } from "../support/assistant";
+import { expect, test } from "../support/test";
 
 /**
  * `CF-027`: a producer asks the assistant for a change, tries it, and keeps it.

@@ -1,4 +1,5 @@
-import { expect, type Page, test } from "@playwright/test";
+import { seedRegisteredSession } from "./support/authSession";
+import { expect, type Page, test } from "./support/test";
 
 /** Reads the generated name of the project the editor just opened. */
 async function openedProjectName(page: Page): Promise<string> {
@@ -9,28 +10,32 @@ async function openedProjectName(page: Page): Promise<string> {
 }
 
 /**
- * `LOOP-001` — the anonymous-start dashboard's access control and destructive
+ * `LOOP-001` — the dashboard's access control and destructive
  * confirmation, exercised against a real (emulated) backend so Firestore
  * security rules are actually enforced (the in-memory mock dev backend has no
  * server-side security boundary to prove).
  */
 test.describe("dashboard access control", () => {
-  test("a project created by one anonymous session is invisible and inaccessible to another", async ({
+  test("a project created by one account is invisible and inaccessible to another", async ({
     browser,
-  }) => {
+  }, testInfo) => {
     const ownerContext = await browser.newContext();
     const strangerContext = await browser.newContext();
     try {
       const ownerPage = await ownerContext.newPage();
+      await seedRegisteredSession(ownerPage, { label: `owner-${testInfo.project.name}` });
       await ownerPage.goto("/projects");
       await expect(ownerPage.getByRole("heading", { name: "Projects" })).toBeVisible();
       await ownerPage.getByRole("button", { name: "New Project" }).click();
       await expect(ownerPage).toHaveURL(/\/projects\/prj_/);
       const projectUrl = ownerPage.url();
 
-      // A second, independent anonymous identity: its own browser context
-      // gets its own Auth persistence, so this is a genuinely different uid.
+      // A second, independent account: its own browser context gets its own
+      // Auth persistence, so this is a genuinely different uid.
       const strangerPage = await strangerContext.newPage();
+      await seedRegisteredSession(strangerPage, {
+        label: `stranger-${testInfo.project.name}`,
+      });
       await strangerPage.goto("/projects");
       await expect(strangerPage.getByRole("heading", { name: "Projects" })).toBeVisible();
       // The owner's project does not leak into the stranger's listing —

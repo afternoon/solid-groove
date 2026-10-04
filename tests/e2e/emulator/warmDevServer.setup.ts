@@ -1,4 +1,5 @@
 import { test } from "@playwright/test";
+import { seedRegisteredSession } from "./support/authSession";
 
 /**
  * Warm-up for the emulator suite, run as a Playwright **setup project** (see
@@ -61,8 +62,8 @@ import { test } from "@playwright/test";
  *
  * Creating a project here cannot disturb `slice.spec.ts`'s `No projects yet`
  * precondition: `listProjects` scopes on `where("ownerId", "==", ownerId)`, and
- * this runs in its own browser context with its own anonymous Firebase identity,
- * as does each test.
+ * this runs in its own browser context with its own Firebase account, as does
+ * each test.
  */
 test("warm the dev server's dependency graph", async ({ page }, testInfo) => {
   const browserName = testInfo.project.use.defaultBrowserType ?? "unknown";
@@ -71,7 +72,10 @@ test("warm the dev server's dependency graph", async ({ page }, testInfo) => {
     // No `waitForLoadState("networkidle")` anywhere here: the app holds an open
     // Firestore listener, so the network never goes idle and the wait can only
     // time out. Wait for real elements instead — those locators re-resolve
-    // across a reload, which is exactly the behaviour needed.
+    // across a reload, which is exactly the behaviour needed. Signed in first,
+    // as an invited producer: with no session `/projects` goes to the landing
+    // page (#854).
+    await seedRegisteredSession(page, { label: `warmup-${browserName}` });
     await page.goto("/projects", { waitUntil: "commit", timeout: 60_000 });
 
     const newProject = page.getByRole("button", { name: "New Project" });

@@ -1,4 +1,3 @@
-import { expect, test } from "@playwright/test";
 import { walkthrough } from "../../support/walkthrough";
 import {
   audition,
@@ -25,6 +24,7 @@ import {
   slotSound,
   soundList,
 } from "../support/library";
+import { expect, test } from "../support/test";
 import { expectView } from "../support/views";
 
 /**

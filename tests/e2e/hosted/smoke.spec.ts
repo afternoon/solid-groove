@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { requestAccessUrl } from "../../../site.config.mjs";
 
 // PRD `OPS-01` post-deploy smoke test. Runs against `SMOKE_URL` (the real
 // deployed Firebase Hosting URL) with real Firebase Authentication and
@@ -12,32 +13,43 @@ import { expect, test } from "@playwright/test";
 // server, which proves the UI works but nothing about whether the deployed
 // build can actually reach production Firebase Authentication, Firestore, and
 // security rules.
+// #854 made the alpha invite-only: guest start is retired, and only an
+// allowlisted Google address can sign in. A post-deploy run has no Google
+// account to sign in with, so this no longer reaches a project and audio. What
+// it proves is that the deployed build loads, offers its two entry points, and
+// keeps a visitor with no session out of the app, against the real hosting
+// rewrites and the real Firebase SDK.
 test.describe("hosted alpha smoke test", () => {
-  test("loads, starts an anonymous session, opens a project, and starts audio after a gesture", async ({
-    page,
-  }) => {
+  test("loads the landing page with Request access and Sign in", async ({ page }) => {
     await page.goto("/");
     await expect(
       page.getByRole("heading", { level: 1, name: /Bring a loop/ }),
     ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Request access" }).first(),
+    ).toHaveAttribute("href", requestAccessUrl);
+    await expect(page.getByRole("button", { name: "Sign in" }).first()).toBeEnabled();
+  });
 
-    // Anonymous session start (Firebase Authentication, not the mock), through
-    // the PRD PRJ-06 landing page's primary call to action.
-    await page.getByRole("link", { name: "Start in your browser" }).click();
-    await expect(page).toHaveURL(/\/projects$/);
-    await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
+  test("keeps a visitor with no session out of the app", async ({ page }) => {
+    // A deep link is served the app shell, boots the Firebase SDK, finds no
+    // session, and sends the visitor to the landing page rather than making
+    // them a guest.
+    await page.goto("/projects");
+    await expect(page).toHaveURL(/\/$/);
+    await expect(
+      page.getByRole("heading", { level: 1, name: /Bring a loop/ }),
+    ).toBeVisible();
+  });
 
-    // Project open. The hosted alpha has no seeded project for a fresh
-    // anonymous identity (that is Alpha Milestone 1's starter-template work), so the
-    // smoke test creates one -- this also proves the Firestore write path
-    // and security rules work end to end, not just the read path.
-    await page.getByRole("button", { name: "New Project" }).click();
-    await expect(page).toHaveURL(/\/projects\/[^/]+$/);
-
-    // Audio start after a user gesture (autoplay policies require one).
-    const playButton = page.getByRole("button", { name: "Start playback" });
-    await expect(playButton).toBeVisible();
-    await playButton.click();
-    await expect(page.getByRole("button", { name: "Stop playback" })).toBeVisible();
+  test("serves the not-on-the-alpha-list page", async ({ page }) => {
+    await page.goto("/not-invited");
+    await expect(
+      page.getByRole("heading", { name: "You're not on the alpha list yet" }),
+    ).toBeVisible();
+    await expect(page.getByRole("link", { name: "Request access" })).toHaveAttribute(
+      "href",
+      requestAccessUrl,
+    );
   });
 });

@@ -8,12 +8,31 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+describe("MockAuthService (#854)", () => {
+  it("starts signed in as the invited Google account, never as a guest", async () => {
+    const { createAuthService } = await import("./authService");
+    const authService = createAuthService();
+    expect(authService.getCurrentUser()).toMatchObject({
+      uid: "mock-user-123",
+      isAnonymous: false,
+    });
+    expect(await authService.isAdmin()).toBe(true);
+    expect("signInAnonymously" in authService).toBe(false);
+  });
+
+  it("is signed out after signing out, until the next page load", async () => {
+    const { createAuthService } = await import("./authService");
+    const authService = createAuthService();
+    await authService.signOut();
+    expect(authService.getCurrentUser()).toBeNull();
+    expect(await authService.isAdmin()).toBe(false);
+  });
+});
+
 describe("MockAuthService.onAuthStateChanged", () => {
   it("invokes a newly-registered observer with the current user", async () => {
     const { createAuthService } = await import("./authService");
     const authService = createAuthService();
-
-    await authService.signInAnonymously();
 
     const seen: unknown[] = [];
     authService.onAuthStateChanged((user) => seen.push(user));
@@ -27,12 +46,13 @@ describe("MockAuthService.onAuthStateChanged", () => {
     await Promise.resolve();
 
     expect(seen).toHaveLength(1);
-    expect(seen[0]).toMatchObject({ uid: "mock-anon-123", isAnonymous: true });
+    expect(seen[0]).toMatchObject({ uid: "mock-user-123", isAnonymous: false });
   });
 
   it("notifies observers registered before a sign-in when it happens", async () => {
     const { createAuthService } = await import("./authService");
     const authService = createAuthService();
+    await authService.signOut();
 
     const seen: unknown[] = [];
     const unsubscribe = authService.onAuthStateChanged((user) => seen.push(user));
@@ -44,10 +64,10 @@ describe("MockAuthService.onAuthStateChanged", () => {
     await Promise.resolve();
     expect(seen).toEqual([null]);
 
-    await authService.signInAnonymously();
+    await authService.signInWithGoogle();
 
     expect(seen).toHaveLength(2);
-    expect(seen[1]).toMatchObject({ uid: "mock-anon-123", isAnonymous: true });
+    expect(seen[1]).toMatchObject({ uid: "mock-user-123", isAnonymous: false });
 
     unsubscribe();
   });
@@ -63,7 +83,7 @@ describe("MockAuthService.onAuthStateChanged", () => {
     // delivery has a chance to run.
     unsubscribe();
 
-    await authService.signInAnonymously();
+    await authService.signInWithGoogle();
     await Promise.resolve();
     await Promise.resolve();
 
@@ -73,13 +93,14 @@ describe("MockAuthService.onAuthStateChanged", () => {
   it("does not double-notify when a sign-in races the initial state delivery", async () => {
     const { createAuthService } = await import("./authService");
     const authService = createAuthService();
+    await authService.signOut();
 
     // Subscribe and, in the same synchronous task, trigger a sign-in -
-    // mirroring a click handler that runs `await signInAnonymously()`
+    // mirroring a click handler that runs `await signInWithGoogle()`
     // right after a component mounts and subscribes.
     const seen: unknown[] = [];
     authService.onAuthStateChanged((user) => seen.push(user));
-    await authService.signInAnonymously();
+    await authService.signInWithGoogle();
 
     await Promise.resolve();
     await Promise.resolve();
@@ -89,6 +110,6 @@ describe("MockAuthService.onAuthStateChanged", () => {
     // synchronous sign-in and a redundant duplicate from the deferred
     // initial-state delivery.
     expect(seen).toHaveLength(1);
-    expect(seen[0]).toMatchObject({ uid: "mock-anon-123", isAnonymous: true });
+    expect(seen[0]).toMatchObject({ uid: "mock-user-123", isAnonymous: false });
   });
 });

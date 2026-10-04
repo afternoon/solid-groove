@@ -226,12 +226,6 @@ export default function Dashboard(props: DashboardProps = {}) {
 
   return (
     <Switch>
-      <Match when={auth.signInFailed}>
-        <ErrorPanel
-          message="Couldn't sign you in. Check your connection and try again."
-          onRetry={() => auth.retrySignIn()}
-        />
-      </Match>
       <Match when={!userId() || projectsState().loading}>
         <TapeLoader label="Loading projects" />
       </Match>
