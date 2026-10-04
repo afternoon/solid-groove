@@ -83,3 +83,27 @@ The scripts use application default credentials
 People who are refused see a page saying they are not on the alpha list yet,
 with a Request access button to the form (`requestAccessUrl` in
 `site.config.mjs`).
+
+## Locally, against the emulator
+
+`bun run firebase:emulator` builds and runs the functions too, so the emulator
+refuses an unlisted address just as production does. Put yourself on the list
+with the same script, pointed at the emulator:
+
+```sh
+FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 \
+  FIREBASE_PROJECT_ID=demo-solid-groove bun run allowlist:add -- you@example.com
+```
+
+## What no longer signs in by itself
+
+Guest start was what let automation into the live app without an account. With
+it gone:
+
+- **The post-deploy smoke test** (`tests/e2e/hosted/smoke.spec.ts`, run by the
+  `deploy` job and on previews) checks the landing page, that `/projects` keeps
+  a visitor with no session out, and the not-on-the-list page. It no longer
+  creates a project or starts audio, because it has no account to sign in with.
+- **The scheduled QA sweep** (`tests/e2e/hosted/qa-sweep/`) still starts by
+  creating a guest, which the live app no longer offers. It needs an allowlisted
+  test account and a way to sign it in from CI before it can run again.
