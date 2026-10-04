@@ -95,6 +95,8 @@ Two rules shape the interface:
 
 `FirestoreProjectRepository` runs each revision-checked write in a Firestore transaction so the tier document and the revision bump commit together. Creating a project takes two steps — claim the metadata document, then write the remaining tiers — because the security rules resolve a child's owner from its parent and rule `get()`s see the database as it was before the write commits. If the second step fails, the claimed metadata document is removed rather than left as a project with no song.
 
+**Loading drops a reference to a document that was never stored** rather than refusing the project (#965). `decodeProject` removes a clip document whose `trackId` names no track in the stored song, then a placement whose `clipId` names no stored clip, and reports what it removed as `dropped` on the load result (a placement count and the dropped clip IDs). Only an *absent* target is dropped; a malformed reference still fails the load, and `parseProject` still validates everything that remains. Older builds wrote the tiers of one save separately, so a tab closed mid-save could leave exactly this behind. The editor opens such a project with a notice, reports the drop through `reportError`, and writes the repaired state back so the next open is clean. A load that fails outright is reported too, with its issue codes and path shapes but never an issue's own text.
+
 Reads report a permission denial as `not_found`, so the API never confirms the existence of a project the caller may not see. A listing the caller is not entitled to comes back empty rather than as an error.
 
 ## Autosave

@@ -5,7 +5,7 @@ import {
   SCHEMA_VERSION,
   type Song,
 } from "../domain/entities";
-import type { ProjectId, TrackId } from "../domain/ids";
+import type { ClipId, ProjectId, TrackId } from "../domain/ids";
 import type { DomainIssue, ParseResult } from "../domain/parse";
 import { parseProject, parseProjectMetadata } from "../domain/parse";
 import type { JsonObject, JsonValue } from "../domain/serialize";
@@ -305,8 +305,25 @@ export interface RawProjectDocuments {
   readonly arrangement?: readonly unknown[];
 }
 
+/**
+ * What `decodeProject` dropped to open a project whose stored documents point
+ * at state that was never stored (#965). Never a name: a count, and the IDs of
+ * the clip documents an editor can delete to tidy the store.
+ */
+export interface DroppedReferences {
+  /** Placements whose clip document does not exist. */
+  readonly placements: number;
+  /** Clip documents whose track the stored song does not have. */
+  readonly clipIds: readonly ClipId[];
+}
+
 export type DecodeResult<T> =
-  | { readonly ok: true; readonly value: T }
+  | {
+      readonly ok: true;
+      readonly value: T;
+      /** Present only when something was dropped. */
+      readonly dropped?: DroppedReferences;
+    }
   | { readonly ok: false; readonly issues: readonly PersistenceIssue[] };
 
 /**
@@ -416,15 +433,60 @@ export function decodeProject(documents: RawProjectDocuments): DecodeResult<Proj
     return { ok: false, issues };
   }
 
+  const kept = dropUnstoredReferences(song, clips, placements);
   const aggregate = {
     // The metadata document is the domain's metadata minus its ID, which the
     // document path already carries — there is no envelope to strip.
     metadata: { id: documents.projectId, ...metadata },
-    song: { ...stripSongEnvelope(song), placements, automation },
-    clips,
+    song: { ...stripSongEnvelope(song), placements: kept.placements, automation },
+    clips: kept.clips,
   };
 
-  return toDecodeResult(parseProject(aggregate));
+  const decoded = toDecodeResult(parseProject(aggregate));
+  return decoded.ok && kept.dropped
+    ? { ok: true, value: decoded.value, dropped: kept.dropped }
+    : decoded;
+}
+
+/**
+ * Drops the references a store can be left holding when a save was cut short
+ * between tiers (#965): a clip document whose track the stored song no longer
+ * has, and then a placement whose clip document does not exist. Before
+ * `saveChanges` wrote every tier of a drain together, closing the tab while
+ * autosave was still writing could leave exactly that behind, and rejecting the
+ * whole project for it locked the user out of everything else they had saved.
+ *
+ * This is the one repair decoding makes, and it is deliberately narrow: only a
+ * reference to a document that is *absent* is dropped, never a malformed one,
+ * and `parseProject` still validates everything that remains. It runs here,
+ * over raw documents, because `parseProject` never repairs its input.
+ */
+function dropUnstoredReferences(
+  song: JsonObject,
+  clips: readonly JsonValue[],
+  placements: readonly JsonValue[],
+): {
+  clips: JsonValue[];
+  placements: JsonValue[];
+  dropped: DroppedReferences | null;
+} {
+  const trackIds = new Set(asArray(song.tracks).map((track) => readString(track, "id")));
+  const keptClips = clips.filter((clip) => !isAbsent(clip, "trackId", trackIds));
+  const clipIds = new Set(keptClips.map((clip) => readString(clip, "id")));
+  const keptPlacements = placements.filter(
+    (placement) => !isAbsent(placement, "clipId", clipIds),
+  );
+  const dropped: DroppedReferences = {
+    placements: placements.length - keptPlacements.length,
+    clipIds: clips
+      .filter((clip) => !keptClips.includes(clip))
+      .map((clip) => readString(clip, "id") as ClipId),
+  };
+  return {
+    clips: keptClips,
+    placements: keptPlacements,
+    dropped: dropped.placements + dropped.clipIds.length > 0 ? dropped : null,
+  };
 }
 
 function toDecodeResult(result: ParseResult<Project>): DecodeResult<Project> {
@@ -537,6 +599,16 @@ function asObject(value: unknown): JsonObject | null {
 
 function asArray(value: JsonValue | undefined): JsonValue[] {
   return Array.isArray(value) ? value : [];
+}
+
+/**
+ * Whether `value[key]` names a document that is not among `present`. A missing
+ * or non-string reference is a malformed document, not an absent one, so it is
+ * left for `parseProject` to report.
+ */
+function isAbsent(value: JsonValue, key: string, present: ReadonlySet<string>): boolean {
+  const reference = asObject(value)?.[key];
+  return typeof reference === "string" && !present.has(reference);
 }
 
 function readString(value: JsonValue, key: string): string {

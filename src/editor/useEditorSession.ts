@@ -14,6 +14,7 @@ import {
   type EditorSessionSnapshot,
   type PreviewResult,
 } from "./EditorSession";
+import { reportProjectLoad } from "./projectLoadReport";
 
 /**
  * Attaches the PRD `PRJ-03` navigation-flush behavior for one session: a
@@ -69,6 +70,12 @@ export interface EditorSessionState {
   readonly undoSummary: string | null;
   readonly redoSummary: string | null;
   readonly saveStatus: SaveStatus | null;
+  /**
+   * How many placements opening this project dropped because their clips were
+   * never stored (#965). Zero for a clean open; the editor tells the user
+   * when it is not.
+   */
+  readonly droppedPlacements: number;
 }
 
 export interface UseEditorSessionResult {
@@ -118,6 +125,7 @@ const INITIAL_STATE: EditorSessionState = {
   undoSummary: null,
   redoSummary: null,
   saveStatus: null,
+  droppedPlacements: 0,
 };
 
 /**
@@ -201,6 +209,7 @@ export function useEditorSession(
       }
 
       repo.loadProject(id as ProjectId).then((result) => {
+        reportProjectLoad(result);
         if (cancelled) return;
         if (!result.ok) {
           setState((draft) => {
@@ -216,6 +225,11 @@ export function useEditorSession(
         localSession = new EditorSession({
           repository: repo,
           project: result.value,
+          dropped: result.dropped,
+        });
+        const droppedPlacements = result.dropped?.placements ?? 0;
+        setState((draft) => {
+          draft.droppedPlacements = droppedPlacements;
         });
         session = localSession;
         unsubscribeHistory = localSession.subscribe(applySnapshot);
