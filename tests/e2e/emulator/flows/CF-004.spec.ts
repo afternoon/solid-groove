@@ -137,7 +137,7 @@ test.describe("CF-004", () => {
 
     // 1. Create a new project. Above the tracks, the ruler carries a loop
     //    brace spanning the first bar, and looping is on.
-    await page.goto("/dashboard");
+    await page.goto("/projects");
     await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page).toHaveURL(/\/projects\/prj_/);

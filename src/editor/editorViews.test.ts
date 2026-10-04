@@ -45,7 +45,7 @@ describe("editorViews", () => {
     // three registered paths — reachable if it and this module ever drift. The
     // last is the one that could bite: a project id is not a view segment.
     expect(editorViewFromPath("/projects/prj_abc/devices")).toBe(DEFAULT_EDITOR_VIEW);
-    expect(editorViewFromPath("/dashboard")).toBe(DEFAULT_EDITOR_VIEW);
+    expect(editorViewFromPath("/projects")).toBe(DEFAULT_EDITOR_VIEW);
     expect(editorViewFromPath("/projects/mixer")).toBe(DEFAULT_EDITOR_VIEW);
   });
 

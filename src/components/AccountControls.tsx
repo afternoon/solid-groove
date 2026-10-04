@@ -61,7 +61,7 @@ export function LogInButton(props: AccountControlProps): JSX.Element {
       await auth.logIn();
       analytics().logFeatureFirstUse("log_in");
       setConfirming(false);
-      navigate("/dashboard");
+      navigate("/projects");
     } catch (error) {
       // A closed popup is the common case and looks identical to a broken
       // provider from here, so it is reported non-fatally and the dialog stays

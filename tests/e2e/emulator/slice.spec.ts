@@ -98,7 +98,7 @@ test.describe("foundation vertical slice", () => {
     );
     page.on("pageerror", (error) => pageLog.push(`pageerror: ${error.message}`));
 
-    await page.goto("/dashboard");
+    await page.goto("/projects");
     await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
     await expect(page.getByText("No projects yet")).toBeVisible();
 

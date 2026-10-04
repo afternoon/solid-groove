@@ -11,8 +11,9 @@ import IndexPage from "./routes/index";
  * Solid 2 release -- its serving layer is now a mode of `@solidjs/vite-plugin`
  * (see `vite.config.ts`). Router 2 does ship a `fileRoutes()` adapter in
  * `@solidjs/router/fs`, but it consumes a `virtual:file-routes` manifest that
- * the Vite plugin does not emit, so there is nothing for it to read. Four
- * routes are cheaper to write down than a manifest generator is to maintain.
+ * the Vite plugin does not emit, so there is nothing for it to read. A
+ * handful of routes is cheaper to write down than a manifest generator is to
+ * maintain.
  *
  * The route table is also why the page modules under `src/routes/` no longer
  * use `[id]`/`[...404]` filenames: that syntax was addressed to `FileRoutes`,
@@ -39,7 +40,8 @@ export const Router = createRouter({
     // moment the live tree renders. The cost is this page's few kilobytes in
     // the entry chunk on every route, which is the smaller of the two.
     { path: "/", component: IndexPage },
-    { path: "/dashboard", component: lazy(() => import("./routes/dashboard")) },
+    { path: "/projects", component: lazy(() => import("./routes/dashboard")) },
+    { path: "/dashboard", component: lazy(() => import("./routes/LegacyDashboard")) },
     // One route, three addresses. A view *is* an address (`UI-001`), so the
     // back button, a deep link and a reload all land where they should without
     // the editor keeping a second copy of "which view" in a signal.

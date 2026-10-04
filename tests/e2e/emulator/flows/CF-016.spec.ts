@@ -154,7 +154,7 @@ test.describe("CF-016", () => {
 
     // 1. Create a new project and add a sampler track, so "BD" and "Sampler"
     //    each have one clip, in bar 1.
-    await page.goto("/dashboard");
+    await page.goto("/projects");
     await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page).toHaveURL(/\/projects\/prj_/);

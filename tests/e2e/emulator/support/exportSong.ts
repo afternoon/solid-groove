@@ -265,7 +265,7 @@ export async function buildExportSong(
   // 1. Create a new project. It opens with the starter drum machine, its "BD"
   //    pad four on the floor. Add a drum-machine track named "Drums", and on
   //    it put the "HH" pad on every offbeat and the "CP" pad on beats 2 and 4.
-  await page.goto("/dashboard");
+  await page.goto("/projects");
   await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
   await page.getByRole("button", { name: "New Project" }).click();
   await expect(page).toHaveURL(/\/projects\/prj_/);

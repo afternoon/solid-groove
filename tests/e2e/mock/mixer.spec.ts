@@ -24,7 +24,7 @@ async function goToView(page: Page, name: "Arrangement" | "Mixer"): Promise<void
 // be dragged. Only a real browser catches that, so it is asserted here.
 test.describe("mixer", () => {
   test("the volume fader is draggable where it is painted", async ({ page }) => {
-    await page.goto("/dashboard");
+    await page.goto("/projects");
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page).toHaveURL(/\/projects\/prj_/);
     await goToView(page, "Mixer");
@@ -83,7 +83,7 @@ test.describe("mixer", () => {
   // which is exactly the sort of thing a shared component regresses silently.
   // Dragging right has to pan right, and the strip's fixed width has to hold.
   test("pan drags left-to-right and never widens the strip", async ({ page }) => {
-    await page.goto("/dashboard");
+    await page.goto("/projects");
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page).toHaveURL(/\/projects\/prj_/);
 
@@ -129,7 +129,7 @@ test.describe("mixer", () => {
   // simple selectors against `.active`'s two. jsdom applies no stylesheet, so
   // only a real browser can say what the user is actually looking at.
   test("a soloed track stays soloed under the pointer", async ({ page }) => {
-    await page.goto("/dashboard");
+    await page.goto("/projects");
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page).toHaveURL(/\/projects\/prj_/);
 
@@ -174,7 +174,7 @@ test.describe("mixer", () => {
       title: "Add a sampler, a drum machine or a synth track",
     });
 
-    await page.goto("/dashboard");
+    await page.goto("/projects");
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page).toHaveURL(/\/projects\/prj_/);
 

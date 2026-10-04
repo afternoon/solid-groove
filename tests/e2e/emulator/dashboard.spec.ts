@@ -22,7 +22,7 @@ test.describe("dashboard access control", () => {
     const strangerContext = await browser.newContext();
     try {
       const ownerPage = await ownerContext.newPage();
-      await ownerPage.goto("/dashboard");
+      await ownerPage.goto("/projects");
       await expect(ownerPage.getByRole("heading", { name: "Projects" })).toBeVisible();
       await ownerPage.getByRole("button", { name: "New Project" }).click();
       await expect(ownerPage).toHaveURL(/\/projects\/prj_/);
@@ -31,7 +31,7 @@ test.describe("dashboard access control", () => {
       // A second, independent anonymous identity: its own browser context
       // gets its own Auth persistence, so this is a genuinely different uid.
       const strangerPage = await strangerContext.newPage();
-      await strangerPage.goto("/dashboard");
+      await strangerPage.goto("/projects");
       await expect(strangerPage.getByRole("heading", { name: "Projects" })).toBeVisible();
       // The owner's project does not leak into the stranger's listing —
       // `listProjects` is scoped to the caller's own uid.
@@ -57,12 +57,12 @@ test.describe("destructive confirmation", () => {
   test("deleting a project requires confirmation, and the deletion persists across reload", async ({
     page,
   }) => {
-    await page.goto("/dashboard");
+    await page.goto("/projects");
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page).toHaveURL(/\/projects\/prj_/);
     const name = await openedProjectName(page);
 
-    await page.goto("/dashboard");
+    await page.goto("/projects");
     await expect(page.getByText(name)).toBeVisible();
 
     // Cancelling the confirmation leaves the project in place.

@@ -14,7 +14,7 @@ const exportDialog = (page: Page): Locator =>
 
 /** A new project with the Export dialog open over it. */
 async function openExport(page: Page): Promise<void> {
-  await page.goto("/dashboard");
+  await page.goto("/projects");
   await page.getByRole("button", { name: "New Project" }).click();
   await page.getByTestId("arrangement-view-ready").waitFor();
   await page.getByRole("button", { name: "Export", exact: true }).click();

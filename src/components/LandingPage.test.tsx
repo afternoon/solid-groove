@@ -168,7 +168,7 @@ describe("LandingPage (PRD PRJ-06)", () => {
 
       await userEvent.click(screen.getByRole("link", { name: "Start in your browser" }));
 
-      expect(navigate).toHaveBeenCalledWith("/dashboard");
+      expect(navigate).toHaveBeenCalledWith("/projects");
     });
 
     it("offers the same start from the header and the closing section", async () => {
@@ -180,7 +180,7 @@ describe("LandingPage (PRD PRJ-06)", () => {
       );
 
       expect(navigate).toHaveBeenCalledTimes(2);
-      expect(navigate).toHaveBeenLastCalledWith("/dashboard");
+      expect(navigate).toHaveBeenLastCalledWith("/projects");
     });
 
     // The start path deliberately signs nobody in: `AuthProvider` owns the
@@ -200,7 +200,7 @@ describe("LandingPage (PRD PRJ-06)", () => {
       await userEvent.click(screen.getByRole("button", { name: "Log in" }));
 
       await waitFor(() => expect(signInWithGoogle).toHaveBeenCalledTimes(1));
-      await waitFor(() => expect(navigate).toHaveBeenCalledWith("/dashboard"));
+      await waitFor(() => expect(navigate).toHaveBeenCalledWith("/projects"));
     });
 
     // #308: a returning visitor who was already signed in went through Google's
@@ -213,7 +213,7 @@ describe("LandingPage (PRD PRJ-06)", () => {
 
       await userEvent.click(screen.getByRole("button", { name: "Log in" }));
 
-      await waitFor(() => expect(navigate).toHaveBeenCalledWith("/dashboard"));
+      await waitFor(() => expect(navigate).toHaveBeenCalledWith("/projects"));
       expect(signInWithGoogle).not.toHaveBeenCalled();
       // One emission read, not a standing subscription on a page that is leaving.
       expect(unsubscribe).toHaveBeenCalled();
@@ -227,7 +227,7 @@ describe("LandingPage (PRD PRJ-06)", () => {
       await userEvent.click(screen.getByRole("button", { name: "Log in" }));
 
       await waitFor(() => expect(signInWithGoogle).toHaveBeenCalledTimes(1));
-      await waitFor(() => expect(navigate).toHaveBeenCalledWith("/dashboard"));
+      await waitFor(() => expect(navigate).toHaveBeenCalledWith("/projects"));
     });
 
     // A restored state that never arrives must not leave the button on
@@ -242,7 +242,7 @@ describe("LandingPage (PRD PRJ-06)", () => {
       await userEvent.click(screen.getByRole("button", { name: "Log in" }));
 
       await waitFor(() => expect(signInWithGoogle).toHaveBeenCalledTimes(1));
-      await waitFor(() => expect(navigate).toHaveBeenCalledWith("/dashboard"));
+      await waitFor(() => expect(navigate).toHaveBeenCalledWith("/projects"));
       expect(unsubscribe).toHaveBeenCalled();
     });
 
@@ -251,7 +251,7 @@ describe("LandingPage (PRD PRJ-06)", () => {
 
       await userEvent.click(screen.getByRole("button", { name: "Log in" }));
 
-      await waitFor(() => expect(navigate).toHaveBeenCalledWith("/dashboard"));
+      await waitFor(() => expect(navigate).toHaveBeenCalledWith("/projects"));
       const events = transport.named("landing_cta_click");
       expect(events).toHaveLength(1);
       expect(events[0]?.params.cta_id).toBe("log_in");
@@ -342,7 +342,7 @@ describe("LandingPage (PRD PRJ-06)", () => {
       ));
 
       await userEvent.click(screen.getByRole("link", { name: "Start in your browser" }));
-      expect(navigate).toHaveBeenCalledWith("/dashboard");
+      expect(navigate).toHaveBeenCalledWith("/projects");
 
       await userEvent.click(screen.getByRole("button", { name: "Log in" }));
       await waitFor(() => expect(signInWithGoogle).toHaveBeenCalledTimes(1));
@@ -409,7 +409,7 @@ describe("LandingPage (PRD PRJ-06)", () => {
         "Start in your browser",
         "Start free — no account needed",
       ]) {
-        expect(screen.getByRole("link", { name })).toHaveAttribute("href", "/dashboard");
+        expect(screen.getByRole("link", { name })).toHaveAttribute("href", "/projects");
       }
     });
 
@@ -420,7 +420,7 @@ describe("LandingPage (PRD PRJ-06)", () => {
       screen.getByRole("link", { name: "Start in your browser" }).dispatchEvent(event);
 
       expect(event.defaultPrevented).toBe(true);
-      expect(navigate).toHaveBeenCalledWith("/dashboard");
+      expect(navigate).toHaveBeenCalledWith("/projects");
     });
 
     it("leaves a new-tab click to the browser, and still counts the intent", () => {

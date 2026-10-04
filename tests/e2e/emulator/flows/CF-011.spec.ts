@@ -173,7 +173,7 @@ test.describe("CF-011", () => {
     // 1. Create a new project, add a sampler track, and duplicate the
     //    sampler's clip twice, so "Sampler" has clips in bars 1, 2 and 3 and
     //    "BD" has its one clip in bar 1.
-    await page.goto("/dashboard");
+    await page.goto("/projects");
     await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page).toHaveURL(/\/projects\/prj_/);

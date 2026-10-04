@@ -25,7 +25,7 @@ test.describe("a seeded registered session", () => {
       label: `seeded-${testInfo.project.name}`,
     });
 
-    await page.goto("/dashboard");
+    await page.goto("/projects");
 
     await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
     await expect(page.getByText(GUEST_NOTICE)).toHaveCount(0);
@@ -38,7 +38,7 @@ test.describe("a seeded registered session", () => {
       label: `reloaded-${testInfo.project.name}`,
     });
 
-    await page.goto("/dashboard");
+    await page.goto("/projects");
     await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
 
     // The step every flow ends on. If the session only lived in the page's
@@ -54,7 +54,7 @@ test.describe("a seeded registered session", () => {
   test("is a different state from the anonymous start, which does show the notice", async ({
     page,
   }) => {
-    await page.goto("/dashboard");
+    await page.goto("/projects");
 
     await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
     await expect(page.getByText(GUEST_NOTICE)).toBeVisible();

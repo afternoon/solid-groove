@@ -155,7 +155,7 @@ test.describe("CF-019", () => {
 
     // 1. Create a new project, add a synth track and open its clip. Add notes
     //    at C2 step 1 and G2 step 3.
-    await page.goto("/dashboard");
+    await page.goto("/projects");
     await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page).toHaveURL(/\/projects\/prj_/);

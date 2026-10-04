@@ -46,7 +46,7 @@ test("a track header sits on the same pixels in the arrangement and the rail", a
   page,
 }) => {
   await page.setViewportSize({ width: 1400, height: 800 });
-  await page.goto("/dashboard");
+  await page.goto("/projects");
   await page.getByRole("button", { name: "New Project" }).click();
   await expect(page.getByTestId("arrangement-view-ready")).toBeVisible();
   await page.getByRole("button", { name: "Add synth track" }).click();
@@ -66,7 +66,7 @@ test("a track header's volume follows a pointer drag, in both views", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1400, height: 800 });
-  await page.goto("/dashboard");
+  await page.goto("/projects");
   await page.getByRole("button", { name: "New Project" }).click();
   await expect(page.getByTestId("arrangement-view-ready")).toBeVisible();
 
@@ -96,7 +96,7 @@ test("a lifted track header keeps its grab point under the pointer, in both view
   page,
 }) => {
   await page.setViewportSize({ width: 1400, height: 800 });
-  await page.goto("/dashboard");
+  await page.goto("/projects");
   await page.getByRole("button", { name: "New Project" }).click();
   await expect(page.getByTestId("arrangement-view-ready")).toBeVisible();
   for (const name of ["Add synth track", "Add synth track"]) {
@@ -135,7 +135,7 @@ test("a track header lifts from anywhere it shows the grab hand, and not from it
   page,
 }) => {
   await page.setViewportSize({ width: 1400, height: 800 });
-  await page.goto("/dashboard");
+  await page.goto("/projects");
   await page.getByRole("button", { name: "New Project" }).click();
   await expect(page.getByTestId("arrangement-view-ready")).toBeVisible();
   await page.getByRole("button", { name: "Add synth track" }).click();
@@ -178,7 +178,7 @@ test("a track header lifts from anywhere it shows the grab hand, and not from it
 // keep the grab point under the pointer.
 test("a lifted device card keeps its grab point under the pointer", async ({ page }) => {
   await page.setViewportSize({ width: 1400, height: 800 });
-  await page.goto("/dashboard");
+  await page.goto("/projects");
   await page.getByRole("button", { name: "New Project" }).click();
   await expect(page.getByTestId("arrangement-view-ready")).toBeVisible();
   await toView(page, "Instrument");
@@ -214,7 +214,7 @@ test("a track name shows the text cursor, in the header and the mixer strip", as
   page,
 }) => {
   await page.setViewportSize({ width: 1400, height: 800 });
-  await page.goto("/dashboard");
+  await page.goto("/projects");
   await page.getByRole("button", { name: "New Project" }).click();
   await expect(page.getByTestId("arrangement-view-ready")).toBeVisible();
   const cursorOf = (locator: Locator) =>

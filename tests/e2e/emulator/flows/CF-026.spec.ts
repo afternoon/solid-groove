@@ -106,7 +106,7 @@ test.describe("CF-026", () => {
       //    pad's sample slot and choose Favourites. The kick you marked is
       //    listed.
       await page.getByRole("link", { name: "Projects" }).click();
-      await expect(page).toHaveURL(/\/dashboard$/);
+      await expect(page).toHaveURL(/\/projects$/);
       await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
       await page.getByRole("button", { name: "New Project" }).click();
       await expect(page).toHaveURL(/\/projects\/prj_[^/]+$/);

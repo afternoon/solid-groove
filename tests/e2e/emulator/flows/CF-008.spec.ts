@@ -100,7 +100,7 @@ test.describe("CF-008", () => {
       //    page, with the starter pattern on the only track ("BD", a drum
       //    machine) and a dock floating along the bottom: five square tiles
       //    numbered 1 to 5, with the arrangement's marked as the view you are on.
-      await page.goto("/dashboard");
+      await page.goto("/projects");
       await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
       await page.getByRole("button", { name: "New Project" }).click();
       await expectView(page, "Arrangement");

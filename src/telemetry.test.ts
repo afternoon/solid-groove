@@ -70,7 +70,8 @@ describe("surfaceForPath", () => {
   it("maps each route onto its surface", () => {
     expect(surfaceForPath("/")).toBe("landing");
     expect(surfaceForPath("")).toBe("landing");
-    expect(surfaceForPath("/dashboard")).toBe("dashboard");
+    expect(surfaceForPath("/projects")).toBe("dashboard");
+    expect(surfaceForPath("/projects/")).toBe("dashboard");
     expect(surfaceForPath("/projects/prj_abc")).toBe("editor");
   });
 });

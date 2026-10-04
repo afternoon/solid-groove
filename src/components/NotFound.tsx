@@ -178,7 +178,7 @@ const NotFound: Component<NotFoundProps> = (props) => {
           {props.children}
         </Show>
         <Show when={props.homeHref !== ""}>
-          <a class="not-found-home" href={props.homeHref ?? "/dashboard"}>
+          <a class="not-found-home" href={props.homeHref ?? "/projects"}>
             {props.homeLabel ?? "Back to your projects"}
           </a>
         </Show>

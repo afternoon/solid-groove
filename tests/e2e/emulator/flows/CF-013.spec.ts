@@ -97,7 +97,7 @@ test.describe("CF-013", () => {
 
     // 1. Create a new project. Go to the instrument view for the starter
     //    track, and add an overdrive and then a reverb to its chain.
-    await page.goto("/dashboard");
+    await page.goto("/projects");
     await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page).toHaveURL(/\/projects\/prj_/);

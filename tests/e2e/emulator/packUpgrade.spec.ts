@@ -68,14 +68,14 @@ async function ageDocument(page: Page, path: string): Promise<number> {
 test("inserting a 1.1.0 sound into a project pinned to 1.0.0 lands, and survives a reload", async ({
   page,
 }) => {
-  await page.goto("/dashboard");
+  await page.goto("/projects");
   await page.getByRole("button", { name: "New Project" }).click();
   await page.getByTestId("arrangement-view-ready").waitFor();
   const projectId = /\/projects\/([^/]+)/.exec(new URL(page.url()).pathname)?.[1];
   if (!projectId) throw new Error(`no project id in ${page.url()}`);
 
   // Leave the editor first, so nothing it saves races the rewrite.
-  await page.goto("/dashboard");
+  await page.goto("/projects");
   const pins =
     (await ageDocument(page, `projects/${projectId}`)) +
     (await ageDocument(page, `projects/${projectId}/song/current`));

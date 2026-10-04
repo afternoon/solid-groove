@@ -68,7 +68,7 @@ test.describe("landing page", () => {
     expect(ring.color).toBe(ring.accent);
 
     await page.keyboard.press("Enter");
-    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page).toHaveURL(/\/projects$/);
   });
 
   test("carries the analytics disclosure and opt-out, exactly once", async ({ page }) => {
@@ -105,7 +105,7 @@ test.describe("anonymous start", () => {
     await page.getByRole("link", { name: "Start in your browser" }).click();
 
     // PRJ-01's anonymous start: the dashboard signs the visitor in as a guest.
-    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page).toHaveURL(/\/projects$/);
     await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
     // The in-memory repository starts empty; a project only exists once
     // created (see the "new project" test below).
@@ -169,9 +169,17 @@ async function openStarterClip(page: Page): Promise<Locator> {
   return editor;
 }
 
+test.describe("project list address", () => {
+  test("sends the old /dashboard address on to /projects", async ({ page }) => {
+    await page.goto("/dashboard");
+    await expect(page).toHaveURL(/\/projects$/);
+    await expect(page).toHaveTitle("Projects – Groove");
+  });
+});
+
 test.describe("new project", () => {
   test("creates a project with a working drum-machine step editor", async ({ page }) => {
-    await page.goto("/dashboard");
+    await page.goto("/projects");
 
     await page.getByRole("button", { name: "New Project" }).click();
 
@@ -199,7 +207,7 @@ test.describe("new project", () => {
   // say so.
   test("fills the page with the sequence view", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto("/dashboard");
+    await page.goto("/projects");
     await page.getByRole("button", { name: "New Project" }).click();
     const editor = await openStarterClip(page);
 
@@ -218,7 +226,7 @@ test.describe("new project", () => {
     page,
   }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto("/dashboard");
+    await page.goto("/projects");
     await page.getByRole("button", { name: "New Project" }).click();
     await page.getByTestId("arrangement-view-ready").waitFor();
     await page.getByRole("button", { name: "Export", exact: true }).click();
@@ -242,7 +250,7 @@ test.describe("new project", () => {
   // shell that overflowed its panel would look fine to the component tests
   // while silently covering its neighbours and swallowing their clicks.
   test("keeps the arrangement shell inside its panel", async ({ page }) => {
-    await page.goto("/dashboard");
+    await page.goto("/projects");
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page).toHaveURL(/\/projects\/prj_/);
 
@@ -273,17 +281,17 @@ test.describe("dashboard project management", () => {
   test("renames, duplicates, and deletes a project from the dashboard", async ({
     page,
   }) => {
-    await page.goto("/dashboard");
+    await page.goto("/projects");
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page).toHaveURL(/\/projects\/prj_/);
     const name = await openedProjectName(page);
 
     // Return to the dashboard via the editor's client-side "Projects" link,
-    // NOT page.goto("/dashboard"). A full page load would drop the in-memory
+    // NOT page.goto("/projects"). A full page load would drop the in-memory
     // mock store (see playwright.config.ts), losing the project just created;
     // the router link keeps the same page alive so the new project is listed.
     await page.getByRole("link", { name: /projects/i }).click();
-    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page).toHaveURL(/\/projects$/);
     await expect(page.getByText(name)).toBeVisible();
 
     // Rename.
@@ -350,7 +358,7 @@ test.describe("keyboard shortcuts", () => {
         : `playback not asserted in ${browserName}: AudioContext.resume() is refused here — see HARD-001`,
     });
 
-    await page.goto("/dashboard");
+    await page.goto("/projects");
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page.getByTestId("arrangement-view-ready")).toBeVisible();
 
@@ -390,7 +398,7 @@ test.describe("keyboard shortcuts", () => {
   test("types shortcut characters into a focused text field instead of firing them", async ({
     page,
   }) => {
-    await page.goto("/dashboard");
+    await page.goto("/projects");
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page.getByTestId("arrangement-view-ready")).toBeVisible();
 
@@ -416,11 +424,11 @@ test.describe("keyboard shortcuts", () => {
   // lifetime of the editor, so this is what proves the listener is detached on
   // unmount and editor mappings do not follow the user to the dashboard.
   test("editor shortcuts stop working after leaving the editor", async ({ page }) => {
-    await page.goto("/dashboard");
+    await page.goto("/projects");
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page).toHaveURL(/\/projects\/prj_/);
     await page.getByRole("link", { name: /projects/i }).click();
-    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page).toHaveURL(/\/projects$/);
 
     // `?` opened the guide one route ago. With the editor unmounted there is
     // no controller on the window at all, so it does nothing.
@@ -440,7 +448,7 @@ test.describe("keyboard shortcuts", () => {
   test("closes the delete confirmation with Escape through the registry", async ({
     page,
   }) => {
-    await page.goto("/dashboard");
+    await page.goto("/projects");
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page).toHaveURL(/\/projects\/prj_/);
     const name = await openedProjectName(page);
@@ -470,7 +478,7 @@ test.describe("transport bar", () => {
   test("edits tempo through a command, toggles loop and metronome, and shows 4/4", async ({
     page,
   }) => {
-    await page.goto("/dashboard");
+    await page.goto("/projects");
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page.getByTestId("arrangement-view-ready")).toBeVisible();
 
@@ -537,7 +545,7 @@ test.describe("transport bar", () => {
   test("Space and O inside the tempo input do not reach the transport", async ({
     page,
   }) => {
-    await page.goto("/dashboard");
+    await page.goto("/projects");
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page.getByTestId("arrangement-view-ready")).toBeVisible();
 

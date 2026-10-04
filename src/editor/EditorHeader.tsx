@@ -113,7 +113,7 @@ export default function EditorHeader(props: EditorHeaderProps) {
          */}
         <a
           class="back-to-projects"
-          href="/dashboard"
+          href="/projects"
           aria-label="Projects"
           title="Projects"
         >

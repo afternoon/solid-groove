@@ -126,7 +126,7 @@ export default function LandingPage(props: LandingPageProps) {
    * to action". Logged once per activation, before the path it starts, so a
    * failing sign-in still counts the intent.
    *
-   * The control is an anchor pointing at `/dashboard` (see `START_HREF` in
+   * The control is an anchor pointing at `/projects` (see `START_HREF` in
    * `LandingPageContent`), so this handler's job is to *upgrade* a click that
    * the browser would otherwise serve as a full page load. It takes the click
    * only when it is the plain left-click that means "go there in this tab":
@@ -146,7 +146,7 @@ export default function LandingPage(props: LandingPageProps) {
     analytics.log("landing_cta_click", { cta_id: "start_free" });
     if (opensElsewhere(event)) return;
     event.preventDefault();
-    navigate("/dashboard");
+    navigate("/projects");
   };
 
   /**
@@ -190,11 +190,11 @@ export default function LandingPage(props: LandingPageProps) {
         props.sessionRestoreTimeoutMs ?? SESSION_RESTORE_TIMEOUT_MS,
       );
       if (session && !session.isAnonymous) {
-        navigate("/dashboard");
+        navigate("/projects");
         return;
       }
       await authService.signInWithGoogle();
-      navigate("/dashboard");
+      navigate("/projects");
     } catch (error) {
       // A cancelled popup is the common case and is not worth a fatal report,
       // but a broken provider looks identical from here — report it non-fatally

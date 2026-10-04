@@ -60,7 +60,7 @@ const GATING_BROWSERS = "Chrome, Edge and Firefox";
  * "Log in" stays a `<button>`: it opens an identity-provider popup and goes
  * nowhere on its own, so it is an action, not a destination.
  */
-const START_HREF = "/dashboard";
+const START_HREF = "/projects";
 
 export interface LandingPageContentProps {
   /** Whether a sign-in is in flight; disables every control while it is. */

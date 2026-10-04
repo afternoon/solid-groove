@@ -14,7 +14,7 @@ import { test } from "@playwright/test";
  *
  * That reload lands mid-test and silently discards whatever interaction was in
  * flight. Observed concretely, and reproduced deterministically: `slice.spec.ts`'s
- * `New Project` click was swallowed, so the URL never left `/dashboard` and the
+ * `New Project` click was swallowed, so the URL never left `/projects` and the
  * test failed on `toHaveURL(/\/projects\/prj_/)` — which reads exactly like a
  * broken create-project flow and is not one.
  *
@@ -72,7 +72,7 @@ test("warm the dev server's dependency graph", async ({ page }, testInfo) => {
     // Firestore listener, so the network never goes idle and the wait can only
     // time out. Wait for real elements instead — those locators re-resolve
     // across a reload, which is exactly the behaviour needed.
-    await page.goto("/dashboard", { waitUntil: "commit", timeout: 60_000 });
+    await page.goto("/projects", { waitUntil: "commit", timeout: 60_000 });
 
     const newProject = page.getByRole("button", { name: "New Project" });
     await newProject.waitFor({ state: "visible", timeout: 90_000 });

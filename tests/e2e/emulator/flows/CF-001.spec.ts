@@ -100,7 +100,7 @@ test.describe("CF-001", () => {
     await page.getByRole("link", { name: "Start in your browser" }).click();
 
     // 3. You arrive at the dashboard, signed in as a guest, with no projects.
-    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page).toHaveURL(/\/projects$/);
     await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
     await expect(page.getByText(/You're working as a guest/)).toBeVisible();
     await expect(page.getByText("No projects yet")).toBeVisible();

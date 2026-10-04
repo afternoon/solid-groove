@@ -1,3 +1,4 @@
+import { Title } from "@solidjs/meta";
 import type { JSX } from "@solidjs/web";
 import {
   createEffect,
@@ -8,6 +9,7 @@ import {
   Switch,
   snapshot,
 } from "solid-js";
+import { pageTitle } from "../../site.config.mjs";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import ArrangementView, {
   type PlacementEditingActions,
@@ -787,6 +789,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
         <Match when={project()}>
           {(currentProject) => (
             <>
+              <Title>{pageTitle(currentProject().metadata.name)}</Title>
               <EditorHeader
                 projectName={currentProject().metadata.name}
                 onRename={(name) => session.dispatch(renameProject(name))}

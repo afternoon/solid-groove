@@ -197,7 +197,7 @@ test.describe("CF-018", () => {
     // 1. Create a new project, add a synth track and open its clip. The key
     //    reads "Chromatic", the root buttons are disabled, and Quantize to
     //    scale is disabled.
-    await page.goto("/dashboard");
+    await page.goto("/projects");
     await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page).toHaveURL(/\/projects\/prj_/);

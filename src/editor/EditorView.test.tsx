@@ -319,6 +319,19 @@ describe("EditorView", () => {
     expect(await screen.findByText("This groove is broken")).toBeInTheDocument();
   });
 
+  it("names the tab after the open project", async () => {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createStepGridProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+
+    renderEditor(project.metadata.id);
+
+    await vi.waitFor(() =>
+      expect(document.title).toBe(`${project.metadata.name} – Groove`),
+    );
+  });
+
   it("loads a project and renders its step editor with the saved steps", async () => {
     repository = inMemoryModule.createInMemoryProjectRepository();
     const project = createStepGridProject();
