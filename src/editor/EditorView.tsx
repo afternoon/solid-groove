@@ -17,18 +17,14 @@ import ArrangementView, {
 } from "../arrangement/ArrangementView";
 import { getAudioRuntime } from "../audio/AudioRuntime";
 import { provideStoredAudio } from "../audio/storedAudio";
-import { clampTempo } from "../audio/Transport";
 import { type CapabilityReport, FULLY_CAPABLE } from "../browser/capabilities";
 import { reportMissingCapabilities } from "../browser/reportCapabilities";
-import { createControlGesture } from "../commands";
-import { setParameter } from "../commands/definitions/parameters";
 import { renameProject } from "../commands/definitions/project";
 import { ControlRegistryContext } from "../controls/control";
 import { createControlRegistry } from "../controls/registry";
 import type { NoteTrigger, Project } from "../domain/entities";
 import { createFactoryContext } from "../domain/factories";
 import type { EventId, PlacementId } from "../domain/ids";
-import { SONG_SWING, SONG_TEMPO } from "../domain/parameters";
 import { TICKS_PER_QUARTER } from "../domain/time";
 import {
   type SampleSlotTargeting,
@@ -71,12 +67,6 @@ import {
   targetPath,
   targetSound,
 } from "./libraryTarget";
-import {
-  type LoopActionContext,
-  moveLoopByBars,
-  resizeLoopByBars,
-  toggleLooping,
-} from "./loopActions";
 import MissingSounds from "./MissingSounds";
 import Mixer from "./Mixer";
 import NewTrackButtons from "./NewTrackButtons";
@@ -97,6 +87,7 @@ import { useEditorSession } from "./useEditorSession";
 import { useEditorShortcuts } from "./useEditorShortcuts";
 import { useLibraryTarget } from "./useLibraryTarget";
 import { useProjectAudio } from "./useProjectAudio";
+import { useSongControls } from "./useSongControls";
 import { useTrackSelection } from "./useTrackSelection";
 import ViewDock from "./ViewDock";
 import "./EditorView.css";
@@ -290,47 +281,11 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
 
   const createAuditionEngine =
     props.createAuditionEngine ??
-    (() => new ToneAuditionEngine(getAudioRuntime(), { songTempo: () => tempo() }));
+    (() => new ToneAuditionEngine(getAudioRuntime(), { songTempo: () => song.tempo() }));
 
-  // Tempo is written by a validated command (song.tempo), clamped to the
-  // AUD-02 40-240 BPM supported range at this surface. The command is the only
-  // path: `useProjectAudio` mirrors `song.tempo` onto the transport on every
-  // project change, so a running song re-times without restarting and without
-  // this surface writing the tempo a second time.
-  const tempo = createMemo(() => project()?.song.tempo ?? SONG_TEMPO.defaultValue);
-  const applyTempo = (value: number) => {
-    if (!Number.isFinite(value)) return;
-    session.dispatch(
-      setParameter({ scope: "song", parameterId: SONG_TEMPO.id }, clampTempo(value)),
-    );
-  };
-
-  // Swing is song state written through the same `parameter.set` as tempo
-  // (#500). A drag is one gesture, so it is one undo step and one save; the
-  // first commit counts as first use of the feature.
-  const swing = createMemo(() => project()?.song.swing ?? SONG_SWING.defaultValue);
-  const swingGesture = createControlGesture({
-    beginGesture: (options) => session.beginGesture(options),
-    dispatch: (commands) => session.dispatch(commands),
-    summary: () => "Set swing",
-    command: (value) =>
-      setParameter({ scope: "song", parameterId: SONG_SWING.id }, value),
-  });
-  const commitSwing = (value: number) => {
-    swingGesture.commit(value);
-    (props.analytics ?? defaultAnalytics).logFeatureFirstUse("swing");
-  };
-
-  // The loop is song state too (LOOP-017): the header's toggle dispatches
-  // `loop.setEnabled` and `useProjectAudio` mirrors `song.loop` onto the
-  // transport, so this surface never touches the transport's loop itself.
-  const loopActions: LoopActionContext = {
-    project,
-    dispatch: (commands) => session.dispatch(commands),
-    get analytics() {
-      return props.analytics ?? defaultAnalytics;
-    },
-  };
+  // Tempo, swing and the loop: song state the header and the transport keys
+  // write through commands.
+  const song = useSongControls({ project, session, analytics });
 
   // Which track, pad and clip the editor is pointed at (#228, #643), and the
   // return the mixer pointed it at (#386): UI-only state with one owner for
@@ -516,10 +471,10 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
       const ids = arrangementEditingActions()?.getSelection() ?? [];
       return ids.length === 1 ? () => openPlacement(ids[0]) : undefined;
     },
-    toggleLooping: () => toggleLooping(loopActions),
+    toggleLooping: song.toggleLoop,
     loopBraceFocused,
-    moveLoop: (bars) => moveLoopByBars(loopActions, bars),
-    resizeLoop: (bars) => resizeLoopByBars(loopActions, bars),
+    moveLoop: song.moveLoop,
+    resizeLoop: song.resizeLoop,
     // The mixer keeps the arrows: its strips are moved with them (#447).
     adjacentTrack: (by) => {
       if (props.view === "mixer") return undefined;
@@ -613,12 +568,12 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                     onRename={(name) => session.dispatch(renameProject(name))}
                     session={session}
                     audio={audio}
-                    onToggleLoop={() => toggleLooping(loopActions)}
-                    tempo={tempo}
-                    onTempoChange={applyTempo}
-                    swing={swing}
-                    onSwingInput={swingGesture.input}
-                    onSwingCommit={commitSwing}
+                    onToggleLoop={song.toggleLoop}
+                    tempo={song.tempo}
+                    onTempoChange={song.applyTempo}
+                    swing={song.swing}
+                    onSwingInput={song.swingInput}
+                    onSwingCommit={song.commitSwing}
                     onOpenGuide={() => setGuideOpen(true)}
                     onExportOpenChange={setExportOpen}
                     keyHint={keyHint}
@@ -712,7 +667,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                                 project={currentProject()}
                                 showPianoRoll={showPianoRoll}
                                 loop={model.loopEntryFor(currentProject(), open().clip)}
-                                songTempo={tempo()}
+                                songTempo={song.tempo()}
                                 editorPlaybackStep={editorPlaybackStep}
                                 selectedNoteIds={selectedNoteIds}
                                 setSelectedNoteIds={setSelectedNoteIds}
@@ -825,7 +780,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                                   targetSound(currentProject(), target())?.name ?? null
                                 }
                                 slotKind={SLOT_KINDS[target().kind]}
-                                songBpm={tempo()}
+                                songBpm={song.tempo()}
                                 currentRef={
                                   targetSound(currentProject(), target())?.storageRef ??
                                   null
