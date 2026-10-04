@@ -158,3 +158,44 @@ describe("useEditorSession when the repository itself fails to load", () => {
     expect(result.state.notFound).toBe(false);
   });
 });
+
+describe("useEditorSession preview (UI-005)", () => {
+  it("shows the previewed project while a preview is open, and the committed one after", async () => {
+    const repository = createInMemoryProjectRepository();
+    const project = createSliceFixtureProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+
+    const clip = project.clips[0];
+    if (clip.content.kind !== "notes") throw new Error("expected a note clip");
+    const clipId = clip.id as ClipId;
+
+    const { result } = renderHook(
+      () =>
+        useEditorSession(
+          () => project.metadata.id,
+          () => repository,
+        ),
+      {},
+    );
+    await vi.waitFor(() => expect(result.state.loading).toBe(false));
+    const committed = result.state.project;
+    expect(result.state.previewing).toBe(false);
+
+    const started = result.beginPreview(removeNotes(clipId, [clip.content.events[0].id]));
+    if (!started?.ok) throw new Error("expected the preview to open");
+    flush();
+
+    expect(result.state.previewing).toBe(true);
+    expect(result.state.project?.clips[0].content).toEqual(
+      started.preview.project.clips[0].content,
+    );
+    expect(result.state.canUndo).toBe(false);
+
+    started.preview.cancel();
+    flush();
+
+    expect(result.state.previewing).toBe(false);
+    expect(result.state.project?.clips[0].content).toEqual(committed?.clips[0].content);
+  });
+});

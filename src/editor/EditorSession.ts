@@ -2,11 +2,15 @@ import { type Analytics, analytics as defaultAnalytics } from "../analytics/anal
 import { bucketOf, projectAgeBucket } from "../analytics/buckets";
 import { COMMAND_IDS, type CommandId } from "../analytics/catalog";
 import {
+  type CommandActor,
   CommandHistory,
+  executeTransaction,
   type Gesture,
   type GestureOptions,
-  type HistoryListener,
+  type HistorySnapshot,
   type RawCommandInput,
+  type TransactionFailure,
+  type TransactionOptions,
   type TransactionResult,
   type TransactionSuccess,
 } from "../commands";
@@ -17,6 +21,32 @@ import type { ProjectRepository } from "../persistence/projectRepository";
 import { type Clock, systemClock } from "../shared/clock";
 import type { Scheduler } from "../shared/scheduler";
 import { markProjectOpened } from "./deviceProjectRecord";
+import {
+  type PreviewEndReason,
+  type PreviewHost,
+  type PreviewResult,
+  type PreviewStatus,
+  SessionPreview,
+} from "./sessionPreview";
+
+export type {
+  Preview,
+  PreviewEndReason,
+  PreviewResult,
+  PreviewStatus,
+} from "./sessionPreview";
+
+/**
+ * The history's snapshot, seen through any open preview: `project` is what the
+ * editor shows (the previewed project while a preview is open), and
+ * `committedProject` is what history, revision and autosave hold.
+ */
+export interface EditorSessionSnapshot extends HistorySnapshot {
+  readonly committedProject: Project;
+  readonly previewing: boolean;
+}
+
+export type EditorSessionListener = (snapshot: EditorSessionSnapshot) => void;
 
 export interface EditorSessionOptions {
   readonly repository: ProjectRepository;
@@ -62,6 +92,9 @@ function isCommandId(value: string): value is CommandId {
  * and multi-clip track edits, not just the single clip a note command names.
  * The same diff drives `beginGesture`'s commit path, so a piano-roll note drag
  * and a fader/pan drag share exactly one autosave mechanism.
+ *
+ * `beginPreview` (UI-005, #851) shows a set of commands applied without
+ * committing them; see its own comment for the rules.
  */
 export class EditorSession {
   readonly repository: ProjectRepository;
@@ -72,6 +105,13 @@ export class EditorSession {
   private readonly projectId: Project["metadata"]["id"];
   private readonly openedAt: number;
   private readonly unwatch: () => void;
+  private readonly listeners = new Set<EditorSessionListener>();
+  private readonly unsubscribeHistory: () => void;
+  private readonly previewHost: PreviewHost = {
+    cancelPreview: (preview) => this.endPreview(preview, "cancelled", "cancelled"),
+    commitPreview: (preview, actor) => this.commitPreview(preview, actor),
+  };
+  private preview: SessionPreview | null = null;
   private firstEditLogged = false;
   private disposed = false;
 
@@ -90,29 +130,110 @@ export class EditorSession {
       scheduler: options.scheduler,
       coalesceMs: options.coalesceMs,
     });
-    this.unwatch = options.repository.watchProject(this.projectId, (event) =>
-      this.autosave.applyRemote(event),
-    );
+    this.unsubscribeHistory = this.history.subscribe(() => this.onHistoryChange());
+    this.unwatch = options.repository.watchProject(this.projectId, (event) => {
+      // A remote change moves the committed revision under an open preview,
+      // so the preview is stale. An echo or an ignored snapshot moves nothing.
+      if (this.autosave.applyRemote(event) === "adopted") {
+        this.endOpenPreview("stale", "remote_change");
+      }
+    });
     this.logProjectOpened(options.project, options.deviceStorage);
   }
 
+  /** What the editor shows: the previewed project while a preview is open. */
   get project(): Project {
+    return this.preview?.project ?? this.history.project;
+  }
+
+  /** What history, revision and autosave hold, whatever is being previewed. */
+  get committedProject(): Project {
     return this.history.project;
   }
 
-  subscribe(listener: HistoryListener): () => void {
-    return this.history.subscribe(listener);
+  /** The open preview, if there is one. */
+  get activePreview(): SessionPreview | null {
+    return this.preview;
   }
 
-  /** Dispatches one command, or an atomic multi-command transaction. */
+  snapshot(): EditorSessionSnapshot {
+    const history = this.history.snapshot();
+    return {
+      ...history,
+      project: this.project,
+      committedProject: history.project,
+      previewing: this.preview !== null,
+    };
+  }
+
+  /**
+   * Notified on every history change and whenever a preview opens or ends,
+   * with the project the editor should show.
+   */
+  subscribe(listener: EditorSessionListener): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
+  /**
+   * Dispatches one command, or an atomic multi-command transaction. While a
+   * preview is open the edit goes to the committed project, and that makes
+   * the preview stale; it is never edited into the preview.
+   */
   dispatch(commands: RawCommandInput | readonly RawCommandInput[]): TransactionResult {
-    const before = this.history.project;
-    const result = this.history.execute(commands);
-    if (result.ok) {
-      this.logFirstEdit(result);
-      this.queueAutosave(result, before);
+    return this.execute(commands);
+  }
+
+  /**
+   * Shows `commands` applied without committing them (UI-005, #851).
+   *
+   * The commands run through `executeTransaction` against the committed
+   * project. If they are invalid, this returns the same failure a dispatch
+   * would and nothing changes, an already-open preview included. If they are
+   * valid, the editor's project becomes the previewed one, so every view, the
+   * audio graph and the projections show and play the change, while the
+   * committed project, its revision, the history and autosave are untouched
+   * and nothing is written.
+   *
+   * One preview is open at a time: a valid new one cancels the previous one
+   * (`superseded`). The preview ends on `cancel()`, on `commit(actor)` (one
+   * transaction, one history entry, one revision), or by going stale when the
+   * committed revision moves under it — a local edit, a remote change, an
+   * undo or a redo.
+   *
+   * It is refused (a `rejected` failure, nothing changes) while a gesture is
+   * open, since the committed project is mid-drag, and once the session is
+   * disposed. A gesture opened *after* the preview does not end it, but
+   * `commit` refuses until that gesture finishes: see {@link commitPreview}.
+   */
+  beginPreview(commands: RawCommandInput | readonly RawCommandInput[]): PreviewResult {
+    const list = toList(commands);
+    const base = this.history.project;
+    if (this.disposed) {
+      return refuse(base, list, "The editor session is closed; nothing can be previewed");
     }
-    return result;
+    if (this.history.gestureActive) {
+      return refuse(base, list, "Cannot preview while a gesture is in progress");
+    }
+    const result = executeTransaction(base, list, {
+      clock: this.clock,
+      // The preview is not a revision; only its commit makes one.
+      commitRevision: false,
+    });
+    if (!result.ok) return result;
+    if (this.preview) this.endPreview(this.preview, "cancelled", "superseded", false);
+    const preview = new SessionPreview(
+      this.previewHost,
+      list,
+      base,
+      result.project,
+      result.summary,
+    );
+    this.preview = preview;
+    this.notify();
+    return { ok: true, preview };
   }
 
   /**
@@ -141,6 +262,8 @@ export class EditorSession {
       get active() {
         return gesture.active;
       },
+      // A step that changes the committed project makes an open preview
+      // stale (see `onHistoryChange`), like any other local edit.
       apply: (commands) => {
         const result = gesture.apply(commands);
         if (result.ok && !firstEditResult) firstEditResult = result;
@@ -164,8 +287,13 @@ export class EditorSession {
    * (`history.undo()` already replays the entry's own actor for that). Only
    * `"user"` is reachable today — an assistant-invoked undo is `AI-003`'s
    * `assistant_proposal_undone`, a distinct catalog event, not this one.
+   *
+   * An open preview is cancelled first (it ends `stale`, reason `undo`), then
+   * the undo acts on the committed history. While a gesture is open the
+   * history refuses the undo (it throws), so the preview is left alone.
    */
   undo(actor: "user" | "assistant" = "user"): TransactionResult | null {
+    if (!this.history.gestureActive) this.endOpenPreview("stale", "undo");
     const before = this.history.project;
     const result = this.history.undo();
     if (result?.ok) {
@@ -175,7 +303,9 @@ export class EditorSession {
     return result;
   }
 
+  /** Like `undo`, an open preview is cancelled first (reason `redo`). */
   redo(actor: "user" | "assistant" = "user"): TransactionResult | null {
+    if (!this.history.gestureActive) this.endOpenPreview("stale", "redo");
     const before = this.history.project;
     const result = this.history.redo();
     if (result?.ok) {
@@ -189,9 +319,103 @@ export class EditorSession {
   dispose(): void {
     if (this.disposed) return;
     this.disposed = true;
+    this.endOpenPreview("cancelled", "disposed", false);
+    this.listeners.clear();
+    this.unsubscribeHistory();
     this.unwatch();
     this.autosave.dispose();
     this.history.dispose();
+  }
+
+  private execute(
+    commands: RawCommandInput | readonly RawCommandInput[],
+    options: TransactionOptions = {},
+  ): TransactionResult {
+    const before = this.history.project;
+    const result = this.history.execute(commands, options);
+    if (result.ok) {
+      this.logFirstEdit(result);
+      this.queueAutosave(result, before);
+    }
+    return result;
+  }
+
+  /**
+   * The history moved. If the committed project is no longer the one an open
+   * preview was computed against, a local edit landed under it: the preview
+   * is stale. Ending it here, before listeners hear about the change, means
+   * no listener ever sees a preview over a moved committed project.
+   */
+  private onHistoryChange(): void {
+    const preview = this.preview;
+    if (preview && this.history.project !== preview.baseProject) {
+      this.endPreview(preview, "stale", "local_edit", false);
+    }
+    this.notify();
+  }
+
+  /**
+   * A commit is always its own history entry with the caller's actor, or it
+   * does not happen. `history.execute` folds anything dispatched during an
+   * open gesture into that gesture (under the gesture's actor), so a commit
+   * while a gesture is open is refused without applying anything, and the
+   * preview stays open: if the gesture is cancelled the preview is still
+   * valid and can be committed then; if it commits a change, the preview goes
+   * stale like under any other local edit.
+   */
+  private commitPreview(
+    preview: SessionPreview,
+    actor: CommandActor,
+  ): TransactionResult | null {
+    if (this.history.gestureActive) {
+      return refuse(
+        this.history.project,
+        preview.commands,
+        "Cannot commit a preview while a gesture is in progress",
+      );
+    }
+    // Ended before dispatching, so the history change the commit causes is
+    // not mistaken for a local edit under the preview.
+    this.endPreview(preview, "committed", "committed", false);
+    const result = this.execute(preview.commands, {
+      actor,
+      // Belt and braces: an open preview's base is the committed project, so
+      // this always holds; it refuses rather than applies if it ever did not.
+      baseRevision: preview.baseProject.metadata.revision,
+    });
+    if (!result.ok) {
+      preview.end("cancelled", "commit_failed");
+      this.notify();
+    }
+    return result;
+  }
+
+  private endOpenPreview(
+    status: Exclude<PreviewStatus, "open">,
+    reason: PreviewEndReason,
+    notify = true,
+  ): void {
+    if (this.preview) this.endPreview(this.preview, status, reason, notify);
+  }
+
+  private endPreview(
+    preview: SessionPreview,
+    status: Exclude<PreviewStatus, "open">,
+    reason: PreviewEndReason,
+    notify = true,
+  ): void {
+    if (this.preview !== preview) return;
+    this.preview = null;
+    preview.end(status, reason);
+    if (notify) this.notify();
+  }
+
+  private notify(): void {
+    if (this.listeners.size === 0) return;
+    const snapshot = this.snapshot();
+    for (const listener of this.listeners) {
+      listener(snapshot);
+    }
   }
 
   /**
@@ -281,6 +505,34 @@ export class EditorSession {
       this.autosave.queueClipDeletion(clipId);
     }
   }
+}
+
+function toList(
+  commands: RawCommandInput | readonly RawCommandInput[],
+): readonly RawCommandInput[] {
+  return Array.isArray(commands)
+    ? (commands as readonly RawCommandInput[])
+    : [commands as RawCommandInput];
+}
+
+/** A preview refusal, shaped like the failure a dispatch returns. */
+function refuse(
+  project: Project,
+  commands: readonly RawCommandInput[],
+  message: string,
+): TransactionFailure {
+  return {
+    ok: false,
+    project,
+    issues: [
+      {
+        code: "rejected",
+        commandType: commands[0]?.type ?? "",
+        commandIndex: 0,
+        message,
+      },
+    ],
+  };
 }
 
 export function createEditorSession(options: EditorSessionOptions): EditorSession {
