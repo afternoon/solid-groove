@@ -229,6 +229,8 @@ async function untilSettledOrAborted(
 
 function assetError(asset: AudioAssetProjection, error: unknown): OfflineRenderError {
   // An asset id, never its name or URL: this message may reach error reports.
+  // With no URL there was nothing public to fetch: a producer's own sound
+  // (#282) that cannot be read as the user rendering is missing to them.
   const code: ErrorCode = asset.url ? "decode_failed" : "asset_missing";
   return new OfflineRenderError(code, `Asset ${asset.id} could not be loaded`, {
     cause: error,

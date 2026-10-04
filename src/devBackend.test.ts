@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_AUTH_EMULATOR_HOST,
   DEFAULT_FIRESTORE_EMULATOR_HOST,
+  DEFAULT_STORAGE_EMULATOR_HOST,
   EMULATOR_PROJECT_ID,
   placeholderFirebaseConfig,
   resolveDevBackend,
@@ -41,6 +42,12 @@ describe("placeholderFirebaseConfig", () => {
     expect(placeholderFirebaseConfig("emulator")?.projectId).toBe(EMULATOR_PROJECT_ID);
   });
 
+  it("gives emulator mode the emulator's default bucket for user audio", () => {
+    expect(placeholderFirebaseConfig("emulator")?.storageBucket).toBe(
+      `${EMULATOR_PROJECT_ID}.appspot.com`,
+    );
+  });
+
   it("keeps mock mode on its own project ID", () => {
     expect(placeholderFirebaseConfig("mock")?.projectId).toBe("mock-project");
   });
@@ -58,6 +65,7 @@ describe("resolveEmulatorHosts", () => {
     expect(resolveEmulatorHosts({}, "emulator")).toEqual({
       firestore: DEFAULT_FIRESTORE_EMULATOR_HOST,
       auth: DEFAULT_AUTH_EMULATOR_HOST,
+      storage: DEFAULT_STORAGE_EMULATOR_HOST,
     });
   });
 
@@ -77,6 +85,7 @@ describe("resolveEmulatorHosts", () => {
     ).toEqual({
       firestore: "127.0.0.1:9999",
       auth: DEFAULT_AUTH_EMULATOR_HOST,
+      storage: DEFAULT_STORAGE_EMULATOR_HOST,
     });
   });
 
@@ -87,6 +96,7 @@ describe("resolveEmulatorHosts", () => {
     ).toEqual({
       firestore: DEFAULT_FIRESTORE_EMULATOR_HOST,
       auth: "127.0.0.1:9099",
+      storage: DEFAULT_STORAGE_EMULATOR_HOST,
     });
   });
 });

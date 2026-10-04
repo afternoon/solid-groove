@@ -25,7 +25,7 @@ import { type AssetId, type PadId, packIdSchema, type TrackId } from "../domain/
 import { isAutoPadName, nextPadName } from "../domain/padNames";
 import { SONG_TEMPO } from "../domain/parameters";
 import { TICKS_PER_BAR, TICKS_PER_QUARTER } from "../domain/time";
-import { assetStorageRef, type LibraryAsset } from "./manifest";
+import { assetStorageRef, hasAudio, type LibraryAsset } from "./manifest";
 import { packUpgradeFor } from "./packUpgrade";
 
 /**
@@ -69,7 +69,12 @@ export const librarySampleSchema = z.strictObject({
   packVersion: packVersionSchema,
   kind: assetKindSchema,
   storageRef: z.string().min(1),
-  url: z.string().min(1),
+  /**
+   * Where a factory sound is fetched from. `null` for a producer's own sound
+   * (#282): its audio is read from `storageRef` as its owner, so no link that
+   * would play it for anyone else is ever written into a project or a drag.
+   */
+  url: z.string().min(1).nullable(),
   durationSeconds: z.number().min(0).nullable(),
   sampleRate: z.int().min(1).nullable(),
   channelCount: z.int().min(1).max(2).nullable(),
@@ -115,13 +120,17 @@ const UNSTATED_LICENCE = "unstated";
  * dropped onto a sampler and becoming an asset whose buffer never resolves.
  */
 export function toLibrarySample(asset: LibraryAsset): LibrarySample | null {
-  if (!asset.storageKey || !asset.url) return null;
+  // A factory sound's reference is derived from its delivery key; a user's own
+  // sound (#282) states its storage path outright, since it lives elsewhere.
+  const storageRef =
+    asset.storageRef ?? (asset.storageKey ? assetStorageRef(asset.storageKey) : null);
+  if (!storageRef || !hasAudio(asset)) return null;
   const parsed = librarySampleSchema.safeParse({
     name: asset.name,
     packId: asset.packId,
     packVersion: asset.packVersion,
     kind: asset.type === "loop" ? "loop" : "sample",
-    storageRef: assetStorageRef(asset.storageKey),
+    storageRef,
     url: asset.url,
     durationSeconds: asset.durationSeconds,
     sampleRate: asset.sampleRate,

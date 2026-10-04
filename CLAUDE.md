@@ -54,6 +54,7 @@ src/
 │   │   └── drumMachine.ts       # The drum-machine node: per-pad strips, mute/solo, choke groups, short-lived hits
 │   ├── AudioBufferCache.ts  # Asset buffer cache keyed by ID/revision with stale-load cancellation
 │   ├── toneBufferLoader.ts  # The only Tone-touching asset decode path `AudioBufferCache` uses in production
+│   ├── storedAudio.ts       # The installed source a URL-less asset's bytes are read from (a user's own sound, #282)
 │   ├── Transport.ts         # Play/pause/stop/seek, playhead, tempo mirror, bar loop, metronome
 │   ├── underrun.ts          # Sampled late-dispatch counter behind `audio_underrun`
 │   ├── audioLoopPlayer.ts   # Pitch-preserving time-stretch for a tempo-labelled loop event
@@ -139,6 +140,14 @@ src/
 │   └── schema.ts             # Shared Zod parse helper
 ├── testing/            # Helpers only tests use
 │   └── fixtures.ts          # Browser-safe fixture loading (public/fixtures/*)
+├── userLibrary/        # A producer's own packs (#282): pack model and versions, import, analysis, repository
+│   ├── userPacks.ts         # The pack document schema, version bumps, library read model, missing-sound report
+│   ├── importSound.ts       # Refuse, analyse, upload, then list: never a partial sound
+│   ├── soundAnalysis.ts     # Duration, sample rate, BPM and peaks from a dropped file
+│   ├── userLibraryRepository.ts        # The boundary both stores satisfy (contract in userLibraryRepositoryContract.ts)
+│   ├── inMemoryUserLibraryRepository.ts # Mock/test store
+│   ├── firebaseUserLibraryRepository.ts # Firestore + Cloud Storage store
+│   └── userLibraryClient.ts # Composition root: in-memory (mock) vs Firebase
 ├── userData/           # What a user stores outside projects, under users/{uid}/ (#282)
 │   ├── userData.ts          # The layout, the kinds, the 1 GB per-account cap, the per-file limit, accepted audio types
 │   └── usageLedger.ts       # How the usage total moves on Storage events: idempotent, order-tolerant, refuses over-cap writes
@@ -355,6 +364,7 @@ See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for local setup, the three backends t
 
 2. **Firestore Data Access**
    - All Firestore operations go through the schema-v1 `ProjectRepository` boundary (`src/persistence`), obtained via `getProjectRepository()` (`src/projectRepositoryClient.ts`) — never call `firebase/firestore` directly outside `src/persistence/firestoreProjectRepository.ts`
+   - The one other module allowed to import `firebase/firestore`, and the only one allowed to import `firebase/storage`, is `src/userLibrary/firebaseUserLibraryRepository.ts`: the personal library's packs and audio (#282), behind `UserLibraryRepository` and obtained via `getUserLibraryRepository()`. It never hands out a download URL; audio is read back as the signed-in user with `readAudio`
    - Use `ProjectRepository.watchProject` for the metadata tier's live revision; `EditorSession` wires it into `ProjectAutosave`
    - Security rules enforce owner-based access (see firestore.rules)
 

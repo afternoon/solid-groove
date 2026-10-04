@@ -14,6 +14,9 @@ const baseURL = `http://127.0.0.1:${PORT}`;
  */
 const firestoreEmulatorHost = process.env.FIRESTORE_EMULATOR_HOST ?? "127.0.0.1:8080";
 const authEmulatorHost = process.env.FIREBASE_AUTH_EMULATOR_HOST ?? "127.0.0.1:9099";
+// Personal packs upload their audio here (#282, CF-006).
+const storageEmulatorHost =
+  process.env.FIREBASE_STORAGE_EMULATOR_HOST ?? "127.0.0.1:9199";
 
 // `FND-009`'s emulator-backed browser E2E suite (`tests/e2e/emulator/`).
 //
@@ -91,6 +94,7 @@ export default defineConfig({
       // emulator mode itself — the emulator validates none of them.
       VITE_FIRESTORE_EMULATOR_HOST: firestoreEmulatorHost,
       VITE_AUTH_EMULATOR_HOST: authEmulatorHost,
+      VITE_STORAGE_EMULATOR_HOST: storageEmulatorHost,
     },
   },
   // Each gating browser gets a warm-up project plus the real suite that depends
