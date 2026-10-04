@@ -1,6 +1,7 @@
 import * as Tone from "tone";
 import type { AudioMasterProjection } from "../projection/audioProjection";
 import type { AudioProjectScope } from "./AudioRuntime";
+import { CompensationDelay } from "./compensationDelay";
 import { DeviceChain, type DeviceNodeFactory } from "./DeviceChain";
 import { type DeclaredLatency, dynamicsLookaheadFrames } from "./latency";
 import { SummingBus } from "./summingBus";
@@ -20,8 +21,9 @@ export const MASTER_LIMITER_THRESHOLD_DB = -0.5;
  * How many frames the safety limiter delays everything by (EXP-001, #883).
  * `Tone.Limiter` is a `DynamicsCompressorNode`, so it holds the signal back by
  * the engine's compressor lookahead. Live that is an imperceptible lag behind
- * the playhead; an offline render drops it from the front, so bar 1 is the
- * file's first frame. Declared, like every device's latency, not measured.
+ * the playhead; an offline render drops it from the front, with the rest of
+ * the song's latency (`latencyCompensation.ts`), so bar 1 is the file's first
+ * frame. Declared, like every device's latency, not measured.
  */
 export const masterLimiterLatencyFrames: DeclaredLatency = dynamicsLookaheadFrames;
 
@@ -39,6 +41,10 @@ export class MasterAudioGraph {
   readonly mix: SummingBus;
   private readonly mixHandle: ReturnType<AudioProjectScope["register"]>;
   private readonly deviceChain: DeviceChain;
+  /** Holds an auxiliary source (the metronome) back by the mix's plugin
+   * delay compensation, so it stays on the beat the tracks are on (#883). */
+  private readonly auxAlign: CompensationDelay;
+  private readonly auxAlignHandle: ReturnType<AudioProjectScope["register"]>;
   private readonly volume: Tone.Volume;
   private readonly meter: Tone.Meter;
   private readonly limiter: Tone.Limiter;
@@ -58,6 +64,10 @@ export class MasterAudioGraph {
       this.mix.dispose();
     });
     this.deviceChain = new DeviceChain(scope, createDeviceNode);
+    this.auxAlign = new CompensationDelay();
+    this.auxAlignHandle = scope.register("node", () => {
+      this.auxAlign.dispose();
+    });
     this.volume = new Tone.Volume(0);
     this.volumeHandle = scope.register("node", () => {
       this.volume.dispose();
@@ -80,16 +90,28 @@ export class MasterAudioGraph {
     // tapping the limited signal (a fan-out, not an insert, so it cannot
     // colour it).
     this.mix.output.connect(this.deviceChain.input);
+    this.auxAlign.node.connect(this.deviceChain.input);
     this.deviceChain.output.connect(this.volume);
     this.volume.connect(this.limiter);
     this.limiter.connect(this.meter);
     this.limiter.connect(destination);
   }
 
-  /** Where an auxiliary source (the metronome) connects, after {@link mix}:
-   * a track or a return joins the mix instead. */
+  /** Where an auxiliary source (the metronome) connects, beside {@link mix}
+   * and delayed to match it: a track or a return joins the mix instead. */
   get input(): Tone.ToneAudioNode {
-    return this.deviceChain.input;
+    return this.auxAlign.node;
+  }
+
+  /** Delays the auxiliary input by the frames every compensated path takes to
+   * reach the mix (`LatencyCompensationPlan.mixFrames`). */
+  setLatencyCompensation(mixFrames: number): void {
+    this.auxAlign.set(mixFrames);
+  }
+
+  /** The frames the auxiliary input is held back by. For tests and diagnostics. */
+  get latencyCompensationFrames(): number {
+    return this.auxAlign.compensationFrames;
   }
 
   /**
@@ -122,6 +144,7 @@ export class MasterAudioGraph {
     this.disposed = true;
     void this.scope.release(this.mixHandle);
     this.deviceChain.dispose();
+    void this.scope.release(this.auxAlignHandle);
     void this.scope.release(this.volumeHandle);
     void this.scope.release(this.meterHandle);
     void this.scope.release(this.limiterHandle);

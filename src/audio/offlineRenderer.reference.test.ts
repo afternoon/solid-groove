@@ -170,7 +170,7 @@ describe("offline reference renders: timing and alignment", () => {
     expect(onset(result.channels[1])).toBe(onset(result.channels[0]));
   });
 
-  it("drops the master limiter's pre-delay, and only that, from the front", async () => {
+  it("drops the master limiter's pre-delay from the front", async () => {
     const latency = master.masterLimiterLatencyFrames(RATE);
     expect(Number.isInteger(latency)).toBe(true);
     expect(latency).toBeGreaterThan(0);
@@ -286,6 +286,7 @@ describe("offline reference renders: parity with live playback", () => {
     const projection = buildAudioProjection(project);
     const trackId = project.song.tracks[0].id;
     const graphModule = await import("./ProjectAudioGraph");
+    let liveLatency = Number.NaN;
     // Live: the graph live playback builds — on its default transport, the
     // global one, which is this render's while the callback runs — auditioning
     // the same note now. An audition is an immediate trigger, so it needs no
@@ -304,6 +305,7 @@ describe("offline reference renders: parity with live playback", () => {
           { now: () => 0 },
         );
         graph.reconcile(projection);
+        liveLatency = graph.latencyCompensation?.totalFrames ?? Number.NaN;
         graph.auditionTrack(trackId, { kind: "pitch", pitch: 57 }, 96, 0.8);
       },
       1.5,
@@ -311,7 +313,14 @@ describe("offline reference renders: parity with live playback", () => {
       RATE,
     );
     const offline = await render(project, 2);
-    const latency = master.masterLimiterLatencyFrames(RATE);
+    // Live, the song reaches the output as late as its latency; the render
+    // drops exactly that from its front. The master compressor and the
+    // limiter are both in it.
+    expect(liveLatency).toBe(
+      master.masterLimiterLatencyFrames(RATE) +
+        (await import("./devices")).deviceLatencyFrames("compressor", RATE),
+    );
+    const latency = liveLatency;
     for (const channel of [0, 1]) {
       const heard = live.getChannelData(channel).subarray(latency);
       const rendered = offline.channels[channel];
