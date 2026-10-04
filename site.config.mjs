@@ -55,3 +55,10 @@ export const APP_TITLE = "Groove";
 export function pageTitle(page) {
   return `${page} – ${APP_TITLE}`;
 }
+
+/**
+ * Where someone who is not on the alpha list asks to be let in (#854): the
+ * request-access form. The landing page's Request access button and the "not
+ * on the alpha list" page both link here, and nowhere else writes it down.
+ */
+export const requestAccessUrl = "https://tally.so/r/Zjqyea";

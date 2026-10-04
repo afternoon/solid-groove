@@ -126,36 +126,26 @@ separate errand.
 
 ## Flows
 
-### CF-001 — A visitor with no account reaches a playing loop
+### CF-001 — An invited producer signs in and reaches a playing loop
 
-**Issue:** #304 for this revision (the flow itself pre-dates the register and
-described shipped `FND-009`/`LOOP-010` behavior) · **Suite:**
-`tests/e2e/emulator/flows/CF-001.spec.ts` · **Entrypoint:** the public landing page
+**Issue:** #854 for this revision (the flow itself pre-dates the register and
+described shipped `FND-009`/`LOOP-010` behavior; #304, #496 and #817 revised the
+editor it walks through) · **Suite:** `tests/e2e/emulator/flows/CF-001.spec.ts` ·
+**Entrypoint:** the public landing page
 
-**Rewritten for the three-view shell (#304).** The journey is the one it always
-was — arrive with no account, edit a pattern, hear it — but the editor it walks
-through is being replaced: a project now opens on the arrangement, and the
-pattern is edited in the sequence editor opened from the clip. Parked at
-`test.fixme` until #304's stack lands, which is the only way a flow can describe
-a shell that does not exist yet without reddening `main`. It is the register's
-one flow that was live before this, so getting it back to live is part of what
-#304 is finished by.
+**Rewritten for the alpha allowlist (#854).** This flow used to start with no
+account at all: "Start in your browser" made the visitor a guest. Guest start is
+retired and only an invited Google address can sign in, so steps 2 and 3 are now
+signing in from the landing page and arriving signed in. From creating a project
+onwards the journey is the one it always was: edit the starter pattern and hear
+it. Parked at `test.fixme` until #854's stack lands.
 
-**Revised for #496 (a sampler is a tonal instrument; the drum machine is the
-one-shot player).** The starter project is a drum-machine track, its kick on the
-"BD" pad, so steps 5-7 read the pattern as a pad lane rather than a sampler's
-single lane. The journey is unchanged. Parked at `test.fixme` until #496 lands.
-
-**Revised for #817 (five views on `1`–`5`).** The sequence editor is a view on
-`2`, not a window over the arrangement, so step 6 lands on it and step 7 leaves
-it with `1`. The journey is unchanged. Parked at `test.fixme` until #817's stack
-lands.
-
-**Preconditions:** none. No account, no existing project.
+**Preconditions:** you have been invited: your Google address is on the alpha
+list. You have no projects.
 
 1. Open the landing page.
-2. Choose to start in your browser.
-3. You arrive at the dashboard, signed in as a guest, with no projects yet.
+2. Choose Sign in, and sign in with Google as the invited address.
+3. You arrive at the dashboard, signed in, with no projects yet.
 4. Create a new project.
 5. The project opens on the arrangement, with a four-on-the-floor starter
    pattern sitting on its only track, a drum machine named "BD".
@@ -165,16 +155,17 @@ lands.
    arrangement.
 8. Start playback.
 
-**Outcome:** a visitor who arrived with no account is listening to a loop they
-just edited, and the transport shows it is running.
+**Outcome:** an invited producer who arrived at the front door is signed in and
+listening to a loop they just edited, and the transport shows it is running.
 
 **Out of scope:** that the loop is *audible*. A headless browser records no audio
 and Playwright captures none, so this flow proves the transport starts, not that
 a sound reached a speaker. Playback is asserted in Chromium only — see
 [`docs/testing.md`](./testing.md#playback-is-asserted-in-chromium-only--a-known-tracked-gap)
-and issue #43. Moving between the five views, which is CF-008's subject: this
-flow only ever sees the arrangement and the sequence view. And persistence — it never reloads, and
-CF-004 onwards are where coming back to your work is proved.
+and issue #43. Being refused, which is CF-032's subject. Moving between the five
+views, which is CF-008's subject: this flow only ever sees the arrangement and
+the sequence view. And persistence — it never reloads, and CF-004 onwards are
+where coming back to your work is proved.
 
 ### CF-002 — A producer builds a five-part loop
 
@@ -1360,3 +1351,32 @@ the same panel CF-012 and CF-013 walk through on a track. Several returns, the
 eight-return limit, pre-fader sends, return mute and automation, which are
 covered at the unit and component layers. As in CF-007, undo and redo come
 before the reload because history is session-local.
+
+### CF-032 — A visitor who is not on the alpha list is told so and asks for access
+
+**Issue:** #854 · **Suite:** `tests/e2e/emulator/flows/CF-032.spec.ts` · **Entrypoint:**
+the public landing page
+
+**Preconditions:** a Google account whose address is not on the alpha list.
+
+1. Open the landing page.
+2. Choose Sign in, and sign in with Google as the address that is not on the
+   list.
+3. You are not let in. A page tells you you're not on the alpha list yet, and
+   offers Request access.
+4. Reload the page. You are still not signed in, and the page still says so.
+5. Open your projects page directly. You are not let in there either, and land
+   back on the landing page.
+6. Go back, and follow Request access. The request-access form opens.
+
+**Outcome:** someone the alpha has not invited cannot get in by signing in, is
+told why in plain words rather than shown an error, and is one press away from
+asking for access.
+
+**Out of scope:** what the form asks and where its answers go, which is a third
+party's page (the flow answers its address locally). Being approved afterwards:
+an admin approving the address from the admin page or the `allowlist:add` script
+is covered by the rules and component tests, and CF-001 is what an approved
+address then does. A guest from before the alpha closed upgrading to an address
+that is not on the list, which the same blocking function refuses and is tested
+below the browser.
