@@ -12,9 +12,7 @@ import {
 } from "solid-js";
 import { pageTitle } from "../../site.config.mjs";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
-import ArrangementView, {
-  type PlacementEditingActions,
-} from "../arrangement/ArrangementView";
+import ArrangementView from "../arrangement/ArrangementView";
 import { getAudioRuntime } from "../audio/AudioRuntime";
 import { provideStoredAudio } from "../audio/storedAudio";
 import { type CapabilityReport, FULLY_CAPABLE } from "../browser/capabilities";
@@ -24,7 +22,7 @@ import { ControlRegistryContext } from "../controls/control";
 import { createControlRegistry } from "../controls/registry";
 import type { NoteTrigger, Project } from "../domain/entities";
 import { createFactoryContext } from "../domain/factories";
-import type { EventId, PlacementId } from "../domain/ids";
+import type { PlacementId } from "../domain/ids";
 import { TICKS_PER_QUARTER } from "../domain/time";
 import {
   type SampleSlotTargeting,
@@ -72,16 +70,14 @@ import Mixer from "./Mixer";
 import NewTrackButtons from "./NewTrackButtons";
 import ProjectLoadStates from "./ProjectLoadStates";
 import { selectedPadOf } from "./padSelection";
-import type { PianoRollActions } from "./pianoRoll/rollActions";
 import SequenceEditor from "./SequenceEditor";
-import { deleteSelectedNotes } from "./StepEditor";
-import { noteEventsOf, playbackStep as playbackStepOf } from "./stepEditorModel";
 import {
   type AddTrackHost,
   addTrackOfKind,
   type NewTrackKindSpec,
 } from "./trackCreation";
 import { deleteTrack, type TrackDeletionContext } from "./trackDeletion";
+import { useEditingSurfaces } from "./useEditingSurfaces";
 import { useEditorNavigation } from "./useEditorNavigation";
 import { useEditorSession } from "./useEditorSession";
 import { useEditorShortcuts } from "./useEditorShortcuts";
@@ -213,24 +209,6 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   });
   const { selectView } = navigation;
 
-  // The piano roll owns its own note selection, but the KEY-01 registry — not
-  // the roll — dispatches delete/duplicate/select-all. The roll hands its
-  // operations up through `registerActions`; this holds them so the shortcut
-  // handlers below can call them.
-  const [pianoRollActions, setPianoRollActions] = createSignal<PianoRollActions | null>(
-    null,
-  );
-  // The arrangement's placement-editing controller (ARR-002), lifted here the
-  // same way so the KEY-01 registry — not the arrangement view — dispatches
-  // cut/copy/paste/delete/duplicate.
-  const [arrangementEditingActions, setArrangementEditingActions] =
-    createSignal<PlacementEditingActions | null>(null);
-  // Whether the ruler's loop brace has keyboard focus, lifted so the registry's
-  // `loop_brace` context can follow it (`LOOP-018`).
-  const [loopBraceFocused, setLoopBraceFocused] = createSignal(false);
-  // The step editor's note selection, lifted here so the `edit.delete` shortcut
-  // can remove the same notes the grid shows highlighted (PRD KEY-01/CLP-02).
-  const [selectedNoteIds, setSelectedNoteIds] = createSignal<readonly EventId[]>([]);
   // The Export dialog is a modal over the editor, so the editor's keys stand down.
   const [exportOpen, setExportOpen] = createSignal(false);
 
@@ -321,6 +299,23 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     },
   };
 
+  // What the editing surfaces hand up so the shortcut layer can act on them.
+  const {
+    pianoRollActions,
+    setPianoRollActions,
+    arrangementEditingActions,
+    setArrangementEditingActions,
+    setLoopBraceFocused,
+    loopBraceFocused,
+    selectedNoteIds,
+    setSelectedNoteIds,
+    editorPlaybackStep,
+    showPianoRoll,
+    deleteSelection,
+    selectAllSteps,
+    hasArrangementSelection,
+  } = useEditingSurfaces({ opened, audio, session });
+
   // The arrangement's own selection, kept while another view is on screen:
   // the arrangement is rebuilt on the way back and starts from it, so the
   // clip you selected is still highlighted (`UI-002`). Read only on mount, so
@@ -393,51 +388,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   });
   onCleanup(() => editorControls.dispose());
   props.onControlsReady?.(editorControls);
-  /** The clip being programmed: the opened one, not the selection's. */
-  const clip = createMemo(() => opened()?.clip ?? null);
-
-  // The step editor's live playback-step indicator (CLP-02): which 16th step of
-  // the edited clip the playhead is currently passing, wrapped within the clip's
-  // bars, or null when stopped.
-  const editorPlaybackStep = createMemo(() => {
-    const currentClip = clip();
-    if (!currentClip) return null;
-    return playbackStepOf(currentClip, audio.positionTicks(), audio.isPlaying());
-  });
-
-  function deleteSelection(): void {
-    const currentClip = clip();
-    if (!currentClip) return;
-    deleteSelectedNotes(currentClip, selectedNoteIds(), session.dispatch);
-    setSelectedNoteIds([]);
-  }
-
-  /** The step grid's Select all (#835): every note in the open clip. */
-  function selectAllSteps(): (() => void) | undefined {
-    const currentClip = clip();
-    if (!currentClip) return undefined;
-    return () => setSelectedNoteIds(noteEventsOf(currentClip).map((note) => note.id));
-  }
-
   const instrument = createMemo(() => model.editedInstrument(track()));
-  const showPianoRoll = createMemo(() =>
-    model.showPianoRoll(opened()?.track ?? null, clip()),
-  );
-
-  // Plain function, not a memo: `hasSelection()` reads the controller's
-  // internal (non-signal) state, so this must be re-evaluated live on every
-  // call — the same reason `pianoRollActions()?.hasSelection()` is called
-  // directly rather than memoized elsewhere in this file.
-  //
-  // Deliberately *not* gated on `showPianoRoll()` (#258). `showPianoRoll()`
-  // says which editor is mounted *below* the arrangement, not which surface
-  // has focus, and the arrangement is on screen either way — so gating on it
-  // made a placement selected on a synth track invisible to the shortcut
-  // layer and undeletable. Which surface a selection-scoped shortcut acts on
-  // is `useEditorShortcuts`' to decide, from the selections that exist.
-  const hasArrangementSelection = (): boolean =>
-    arrangementEditingActions()?.hasSelection() ?? false;
-
   // The assistant's panel (#849): where it is and how big, remembered on this
   // device. One per editor, shared by the panel, the header's button and the
   // shortcut layer.
