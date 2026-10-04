@@ -1,0 +1,18 @@
+{
+  "id": "a854",
+  "title": "Alpha-only access",
+  "steps": [
+    {
+      "file": "01-the-landing-page-request-access-and-sign.png",
+      "caption": "The landing page: Request access and Sign in"
+    },
+    {
+      "file": "02-a-refused-sign-in-not-on-the-alpha-list-.png",
+      "caption": "A refused sign-in: not on the alpha list yet, with Request access"
+    },
+    {
+      "file": "03-admin-a-pasted-batch-approved-in-one-go-.png",
+      "caption": "Admin: a pasted batch approved in one go, with what did not parse"
+    }
+  ]
+}
