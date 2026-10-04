@@ -14,7 +14,12 @@ import {
   shortcutsInContext,
 } from "./registry";
 import type { ShortcutContext } from "./types";
-import { MODAL_OWNED_CONTEXTS, SHORTCUT_CONTEXTS, SHORTCUT_GROUPS } from "./types";
+import {
+  FOCUS_CONTEXTS,
+  MODAL_OWNED_CONTEXTS,
+  SHORTCUT_CONTEXTS,
+  SHORTCUT_GROUPS,
+} from "./types";
 
 const PLATFORMS: readonly ShortcutPlatform[] = ["mac", "other"];
 
@@ -144,6 +149,8 @@ describe("conflict rules", () => {
     // Cmd/Ctrl+D bookmarks the page. The PRD mapping wins, but only with the
     // override written down.
     expect(shortcutById("edit.duplicate").browserConflict?.note).toMatch(/bookmark/i);
+    // Ctrl+K focuses the browser's search box on Windows and Linux (#849).
+    expect(shortcutById("assistant.toggle").browserConflict?.note).toMatch(/search box/i);
   });
 
   /** Every shortcut another one in the same active set would also match. */
@@ -192,6 +199,8 @@ describe("conflict rules", () => {
           // `library` is only ever active beside `dialog` (see the live sets
           // below), so a pair that pairs it with anything else is not a screen.
           if (MODAL_OWNED_CONTEXTS.some((c) => c === first || c === second)) continue;
+          // One element has focus, so two focus contexts are never live together.
+          if (FOCUS_CONTEXTS.includes(first) && FOCUS_CONTEXTS.includes(second)) continue;
           expect(
             ambiguousIn([first, second], platform),
             `ambiguous in ${first}+${second} on ${platform}`,
@@ -218,6 +227,15 @@ describe("conflict rules", () => {
       ["library"],
       ["dialog", "export_tracks"],
       ["editor", "gesture"],
+      ["editor", "step_editor", "resize_edge"],
+      [
+        "editor",
+        "step_editor",
+        "piano_roll",
+        "selection",
+        "sequence_editor",
+        "resize_edge",
+      ],
     ];
     for (const platform of PLATFORMS) {
       for (const active of LIVE_CONTEXT_SETS) {
@@ -319,6 +337,7 @@ describe("context resolution", () => {
         loop_brace: { key: "arrowleft", id: "arrangement.loop_move_earlier" },
         value_field: { key: "arrowup", id: "value.nudge_up" },
         export_tracks: { key: "arrowup", id: "export.focus_previous" },
+        resize_edge: { key: "arrowup", id: "assistant.grow" },
       };
     for (const context of SHORTCUT_CONTEXTS) {
       const probe = expected[context];
@@ -421,5 +440,48 @@ describe("guide sections", () => {
         "value.nudge_up",
       );
     });
+  });
+});
+
+describe("the assistant's keys (#849)", () => {
+  const press = (key: string, extra: Partial<ChordEvent> = {}) =>
+    ({
+      key,
+      shiftKey: false,
+      ctrlKey: false,
+      metaKey: false,
+      altKey: false,
+      ...extra,
+    }) as ChordEvent;
+
+  it("toggles the assistant with Cmd+K on a Mac and Ctrl+K elsewhere", () => {
+    expect(matchShortcut(press("k", { metaKey: true }), "mac", ["editor"])?.id).toBe(
+      "assistant.toggle",
+    );
+    expect(matchShortcut(press("k", { ctrlKey: true }), "other", ["editor"])?.id).toBe(
+      "assistant.toggle",
+    );
+    expect(shortcutLabel("assistant.toggle", "mac")).toBe("Cmd+K");
+    expect(shortcutLabel("assistant.toggle", "other")).toBe("Ctrl+K");
+    // A modal takes the keyboard: Ctrl+K does nothing under it.
+    expect(
+      matchShortcut(press("k", { ctrlKey: true }), "other", ["dialog", "editor"]),
+    ).toBeUndefined();
+  });
+
+  it("resizes from a focused edge, in place of what the arrows mean behind it", () => {
+    const edge: readonly ShortcutContext[] = ["editor", "step_editor", "resize_edge"];
+    const id = (key: string, shiftKey = false) =>
+      matchShortcut(press(key, { shiftKey }), "other", edge)?.id;
+    expect(id("ArrowUp")).toBe("assistant.grow");
+    expect(id("ArrowLeft")).toBe("assistant.grow");
+    expect(id("ArrowDown")).toBe("assistant.shrink");
+    expect(id("ArrowRight")).toBe("assistant.shrink");
+    expect(id("ArrowUp", true)).toBe("assistant.grow_more");
+    expect(id("ArrowRight", true)).toBe("assistant.shrink_more");
+    // Unfocused, the arrows keep their editor meaning.
+    expect(matchShortcut(press("ArrowUp"), "other", ["editor"])?.id).toBe(
+      "track.select_previous",
+    );
   });
 });

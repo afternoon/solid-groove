@@ -17,6 +17,12 @@
   --view-dock-clearance: 120px;
   /* What the sticky header covers at the top of a scrolling view. */
   --editor-header-height: 40px;
+  /* The assistant's docked column (#849): the width the editor's views leave
+     free at the right edge, under the header. It is zero unless the assistant
+     is docked, and only the editor's own layout reads it (the body, the view
+     dock and the working windows over the views), so no view knows the panel
+     exists. */
+  --assistant-dock-space: 0px;
 
   width: 100vw;
   height: 100vh;
@@ -416,6 +422,16 @@
   gap: var(--size-divider);
   flex: 1 1 auto;
   min-height: 0;
+  /* Room for the docked assistant (#849); zero otherwise. */
+  margin-right: var(--assistant-dock-space);
+}
+
+/* A working window over a view (a jumbo dialog) stops
+   at the docked assistant's edge too, so nothing is under the column. A modal
+   dialog (Export, the library) does not: it covers the whole window, the
+   column included, because while it is open nothing else may be reached. */
+.editor .dialog-backdrop-jumbo {
+  right: var(--assistant-dock-space);
 }
 
 /* The Instrument and Mixer views (UI-001). Only one view is on the page at a

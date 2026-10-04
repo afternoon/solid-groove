@@ -479,6 +479,11 @@ export const SHORTCUT_ACTION_IDS = [
   "export.extend_next",
   "export.toggle_focused",
   "export.pick_all",
+  "assistant.toggle",
+  "assistant.grow",
+  "assistant.shrink",
+  "assistant.grow_more",
+  "assistant.shrink_more",
 ] as const;
 export type ShortcutActionId = (typeof SHORTCUT_ACTION_IDS)[number];
 
