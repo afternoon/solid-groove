@@ -113,6 +113,18 @@ describe("the catalog and the scrubbing rules stay vendor-free", () => {
   // whole surface, including events and breadcrumbs later tasks add.
   const VENDOR_FREE = [
     join("analytics", "catalog.ts"),
+    join("analytics", "catalog", "app.ts"),
+    join("analytics", "catalog", "arrangement.ts"),
+    join("analytics", "catalog", "assistant.ts"),
+    join("analytics", "catalog", "audio.ts"),
+    join("analytics", "catalog", "clips.ts"),
+    join("analytics", "catalog", "editing.ts"),
+    join("analytics", "catalog", "export.ts"),
+    join("analytics", "catalog", "library.ts"),
+    join("analytics", "catalog", "navigation.ts"),
+    join("analytics", "catalog", "params.ts"),
+    join("analytics", "catalog", "project.ts"),
+    join("analytics", "catalog", "tracks.ts"),
     join("analytics", "buckets.ts"),
     join("analytics", "errorCodes.ts"),
     join("analytics", "consent.ts"),
