@@ -40,15 +40,14 @@ const DEVICE_GROUPS: Readonly<
     ["Colour", ["filter"]],
     ["Mix", ["wet", "output"]],
   ],
-  // One bank per band, low to high: its switch, then where and how much.
+  // Per band, low to high: its switch, then where and how much. The switch
+  // stands in a bank of its own, as every mode does, so the faders beside it
+  // keep their pitch; the EQ's faceplate shows one band's banks at a time.
   eq: [
-    ...EQ_BANDS.map(
-      (band) =>
-        [
-          band.label,
-          [`${band.id}On`, `${band.id}Freq`, `${band.id}Gain`, `${band.id}Q`],
-        ] as const,
-    ),
+    ...EQ_BANDS.flatMap((band) => [
+      ["Band", [`${band.id}On`]] as const,
+      [band.label, [`${band.id}Freq`, `${band.id}Gain`, `${band.id}Q`]] as const,
+    ]),
     ["Mix", ["output"]],
   ],
 };

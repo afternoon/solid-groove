@@ -1,0 +1,107 @@
+/* The EQ's faceplate (LOOP-022, #447): its curve in a well across the left
+   seven of twelve columns, and the band being edited beside it — the band
+   strip over that band's banks. The well is wider than other devices' because
+   the curve is where an EQ is played. */
+
+.eq-faceplate {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 12px;
+  align-items: stretch;
+}
+
+.eq-faceplate > .eq-well {
+  grid-column: span 7;
+}
+
+.eq-editor {
+  grid-column: span 5;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.eq-well .well-screen {
+  min-height: 160px;
+}
+
+/* 0 dB is the line a band leaves from, so it reads above the other grid. */
+.eq-well .eq-zero {
+  stroke: var(--color-border-strong);
+}
+
+/* A band's handle: its short name in a square, at its frequency and gain. The
+   band being edited is the brightest thing on the curve; a band switched out
+   recedes but stays where it is, ready to drag back in. */
+.eq-handle {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 3px;
+  border: 1px solid var(--color-accent);
+  background-color: var(--color-background);
+  color: var(--color-text);
+  font-size: var(--font-size-micro);
+  font-style: normal;
+  font-weight: 600;
+  line-height: 1;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+
+.eq-handle.off {
+  border-color: var(--color-border-strong);
+  color: var(--color-foreground-muted);
+}
+
+.eq-handle.active {
+  z-index: 1;
+  border-color: var(--color-accent);
+  background-color: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+/* Which band the controls below show: one choice of six, in a row. */
+.eq-bands {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  border: none;
+  min-width: 0;
+}
+
+.eq-band {
+  display: grid;
+  place-items: center;
+  height: 28px;
+  background-color: var(--color-background-tertiary);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+}
+
+.eq-band:hover {
+  background-color: var(--color-background-hover);
+}
+
+.eq-band.off {
+  color: var(--color-foreground-muted);
+}
+
+.eq-band.active {
+  background-color: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.eq-band:focus-within {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 1px;
+}

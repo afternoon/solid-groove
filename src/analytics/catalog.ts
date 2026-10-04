@@ -329,8 +329,10 @@ export const FEATURE_KEYS = [
   // account, and signing out.
   "log_in",
   "sign_out",
-  // The first EQ added to any chain (LOOP-022).
+  // The first EQ added to any chain, and the first band dragged on an EQ's
+  // curve (LOOP-022).
   "eq_device",
+  "eq_curve",
 ] as const;
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
 
