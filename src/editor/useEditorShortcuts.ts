@@ -1,6 +1,7 @@
 import type { Accessor } from "solid-js";
-import type { PlacementEditingActions } from "../arrangement/ArrangementView";
-import type { EventId } from "../domain/ids";
+import type { Analytics } from "../analytics/analytics";
+import type { Project } from "../domain/entities";
+import type { PlacementId } from "../domain/ids";
 import { focusKeepsKey, SOUNDS_KEY_ACTIONS } from "../library/soundKeys";
 import {
   type ShortcutContext,
@@ -12,73 +13,38 @@ import { isTextEntry } from "../shortcuts/textEntry";
 import { arrangementHasFocus } from "./arrangementFocus";
 import { RESIZE_STEP, RESIZE_STEP_LARGE } from "./assistant/assistantPanelLayout";
 import type { AssistantPanel } from "./assistant/useAssistantPanel";
+import * as model from "./editorViewModel";
 import type { EditorViewName } from "./editorViews";
 import type { LibraryActions } from "./LibraryModal";
 import type { PianoRollActions } from "./pianoRoll/rollActions";
+import { deleteTrack, type TrackDeletionContext } from "./trackDeletion";
+import type { EditingSurfaces } from "./useEditingSurfaces";
+import type { EditorNavigation } from "./useEditorNavigation";
 import type { UseEditorSessionResult } from "./useEditorSession";
+import type { LibraryTargeting } from "./useLibraryTarget";
 import type { ProjectAudioControls } from "./useProjectAudio";
+import type { SongControls } from "./useSongControls";
+import type { TrackSelection } from "./useTrackSelection";
 import { focusedValueField } from "./valueFieldFocus";
 
 export interface UseEditorShortcutsOptions {
+  /** The view on screen, which comes from the URL (`UI-001`). */
+  readonly view: Accessor<EditorViewName>;
+  readonly project: Accessor<Project | null>;
   readonly audio: ProjectAudioControls;
   readonly session: UseEditorSessionResult;
-  readonly showPianoRoll: Accessor<boolean>;
-  readonly pianoRollActions: Accessor<PianoRollActions | null>;
-  readonly selectedNoteIds: Accessor<readonly EventId[]>;
-  readonly deleteSelection: () => void;
-  /** Selects every note in the clip the step grid shows (#835): `undefined`
-   * when there is no clip to select in. */
-  readonly selectAllSteps: () => (() => void) | undefined;
+  readonly analytics: Accessor<Analytics>;
+  readonly navigation: EditorNavigation;
+  readonly selection: TrackSelection;
+  readonly library: LibraryTargeting;
+  readonly song: SongControls;
+  readonly surfaces: EditingSurfaces;
+  /** Selects a placement's clip and goes to the sequence view with it. */
+  readonly openPlacement: (placementId: PlacementId) => void;
   readonly guideOpen: Accessor<boolean>;
   readonly setGuideOpen: (open: boolean) => void;
   /** Whether the Export dialog is open (`EXP-004`): a modal, so it takes the keyboard. */
   readonly exportOpen: Accessor<boolean>;
-  /** Whether the Library view (`UI-002`) is on screen. */
-  readonly libraryOpen: Accessor<boolean>;
-  /** Where Enter goes once its insert has committed: the instrument. */
-  readonly returnFromInsert: () => void;
-  /** The open library modal's actions (`LIB-010`), or null while it is closed. */
-  readonly libraryActions: Accessor<LibraryActions | null>;
-  /** The arrangement's placement-editing operations (ARR-002), lifted from
-   * `ArrangementView` the same way `pianoRollActions` is lifted from the
-   * piano roll. */
-  readonly arrangementEditingActions: Accessor<PlacementEditingActions | null>;
-  /** Whether the arrangement currently has a placement selection — gates the
-   * `arrangement` shortcut context, mirroring how `selection` is only added
-   * while the piano roll shows a selection. Live whichever editor is mounted
-   * below the arrangement, because the arrangement is on screen either way
-   * (#258). */
-  readonly hasArrangementSelection: () => boolean;
-  /** Switches the editor to a view (`UI-001`), through the same path the dock
-   * takes — so the view keys and the dock cannot reach different states. */
-  readonly selectView: (view: EditorViewName) => void;
-  /** Whether the sequence view (`UI-002`) is on screen with a clip in it. */
-  readonly sequenceEditorOpen: () => boolean;
-  /** Opens the arrangement's one selected clip in the sequence view, for
-   * `Enter` (`UI-002`): `undefined` unless exactly one clip is selected. */
-  readonly openSelectedClip: () => (() => void) | undefined;
-  /** Flips whether the transport obeys the song's loop brace (`LOOP-018`),
-   * through the same command path as the header's loop button. */
-  readonly toggleLooping: () => void;
-  /** Whether the ruler's loop brace has keyboard focus (`LOOP-018`). Turns the
-   * `loop_brace` context on, so `Left`/`Right` (and their `Shift` forms) move
-   * and resize the brace instead of meaning what they do elsewhere. */
-  readonly loopBraceFocused: Accessor<boolean>;
-  /** Move the brace by whole bars; a resize moves its end edge. Each is one
-   * command through the same path as a drag. */
-  readonly moveLoop: (bars: number) => void;
-  readonly resizeLoop: (bars: number) => void;
-  /** The track selection's `-1`/`+1` step (`track.select_previous`/`_next`):
-   * `undefined` when there is no track that way (the ends, or a view where the
-   * arrows keep another meaning), so the key is left to the browser. */
-  readonly adjacentTrack: (by: -1 | 1) => (() => void) | undefined;
-  /** Deletes the selected track (#537): `undefined` where a track is not the
-   * selection (the mixer, the sequence editor, an empty project). */
-  readonly deleteSelectedTrack: () => (() => void) | undefined;
-  /** Drops the user's choice of track (#960), so Delete no longer removes it:
-   * `undefined` while no track is chosen. Escape and any Delete that removes
-   * something inside the track call it. */
-  readonly dropTrackChoice: () => (() => void) | undefined;
   /** The assistant panel (#849): Cmd/Ctrl+K, Escape inside it, and its
    * resize edge's arrows. */
   readonly assistant: Pick<
@@ -103,10 +69,12 @@ const focusPressesEnter = (): boolean =>
  * Installs the editor's PRD `KEY-01` shortcut mapping: which actions this
  * slice implements, what each does, and which contexts are active.
  *
- * Split out of `EditorView` (`REFACTOR-001`) as a plain function of the same
- * dependencies `EditorView` already held (audio controls, session, the piano
- * roll's lifted state, the guide/pack-browser open signals) — not a
- * registration seam a panel contributes to. The issue's suggested "panel
+ * Split out of `EditorView` (`REFACTOR-001`) as a plain function of the
+ * editor's own hooks (#1035): its navigation, track selection, Library
+ * target, song controls and editing surfaces, taken whole rather than as
+ * loose callbacks, so the rules a key follows (which track the arrows step
+ * to, which track Delete may remove) live here — not a registration seam a
+ * panel contributes to. The issue's suggested "panel
  * registers its own context/handlers" seam would need each panel to publish
  * handlers the shortcut controller aggregates, which is a real architecture
  * change (today nothing but `EditorView` calls `useShortcuts`, and every
@@ -120,33 +88,83 @@ const focusPressesEnter = (): boolean =>
  */
 export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
   const {
+    view,
+    project,
     audio,
     session,
+    selection,
+    guideOpen,
+    setGuideOpen,
+    exportOpen,
+    assistant,
+  } = options;
+  const {
     showPianoRoll,
     pianoRollActions,
     selectedNoteIds,
     deleteSelection,
     selectAllSteps,
-    guideOpen,
-    setGuideOpen,
-    exportOpen,
-    libraryOpen,
-    returnFromInsert,
-    libraryActions,
     arrangementEditingActions,
     hasArrangementSelection,
-    selectView,
-    sequenceEditorOpen,
-    openSelectedClip,
-    toggleLooping,
     loopBraceFocused,
-    moveLoop,
-    resizeLoop,
-    adjacentTrack,
-    deleteSelectedTrack,
-    dropTrackChoice,
-    assistant,
-  } = options;
+  } = options.surfaces;
+  const { toggleLoop: toggleLooping, moveLoop, resizeLoop } = options.song;
+
+  /** Whether the Library view (`UI-002`) is on screen. */
+  const libraryOpen = options.library.isOpen;
+  /** Where Enter goes once its insert has committed: the instrument. */
+  const returnFromInsert = () => options.library.returnFromInsert("keyboard");
+  /** The open library modal's actions (`LIB-010`), or null while it is closed. */
+  const libraryActions = options.library.actions;
+  // `1`-`5` reach the same `selectView` the dock does, so the two
+  // entrypoints cannot drift into different states (CF-008).
+  const selectView = (next: EditorViewName) =>
+    options.navigation.selectView(next, "keyboard");
+  /** Whether the sequence view (`UI-002`) is on screen with a clip in it. */
+  const sequenceEditorOpen = () => view() === "sequence" && selection.opened() !== null;
+  /** Opens the arrangement's one selected clip in the sequence view, for
+   * `Enter` (`UI-002`): `undefined` unless exactly one clip is selected. */
+  const openSelectedClip = () => {
+    const ids = arrangementEditingActions()?.getSelection() ?? [];
+    return ids.length === 1 ? () => options.openPlacement(ids[0]) : undefined;
+  };
+  /** The track selection's `-1`/`+1` step (`track.select_previous`/`_next`):
+   * `undefined` when there is no track that way (the ends, or a view where the
+   * arrows keep another meaning), so the key is left to the browser. The mixer
+   * keeps the arrows: its strips are moved with them (#447). */
+  const adjacentTrack = (by: -1 | 1) => {
+    if (view() === "mixer") return undefined;
+    const id = model.adjacentTrackId(project(), selection.selectedTrackId(), by);
+    return id ? () => selection.chooseTrack(id) : undefined;
+  };
+  const trackDeletion: TrackDeletionContext = {
+    project,
+    dispatch: (commands) => session.dispatch(commands),
+    select: selection.selectTrack,
+    get analytics() {
+      return options.analytics();
+    },
+  };
+  /** Deletes the selected track (#537): `undefined` where a track is not the
+   * selection. Backspace on the selected track works where its header's trash
+   * button is: not the mixer, and not in the sequence view. Only a track the
+   * user chose through its header (#960) — not the first-track fallback, and
+   * not one a lane click, a clip click or a deleted clip left selected — so a
+   * slip never takes a whole track. Nor in the instrument view's return mode,
+   * where the track is not on screen at all (#386). */
+  const deleteSelectedTrack = () => {
+    const id = selection.deletableTrackId();
+    if (view() === "mixer" || view() === "sequence" || id === null) return undefined;
+    if (view() === "instrument" && selection.selectedReturn() !== null) return undefined;
+    if (!project()?.song.tracks.some((candidate) => candidate.id === id))
+      return undefined;
+    return () => deleteTrack(trackDeletion, id);
+  };
+  /** Drops the user's choice of track (#960), so Delete no longer removes it:
+   * `undefined` while no track is chosen. Escape and any Delete that removes
+   * something inside the track call it. */
+  const dropTrackChoice = () =>
+    selection.deletableTrackId() === null ? undefined : selection.dropTrackChoice;
 
   /**
    * Which surface a selection-scoped edit acts on right now (#258).

@@ -76,7 +76,6 @@ import {
   addTrackOfKind,
   type NewTrackKindSpec,
 } from "./trackCreation";
-import { deleteTrack, type TrackDeletionContext } from "./trackDeletion";
 import { useEditingSurfaces } from "./useEditingSurfaces";
 import { useEditorNavigation } from "./useEditorNavigation";
 import { useEditorSession } from "./useEditorSession";
@@ -277,9 +276,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   });
   const {
     selectTrack,
-    chooseTrack,
     selectTrackFrom,
-    selectedTrackId,
     deletableTrackId,
     opened,
     selectPlacement,
@@ -290,31 +287,18 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     selectedReturn,
     selectReturn,
   } = trackSelection;
-  const trackDeletion: TrackDeletionContext = {
-    project,
-    dispatch: (commands) => session.dispatch(commands),
-    select: selectTrack,
-    get analytics() {
-      return props.analytics ?? defaultAnalytics;
-    },
-  };
 
   // What the editing surfaces hand up so the shortcut layer can act on them.
+  const surfaces = useEditingSurfaces({ opened, audio, session });
   const {
-    pianoRollActions,
     setPianoRollActions,
-    arrangementEditingActions,
     setArrangementEditingActions,
     setLoopBraceFocused,
-    loopBraceFocused,
     selectedNoteIds,
     setSelectedNoteIds,
     editorPlaybackStep,
     showPianoRoll,
-    deleteSelection,
-    selectAllSteps,
-    hasArrangementSelection,
-  } = useEditingSurfaces({ opened, audio, session });
+  } = surfaces;
 
   // The arrangement's own selection, kept while another view is on screen:
   // the arrangement is rebuilt on the way back and starts from it, so the
@@ -398,57 +382,21 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     assistant.layout().mode === "docked" ? `${assistant.layout().width}px` : "0px";
 
   const { shortcuts, editorContexts, keyHint } = useEditorShortcuts({
-    assistant,
+    view: () => props.view,
+    project,
     audio,
     session,
-    showPianoRoll,
-    pianoRollActions,
-    selectedNoteIds,
-    deleteSelection,
-    selectAllSteps,
+    analytics,
+    navigation,
+    selection: trackSelection,
+    library,
+    song,
+    surfaces,
+    openPlacement,
     guideOpen,
     setGuideOpen,
     exportOpen,
-    libraryOpen: library.isOpen,
-    returnFromInsert: () => library.returnFromInsert("keyboard"),
-    libraryActions: library.actions,
-    arrangementEditingActions,
-    hasArrangementSelection,
-    // `1`-`5` reach the same `selectView` the dock does, so the two
-    // entrypoints cannot drift into different states (CF-008).
-    selectView: (view) => selectView(view, "keyboard"),
-    sequenceEditorOpen: () => props.view === "sequence" && opened() !== null,
-    openSelectedClip: () => {
-      const ids = arrangementEditingActions()?.getSelection() ?? [];
-      return ids.length === 1 ? () => openPlacement(ids[0]) : undefined;
-    },
-    toggleLooping: song.toggleLoop,
-    loopBraceFocused,
-    moveLoop: song.moveLoop,
-    resizeLoop: song.resizeLoop,
-    // The mixer keeps the arrows: its strips are moved with them (#447).
-    adjacentTrack: (by) => {
-      if (props.view === "mixer") return undefined;
-      const id = model.adjacentTrackId(project(), selectedTrackId(), by);
-      return id ? () => chooseTrack(id) : undefined;
-    },
-    // Backspace on the selected track (#537), where its header's trash button
-    // is: not the mixer, and not in the sequence view. Only a track the user
-    // chose through its header (#960) — not the first-track fallback, and not
-    // one a lane click, a clip click or a deleted clip left selected — so a
-    // slip never takes a whole track. Nor in the instrument view's return
-    // mode, where the track is not on screen at all (#386).
-    deleteSelectedTrack: () => {
-      const id = deletableTrackId();
-      if (props.view === "mixer" || props.view === "sequence" || id === null)
-        return undefined;
-      if (props.view === "instrument" && selectedReturn() !== null) return undefined;
-      if (!project()?.song.tracks.some((candidate) => candidate.id === id))
-        return undefined;
-      return () => deleteTrack(trackDeletion, id);
-    },
-    dropTrackChoice: () =>
-      deletableTrackId() === null ? undefined : trackSelection.dropTrackChoice,
+    assistant,
   });
 
   /** An empty screen's way out: a view, named and keyed as the dock names it. */
