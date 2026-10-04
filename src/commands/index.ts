@@ -13,7 +13,9 @@
  * repository, and the assistant all sit outside it.
  */
 
+export * from "./controlAddress";
 export * from "./controlGesture";
+export * from "./controls";
 export * from "./definitions/assets";
 export * from "./definitions/clips";
 export * from "./definitions/deviceChains";

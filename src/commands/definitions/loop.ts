@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Project, SongLoop } from "../../domain/entities";
 import { TICKS_PER_BAR, type Ticks, tickSchema } from "../../domain/time";
+import { CONTROL_PARTS, controlAddress, SONG_ENTITY } from "../controlAddress";
 import { withSong } from "../projectEdits";
 import {
   applied,
@@ -52,6 +53,7 @@ export const loopSetRangeCommand = defineCommand<LoopSetRangePayload>({
   type: "loop.setRange",
   version: 1,
   schema: loopSetRangePayloadSchema,
+  touches: () => [controlAddress(SONG_ENTITY, CONTROL_PARTS.loop)],
   summarize: (payload) => `Loop ${describeBars(payload.startTicks, payload.endTicks)}`,
   apply(project, payload) {
     return applied(
@@ -71,6 +73,7 @@ export const loopSetEnabledCommand = defineCommand<LoopSetEnabledPayload>({
   type: "loop.setEnabled",
   version: 1,
   schema: loopSetEnabledPayloadSchema,
+  touches: () => [controlAddress(SONG_ENTITY, CONTROL_PARTS.loop)],
   summarize: (payload) => (payload.enabled ? "Turn looping on" : "Turn looping off"),
   apply(project, payload) {
     return applied(withLoop(project, { ...project.song.loop, enabled: payload.enabled }));

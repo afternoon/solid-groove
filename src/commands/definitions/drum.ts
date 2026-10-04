@@ -27,6 +27,7 @@ import {
   TRACK_PAN,
   TRACK_VOLUME,
 } from "../../domain/parameters";
+import { CONTROL_PARTS, controlAddress, parameterControl } from "../controlAddress";
 import {
   findTrack,
   noteEventsOf,
@@ -101,6 +102,7 @@ export const drumSetPadAssetCommand = defineCommand<DrumSetPadAssetPayload>({
   type: "drum.setPadAsset",
   version: 1,
   schema: drumSetPadAssetPayloadSchema,
+  touches: (payload) => [controlAddress(payload.padId, CONTROL_PARTS.sample)],
   summarize(payload, project) {
     const label = trackLabel(project, payload.trackId);
     return payload.assetId
@@ -146,6 +148,7 @@ export const drumRenamePadCommand = defineCommand<DrumRenamePadPayload>({
   type: "drum.renamePad",
   version: 1,
   schema: drumRenamePadPayloadSchema,
+  touches: (payload) => [controlAddress(payload.padId, CONTROL_PARTS.name)],
   summarize: (payload, project) =>
     `Rename a pad of track ${trackLabel(project, payload.trackId)}`,
   apply(project, payload) {
@@ -186,6 +189,7 @@ export const drumSetPadFlagCommand = defineCommand<DrumSetPadFlagPayload>({
   type: "drum.setPadFlag",
   version: 1,
   schema: drumSetPadFlagPayloadSchema,
+  touches: (payload) => [controlAddress(payload.padId, payload.flag)],
   summarize: (payload, project) =>
     `${payload.value ? "Enable" : "Disable"} pad ${
       payload.flag === "muted" ? "mute" : "solo"
@@ -236,6 +240,7 @@ export const drumSetPadChokeCommand = defineCommand<DrumSetPadChokePayload>({
   type: "drum.setPadChoke",
   version: 1,
   schema: drumSetPadChokePayloadSchema,
+  touches: (payload) => [controlAddress(payload.padId, CONTROL_PARTS.choke)],
   summarize: (payload, project) =>
     payload.chokeGroup === null
       ? `Remove choke group from a pad of track ${trackLabel(project, payload.trackId)}`
@@ -318,6 +323,7 @@ export const drumSetPadParameterCommand = defineCommand<DrumSetPadParameterPaylo
   type: "drum.setPadParameter",
   version: 1,
   schema: drumSetPadParameterPayloadSchema,
+  touches: (payload) => [parameterControl(payload.padId, payload.parameterId)],
   summarize(payload, project) {
     const definition = getParameterDefinition(payload.parameterId);
     const label = definition?.label ?? payload.parameterId;
@@ -408,6 +414,7 @@ export const drumAddPadCommand = defineCommand<DrumAddPadPayload>({
   type: "drum.addPad",
   version: 1,
   schema: drumAddPadPayloadSchema,
+  touches: (payload) => [controlAddress(payload.pad.id, CONTROL_PARTS.lane)],
   summarize: (payload, project) =>
     `Add pad "${payload.pad.name}" to track ${trackLabel(project, payload.trackId)}`,
   apply(project, payload) {
@@ -483,6 +490,7 @@ export const drumRemovePadCommand = defineCommand<DrumRemovePadPayload>({
   type: "drum.removePad",
   version: 1,
   schema: drumRemovePadPayloadSchema,
+  touches: (payload) => [controlAddress(payload.trackId, CONTROL_PARTS.pads)],
   summarize: (payload, project) =>
     `Remove a pad from track ${trackLabel(project, payload.trackId)}`,
   apply(project, payload) {
@@ -533,6 +541,7 @@ export const drumReorderPadCommand = defineCommand<DrumReorderPadPayload>({
   type: "drum.reorderPad",
   version: 1,
   schema: drumReorderPadPayloadSchema,
+  touches: (payload) => [controlAddress(payload.padId, CONTROL_PARTS.lane)],
   summarize: (payload, project) =>
     `Reorder a pad of track ${trackLabel(project, payload.trackId)}`,
   apply(project, payload) {

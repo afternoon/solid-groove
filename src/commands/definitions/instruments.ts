@@ -6,6 +6,7 @@ import {
   type TrackId,
   trackIdSchema,
 } from "../../domain/ids";
+import { CONTROL_PARTS, controlAddress } from "../controlAddress";
 import { findTrack, replaceTrack, trackLabel } from "../projectEdits";
 import {
   applied,
@@ -66,6 +67,7 @@ export const instrumentChangeCommand = defineCommand<InstrumentChangePayload>({
   type: "instrument.change",
   version: 1,
   schema: instrumentChangePayloadSchema,
+  touches: (payload) => [controlAddress(payload.trackId, CONTROL_PARTS.instrument)],
   summarize: (payload, project) =>
     `Change ${trackLabel(project, payload.trackId)} to ${describeInstrument(payload.instrument)}`,
   apply(project, payload) {
@@ -85,6 +87,7 @@ export const instrumentSetSampleCommand = defineCommand<InstrumentSetSamplePaylo
   type: "instrument.setSample",
   version: 1,
   schema: instrumentSetSamplePayloadSchema,
+  touches: (payload) => [controlAddress(payload.trackId, CONTROL_PARTS.sample)],
   summarize: (payload, project) =>
     payload.assetId
       ? `Replace sample on ${trackLabel(project, payload.trackId)}`

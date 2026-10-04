@@ -10,6 +10,7 @@ import {
   trackSchema,
 } from "../../domain/entities";
 import { type TrackId, trackIdSchema } from "../../domain/ids";
+import { CONTROL_PARTS, controlAddress, SONG_ENTITY } from "../controlAddress";
 import {
   byOrder,
   findTrack,
@@ -92,6 +93,7 @@ export const trackCreateCommand = defineCommand<TrackCreatePayload>({
   type: "track.create",
   version: 1,
   schema: trackCreatePayloadSchema,
+  touches: (payload) => [controlAddress(payload.track.id, CONTROL_PARTS.header)],
   summarize: (payload) =>
     payload.clips.length > 0 || payload.placements.length > 0
       ? `Restore track "${payload.track.name}"`
@@ -134,6 +136,7 @@ export const trackDeleteCommand = defineCommand<TrackDeletePayload>({
   type: "track.delete",
   version: 1,
   schema: trackDeletePayloadSchema,
+  touches: () => [controlAddress(SONG_ENTITY, CONTROL_PARTS.tracks)],
   summarize: (payload, project) => `Delete track ${trackLabel(project, payload.trackId)}`,
   apply(project, payload) {
     const track = findTrack(project, payload.trackId);
@@ -178,6 +181,7 @@ export const trackUpdateCommand = defineCommand<TrackUpdatePayload>({
   type: "track.update",
   version: 1,
   schema: trackUpdatePayloadSchema,
+  touches: (payload) => [controlAddress(payload.trackId, CONTROL_PARTS.header)],
   summarize(payload, project) {
     const label = trackLabel(project, payload.trackId);
     return payload.changes.name !== undefined
@@ -215,6 +219,7 @@ export const trackReorderCommand = defineCommand<TrackReorderPayload>({
   type: "track.reorder",
   version: 1,
   schema: trackReorderPayloadSchema,
+  touches: (payload) => [controlAddress(payload.trackId, CONTROL_PARTS.header)],
   summarize: (payload, project) =>
     `Move track ${trackLabel(project, payload.trackId)} to position ${payload.toIndex + 1}`,
   apply(project, payload) {
@@ -247,6 +252,7 @@ export const trackSetFlagCommand = defineCommand<TrackSetFlagPayload>({
   type: "track.setFlag",
   version: 1,
   schema: trackSetFlagPayloadSchema,
+  touches: (payload) => [controlAddress(payload.trackId, payload.flag)],
   summarize: (payload, project) =>
     `${payload.value ? "Enable" : "Disable"} ${payload.flag === "muted" ? "mute" : "solo"} on track ${trackLabel(project, payload.trackId)}`,
   apply(project, payload) {
