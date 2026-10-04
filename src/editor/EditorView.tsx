@@ -27,7 +27,7 @@ import { ControlRegistryContext } from "../controls/control";
 import { createControlRegistry } from "../controls/registry";
 import type { NoteTrigger, Project } from "../domain/entities";
 import { createFactoryContext } from "../domain/factories";
-import type { EventId, PadId, PlacementId, ReturnId, TrackId } from "../domain/ids";
+import type { EventId, PadId, PlacementId, TrackId } from "../domain/ids";
 import { SONG_SWING, SONG_TEMPO } from "../domain/parameters";
 import { TICKS_PER_QUARTER } from "../domain/time";
 import {
@@ -48,13 +48,7 @@ import type { LibraryAsset } from "../library/manifest";
 import type { SlotAudition } from "../library/slotAudition";
 import { ToneAuditionEngine } from "../library/toneAuditionEngine";
 import { getProjectRepository } from "../projectRepositoryClient";
-import {
-  type ArrangementSelection,
-  emptySelection,
-  reconcileSelection,
-  type SelectionState,
-  selectOnly,
-} from "../selection";
+import type { ArrangementSelection } from "../selection";
 import { timeoutScheduler } from "../shared/scheduler";
 import ShortcutGuide from "../shortcuts/ShortcutGuide";
 import { getUserLibraryRepository } from "../userLibrary/userLibraryClient";
@@ -106,12 +100,7 @@ import MissingSounds from "./MissingSounds";
 import Mixer from "./Mixer";
 import NewTrackButtons from "./NewTrackButtons";
 import ProjectLoadStates from "./ProjectLoadStates";
-import {
-  emptyPadSelection,
-  type PadSelection,
-  selectedPadOf,
-  withSelectedPad,
-} from "./padSelection";
+import { selectedPadOf } from "./padSelection";
 import type { PianoRollActions } from "./pianoRoll/rollActions";
 import SequenceEditor from "./SequenceEditor";
 import { deleteSelectedNotes } from "./StepEditor";
@@ -122,11 +111,11 @@ import {
   type NewTrackKindSpec,
 } from "./trackCreation";
 import { deleteTrack, type TrackDeletionContext } from "./trackDeletion";
-import type { TrackSelectionSource } from "./trackSurface";
 import { useEditorNavigation } from "./useEditorNavigation";
 import { useEditorSession } from "./useEditorSession";
 import { useEditorShortcuts } from "./useEditorShortcuts";
 import { useProjectAudio } from "./useProjectAudio";
+import { useTrackSelection } from "./useTrackSelection";
 import ViewDock from "./ViewDock";
 import "./EditorView.css";
 
@@ -399,67 +388,32 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     },
   };
 
-  // Which track the editor is pointed at (#228). UI-only state held in the
-  // shared PRD 9.2 selection model — never in the project — so one click moves
-  // the clip editor, the instrument panel, and (once it lands) the device
-  // chain together. Nothing is selected on arrival; `model.editedTrack` then
-  // falls back to the project's first track.
-  const [selection, setSelection] = createSignal<SelectionState>(emptySelection());
-  // A track deleted by this session, an undo, or a remote edit must not leave
-  // the editor pointed at it: `reconcileSelection` drops the dead scope, and
-  // the fallback picks up from there.
-  //
-  // `project()` is the effect's only reactive read, so it is the whole compute
-  // half; the `setSelection` write has to be in the apply half, which is the
-  // only phase of an effect where a write is allowed.
-  createEffect(
-    () => project(),
-    (current) => {
-      if (!current) return;
-      setSelection((state) => reconcileSelection(state, current));
+  // Which track, pad and clip the editor is pointed at (#228, #643), and the
+  // return the mixer pointed it at (#386): UI-only state with one owner for
+  // every write to it. Pointing at a track or a pad ends a new-track or
+  // new-pad aim.
+  const trackSelection = useTrackSelection({
+    project,
+    onPoint: () => {
+      setNewTrackAim(false);
+      setNewPadAim(false);
     },
-  );
-  // Whether the user *chose* the selected track (#960): through its header,
-  // the track list, the instrument rail, or the track arrows. Only a chosen
-  // track is Delete's to remove. Every other way a track ends up selected — a
-  // lane or clip click, opening a clip, a deleted neighbour, a new track —
-  // only points the editor at it, and clears the choice.
-  const [chosenTrackId, setChosenTrackId] = createSignal<TrackId | null>(null);
-  // The return the mixer pointed the editor at (#386), which puts the
-  // instrument view in return mode. UI-only like the track selection, and
-  // beside it rather than in it: the arrangement and the step editor keep
-  // following the track while a return's chain is open. Selecting any track
-  // clears it, and so does the return being deleted or undone away: the view
-  // falls back to the track, and stays there when an undo brings the return
-  // back.
-  const [returnSelection, setReturnSelection] = createSignal<ReturnId | null>(null);
-  const selectedReturn = createMemo(() => {
-    const id = returnSelection();
-    return id ? (project()?.song.returns.find((bus) => bus.id === id) ?? null) : null;
   });
-  // Both reads in compute; the write is only legal in the apply half.
-  createEffect(
-    () => returnSelection() !== null && selectedReturn() === null,
-    (stale) => {
-      if (stale) setReturnSelection(null);
-    },
-  );
-  function selectTrack(trackId: TrackId, chosen = false): void {
-    setNewTrackAim(false);
-    setReturnSelection(null);
-    setNewPadAim(false);
-    setSelection(selectOnly({ kind: "track", id: trackId }));
-    setChosenTrackId(chosen ? trackId : null);
-  }
-  const chooseTrack = (trackId: TrackId) => selectTrack(trackId, true);
-  const selectTrackFrom = (trackId: TrackId, how: TrackSelectionSource) =>
-    selectTrack(trackId, how === "header");
-  const selectedTrackId = createMemo(() => model.focusedTrackId(selection()));
-  /** The selected track, if the user chose it; else null. */
-  const deletableTrackId = createMemo(() => {
-    const id = chosenTrackId();
-    return id !== null && id === selectedTrackId() ? id : null;
-  });
+  const {
+    selectTrack,
+    chooseTrack,
+    selectTrackFrom,
+    selectedTrackId,
+    deletableTrackId,
+    opened,
+    selectPlacement,
+    track,
+    drumTrack,
+    padSelection,
+    selectPad,
+    selectedReturn,
+    selectReturn,
+  } = trackSelection;
   const trackDeletion: TrackDeletionContext = {
     project,
     dispatch: (commands) => session.dispatch(commands),
@@ -469,50 +423,15 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     },
   };
 
-  // Which placement's clip the sequence view edits (`UI-001`, `UI-002`) — a
-  // placement id, not a clip id: opening is a gesture on the timeline. It is
-  // the selected clip only while its track is the selected track: choosing
-  // another track leaves `2` with no clip, rather than on one the instrument
-  // and mixer views have moved away from.
-  const [openPlacementId, setOpenPlacementId] = createSignal<PlacementId | null>(null);
   // The arrangement's own selection, kept while another view is on screen:
   // the arrangement is rebuilt on the way back and starts from it, so the
   // clip you selected is still highlighted (`UI-002`). Read only on mount, so
   // a plain variable rather than a signal.
   let arrangementSelection: ArrangementSelection | null = null;
-  const opened = createMemo(() => {
-    const entry = model.openedClip(project(), openPlacementId());
-    return entry && entry.track.id === selectedTrackId() ? entry : null;
-  });
-
-  /**
-   * Makes a placement's clip the one `2` edits (`UI-002`): a click on a clip
-   * in the arrangement selects it for the sequence view.
-   */
-  function selectPlacement(placementId: PlacementId): void {
-    setOpenPlacementId(placementId);
-    const track = model.openedClip(project(), placementId)?.track;
-    // Selecting a clip is also saying "this track": the instrument view and the
-    // mixer follow it, which is what keeps selection one piece of state.
-    if (track) selectTrack(track.id);
-  }
-
   /** Selects a placement's clip and goes to `2` with it (`UI-002`). */
   function openPlacement(placementId: PlacementId): void {
     selectPlacement(placementId);
     selectView("sequence", "arrangement");
-  }
-
-  const track = createMemo(() => model.editedTrack(project(), selectedTrackId()));
-  const drumTrack = createMemo(() => model.drumTrack(track()));
-  // Each drum track's selected pad (#643): one selection the instrument view's
-  // pad editor and the step grid's selected row share, held here so it
-  // outlives a switch of view.
-  const [padSelection, setPadSelection] = createSignal<PadSelection>(emptyPadSelection);
-  function selectPad(trackId: TrackId, padId: PadId): void {
-    setNewTrackAim(false);
-    setNewPadAim(false);
-    setPadSelection((current) => withSelectedPad(current, trackId, padId));
   }
 
   // Where the Library is aimed (`UI-002`): the selected track's slot (its
@@ -577,9 +496,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     project,
     location: (): EditorLocation => ({
       view: props.view,
-      selection: selection(),
-      padSelection: padSelection(),
-      openPlacementId: openPlacementId(),
+      ...trackSelection.location(),
     }),
     goTo(home) {
       if (home.view) selectView(home.view, "reveal");
@@ -591,12 +508,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     },
     restore(location) {
       selectView(location.view, "reveal");
-      const current = project();
-      setSelection(
-        current ? reconcileSelection(location.selection, current) : location.selection,
-      );
-      setPadSelection(location.padSelection);
-      setOpenPlacementId(location.openPlacementId);
+      trackSelection.restore(location);
     },
     scheduler: timeoutScheduler,
   });
@@ -706,7 +618,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
       return () => deleteTrack(trackDeletion, id);
     },
     dropTrackChoice: () =>
-      deletableTrackId() === null ? undefined : () => setChosenTrackId(null),
+      deletableTrackId() === null ? undefined : trackSelection.dropTrackChoice,
   });
 
   /** An empty screen's way out: a view, named and keyed as the dock names it. */
@@ -1243,7 +1155,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                               selectedTrackId={track()?.id ?? null}
                               onSelectTrack={selectTrackFrom}
                               selectedReturnId={selectedReturn()?.id ?? null}
-                              onSelectReturn={setReturnSelection}
+                              onSelectReturn={selectReturn}
                             />
                           </div>
                         </Match>
