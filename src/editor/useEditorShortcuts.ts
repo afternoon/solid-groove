@@ -8,6 +8,7 @@ import {
   shortcutLabel,
   useShortcuts,
 } from "../shortcuts";
+import { isTextEntry } from "../shortcuts/textEntry";
 import { arrangementHasFocus } from "./arrangementFocus";
 import type { EditorViewName } from "./editorViews";
 import type { LibraryActions } from "./LibraryModal";
@@ -72,6 +73,10 @@ export interface UseEditorShortcutsOptions {
   /** Deletes the selected track (#537): `undefined` where a track is not the
    * selection (the mixer, the sequence editor, an empty project). */
   readonly deleteSelectedTrack: () => (() => void) | undefined;
+  /** Drops the user's choice of track (#960), so Delete no longer removes it:
+   * `undefined` while no track is chosen. Escape and any Delete that removes
+   * something inside the track call it. */
+  readonly dropTrackChoice: () => (() => void) | undefined;
 }
 
 /** Controls that use the vertical arrows themselves, so a track step must not
@@ -131,6 +136,7 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     resizeLoop,
     adjacentTrack,
     deleteSelectedTrack,
+    dropTrackChoice,
   } = options;
 
   /**
@@ -205,6 +211,10 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     !(arrangementEditingActions()?.isBanding() ?? false) &&
     arrangementEditingActions()?.getArrangementSelection() != null;
 
+  /** Whether Escape has a chosen track to let go of (#960), outside a text field. */
+  const trackChoiceDroppable = (): boolean =>
+    dropTrackChoice() !== undefined && !isTextEntry(document.activeElement);
+
   // The KEY-01 registry owns every mapping; this component only says which
   // actions exist here and what they do. An action the slice does not
   // implement yet simply has no handler and never fires.
@@ -258,6 +268,9 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
         else if (owner === "arrangement") arrangementEditingActions()?.deleteSelection();
         else if (owner === "step_editor") deleteSelection();
         else if (!sequenceEditorOpen()) deleteSelectedTrack()?.();
+        // Removing what was selected inside a track spends the key: the next
+        // Delete must not fall through to the whole track (#960).
+        if (owner !== null) dropTrackChoice()?.();
       },
       isEnabled: () =>
         deleteOwner() !== null ||
@@ -342,12 +355,20 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
         if (arrangementDragging()) arrangementEditingActions()?.cancelDrag();
         else if (guideOpen()) setGuideOpen(false);
         else if (libraryOpen()) libraryActions()?.closeKeys();
-        else arrangementEditingActions()?.clearSelection();
+        else {
+          arrangementEditingActions()?.clearSelection();
+          // "No selection" means no track for Delete either (#960).
+          dropTrackChoice()?.();
+        }
       },
       // The Export dialog closes itself on Escape, and nothing beneath it should.
       isEnabled: () =>
         !exportOpen() &&
-        (arrangementDragging() || guideOpen() || libraryOpen() || arrangementClearable()),
+        (arrangementDragging() ||
+          guideOpen() ||
+          libraryOpen() ||
+          arrangementClearable() ||
+          trackChoiceDroppable()),
     },
     // A focused Transform value field (ARR-010): ↑/↓ nudge it, in place of
     // the roll's note moves, which its context replaces.

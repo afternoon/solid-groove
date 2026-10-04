@@ -2,6 +2,14 @@ import type { RawCommandInput, TransactionResult } from "../commands";
 import { setTrackFlag } from "../commands";
 import type { Track } from "../domain/entities";
 
+/**
+ * How a track came to be selected (#960). `"header"` is the user choosing it
+ * on a track surface: its header, the track list, a mixer strip. `"follow"` is
+ * the editor following along after something else: a lane or clip press, a
+ * new track, the neighbour of a deleted one. Only a chosen track is Delete's.
+ */
+export type TrackSelectionSource = "header" | "follow";
+
 export interface TrackSurfaceOptions {
   /** Whether the editor is showing this surface's track. */
   selected(): boolean;

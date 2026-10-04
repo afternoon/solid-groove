@@ -26,6 +26,7 @@ import TrackHeader from "../editor/TrackHeader";
 import { deleteTrack } from "../editor/trackDeletion";
 import type { TrackLevel } from "../editor/trackLevels";
 import { moveTrack, orderedTrackIds, previewTrackOrder } from "../editor/trackReorder";
+import type { TrackSelectionSource } from "../editor/trackSurface";
 import { useTrackDrag } from "../editor/useTrackDrag";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import {
@@ -195,11 +196,19 @@ export interface ArrangementViewProps {
    * it just marks no row and moves nothing when one is clicked.
    */
   readonly selectedTrackId?: TrackId | null;
+  /**
+   * The track the user chose on its header (#960): the one Delete removes.
+   * Its header is framed, and the live region names it while no clip is
+   * selected.
+   */
+  readonly chosenTrackId?: TrackId | null;
   /** Live post-fader level of a track, for its header's meter (#447). */
   readonly trackLevel?: (trackId: TrackId) => TrackLevel | null;
   /** Called with the track a clicked row belongs to, so the editor can follow
-   * it — the arrangement holds no selection state of its own. */
-  readonly onSelectTrack?: (trackId: TrackId) => void;
+   * it — the arrangement holds no selection state of its own. `how` says
+   * whether the user chose it on its header or the list (`"header"`) or the
+   * editor only follows a press in its lane or a deletion (`"follow"`). */
+  readonly onSelectTrack?: (trackId: TrackId, how: TrackSelectionSource) => void;
   /**
    * Called when a placement is *opened* — double-clicked on the canvas, or
    * opened from the toolbar (`UI-001`). The arrangement reports the gesture;
@@ -264,7 +273,7 @@ export default function ArrangementView(props: ArrangementViewProps) {
       {
         project: () => props.project,
         dispatch,
-        select: (id) => props.onSelectTrack?.(id),
+        select: (id) => props.onSelectTrack?.(id, "follow"),
         analytics: analytics(),
       },
       trackId,
@@ -441,8 +450,8 @@ export default function ArrangementView(props: ArrangementViewProps) {
    * reports it and the host decides, so this surface keeps no selected-track
    * state of its own.
    */
-  function selectTrack(trackId: TrackId): void {
-    props.onSelectTrack?.(trackId);
+  function selectTrack(trackId: TrackId, how: TrackSelectionSource): void {
+    props.onSelectTrack?.(trackId, how);
     noteFirstUse();
   }
 
@@ -813,9 +822,10 @@ export default function ArrangementView(props: ArrangementViewProps) {
 
     // Whatever the click turns out to do — start a placement drag, sweep a
     // band, set a point — it happened on a row, and that row's track is now the one
-    // being worked on (#228).
+    // being worked on (#228). Shown, not chosen: a press in a lane is never
+    // what makes Delete take the whole track (#960).
     const trackId = trackAt(x, y);
-    if (trackId) selectTrack(trackId);
+    if (trackId) selectTrack(trackId, "follow");
 
     if ((event.button ?? 0) !== 0 || !editing) return;
     const target = event.currentTarget as Element;
@@ -956,7 +966,7 @@ export default function ArrangementView(props: ArrangementViewProps) {
     );
     // The same click a pointer makes on the row: it selects *and* points the
     // editor at the track (#228).
-    selectTrack(track.id);
+    selectTrack(track.id, "header");
     bumpState();
   }
 
@@ -1015,6 +1025,7 @@ export default function ArrangementView(props: ArrangementViewProps) {
     return describeArrangementSelection(
       editing?.getArrangementSelection() ?? null,
       props.project,
+      props.chosenTrackId ?? null,
     );
   });
 
@@ -1077,7 +1088,12 @@ export default function ArrangementView(props: ArrangementViewProps) {
                       <TrackHeader
                         track={domainTrack()}
                         selected={props.selectedTrackId === track().id}
-                        onSelect={() => selectTrack(track().id)}
+                        chosen={
+                          props.chosenTrackId === undefined
+                            ? undefined
+                            : props.chosenTrackId === track().id
+                        }
+                        onSelect={() => selectTrack(track().id, "header")}
                         dispatch={props.dispatch}
                         beginGesture={props.beginGesture}
                         trackLevel={(trackId) => props.trackLevel?.(trackId) ?? null}
