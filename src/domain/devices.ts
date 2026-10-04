@@ -147,9 +147,10 @@ const OVERDRIVE_DRIVE = deviceParameter("overdrive", {
   // climbs but the output stays bounded by the master limiter and trim.
   min: 0,
   max: 1,
-  // The clipping curve is already steep (tanh(3x)), so drive 0.3 (4.5x gain
-  // into it) hard-clips any normal-level source. 0.2 (2.6x) adds obvious warmth
-  // and edge without flattening the transients; wet 0.5 keeps the source in.
+  // The clipping curve is unity at low level (#925), so drive alone sets how
+  // hard a source hits it: 0.3 (11.7x gain) hard-clips any normal-level source,
+  // and 0.2 (5.8x) adds obvious warmth and edge without flattening the
+  // transients; wet 0.5 keeps the source in.
   defaultValue: 0.2,
 });
 const OVERDRIVE_TONE = deviceParameter("overdrive", {

@@ -1,5 +1,11 @@
 import * as Tone from "tone";
 import {
+  OVERDRIVE_HEADROOM,
+  overdriveCurve,
+  overdriveGain,
+  overdriveMakeup,
+} from "./overdriveCurves";
+import {
   SATURATOR_HEADROOM,
   saturatorFoldCurve,
   saturatorSoftCurve,
@@ -65,20 +71,22 @@ function buildCurve(
  *
  * The curve's asymmetry — the negative half clipping sooner than the positive —
  * is what gives it even harmonics and its valve-ish character instead of the
- * symmetric buzz a plain `Math.tanh` produces. Post-gain pulls the level back
- * as drive climbs so pushing it reads as dirt rather than as a volume knob.
+ * symmetric buzz a plain `Math.tanh` produces. Both halves have unity slope, so
+ * at Drive 0 a normal-level signal passes at its own level, and the table runs
+ * +12 dB past full scale before it holds (see `overdriveCurves.ts`, #925).
+ * Post-gain pulls the level back as drive climbs so pushing it reads as dirt
+ * rather than as a volume knob.
  */
 export const createOverdriveCore: DeviceCoreFactory = (): DeviceCore => {
   const preGain = new Tone.Gain(1);
+  // The table spans ±OVERDRIVE_HEADROOM, so it gets proportionally more points
+  // to keep the knee as finely resolved as a -1..1 table would, plus one so the
+  // count is odd and silence in is silence out (see `buildCurve`).
   const shaper = new Tone.WaveShaper(
     buildCurve(
-      (x) => {
-        const asymmetry = x < 0 ? 1.4 : 1;
-        return Math.tanh(3 * asymmetry * x) / Math.tanh(3);
-      },
-      1,
-      // Odd, so silence in is silence out (see `buildCurve`).
-      CURVE_POINTS + 1,
+      overdriveCurve,
+      OVERDRIVE_HEADROOM,
+      CURVE_POINTS * (OVERDRIVE_HEADROOM / 2) + 1,
     ),
   );
   // The asymmetry that gives the curve its even harmonics also gives it DC.
@@ -94,15 +102,11 @@ export const createOverdriveCore: DeviceCoreFactory = (): DeviceCore => {
     input: preGain,
     output: tone,
     apply(values, _context, initial) {
-      // 1x (clean, barely touching the knee) up to 40x (hard, obviously
-      // destructive clipping). Squared so the control's lower half is the
-      // usable coloration range rather than all the audible change happening
-      // in the first tenth of the travel.
-      const gain = 1 + values.drive ** 2 * 39;
-      setOrRamp(preGain.gain, gain, initial);
-      // Partial compensation: enough that drive is not a disguised volume
-      // control, not so much that saturation stops reading as loud.
-      setOrRamp(postGain.gain, gain ** -0.5, initial);
+      // The drive gain (1x clean up to 120x destroyed, see `overdriveGain`),
+      // scaled into the table's ±OVERDRIVE_HEADROOM span: a full-scale sample
+      // at Drive 0 lands a quarter of the way out, on the curve.
+      setOrRamp(preGain.gain, overdriveGain(values.drive) / OVERDRIVE_HEADROOM, initial);
+      setOrRamp(postGain.gain, overdriveMakeup(values.drive), initial);
       // `tone` sweeps a lowpass from dark to open across the control's range,
       // logarithmically so the sweep is even to the ear.
       setOrRamp(tone.frequency, 400 * (20_000 / 400) ** values.tone, initial);
