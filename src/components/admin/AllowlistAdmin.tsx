@@ -3,6 +3,7 @@ import { createSignal, onSettled } from "solid-js";
 import type { AccessRepository } from "../../access/accessRepository";
 import {
   type AllowlistEntry,
+  ApprovalIncompleteError,
   type ApprovalReport,
   approveEmails,
   parseEmailBatch,
@@ -75,26 +76,78 @@ export default function AllowlistAdmin(props: AllowlistAdminProps): JSX.Element 
 
   onSettled(() => load());
 
+  /** Shows what an approval wrote and logs it: counts only, never an address. */
+  const recordApproval = (source: "paste" | "attempt", result: ApprovalReport) => {
+    setReport(result);
+    analytics.log("allowlist_approved", {
+      source,
+      added_count: result.added.length,
+      already_listed_count: result.alreadyListed.length,
+      invalid_count: result.invalid.length,
+    });
+    analytics.logFeatureFirstUse("allowlist_admin");
+  };
+
+  /**
+   * Reloads both lists after a write that went through. A failure here does
+   * not undo the write, so it is reported as a stale view, never as the write
+   * failing, and the approval's report stays on screen.
+   */
+  const refreshAfterWrite = async (done: string) => {
+    try {
+      await refresh();
+    } catch (error) {
+      console.error("Error reloading the allowlist:", error);
+      // A part-written approval's message already says what happened; add to it.
+      setActionError((shown) =>
+        shown
+          ? `${shown} Couldn't reload the lists; reload the page to see them.`
+          : `${done}, but couldn't reload the lists. Reload the page to see them.`,
+      );
+    }
+  };
+
+  /** Writes the approval; `false` when nothing was written. */
+  const writeApproval = async (
+    source: "paste" | "attempt",
+    input: string,
+  ): Promise<boolean> => {
+    try {
+      const result = await approveEmails(
+        await repository(),
+        parseEmailBatch(input),
+        now(),
+      );
+      recordApproval(source, result);
+      if (source === "paste") setText(result.invalid.join("\n"));
+      return true;
+    } catch (error) {
+      if (!(error instanceof ApprovalIncompleteError)) {
+        console.error("Error approving addresses:", error);
+        setActionError(
+          "Couldn't approve those addresses. Nothing was changed. Try again.",
+        );
+        return false;
+      }
+      // A long paste is several batches, and an earlier one went through.
+      console.error("Error approving addresses partway:", error.cause);
+      const { written, unwritten } = error;
+      const approved = written.added.length + written.alreadyListed.length;
+      recordApproval(source, written);
+      if (source === "paste") setText([...unwritten, ...written.invalid].join("\n"));
+      setActionError(
+        `Approved ${approved} of ${approved + unwritten.length} addresses, then hit an error. The other ${unwritten.length} were not approved and are left in the box. Try again.`,
+      );
+      return true;
+    }
+  };
+
   const approve = async (source: "paste" | "attempt", input: string) => {
     if (busy()) return;
     setBusy(true);
     setActionError(null);
     try {
-      const store = await repository();
-      const result = await approveEmails(store, parseEmailBatch(input), now());
-      setReport(result);
-      analytics.log("allowlist_approved", {
-        source,
-        added_count: result.added.length,
-        already_listed_count: result.alreadyListed.length,
-        invalid_count: result.invalid.length,
-      });
-      analytics.logFeatureFirstUse("allowlist_admin");
-      if (source === "paste") setText(result.invalid.join("\n"));
-      await refresh();
-    } catch (error) {
-      console.error("Error approving addresses:", error);
-      setActionError("Couldn't approve those addresses. Nothing was changed. Try again.");
+      if (await writeApproval(source, input)) await refreshAfterWrite("Approved");
     } finally {
       setBusy(false);
     }
@@ -105,11 +158,14 @@ export default function AllowlistAdmin(props: AllowlistAdminProps): JSX.Element 
     setBusy(true);
     setActionError(null);
     try {
-      await (await repository()).remove(email);
-      await refresh();
-    } catch (error) {
-      console.error("Error removing an address:", error);
-      setActionError("Couldn't remove that address. Try again.");
+      try {
+        await (await repository()).remove(email);
+      } catch (error) {
+        console.error("Error removing an address:", error);
+        setActionError("Couldn't remove that address. Try again.");
+        return;
+      }
+      await refreshAfterWrite("Removed");
     } finally {
       setBusy(false);
     }

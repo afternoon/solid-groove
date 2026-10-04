@@ -174,6 +174,84 @@ describe("AllowlistAdmin (#854)", () => {
     expect(textarea()).toHaveValue("a@example.com");
   });
 
+  it("keeps the report and says the lists are stale when only the reload after an approval fails", async () => {
+    const repository = createInMemoryAccessRepository();
+    const listAllowlist = repository.listAllowlist.bind(repository);
+    let reloadFails = false;
+    repository.listAllowlist = async () => {
+      if (reloadFails) throw new Error("offline");
+      return listAllowlist();
+    };
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    renderAdmin(repository);
+    await screen.findByText("Nobody is on the allowlist yet.");
+
+    reloadFails = true;
+    await paste("a@example.com");
+
+    expect(screen.getByRole("status")).toHaveTextContent("Added 1");
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      "Approved, but couldn't reload the lists. Reload the page to see them.",
+    );
+    expect(alert).not.toHaveTextContent("Nothing was changed");
+    expect(await repository.listed(["a@example.com"])).toEqual(
+      new Set(["a@example.com"]),
+    );
+    expect(textarea()).toHaveValue("");
+  });
+
+  it("says how much of a long paste was approved when a later batch fails, and leaves the rest to retry", async () => {
+    const repository = createInMemoryAccessRepository();
+    const commit = repository.commit.bind(repository);
+    let commits = 0;
+    repository.commit = async (entries, clearAttempts) => {
+      commits += 1;
+      if (commits === 2) throw new Error("offline");
+      await commit(entries, clearAttempts);
+    };
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    renderAdmin(repository);
+    await screen.findByText("Nobody is on the allowlist yet.");
+
+    const emails = Array.from({ length: 300 }, (_, i) => `p${i}@example.com`);
+    await paste(emails.join("\n"));
+
+    expect(screen.getByRole("status")).toHaveTextContent("Added 250");
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      "Approved 250 of 300 addresses, then hit an error. The other 50 were not approved and are left in the box.",
+    );
+    expect(alert).not.toHaveTextContent("Nothing was changed");
+    expect(textarea()).toHaveValue(emails.slice(250).join("\n"));
+    expect(await screen.findByText("On the allowlist (250)")).toBeInTheDocument();
+  });
+
+  it("does not call a removal failed when only the reload after it fails", async () => {
+    const repository = createInMemoryAccessRepository({
+      allowlist: [{ email: "a@example.com", addedAt: 1 }],
+    });
+    const listAllowlist = repository.listAllowlist.bind(repository);
+    let reloadFails = false;
+    repository.listAllowlist = async () => {
+      if (reloadFails) throw new Error("offline");
+      return listAllowlist();
+    };
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    renderAdmin(repository);
+
+    const removeButton = await screen.findByRole("button", {
+      name: "Remove a@example.com",
+    });
+    reloadFails = true;
+    fireEvent.click(removeButton);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Removed, but couldn't reload the lists.",
+    );
+    expect(await repository.listed(["a@example.com"])).toEqual(new Set());
+  });
+
   it("offers a retry when the lists cannot be loaded", async () => {
     const repository = createInMemoryAccessRepository();
     const listAllowlist = repository.listAllowlist;

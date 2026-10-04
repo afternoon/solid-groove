@@ -155,7 +155,7 @@ export function parseEmailBatch(text: string): ParsedEmailBatch {
 /**
  * The store an approval writes through: Firestore from the admin page, the
  * Admin SDK from a script, a map in a test. `commit` adds every address and
- * removes its sign-in attempt in one batch, so an approval is never half done.
+ * removes its sign-in attempt in one batch, so each commit is all or nothing.
  */
 export interface AllowlistWriter {
   /** Which of these addresses are on the list already. */
@@ -175,9 +175,32 @@ export interface ApprovalReport {
 }
 
 /**
- * Approves a parsed batch: adds every address not yet listed in one write and
- * clears the sign-in attempt of every address in the batch, listed already or
- * not, so an approved person drops off the "blocked" list either way.
+ * An approval that failed after some of its batches had been written: a paste
+ * longer than one batch ({@link approvalChunks}) is several commits, and only
+ * each one is all or nothing. `written` is what is on the list now; `unwritten`
+ * is every valid address that was not approved.
+ */
+export class ApprovalIncompleteError extends Error {
+  constructor(
+    readonly written: ApprovalReport,
+    readonly unwritten: string[],
+    readonly cause: unknown,
+  ) {
+    super(
+      `Approved ${written.added.length + written.alreadyListed.length} addresses, then failed; ${unwritten.length} were not approved.`,
+    );
+    this.name = "ApprovalIncompleteError";
+  }
+}
+
+/**
+ * Approves a parsed batch: adds every address not yet listed and clears the
+ * sign-in attempt of every address in the batch, listed already or not, so an
+ * approved person drops off the "blocked" list either way.
+ *
+ * The batch is written one {@link approvalChunks} chunk at a time. If the
+ * first commit fails, nothing was written and its error is rethrown as is; if
+ * a later one fails, an {@link ApprovalIncompleteError} says what was.
  */
 export async function approveEmails(
   writer: AllowlistWriter,
@@ -185,15 +208,32 @@ export async function approveEmails(
   now: number,
 ): Promise<ApprovalReport> {
   const listed = await writer.listed(batch.emails);
-  const added = batch.emails.filter((email) => !listed.has(email));
-  const alreadyListed = batch.emails.filter((email) => listed.has(email));
-  if (batch.emails.length > 0) {
-    await writer.commit(
-      added.map((email) => ({ email, addedAt: now })),
-      batch.emails,
-    );
+  const reportOf = (emails: readonly string[]): ApprovalReport => ({
+    added: emails.filter((email) => !listed.has(email)),
+    alreadyListed: emails.filter((email) => listed.has(email)),
+    invalid: batch.invalid,
+  });
+
+  let written = 0;
+  for (const chunk of approvalChunks(batch.emails)) {
+    try {
+      await writer.commit(
+        chunk
+          .filter((email) => !listed.has(email))
+          .map((email) => ({ email, addedAt: now })),
+        chunk,
+      );
+    } catch (error) {
+      if (written === 0) throw error;
+      throw new ApprovalIncompleteError(
+        reportOf(batch.emails.slice(0, written)),
+        batch.emails.slice(written),
+        error,
+      );
+    }
+    written += chunk.length;
   }
-  return { added, alreadyListed, invalid: batch.invalid };
+  return reportOf(batch.emails);
 }
 
 /** The most writes one Firestore batch accepts. */
@@ -203,7 +243,8 @@ export const MAX_BATCH_WRITES = 500;
  * Splits an approval into Firestore-sized batches: each address is up to two
  * writes (the entry and the attempt it clears), so a batch holds half the
  * limit's worth of addresses. A paste longer than that is approved in several
- * writes, each of which is still all-or-nothing.
+ * writes, each of which is still all-or-nothing, which is why a long approval
+ * can end part-written ({@link ApprovalIncompleteError}).
  */
 export function approvalChunks<T>(items: readonly T[]): T[][] {
   const size = MAX_BATCH_WRITES / 2;

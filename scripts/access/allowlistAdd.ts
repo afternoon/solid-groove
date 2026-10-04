@@ -8,7 +8,11 @@
  * each address's blocked sign-in attempt is cleared with it.
  */
 import { existsSync, readFileSync } from "node:fs";
-import { approveEmails, parseEmailBatch } from "../../src/access/allowlist";
+import {
+  ApprovalIncompleteError,
+  approveEmails,
+  parseEmailBatch,
+} from "../../src/access/allowlist";
 import { adminAllowlistWriter, adminServices, fail } from "./adminApp";
 import { printReport } from "./report";
 
@@ -22,10 +26,19 @@ const text = args
   .join("\n");
 
 const { db } = adminServices();
-const report = await approveEmails(
-  adminAllowlistWriter(db),
-  parseEmailBatch(text),
-  Date.now(),
-);
-printReport(report);
-if (report.added.length + report.alreadyListed.length === 0) process.exit(1);
+try {
+  const report = await approveEmails(
+    adminAllowlistWriter(db),
+    parseEmailBatch(text),
+    Date.now(),
+  );
+  printReport(report);
+  if (report.added.length + report.alreadyListed.length === 0) process.exit(1);
+} catch (error) {
+  if (!(error instanceof ApprovalIncompleteError)) throw error;
+  printReport(error.written);
+  console.error(`Not approved, after an error: ${error.unwritten.length}`);
+  for (const email of error.unwritten) console.error(`  ? ${email}`);
+  console.error(error.cause);
+  process.exit(1);
+}
