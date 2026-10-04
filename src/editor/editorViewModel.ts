@@ -4,9 +4,13 @@ import {
   BEATS_PER_BAR,
   barsBeatsSixteenthsToTicks,
   formatBarsBeatsSixteenths,
+  TICKS_PER_QUARTER,
   ticksToBarsBeatsSixteenths,
 } from "../domain/time";
 import type { SelectionState } from "../selection";
+
+/** How long a note auditioned from the instrument or the note editors sounds. */
+export const AUDITION_DURATION_TICKS = TICKS_PER_QUARTER;
 
 /**
  * Pure, framework-free derivations behind `EditorView`.
