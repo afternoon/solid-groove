@@ -20,7 +20,9 @@ async function backToAllSounds(page: Page): Promise<void> {
   await expect(banner).toHaveCount(0);
   await expect(railButton(page, "All sounds")).toHaveAttribute("aria-current", "true");
   await expect(railButton(page, "Browse packs")).not.toHaveAttribute("aria-current");
-  await expect(library(page).getByRole("region", { name: "Packs" })).toHaveCount(0);
+  await expect(
+    library(page).getByRole("region", { name: "Packs", exact: true }),
+  ).toHaveCount(0);
   await expect(soundList(page).getByRole("listitem").first()).toBeVisible();
 }
 
