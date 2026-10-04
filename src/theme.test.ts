@@ -203,6 +203,9 @@ describe("the theme is the only place a colour is written down", () => {
     // publishes `--assistant-clearance` on the root for the corner chrome.
     const setFromMarkup = new Set([
       "--step-count",
+      // The [+ Pad] row's place and the ground it keeps free (#947).
+      "--step-lane-count",
+      "--step-floor",
       "--velocity",
       "--track-row-height",
       "--track-column-width",

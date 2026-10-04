@@ -334,6 +334,8 @@ export const FEATURE_KEYS = [
   "eq_device",
   "eq_curve",
   "library_favourites",
+  // Adding a drum pad from the Sequence view's [+ Pad] row (#947).
+  "sequence_add_pad",
 ] as const;
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
 

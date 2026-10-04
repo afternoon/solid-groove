@@ -35,6 +35,24 @@ describe("libraryAim (UI-002)", () => {
     });
   });
 
+  it("aims at a new pad for the Sequence view's [+ Pad], on a drum machine only (#947)", () => {
+    const project = createDrumMachineFixtureProject();
+    const { track, pads } = drumMachine(project);
+    const target = { kind: "new-pad", trackId: track.id } as const;
+    expect(libraryAim(track, pads[1].id, false, true)).toEqual({
+      kind: "target",
+      target,
+    });
+    expect(targetAssetTypes(target)).toEqual(["one-shot"]);
+    expect(targetSound(project, target)).toBeNull();
+    expect(targetPath(project, target)).toBe(`${track.name} › Drum machine › New pad`);
+    const sampler = createSliceFixtureProject().song.tracks[0];
+    expect(libraryAim(sampler, null, false, true)).toEqual({
+      kind: "target",
+      target: { kind: "sampler", trackId: sampler.id },
+    });
+  });
+
   it("aims at a sampler's slot, and a loop track's loop", () => {
     const sampler = createSliceFixtureProject().song.tracks[0];
     expect(libraryAim(sampler, null, false)).toEqual({

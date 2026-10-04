@@ -1,8 +1,9 @@
 import { For, type JSX, Show } from "@solidjs/web";
+import { HiSolidPlus } from "solid-icons/hi";
 import { type Accessor, createMemo, createSignal } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import type { Gesture, GestureOptions, RawCommandInput } from "../commands";
-import { removeNotes } from "../commands";
+import { MAX_DRUM_PADS, removeNotes } from "../commands";
 import { CONTROL_PARTS, controlAddress } from "../commands/controlAddress";
 import { control } from "../controls/control";
 import type {
@@ -37,6 +38,7 @@ import {
 } from "./stepEditorModel";
 import { useStepPointer } from "./stepPointer";
 import { createStroke } from "./stepStroke";
+import "./NewTrackButtons.css";
 import "./StepEditor.css";
 import { ariaBool } from "../shared/aria";
 import { detectPlatform } from "../shortcuts/keys";
@@ -86,6 +88,11 @@ export interface StepEditorProps {
    * (#643): steps it adds are hatched, notes it removes fade.
    */
   readonly preview?: RowPreview | null;
+  /**
+   * Offers the [+ Pad] row under a drum machine's last lane (#947), which
+   * opens the library to choose the new pad's sound. Omitted, no row.
+   */
+  onAddPad?(): void;
   /** Defaults to the application singleton; injectable for tests. */
   readonly analytics?: Analytics;
 }
@@ -103,6 +110,10 @@ export interface StepEditorProps {
 export default function StepEditor(props: StepEditorProps): JSX.Element {
   const analytics = () => props.analytics ?? defaultAnalytics;
   const lanes = createMemo(() => lanesFor(props.instrument));
+  // The [+ Pad] row (#947): only a drum machine's lanes are pads to add to.
+  const addPad = () =>
+    props.instrument?.kind === "drumMachine" ? props.onAddPad : undefined;
+  const kitFull = () => lanes().length >= MAX_DRUM_PADS;
   const steps = createMemo(() =>
     Array.from({ length: stepCount(props.clip) }, (_, index) => index),
   );
@@ -277,6 +288,9 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
         style={{
           "--step-count": String(stepCount(props.clip)),
           "--pr-step": `${width()}px`,
+          "--step-lane-count": String(lanes().length),
+          // The ground keeps a row free under the last lane for [+ Pad].
+          "--step-floor": String(Math.max(5, lanes().length + (addPad() ? 1 : 0))),
         }}
       >
         <div class="step-corner" />
@@ -368,6 +382,31 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
             )}
           </Show>
         </div>
+        {/* Pinned under the last lane, where the next pad would go, as the
+            arrangement pins its [+ Sampler] row under the last track. It is
+            not a lane, so it sits over the empty ground rather than in the
+            lane list, and the ground around it still starts a lasso. */}
+        <Show when={addPad()}>
+          {(onAddPad) => (
+            <div class="step-add-pad">
+              <button
+                type="button"
+                class="new-track-button"
+                aria-label="Add pad from library"
+                title={
+                  kitFull()
+                    ? `A drum machine holds at most ${MAX_DRUM_PADS} pads`
+                    : "Add a pad with a sound from the library"
+                }
+                disabled={kitFull()}
+                onClick={() => onAddPad()()}
+              >
+                <HiSolidPlus size={13} />
+                <span>Pad</span>
+              </button>
+            </div>
+          )}
+        </Show>
         <VelocityLane
           clipId={props.clip.id}
           notes={velocityNotes()}
