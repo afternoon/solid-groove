@@ -10,6 +10,7 @@ import {
   approvalChunks,
   approveEmails,
   isNotOnAllowlistError,
+  isValidEmail,
   MAX_BATCH_WRITES,
   NOT_ON_ALLOWLIST,
   normaliseEmail,
@@ -27,6 +28,23 @@ describe("normaliseEmail", () => {
     expect(signInAttemptDocPath("ADA@example.com")).toBe(
       "signInAttempts/ada@example.com",
     );
+  });
+});
+
+describe("isValidEmail", () => {
+  it("accepts an ordinary address", () => {
+    expect(isValidEmail("ada.lovelace+groove@example.co.uk")).toBe(true);
+  });
+
+  it("refuses what cannot be a Firestore document ID, so the path it builds is never broken", () => {
+    for (const email of [
+      "a/b@example.com",
+      "ada@exa/mple.com",
+      "ada@example.c/om",
+      "__ada@example.com__",
+    ]) {
+      expect(isValidEmail(email), email).toBe(false);
+    }
   });
 });
 
@@ -75,6 +93,13 @@ describe("parseEmailBatch", () => {
     expect(
       parseEmailBatch("nope\nada@\n@example.com\nnope\nada@example").invalid,
     ).toEqual(["nope", "ada@", "@example.com", "ada@example"]);
+  });
+
+  it("reports an address with a slash as invalid instead of failing the batch on it", () => {
+    expect(parseEmailBatch("ada@example.com\nev/il@example.com")).toEqual({
+      emails: ["ada@example.com"],
+      invalid: ["ev/il@example.com"],
+    });
   });
 
   it("comes to nothing for an empty paste", () => {

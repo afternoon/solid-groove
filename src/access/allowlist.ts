@@ -75,9 +75,22 @@ export function normaliseEmail(raw: string): string {
  * A plausible address: something, an `@`, a domain with a dot, no spaces. Not
  * RFC 5322; the point is to catch a pasted name or a stray header, and Google
  * has already verified any address that actually signs in.
+ *
+ * The address is also a Firestore document ID, so anything that cannot be one
+ * is not an address here: a `/` (it would split the path), and the reserved
+ * IDs `.`, `..` and `__name__`-style. Reporting it as invalid keeps one bad
+ * line from failing the whole batch it was pasted in.
  */
 export function isValidEmail(normalised: string): boolean {
-  return /^[^\s@,;<>"]+@[^\s@,;<>"]+\.[^\s@,;<>".]+$/.test(normalised);
+  return (
+    /^[^\s@,;<>"/]+@[^\s@,;<>"/]+\.[^\s@,;<>"./]+$/.test(normalised) &&
+    !isReservedDocumentId(normalised)
+  );
+}
+
+/** Firestore refuses these as document IDs. */
+function isReservedDocumentId(id: string): boolean {
+  return id === "." || id === ".." || /^__.*__$/.test(id);
 }
 
 export function allowlistDocPath(email: string): string {

@@ -17,10 +17,17 @@ function memoryStore(listed: string[]) {
   return { store, attempts };
 }
 
+/** A user whose provider verified the address. */
+function verified(email: string) {
+  return { email, emailVerified: true };
+}
+
 describe("gateSignIn", () => {
   it("lets a listed address in and records nothing", async () => {
     const { store, attempts } = memoryStore(["ada@example.com"]);
-    expect(await gateSignIn(store, { email: "ada@example.com" }, 10)).toEqual({
+    expect(
+      await gateSignIn(store, { email: "ada@example.com", emailVerified: true }, 10),
+    ).toEqual({
       allowed: true,
     });
     expect(attempts.size).toBe(0);
@@ -28,14 +35,18 @@ describe("gateSignIn", () => {
 
   it("compares the normalised address, so case and spaces do not lock anyone out", async () => {
     const { store } = memoryStore(["ada@example.com"]);
-    expect(await gateSignIn(store, { email: " Ada@Example.COM" }, 10)).toEqual({
+    expect(
+      await gateSignIn(store, { email: " Ada@Example.COM", emailVerified: true }, 10),
+    ).toEqual({
       allowed: true,
     });
   });
 
   it("refuses an unlisted address and records the attempt under its normalised address", async () => {
     const { store, attempts } = memoryStore(["ada@example.com"]);
-    expect(await gateSignIn(store, { email: "Grace@Example.com" }, 10)).toEqual({
+    expect(
+      await gateSignIn(store, { email: "Grace@Example.com", emailVerified: true }, 10),
+    ).toEqual({
       allowed: false,
       reason: "not_listed",
     });
@@ -49,8 +60,8 @@ describe("gateSignIn", () => {
 
   it("folds repeat attempts into one record, keeping when they started", async () => {
     const { store, attempts } = memoryStore([]);
-    await gateSignIn(store, { email: "grace@example.com" }, 10);
-    await gateSignIn(store, { email: "grace@example.com" }, 25);
+    await gateSignIn(store, verified("grace@example.com"), 10);
+    await gateSignIn(store, verified("grace@example.com"), 25);
     expect(attempts.get("grace@example.com")).toEqual({
       email: "grace@example.com",
       firstAttemptAt: 10,
@@ -59,7 +70,29 @@ describe("gateSignIn", () => {
     });
   });
 
-  it("refuses a sign-in with no address, a new guest session, without recording it", async () => {
+  it("lets a Google sign-in in on Google's word for the address", async () => {
+    const { store } = memoryStore(["ada@example.com"]);
+    expect(
+      await gateSignIn(store, { email: "ada@example.com", providerId: "google.com" }, 10),
+    ).toEqual({ allowed: true });
+  });
+
+  it("refuses an unverified address even when it is listed, and records nothing", async () => {
+    const { store, attempts } = memoryStore(["ada@example.com"]);
+    for (const user of [
+      { email: "ada@example.com" },
+      { email: "ada@example.com", emailVerified: false, providerId: "password" },
+      { email: "grace@example.com", emailVerified: false },
+    ]) {
+      expect(await gateSignIn(store, user, 10)).toEqual({
+        allowed: false,
+        reason: "unverified",
+      });
+    }
+    expect(attempts.size).toBe(0);
+  });
+
+  it("refuses a sign-in with no address without recording it", async () => {
     const { store, attempts } = memoryStore([]);
     expect(await gateSignIn(store, { email: null }, 10)).toEqual({
       allowed: false,
