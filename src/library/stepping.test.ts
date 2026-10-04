@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { libraryAsset as sound } from "./__fixtures__/assets";
 import { shelfRoles } from "./shelf";
-import { nextIn, previousIn, roleForDigit } from "./stepping";
+import { nextIn, previousIn, roleForDigit, tabStopId } from "./stepping";
 
 describe("stepping and digit keys", () => {
   const items = ["a", "b", "c"];
@@ -28,5 +28,14 @@ describe("stepping and digit keys", () => {
     expect(roleForDigit(roles, 1)).toBe("kick");
     expect(roleForDigit(roles, 2)).toBe("snare");
     expect(roleForDigit(roles, 3)).toBeUndefined();
+  });
+});
+
+describe("tabStopId (#880)", () => {
+  it("is the selected id while it is listed, else the first, else nothing", () => {
+    expect(tabStopId(["a", "b", "c"], "b")).toBe("b");
+    expect(tabStopId(["a", "b", "c"], null)).toBe("a");
+    expect(tabStopId(["a", "b", "c"], "gone")).toBe("a");
+    expect(tabStopId([], null)).toBeNull();
   });
 });

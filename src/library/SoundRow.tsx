@@ -52,6 +52,13 @@ export default function SoundRow(props: {
   color?: string;
   /** How close a similar-sounds result is, 0-100: a meter takes the tags' place. */
   match?: number;
+  /**
+   * Whether this row is its list's one Tab stop (#880): the selected row, or
+   * the first while none is. Every other row, and every row's icon buttons,
+   * leave the tab order; the arrow keys move between rows and the library's
+   * own keys (`S`, `L`) do what the icon buttons do.
+   */
+  tabbable: boolean;
   onSelect: () => void;
   onSimilar: () => void;
 }): JSX.Element {
@@ -75,6 +82,7 @@ export default function SoundRow(props: {
       <button
         type="button"
         class="sound-row-main"
+        tabindex={props.tabbable ? 0 : -1}
         aria-label={`Audition ${props.asset.name}`}
         aria-pressed={ariaBool(props.selected)}
         onClick={() => props.onSelect()}
@@ -118,6 +126,7 @@ export default function SoundRow(props: {
       <button
         type="button"
         class="sound-row-icon"
+        tabindex={-1}
         aria-label={`Favourite ${props.asset.name}`}
         disabled
       >
@@ -126,6 +135,7 @@ export default function SoundRow(props: {
       <button
         type="button"
         class="sound-row-icon"
+        tabindex={-1}
         aria-label={`Sounds like ${props.asset.name}`}
         onClick={() => props.onSimilar()}
       >

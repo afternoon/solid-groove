@@ -17,6 +17,30 @@ export function previousIn<T>(items: readonly T[], current: T | null): T | null 
 }
 
 /**
+ * The id of a list's one Tab stop (#880, roving `tabindex`): the selected item
+ * while it is in the list, else the first. `null` for an empty list.
+ */
+export function tabStopId(
+  ids: readonly string[],
+  selectedId: string | null,
+): string | null {
+  if (selectedId !== null && ids.includes(selectedId)) return selectedId;
+  return ids[0] ?? null;
+}
+
+/**
+ * Bring a list's selected row into view, and focus its main button when
+ * `focus` is set: the arrow keys move focus with the selection (#880), so a
+ * screen reader names the sound and the focus ring marks it.
+ */
+export function revealSelectedRow(list: HTMLElement | undefined, focus: boolean): void {
+  const row = list?.querySelector(".sound-row-selected");
+  row?.scrollIntoView?.({ block: "nearest" });
+  if (focus)
+    row?.querySelector<HTMLElement>(".sound-row-main")?.focus({ preventScroll: true });
+}
+
+/**
  * The role a digit key picks: `0` is all roles (`null`), `1`-`9` the nth role.
  * Returns `undefined` when there is no such role, so the key does nothing.
  */

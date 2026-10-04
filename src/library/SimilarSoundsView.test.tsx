@@ -87,6 +87,30 @@ describe("SimilarSoundsView", () => {
     );
   });
 
+  it("is one Tab stop: the selected result, or the first with none selected (#880)", () => {
+    renderView();
+    const tabStops = () =>
+      Array.from(list().querySelectorAll("button")).filter((b) => b.tabIndex >= 0);
+    expect(tabStops()).toEqual([screen.getByRole("button", { name: "Audition Near" })]);
+
+    clickAndFlush(screen.getByRole("button", { name: "Audition Far" }));
+
+    expect(tabStops()).toEqual([screen.getByRole("button", { name: "Audition Far" })]);
+  });
+
+  it("moves focus to the selected result as the arrow keys step (#880)", () => {
+    const { press } = renderView();
+    press("library.select_next");
+    press("library.select_next");
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Audition Far" }),
+    );
+    press("library.select_previous");
+    expect(document.activeElement).toBe(
+      screen.getByRole("button", { name: "Audition Near" }),
+    );
+  });
+
   it("hops on from a result, keeps a trail, and jumps back along it", () => {
     renderView();
     clickAndFlush(screen.getByRole("button", { name: "Sounds like Near" }));
