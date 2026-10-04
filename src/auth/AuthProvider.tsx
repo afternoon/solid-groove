@@ -25,6 +25,19 @@ interface AuthState {
 export interface AuthContextValue extends Readonly<AuthState> {
   /** Attempts the anonymous sign-in again after `signInFailed`. */
   retrySignIn(): void;
+  /**
+   * Logs in to an existing account (#951). This *signs in*, it does not link:
+   * the session moves to that account's uid, and any projects made as a guest
+   * stay with the guest. Rejects if the provider does (a closed popup, most
+   * often), leaving the current session as it was.
+   */
+  logIn(): Promise<void>;
+  /**
+   * Ends the session (#951). Unlike a visitor arriving with no session, this
+   * does not start a new guest: the provider reports no user and the caller
+   * decides where to go (the app leaves for `/`).
+   */
+  signOut(): Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue>();
@@ -69,6 +82,23 @@ export function AuthProvider(props: AuthProviderProps) {
       });
   };
 
+  // Set while the session is ending on purpose, so the no-user report that
+  // follows a sign-out is not mistaken for a first visit and answered with a
+  // fresh anonymous session the person just asked to leave.
+  let signingOut = false;
+
+  const logIn = () => authService.signInWithGoogle();
+
+  const signOut = async () => {
+    signingOut = true;
+    try {
+      await authService.signOut();
+    } catch (error) {
+      signingOut = false;
+      throw error;
+    }
+  };
+
   const retrySignIn = () => {
     if (!state.signInFailed) return;
     setState((auth) => {
@@ -103,9 +133,18 @@ export function AuthProvider(props: AuthProviderProps) {
     () => {
       const unsubscribe = authService.onAuthStateChanged((user) => {
         if (!user) {
+          if (signingOut) {
+            setState((auth) => {
+              auth.user = null;
+              auth.loading = false;
+              auth.isAnonymous = false;
+            });
+            return;
+          }
           signInAnonymously();
           return;
         }
+        signingOut = false;
 
         setState((auth) => {
           auth.user = user;
@@ -134,6 +173,8 @@ export function AuthProvider(props: AuthProviderProps) {
       return state.signInFailed;
     },
     retrySignIn,
+    logIn,
+    signOut,
   };
 
   return <AuthContext value={value}>{props.children}</AuthContext>;

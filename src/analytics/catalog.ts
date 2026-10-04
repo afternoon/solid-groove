@@ -306,6 +306,10 @@ export const FEATURE_KEYS = [
   // Moving a project's pin for a pack to a newer version so a sound from it can
   // go in (#892), whether automatic or chosen with "Upgrade anyway".
   "pack_upgrade",
+  // The in-app account controls (#951): logging a guest in to an existing
+  // account, and signing out.
+  "log_in",
+  "sign_out",
 ] as const;
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
 

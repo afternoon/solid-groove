@@ -1,3 +1,4 @@
+import type { JSX } from "@solidjs/web";
 import { HiSolidUser } from "solid-icons/hi";
 import { createSignal, Show } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
@@ -6,6 +7,12 @@ import { authService } from "../auth/authService";
 export interface UpgradeAccountPromptProps {
   /** Overridden in tests; defaults to the app-wide analytics boundary. */
   analytics?: Analytics;
+  /**
+   * The "Log in" control beside "Sign up with Google" (#951), for a guest who
+   * already has an account. A slot rather than built in, so this prompt stays
+   * free of the auth context and the router.
+   */
+  children?: JSX.Element;
 }
 
 /**
@@ -34,7 +41,7 @@ export default function UpgradeAccountPrompt(props: UpgradeAccountPromptProps) {
     } catch (err) {
       console.error("Error linking Google account:", err);
       setError(
-        "Could not link a Google account. It may already be in use — try logging in with it instead.",
+        "Could not link a Google account. It may already have a Groove account: use Log in instead to open it.",
       );
     } finally {
       setBusy(false);
@@ -48,10 +55,13 @@ export default function UpgradeAccountPrompt(props: UpgradeAccountPromptProps) {
         open them, then removed. Sign up to keep your work indefinitely and open it on any
         device.
       </p>
-      <button type="button" disabled={busy()} onClick={upgrade}>
-        <HiSolidUser size={18} />
-        <span>Sign up with Google</span>
-      </button>
+      <div class="upgrade-actions">
+        <button type="button" disabled={busy()} onClick={upgrade}>
+          <HiSolidUser size={18} />
+          <span>Sign up with Google</span>
+        </button>
+        {props.children}
+      </div>
       <Show when={error()}>
         <p class="error">{error()}</p>
       </Show>

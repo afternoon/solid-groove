@@ -1,4 +1,4 @@
-import { Portal } from "@solidjs/web";
+import { type JSX, Portal } from "@solidjs/web";
 import { HiSolidSquares2x2 } from "solid-icons/hi";
 import { type Accessor, createEffect, createSignal, Show } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
@@ -68,6 +68,12 @@ export interface EditorHeaderProps {
   /** Told whether the Export dialog is open, so the editor's keys can stand down. */
   readonly onExportOpenChange?: (open: boolean) => void;
   readonly keyHint: (action: Parameters<typeof shortcutLabel>[0]) => string;
+  /**
+   * The account control at the far end (#951): "Log in" for a guest, "Sign
+   * out" for a signed-in user. Handed in by the route, which owns the auth
+   * context, so the header itself needs none.
+   */
+  readonly account?: JSX.Element;
   /** Injected in tests; defaults to the app-wide instance. */
   readonly analytics?: Analytics;
 }
@@ -267,6 +273,7 @@ export default function EditorHeader(props: EditorHeaderProps) {
         >
           <HelpIcon size={18} />
         </button>
+        {props.account}
       </div>
     </header>
   );

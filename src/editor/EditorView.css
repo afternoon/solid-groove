@@ -231,6 +231,13 @@
   color: var(--color-on-accent);
 }
 
+/* The account control (#951): a worded cell, quieter than Export. */
+.editor-header .account-button {
+  padding: 0 12px;
+  font-size: var(--font-size-small);
+  white-space: nowrap;
+}
+
 /* A field: black, with a 1px inset that brightens under the pointer. */
 .editor-header .tempo-control,
 .editor-header .playhead-position {

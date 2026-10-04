@@ -37,8 +37,15 @@
   opacity: 0.85;
 }
 
+.upgrade-prompt .upgrade-actions,
+.dashboard-actions .action-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .upgrade-prompt button,
-.dashboard-actions .new-project {
+.dashboard-actions button {
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -48,7 +55,7 @@
 }
 
 .upgrade-prompt button:disabled,
-.dashboard-actions .new-project:disabled {
+.dashboard-actions button:disabled {
   opacity: 0.6;
   cursor: default;
 }

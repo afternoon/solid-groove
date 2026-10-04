@@ -114,6 +114,8 @@ export interface EditorViewProps {
   readonly libraryClient?: LibraryClient;
   /** Injected in tests; the shared catalog-backed instance otherwise. */
   readonly analytics?: Analytics;
+  /** The header's account control (#951), supplied by the route. */
+  readonly account?: JSX.Element;
 }
 
 /** What the arrangement and the instrument view both show for an empty song. */
@@ -778,6 +780,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                 onOpenGuide={() => setGuideOpen(true)}
                 onExportOpenChange={setExportOpen}
                 keyHint={keyHint}
+                account={props.account}
               />
               <div class="editor-body">
                 {/*
