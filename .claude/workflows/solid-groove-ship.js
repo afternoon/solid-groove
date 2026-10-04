@@ -34,7 +34,7 @@ const ENV = `## Your worktree and environment
 - Branch from a remote ref (\`origin/main\` or \`origin/<branch>\`), never from wherever the worktree starts. Never pipe a git command through \`head\`/\`tail\` in an \`&&\` chain; it hides a failed checkout.
 - Run \`bun install\` first. Without it \`bun run typecheck\` fails with TS2688 on '@testing-library/jest-dom'; that is a missing install, not a tsconfig problem.
 - Audio suites need a default ALSA device. If they fail with "cpal backend error ... DeviceUnavailable", run \`printf 'pcm.!default {\\n    type null\\n}\\nctl.!default {\\n    type null\\n}\\n' > ~/.asoundrc\` and retry. Never mock Tone or skip an audio suite.
-- Only Chromium runs here (\`bun run test:browser:chromium\`, \`bun run test:browser:emulator:chromium\`). CI runs Firefox and WebKit on push, so pushing is the cross-browser check.
+- Only Chromium runs here (\`bun run test:browser:chromium\`, \`bun run test:browser:emulator:chromium\`). CI's browser matrix runs daily on main, not per push, so run both Chromium pre-flights for any change a browser can see.
 `
 
 const TRIAGE_SCHEMA = {

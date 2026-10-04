@@ -12,6 +12,13 @@ on:
     # first PR run. Building CI on push makes that checkable when it matters.
     branches: [main, "claude/**"]
   pull_request:
+  # The browser suites (`browser`, `browser-emulator`) are too heavy to run on
+  # every push: a stack of ten PRs queued over a hundred browser jobs. They run
+  # once a day on `main` instead, and on demand from the Actions tab. A failed
+  # daily pass opens (or updates) a bug issue, so it lands on the board.
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
 
 # Cancel superseded runs on the same ref so pushes to an open PR don't queue
 # up stale checks. `main` is excluded: the `deploy` job below must never be
@@ -21,7 +28,9 @@ on:
 # mismatched rules and Hosting code and no failure signal (the run reports
 # "cancelled", not "failed").
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
+  # The event name keeps the daily browser pass out of `main`'s push group, where
+  # a queued scheduled run would replace a pending deploy run.
+  group: ci-${{ github.workflow }}-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
@@ -107,6 +116,8 @@ jobs:
   browser:
     name: browser e2e (${{ matrix.browser }})
     needs: checks
+    # Daily and on demand only; see `on.schedule`.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     continue-on-error: ${{ matrix.browser == 'webkit' }}
     strategy:
@@ -144,6 +155,8 @@ jobs:
   browser-emulator:
     name: browser e2e against the emulator (${{ matrix.browser }})
     needs: checks
+    # Daily and on demand only; see `on.schedule`.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -264,7 +277,9 @@ jobs:
   # full secret/variable list and how to add them.
   deploy:
     name: deploy to Firebase Hosting
-    needs: [checks, browser, browser-emulator, emulator, build]
+    # The browser suites run daily, not per push, so they do not gate a deploy;
+    # a red daily pass files a bug instead (`browser-pass-failed`).
+    needs: [checks, emulator, build]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: prod
@@ -421,3 +436,31 @@ jobs:
           name: hosted-smoke-test-report
           path: playwright-report/
           retention-days: 7
+
+  # A failed daily browser pass becomes a bug on the board, not a red run nobody
+  # opens: one open issue, commented on by each later failure until it is closed.
+  browser-pass-failed:
+    name: report a failed daily browser pass
+    needs: [browser, browser-emulator]
+    if: failure() && github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    env:
+      # The PAT, so opening the issue triggers milestone.yml and the board;
+      # issues opened with GITHUB_TOKEN start no workflows.
+      GH_TOKEN: ${{ secrets.RESTACK_TOKEN || github.token }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    steps:
+      - name: Open or update the issue
+        run: |
+          title="Bug: daily browser pass failed"
+          body="The scheduled browser pass on \`main\` (${GITHUB_SHA::7}) failed: $RUN_URL. Each failing job's Playwright report is attached to the run as an artifact."
+          n=$(gh api "repos/$GITHUB_REPOSITORY/issues?state=open&labels=bug&per_page=100" \
+            --jq '[.[] | select(.title == "Bug: daily browser pass failed")][0].number // empty')
+          if [ -n "$n" ]; then
+            gh api "repos/$GITHUB_REPOSITORY/issues/$n/comments" -f body="Failed again: $RUN_URL" --jq .html_url
+          else
+            gh api "repos/$GITHUB_REPOSITORY/issues" -f title="$title" -f body="$body" \
+              -f 'labels[]=bug' -f 'labels[]=status:backlog' --jq .html_url
+          fi

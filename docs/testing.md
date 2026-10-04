@@ -268,15 +268,17 @@ cross-browser coverage.
 
 | Environment | Browsers it runs | What a green run proves |
 | --- | --- | --- |
-| CI (`.github/workflows/ci.yml`) | chromium, chrome, msedge, firefox, webkit (the emulator suite: all but webkit) | **The gate.** Chrome, Edge and Firefox are P0 and block, as does Playwright's Chromium; WebKit is `continue-on-error` signal |
+| CI (`.github/workflows/ci.yml`), daily on `main` and on demand | chromium, chrome, msedge, firefox, webkit (the emulator suite: all but webkit) | **The cross-browser check.** Chrome, Edge and Firefox are P0 and fail the run, as does Playwright's Chromium; WebKit is `continue-on-error` signal. A failed daily run files a bug |
 | A local machine | whatever `bun run test:browser:install` fetched (chromium, firefox, webkit), plus Chrome and Edge if they are installed | The same as CI, for the browsers that are there |
 | A container that cannot reach `cdn.playwright.dev` (Claude Code on the web) | chromium only | A pre-flight. Says nothing about Firefox or WebKit |
 
-CI runs on `push` to `main` and `claude/**` as well as on `pull_request`, and
-installs only the browser its matrix job is testing. So a branch gets the full
-matrix *when it is pushed*, before a PR exists — the cross-browser signal is one
-push away, not one review cycle away. That is what makes the Chromium-only tier
-safe: nothing merges on it.
+The browser matrix does **not** run per push: on a busy day, ten stacked PRs
+queued well over a hundred browser jobs. It runs once a day on `main`, and on
+demand ("Run workflow" on the CI workflow, choosing a branch), installing only
+the browser each matrix job tests. A PR therefore merges on the Chromium
+pre-flight its author ran plus the non-browser jobs, and the daily pass catches a
+cross-browser regression within a day, as a bug on the board. For a change you
+suspect is browser-specific, run CI on its branch by hand before merging.
 
 In a Chromium-only environment, run the pre-flight explicitly:
 
@@ -288,7 +290,8 @@ bun run test:browser:emulator:chromium   # tests/e2e/emulator/, chromium only
 Use those rather than `bun run test:browser --project=chromium`, so the command
 in the log names its own scope. **A green Chromium-only run is not the PRD
 section 10 gating evidence** — the definition of done asks for the gating
-browsers, and one of them has not run. Push the branch and read CI.
+browsers, and one of them has not run. Run CI on the branch by hand if the change
+needs that evidence before it merges.
 
 Two mechanics make this work, and neither belongs in a test:
 
@@ -430,14 +433,15 @@ bun run check     # tsc --noEmit && biome check
 
 ## CI
 
-`.github/workflows/ci.yml` runs on every push to `main` and every pull request:
+`.github/workflows/ci.yml` runs on every push to `main` and `claude/**` and every pull request, and once a day on `main` (plus on demand: "Run workflow" on the CI workflow). The two browser suites run **only** in the daily and on-demand runs; every other job runs on every push:
 
 1. **`checks`** — `bun run typecheck`, `bun run check:ci`, then a null-ALSA-device setup step (see "Unit and component tests" above) before `bun run test`, and finally `bun run library:validate` (see "Starter sound library" below), which validates the whole 200-asset catalogue rather than the representative sample the unit suite renders. Everything else depends on this. Uploads the run's JSON report as the `vitest-report-unit` artifact, pass or fail (see "Vitest JSON run reports" above).
-2. **`browser`** — the Playwright suite, matrixed over `chromium`, `chrome`, `msedge`, `firefox`, `webkit`. Chromium/Chrome/Edge/Firefox failures block the workflow; WebKit failures are reported but do not (`continue-on-error`).
-3. **`browser-emulator`** — `bun run test:browser:emulator` (`FND-009`, and every core flow), matrixed over `chromium`, `chrome`, `msedge` and `firefox`, with a JDK installed for the Firestore emulator, exercising the foundation slice's add/play/undo/save/reload journey against a real (emulated) backend.
+2. **`browser`** (daily and on demand) — the Playwright suite, matrixed over `chromium`, `chrome`, `msedge`, `firefox`, `webkit`. Chromium/Chrome/Edge/Firefox failures block the workflow; WebKit failures are reported but do not (`continue-on-error`).
+3. **`browser-emulator`** (daily and on demand) — `bun run test:browser:emulator` (`FND-009`, and every core flow), matrixed over `chromium`, `chrome`, `msedge` and `firefox`, with a JDK installed for the Firestore emulator, exercising the foundation slice's add/play/undo/save/reload journey against a real (emulated) backend.
 4. **`emulator`** — `bun run test:emulator`, with a JDK installed for the Firestore emulator. Uploads its JSON report as the `vitest-report-emulator` artifact, pass or fail.
-5. **`build`** — `bun run build`, then `bun run verify:bundle` and `bun run verify:budget` (see "Deploy" below). Runs unconditionally, needs no Firebase project or credentials, and gates merges like every job above.
-6. **`deploy`** — builds, stamps, and ships the release to Firebase Hosting; see "Deploy" below for what it does and why it usually no-ops.
+5. **`build`** — `bun run build`, then `bun run verify:bundle` and `bun run verify:budget` (see "Deploy" below). Runs unconditionally, needs no Firebase project or credentials, and gates merges.
+6. **`deploy`** — builds, stamps, and ships the release to Firebase Hosting; see "Deploy" below for what it does and why it usually no-ops. It waits on `checks`, `emulator` and `build`, not on the browser suites.
+7. **`browser-pass-failed`** — when the daily run's browser suites fail, opens a `Bug: daily browser pass failed` issue (or comments on the open one) linking the run, so it lands on the board.
 
 `.github/workflows/preview.yml` is a second, separate workflow: it publishes a PR to a Firebase Hosting preview channel, but only when that PR carries the `deploy-preview` label. See "Per-PR preview deploys" under "Deploy" below.
 

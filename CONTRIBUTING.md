@@ -36,7 +36,7 @@ library first, so the first run is slower than later ones.
 | Anything with the Firebase Emulator | A JDK (the emulator runs on the JVM) — CI installs Temurin 21 |
 | Browser E2E suites | `bun run test:browser:install` once, and outbound access to `cdn.playwright.dev` |
 | `bun run test` on a machine with no audio hardware | A null ALSA output device — see below |
-| Browser E2E where that CDN is blocked | Nothing extra — run the Chromium-only pre-flight and let CI gate Firefox/WebKit ([docs/testing.md](./docs/testing.md#which-browsers-run-where)) |
+| Browser E2E where that CDN is blocked | Nothing extra — run the Chromium-only pre-flight; CI's daily pass (or a manual CI run) covers Firefox/WebKit ([docs/testing.md](./docs/testing.md#which-browsers-run-where)) |
 
 On macOS, `brew install openjdk@21` installs a JDK without needing `sudo`
 (unlike the Temurin cask). It is keg-only, so put it on your `PATH` for the
