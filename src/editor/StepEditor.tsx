@@ -3,7 +3,13 @@ import { type Accessor, createMemo, createSignal } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import type { Gesture, GestureOptions, RawCommandInput } from "../commands";
 import { removeNotes } from "../commands";
-import type { Clip, Instrument, NoteEvent, NoteTrigger } from "../domain/entities";
+import type {
+  Clip,
+  Instrument,
+  NoteEvent,
+  NoteTrigger,
+  Project,
+} from "../domain/entities";
 import { createFactoryContext } from "../domain/factories";
 import type { EventId, PadId } from "../domain/ids";
 import { NOTE_VELOCITY } from "../domain/parameters";
@@ -41,6 +47,8 @@ const factoryContext = createFactoryContext();
 
 export interface StepEditorProps {
   readonly clip: Clip;
+  /** The project, for edits that reach past the clip (its Bars control, #963). */
+  readonly project: Project;
   /** The owning track's instrument, used to derive the lanes (CLP-02). */
   readonly instrument: Instrument | null;
   /** Single, immediately-committed edits (velocity, resize). */
@@ -239,6 +247,7 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
         leading={
           <ClipLengthControl
             clip={props.clip}
+            project={props.project}
             dispatch={props.dispatch}
             analytics={props.analytics}
           />

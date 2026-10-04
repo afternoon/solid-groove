@@ -103,6 +103,7 @@ export default function TrackClipEditor(props: TrackClipEditorProps) {
               <>
                 <StepEditor
                   clip={clip()}
+                  project={props.project}
                   instrument={props.instrument}
                   dispatch={props.dispatch}
                   beginGesture={props.beginGesture}

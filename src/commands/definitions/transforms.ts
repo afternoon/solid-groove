@@ -17,6 +17,7 @@ import {
   noteEventsOf,
   pluralize,
   replaceClip,
+  replacePlacement,
   selectEvents,
   withNoteEvents,
 } from "../projectEdits";
@@ -31,6 +32,7 @@ import {
 } from "../types";
 import { updateClip } from "./clips";
 import { addNotes, type NoteChanges, removeNotes, updateNotes } from "./notes";
+import { placementsGrownWithClip, updatePlacement } from "./placements";
 
 /**
  * Musical transformations (PRD CLP-04): transpose, velocity scaling,
@@ -403,7 +405,20 @@ export const notesDuplicateCommand = defineCommand<NotesDuplicatePayload>({
       ...(noteEventsOf(selection.clip) ?? []),
       ...copies,
     ]);
-    return applied(replaceClip(project, { ...withCopies, lengthTicks }));
+    // #963: the clip's placements that showed its whole length grow with it
+    // in the same command, or the copies would never play or export.
+    const grown = placementsGrownWithClip(
+      project,
+      selection.clip.id,
+      selection.clip.lengthTicks,
+      lengthTicks,
+    );
+    return applied(
+      grown.reduce(
+        replacePlacement,
+        replaceClip(project, { ...withCopies, lengthTicks }),
+      ),
+    );
   },
   invert(payload, before, after) {
     const commands: RawCommandInput[] = [];
@@ -416,6 +431,14 @@ export const notesDuplicateCommand = defineCommand<NotesDuplicatePayload>({
     const next = findClip(after, payload.clipId);
     if (previous && next && previous.lengthTicks !== next.lengthTicks) {
       commands.push(updateClip(payload.clipId, { lengthTicks: previous.lengthTicks }));
+    }
+    for (const placement of before.song.placements) {
+      const grown = after.song.placements.find((other) => other.id === placement.id);
+      if (grown && grown.durationTicks !== placement.durationTicks) {
+        commands.push(
+          updatePlacement(placement.id, { durationTicks: placement.durationTicks }),
+        );
+      }
     }
     return commands;
   },
