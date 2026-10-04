@@ -97,6 +97,8 @@ export interface FillSliderProps {
  */
 export default function FillSlider(props: FillSliderProps): JSX.Element {
   const id = () => props.inputId ?? defaultInputId(props.definition.id);
+  /** The slider's accessible name; its value field is "<name> value". */
+  const name = () => props.ariaLabel ?? props.label ?? props.definition.label;
   const scale = (): FillSliderRange => props.range ?? props.definition;
 
   const fillPercent = createMemo(() => {
@@ -199,7 +201,7 @@ export default function FillSlider(props: FillSliderProps): JSX.Element {
         inputmode="decimal"
         spellcheck={false}
         autocomplete="off"
-        aria-label={`${props.ariaLabel ?? props.label ?? props.definition.label} value`}
+        aria-label={`${name()} value`}
         value={props.displayValue}
         disabled={props.disabled}
         onFocus={(event) => event.currentTarget.select()}
@@ -221,7 +223,11 @@ export default function FillSlider(props: FillSliderProps): JSX.Element {
           type="range"
           // The orientation the pointer and arrow keys actually move in.
           aria-orientation={horizontal() ? "horizontal" : "vertical"}
-          aria-label={props.ariaLabel}
+          // Named on the element itself, not only through the `<label for>`
+          // below (#866): an audit that reads the name off the slider found
+          // it unnamed, and the label's uppercase styling leaks into the
+          // computed name. The value field beside it says "<name> value".
+          aria-label={name()}
           // The slider's raw number is meaningless to a screen reader — a
           // fader position, or a bipolar pan. Announce what is painted.
           aria-valuetext={props.displayValue}

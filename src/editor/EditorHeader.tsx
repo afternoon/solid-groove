@@ -177,13 +177,15 @@ export default function EditorHeader(props: EditorHeaderProps) {
         <PlayheadInput positionTicks={props.audio.positionTicks} onSeek={seek} />
         <div class="header-cell-group">
           <div class="tempo-control">
-            {/* The label is the input's only accessible name — no
-                aria-label to override it. The printed unit is decoration. */}
+            {/* Named on the input itself as well as by the label (#866), so
+                an audit reading the name off the element finds it. The
+                printed unit is decoration. */}
             <label class="visually-hidden" for="tempo-input">
               Tempo (BPM)
             </label>
             <input
               id="tempo-input"
+              aria-label="Tempo (BPM)"
               type="number"
               class="tempo-input"
               min={MIN_TEMPO_BPM}

@@ -252,6 +252,15 @@ describe("Mixer track management (TRK-01)", () => {
     expect(history.project.song.tracks[0].name).toBe("Kick drum");
   });
 
+  // #866: named only by a hidden `<label for>`, as the header tempo box was.
+  it("names each track's name field on the element itself (#866)", () => {
+    renderMixer();
+    expect(screen.getByLabelText("Track name")).toHaveAttribute(
+      "aria-label",
+      "Track name",
+    );
+  });
+
   it("puts the name back on Escape, with no undo entry", () => {
     const { history } = renderMixer();
     const name = history.project.song.tracks[0].name;
