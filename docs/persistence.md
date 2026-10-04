@@ -153,3 +153,20 @@ Anonymous Firebase identities are ordinary identities here (PRJ-01): they own pr
 `firestore.indexes.json` carries the dashboard's composite index (`ownerId` ascending, `modifiedAt` descending) and is wired into `firebase.json`.
 
 Coverage lives in `tests/emulator/` (`bun run test:emulator`): `firestoreRules.emulator.test.ts` for owner, collaborator, anonymous, unauthenticated, deletion, malformed-write, and cross-project cases, and `firestoreProjectRepository.emulator.test.ts` for the repository contract against a real Firestore instance. The favourites rules are in the same rules file, and `firestoreFavouritesRepository.emulator.test.ts` runs the favourites contract through them.
+
+## User data and the account allowance
+
+Everything a user keeps that is not a project lives under `users/{uid}/` (#282). Personal packs are the first kind: a pack is one Firestore document at `users/{uid}/packs/{packId}` (its name, its version, and its sounds), and each sound's audio is one Cloud Storage object at `users/{uid}/packs/{packId}/{assetId}`. `src/userData/userData.ts` holds the layout, the kinds, and the limits; nothing else writes those paths down.
+
+Every account gets **1 GB** across all of its user data, whatever the kind. The total lives in `users/{uid}/usage/current` (`totalBytes`, plus `byKind`), kept by two Storage-triggered Cloud Functions in `functions/src/index.ts` from Storage's own write and delete events. They are the repository's first server-side code: a thin wrapper over `src/userData/usageLedger.ts`, which keeps one ledger entry per object (`users/{uid}/usage/current/objects/{path}`) recording the generation it is about and whether it was counted, refused or deleted, so a repeated or out-of-order event never counts twice. A delete stays as a tombstone, so a write event delivered after its own delete is not counted for an object that is gone. A new kind of user data (recordings, presets) is a new folder and a new entry in `USER_DATA_KINDS`, and is counted with no change to the functions.
+
+Enforcement is in two places:
+
+- **`storage.rules`** refuse a write that would take the account over the allowance, by reading the usage document across services (`firestore.get`). They also require a registered account (not a guest), the owner's own folder, an accepted audio type, a non-empty file of at most 100 MB, and a fresh path — a stored sound is never overwritten. Reads are the owner's only. The total lags a write by the time the function takes, so two uploads started at once can each pass the rules. The ledger closes that gap: it counts writes one transaction at a time, and one that would take the total over 1 GB is recorded as `refused`, never counted, and deleted again by the function. The function also takes that sound out of the pack listing it, at the next major version, as its owner deleting it would (`src/userData/refusedSound.ts`), so no pack lists a sound with no audio behind it.
+- **The client** reads the usage document before an import and warns from 90%, so a producer hears about the limit before a refused upload.
+
+`firestore.rules` let only a registered owner write their packs, at most 500 sounds to a pack (its sounds are inline in the one document, which Firestore caps at 1 MiB), and nobody but the functions' admin credential write the usage document.
+
+Deploying this needs the Blaze plan and Cloud Functions enabled (`bun run deploy` now deploys `functions` too; `firebase.json`'s `predeploy` bundles them with `bun build` and installs `functions/`'s own dependencies). The deploy credential needs the roles to deploy Cloud Functions (2nd gen) and their Eventarc Storage triggers, and the first deploy of rules that read Firestore from Storage grants the Storage service agent read access to Firestore. The functions run in `us-central1`, which has to match the default bucket's location.
+
+Coverage: `src/userData/*.test.ts` for the layout, the limits (including that `storage.rules` repeats the same numbers) and the ledger, and `tests/emulator/userDataRules.emulator.test.ts` for both rule files against the emulators.

@@ -24,9 +24,53 @@ service firebase.storage {
       allow write: if false;
     }
 
-    // LIB-03 adds per-user imported audio under `users/{uid}/**`. That work
-    // owns its own rules, quota, and content-type enforcement, so this file
-    // deliberately does not pre-declare the shape of a path nothing writes yet.
+    // User data (#282): everything a user stores lives under `users/{uid}/`,
+    // one folder per kind, and counts against one allowance per account. The
+    // numbers below repeat `src/userData/userData.ts`; `userData.test.ts` fails
+    // if they drift apart.
+
+    function owner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    // A guest is an anonymous Firebase identity. Guests keep projects, but
+    // storing audio needs an account (#282), so writes check the provider.
+    function registeredOwner(uid) {
+      return owner(uid)
+        && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+
+    // The account's running total, kept by the `userDataUsage*` Cloud
+    // Functions from Storage's own events (`functions/src/index.ts`). No
+    // document yet means nothing stored yet.
+    function usedBytes(uid) {
+      let usage = /databases/(default)/documents/users/$(uid)/usage/current;
+      return firestore.exists(usage) ? firestore.get(usage).data.totalBytes : 0;
+    }
+
+    // 1 GB per account across every kind of user data. The total lags a write
+    // by the time the function takes to run, so two uploads started together
+    // can each pass this check. The function holds the line there: a write
+    // that arrives with the account already full is not counted and is
+    // deleted again (`src/userData/usageLedger.ts`).
+    function withinAllowance(uid) {
+      return usedBytes(uid) + request.resource.size <= 1073741824;
+    }
+
+    // An imported sound: audio of a type we decode, non-empty, at most 100 MB
+    // (104857600 bytes), and stored once — its ID is fresh per import, so
+    // content never changes under a project that uses it.
+    match /users/{uid}/packs/{packId}/{assetId} {
+      allow read: if owner(uid);
+      allow create: if registeredOwner(uid)
+        && resource == null
+        && request.resource.size > 0
+        && request.resource.size <= 104857600
+        && request.resource.contentType in ['audio/wav', 'audio/x-wav', 'audio/wave', 'audio/vnd.wave', 'audio/aiff', 'audio/x-aiff', 'audio/flac', 'audio/x-flac', 'audio/mpeg', 'audio/mp3', 'audio/ogg', 'audio/mp4', 'audio/x-m4a', 'audio/aac']
+        && withinAllowance(uid);
+      allow update: if false;
+      allow delete: if owner(uid);
+    }
 
     match /{allPaths=**} {
       allow read, write: if false;
