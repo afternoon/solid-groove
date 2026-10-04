@@ -32,13 +32,13 @@ installWebAudioGlobals();
 let Tone: typeof import("tone");
 let renderer: typeof import("./offlineRenderer");
 let runtimeModule: typeof import("./AudioRuntime");
-let masterLatency: typeof import("./masterLatency");
+let master: typeof import("./MasterAudioGraph");
 
 beforeAll(async () => {
   Tone = await import("tone");
   renderer = await import("./offlineRenderer");
   runtimeModule = await import("./AudioRuntime");
-  masterLatency = await import("./masterLatency");
+  master = await import("./MasterAudioGraph");
 });
 
 afterEach(async () => {
@@ -171,13 +171,9 @@ describe("offline reference renders: timing and alignment", () => {
   });
 
   it("drops the master limiter's pre-delay, and only that, from the front", async () => {
-    const latency = await masterLatency.masterLatencyFrames(RATE);
+    const latency = master.masterLimiterLatencyFrames(RATE);
     expect(Number.isInteger(latency)).toBe(true);
-    expect(latency).toBeGreaterThanOrEqual(0);
-    // Measured once per rate, not once per render.
-    expect(masterLatency.masterLatencyFrames(RATE)).toBe(
-      masterLatency.masterLatencyFrames(RATE),
-    );
+    expect(latency).toBeGreaterThan(0);
     const result = await render(samplerSong([{ tick: 0 }]));
     expect(onset(result.channels[0])).toBeLessThanOrEqual(LEAD_IN);
   });
@@ -315,7 +311,7 @@ describe("offline reference renders: parity with live playback", () => {
       RATE,
     );
     const offline = await render(project, 2);
-    const latency = await masterLatency.masterLatencyFrames(RATE);
+    const latency = master.masterLimiterLatencyFrames(RATE);
     for (const channel of [0, 1]) {
       const heard = live.getChannelData(channel).subarray(latency);
       const rendered = offline.channels[channel];

@@ -1,4 +1,5 @@
 import * as Tone from "tone";
+import { type DeclaredLatency, dynamicsLookaheadFrames } from "../latency";
 import { builtInMakeupGainDb } from "./compressorMakeup";
 import {
   type DeviceCore,
@@ -52,6 +53,14 @@ function applyParam(
  * moderate knee keeps low ratios musical rather than abrupt.
  */
 const KNEE_DB = 6;
+
+/**
+ * How far the Compressor delays its signal: the one `DynamicsCompressorNode`
+ * lookahead its wet leg runs through (its dry leg is aligned to the same
+ * figure by `dryAlign`). A constant of the engine, whatever the settings, so
+ * a parameter edit or a bypass never moves the song in time (#883).
+ */
+export const compressorLatencyFrames: DeclaredLatency = dynamicsLookaheadFrames;
 
 /**
  * Compressor: threshold, ratio, attack, release, and makeup gain, with a live

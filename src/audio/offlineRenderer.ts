@@ -4,7 +4,7 @@ import type { Scheduler } from "../shared/scheduler";
 import type { AssetBufferLoader } from "./AudioBufferCache";
 import type { InstrumentNodeFactory } from "./InstrumentGraph";
 import { disposeVoicesFinishedBy } from "./instruments/assetVoice";
-import { masterLatencyFrames } from "./masterLatency";
+import { masterLimiterLatencyFrames } from "./MasterAudioGraph";
 import {
   finishOfflineRender,
   renderOfflineInStep,
@@ -103,18 +103,9 @@ export async function renderProjectOffline(
     options.onProgress?.(fraction);
   };
 
-  let latencyFrames: number;
-  try {
-    latencyFrames = await masterLatencyFrames(sampleRate);
-  } catch (error) {
-    throw new OfflineRenderError("not_supported", "Offline rendering is unavailable", {
-      cause: error,
-    });
-  }
-  if (signal?.aborted) throw renderCancelled();
-
   // The limiter's pre-delay is rendered, then dropped from the front, so bar 1
-  // is the file's first frame (see `masterLatency.ts`).
+  // is the file's first frame (see `masterLimiterLatencyFrames`).
+  const latencyFrames = masterLimiterLatencyFrames(sampleRate);
   const tailSeconds = options.maxTailSeconds ?? MAX_TAIL_SECONDS;
   const session = openOfflineSession(projection, {
     ...options,
