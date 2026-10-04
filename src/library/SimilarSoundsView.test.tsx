@@ -1,9 +1,11 @@
 import { cleanup, render, screen, within } from "@solidjs/testing-library";
+import { flush } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { clickAndFlush } from "../testing/events";
 import { libraryAsset as sound } from "./__fixtures__/assets";
 import { fakePreviewEngine } from "./__fixtures__/fakePreviewEngine";
 import SimilarSoundsView from "./SimilarSoundsView";
+import type { SoundsKeyAction } from "./soundKeys";
 
 afterEach(cleanup);
 
@@ -16,7 +18,11 @@ const library = [ref, near, far, other];
 
 function renderView(over: Partial<Parameters<typeof SimilarSoundsView>[0]> = {}) {
   const engine = fakePreviewEngine();
-  const props = { onSelect: vi.fn(), onBack: vi.fn() };
+  let keys: ((action: SoundsKeyAction) => void) | null = null;
+  const onKeys = vi.fn((handler: ((action: SoundsKeyAction) => void) | null) => {
+    keys = handler;
+  });
+  const props = { onSelect: vi.fn(), onBack: vi.fn(), onKeys };
   render(() => (
     <SimilarSoundsView
       reference={ref}
@@ -27,7 +33,11 @@ function renderView(over: Partial<Parameters<typeof SimilarSoundsView>[0]> = {})
       {...over}
     />
   ));
-  return { engine, ...props };
+  const press = (action: SoundsKeyAction) => {
+    keys?.(action);
+    flush();
+  };
+  return { engine, press, ...props };
 }
 
 const list = () => screen.getByRole("list", { name: "Similar sounds" });
@@ -93,6 +103,56 @@ describe("SimilarSoundsView", () => {
     clickAndFlush(within(trail).getByRole("button", { name: "Ref" }));
     expect(screen.getByRole("button", { name: "Play Ref" })).toBeVisible();
     expect(within(trail).getAllByRole("button")).toHaveLength(1);
+  });
+
+  it("walks the results with the arrows, selecting and auditioning each (#873)", async () => {
+    const { engine, onSelect, press } = renderView();
+    press("library.select_next");
+    press("library.select_next");
+    expect(onSelect.mock.calls.map(([asset]) => asset)).toEqual([near, far]);
+    expect(screen.getByRole("button", { name: "Audition Far" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    press("library.select_next");
+    press("library.select_next");
+    press("library.select_previous");
+    expect(onSelect.mock.calls.map(([asset]) => asset)).toEqual([near, far, other, far]);
+    await Promise.resolve();
+    expect(engine.starts.map((s) => s.asset)).toEqual([near, far, other, far]);
+  });
+
+  it("auditions the selection again on Space, and the reference before there is one", async () => {
+    const { engine, press } = renderView();
+    press("library.audition");
+    await Promise.resolve();
+    expect(engine.starts.map((s) => s.asset)).toEqual([ref]);
+    clickAndFlush(screen.getByRole("button", { name: "Audition Near" }));
+    press("library.audition");
+    await Promise.resolve();
+    expect(engine.starts.map((s) => s.asset)).toEqual([ref, near, near]);
+  });
+
+  it("hops on from the selected result with S, growing the trail", () => {
+    const { press } = renderView();
+    const crumbs = () =>
+      within(screen.getByRole("navigation", { name: "Similar sounds trail" }))
+        .getAllByRole("button")
+        .map((b) => b.textContent);
+    press("library.similar");
+    expect(crumbs()).toEqual(["Ref"]);
+    clickAndFlush(screen.getByRole("button", { name: "Audition Far" }));
+    press("library.select_previous");
+    press("library.similar");
+    expect(crumbs()).toEqual(["Ref", "Near"]);
+    expect(screen.getByRole("button", { name: "Play Near" })).toBeVisible();
+  });
+
+  it("hands the host its key handler and takes it back when it unmounts", () => {
+    const { onKeys } = renderView();
+    expect(onKeys).toHaveBeenLastCalledWith(expect.any(Function));
+    cleanup();
+    expect(onKeys).toHaveBeenLastCalledWith(null);
   });
 
   it("goes back to the list it came from", () => {

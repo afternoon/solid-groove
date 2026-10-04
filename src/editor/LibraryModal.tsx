@@ -330,6 +330,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
     action ? props.keyLabel?.(action) : undefined;
 
   let soundsKeys: ((action: SoundsKeyAction) => void) | null = null;
+  let similarKeys: ((action: SoundsKeyAction) => void) | null = null;
 
   // Looked up rather than held by `ref`: the dialog reads its header prop more
   // than once, so a ref can end up naming a copy that never mounted.
@@ -350,7 +351,8 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
     ) {
       active.blur();
     }
-    if (showsSounds()) soundsKeys?.(action as SoundsKeyAction);
+    if (similarOf() !== null) similarKeys?.(action as SoundsKeyAction);
+    else if (showsSounds()) soundsKeys?.(action as SoundsKeyAction);
   }
 
   function toggleKeys(): void {
@@ -627,6 +629,9 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
                 onSelect={setSelected}
                 onBack={back}
                 backLabel={listLabel()}
+                onKeys={(handler) => {
+                  similarKeys = handler;
+                }}
               />
             )}
           </Show>

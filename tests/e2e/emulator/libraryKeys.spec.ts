@@ -159,4 +159,29 @@ test.describe("library keys", () => {
     await expect(library(page)).toBeVisible();
     await expect(readout(page, "In the slot")).toHaveText(before);
   });
+
+  // #873: similar sounds took none of the library's keys, so the arrows left
+  // Hearing on the source sound and S never grew the trail.
+  test("the arrows and S work in similar sounds", async ({ page }) => {
+    await newProjectOnInstrumentView(page);
+    await openPadSlot(page, "BD");
+    await selectSecondSound(page);
+    await page.keyboard.press("s");
+    const results = library(page).getByRole("list", { name: "Similar sounds" });
+    const result = results.getByRole("button", { name: /^Audition / }).nth(1);
+    await expect(result).toBeVisible();
+    const name = ((await result.getAttribute("aria-label")) ?? "").replace(
+      /^Audition /,
+      "",
+    );
+
+    await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowDown");
+    await expect(readout(page, "Hearing")).toContainText(name);
+
+    await page.keyboard.press("s");
+    const trail = library(page).getByRole("navigation", { name: "Similar sounds trail" });
+    await expect(trail.getByRole("button")).toHaveCount(2);
+    await expect(trail.getByRole("button").nth(1)).toHaveText(name);
+  });
 });
