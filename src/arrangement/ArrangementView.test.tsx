@@ -1039,3 +1039,42 @@ describe("ArrangementView track header faders (#447)", () => {
     expect(history.project.song.tracks[0].mixer.volume).toBe(track.mixer.volume);
   });
 });
+
+describe("vertical scroll range (#959)", () => {
+  it("scrolls the rows as far as the spacer does, so the last lane clears the dock", () => {
+    // The issue's 1280x800 case: nine tracks in a 745px-tall scroller.
+    const viewportHeight = 745;
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      const height = this.classList.contains("arrangement-viewport") ? viewportHeight : 0;
+      return new DOMRect(0, 0, 1080, height);
+    });
+    const { project } = buildArrangementProject(Array.from({ length: 9 }, () => []));
+    const { container } = render(() => (
+      <ArrangementView project={project} belowTracks={<span>Add track</span>} />
+    ));
+    flush();
+
+    const scroller = container.querySelector(".arrangement-viewport") as HTMLElement;
+    const spacer = container.querySelector(".arrangement-spacer") as HTMLElement;
+    const headers = container.querySelector(".arrangement-headers-inner") as HTMLElement;
+    const belowTracks = container.querySelector(
+      ".arrangement-below-tracks",
+    ) as HTMLElement;
+
+    // Scroll the native scroller to its bottom: the spacer less the viewport.
+    const nativeMax = Number.parseFloat(spacer.style.height) - viewportHeight;
+    expect(nativeMax).toBeGreaterThan(0);
+    Object.defineProperty(scroller, "scrollTop", {
+      configurable: true,
+      value: nativeMax,
+    });
+    fireEvent.scroll(scroller);
+    flush();
+
+    // The rows and the add-track unit move with it, all the way.
+    expect(headers.style.transform).toBe(`translateY(${-nativeMax}px)`);
+    expect(belowTracks.style.transform).toBe(`translateY(${-nativeMax}px)`);
+  });
+});

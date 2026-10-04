@@ -185,6 +185,28 @@ describe("scroll bounds and resize", () => {
     expect(shell.getViewport().scrollTop).toBeLessThan(scrolledTop);
   });
 
+  it("scrolls as far as the rows plus the configured extra height (#959)", () => {
+    const project = createLargeArrangementProject(20);
+    const projection = buildArrangementProjection(project, ROW_METRICS);
+    const rowsHeight = projection.rowOffsets[projection.rowOffsets.length - 1];
+    const shell = createArrangementShell(() => projection, {
+      initialViewport: baseViewport({ height: 200 }),
+      config: { extraHeightPx: 136 },
+      onDirty: () => {},
+    });
+    expect(shell.contentHeight()).toBe(rowsHeight + 136);
+    shell.setScroll(0, 1e9);
+    expect(shell.getViewport().scrollTop).toBe(rowsHeight + 136 - 200);
+
+    // The space below the rows grows: the bottom moves down with it.
+    shell.setExtraHeight(180);
+    shell.setScroll(0, 1e9);
+    expect(shell.getViewport().scrollTop).toBe(rowsHeight + 180 - 200);
+    // And shrinks: the scroll offset clamps back up to the new bottom.
+    shell.setExtraHeight(100);
+    expect(shell.getViewport().scrollTop).toBe(rowsHeight + 100 - 200);
+  });
+
   it("caps the device pixel ratio at 2", () => {
     const { shell } = setup();
     expect(shell.devicePixelRatio(3)).toBe(2);
