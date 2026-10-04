@@ -601,3 +601,87 @@ describe("useProjectAudio", () => {
     expect(transport.named("audio_start_failed")).toHaveLength(1);
   });
 });
+
+// #75: a browser that cannot start sound is explained, not left silent, and a
+// browser with no Web Audio at all still opens the editor.
+describe("useProjectAudio start failures", () => {
+  it("keeps the last start failure, counts attempts, and clears it once sound starts", async () => {
+    const { analytics } = fakeAnalytics();
+    let refuse = true;
+    const runtime = unreachableAudioHost(() =>
+      refuse
+        ? Promise.reject(Object.assign(new Error("blocked"), { name: "NotAllowedError" }))
+        : Promise.resolve(),
+    );
+    const { result } = renderHook(() =>
+      useProjectAudioModule.useProjectAudio(() => null, { runtime, analytics }),
+    );
+
+    expect(result.startFailure()).toBeNull();
+    await result.play();
+    const first = result.startFailure();
+    expect(first?.attempt).toBe(1);
+    await result.play();
+    expect(result.startFailure()?.attempt).toBe(2);
+    expect(result.startFailure()?.code).toBe(first?.code);
+
+    refuse = false;
+    await result.play();
+    expect(result.isPlaying()).toBe(true);
+    expect(result.startFailure()).toBeNull();
+  });
+
+  it("reports a failed audition but leaves explaining it to Play", async () => {
+    const { analytics, transport } = fakeAnalytics();
+    const runtime = unreachableAudioHost(() =>
+      Promise.reject(Object.assign(new Error("blocked"), { name: "NotAllowedError" })),
+    );
+    const { result } = renderHook(() =>
+      useProjectAudioModule.useProjectAudio(() => null, { runtime, analytics }),
+    );
+
+    await expect(
+      result.auditionTrack(
+        "trk_x" as TrackId,
+        { kind: "pitch", pitch: 60 } as never,
+        48,
+        100,
+      ),
+    ).resolves.toBe(false);
+    expect(transport.named("audio_start_failed")).toHaveLength(1);
+    expect(result.startFailure()).toBeNull();
+  });
+
+  it("opens a project with no Web Audio without building a graph, and explains a play", async () => {
+    const { analytics, transport } = fakeAnalytics();
+    let resumed = 0;
+    // Every graph-building call throws, so reaching one fails the test.
+    const runtime = unreachableAudioHost(() => {
+      resumed += 1;
+      return Promise.resolve();
+    });
+    const project = createSliceFixtureProject();
+
+    const { result } = renderHook(() =>
+      useProjectAudioModule.useProjectAudio(() => project, {
+        runtime,
+        analytics,
+        webAudioAvailable: false,
+      }),
+    );
+    flush();
+
+    expect(result.loopEnabled()).toBe(project.song.loop.enabled);
+    await expect(result.play()).resolves.toBeUndefined();
+    expect(result.isPlaying()).toBe(false);
+    expect(resumed).toBe(0);
+    expect(result.startFailure()?.code).toBe("not_supported");
+    expect(transport.named("audio_start_failed").map((event) => event.params)).toEqual([
+      expect.objectContaining({
+        error_code: "not_supported",
+        was_browser_blocked: false,
+      }),
+    ]);
+    expect(transport.named("transport_play")).toHaveLength(0);
+  });
+});

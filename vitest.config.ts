@@ -194,6 +194,7 @@ export default defineConfig({
       // `src/*.test.ts` files (telemetry, release, devBackend, firebaseConfig).
       appProject("platform", [
         "src/analytics/**/*.test.{ts,tsx}",
+        "src/browser/**/*.test.{ts,tsx}",
         "src/monitoring/**/*.test.{ts,tsx}",
         "src/shortcuts/**/*.test.{ts,tsx}",
         "src/shared/**/*.test.{ts,tsx}",

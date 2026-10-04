@@ -14,6 +14,8 @@ import ArrangementView, {
 } from "../arrangement/ArrangementView";
 import { getAudioRuntime } from "../audio/AudioRuntime";
 import { clampTempo } from "../audio/Transport";
+import { type CapabilityReport, FULLY_CAPABLE } from "../browser/capabilities";
+import { reportMissingCapabilities } from "../browser/reportCapabilities";
 import { createControlGesture } from "../commands";
 import { setParameter } from "../commands/definitions/parameters";
 import { renameProject } from "../commands/definitions/project";
@@ -46,6 +48,8 @@ import {
   selectOnly,
 } from "../selection";
 import ShortcutGuide from "../shortcuts/ShortcutGuide";
+import CompatibilityNotice from "./CompatibilityNotice";
+import { compatibilityNoticeItems } from "./compatibilityNoticeItems";
 import EditorHeader from "./EditorHeader";
 import EditorInstrument from "./EditorInstrument";
 import EmptyView from "./EmptyView";
@@ -125,6 +129,11 @@ export interface EditorViewProps {
   readonly analytics?: Analytics;
   /** The header's account control (#951), supplied by the route. */
   readonly account?: JSX.Element;
+  /**
+   * What this browser can do (#75). The route passes the live detection;
+   * omitted, the browser is taken as fully capable and nothing is explained.
+   */
+  readonly capabilities?: CapabilityReport;
 }
 
 /** What the arrangement and the instrument view both show for an empty song. */
@@ -179,6 +188,13 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     return current ? snapshot(current) : null;
   });
   const audio = useProjectAudio(project);
+  const capabilities = () => props.capabilities ?? FULLY_CAPABLE;
+  // Once per capability per browser (`logOnce`), so re-running on a
+  // different report or analytics instance costs nothing (#75).
+  createEffect(
+    () => ({ report: capabilities(), analytics: props.analytics ?? defaultAnalytics }),
+    ({ report, analytics }) => reportMissingCapabilities(report, analytics),
+  );
   const [guideOpen, setGuideOpen] = createSignal(false);
 
   // --- Views (UI-001) -------------------------------------------------------
@@ -821,6 +837,9 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                 onExportOpenChange={setExportOpen}
                 keyHint={keyHint}
                 account={props.account}
+              />
+              <CompatibilityNotice
+                items={compatibilityNoticeItems(capabilities(), audio.startFailure())}
               />
               <div class="editor-body">
                 {/*
