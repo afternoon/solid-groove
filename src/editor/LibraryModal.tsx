@@ -72,6 +72,12 @@ export interface LibraryActions {
   toggleKeys(): void;
   /** Close that sheet; false when it was not open, so Escape leaves the view. */
   closeKeys(): boolean;
+  /**
+   * Escape from the search field (#877): clear its query and keep focus there.
+   * False when focus is elsewhere or the field is empty: there is nothing to
+   * clear, and Escape does not leave the view (UI-002).
+   */
+  escapeSearch(): boolean;
 }
 
 export interface LibraryModalProps {
@@ -362,6 +368,16 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
     focusSearch();
   }
 
+  function escapeSearch(): boolean {
+    const active = document.activeElement;
+    if (!(active instanceof HTMLElement) || !active.matches(".library-modal-search")) {
+      return false;
+    }
+    if (query() === "") return false;
+    clearSearch();
+    return true;
+  }
+
   // The sound an insert just put in the slot, marked on its readout for a
   // moment: an insert can stay here, so this is what shows it worked (UI-002).
   const [inserted, setInserted] = createSignal<string | null>(null);
@@ -431,6 +447,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
       back,
       toggleKeys,
       closeKeys,
+      escapeSearch,
     });
     return () => {
       clearTimeout(insertedTimer);

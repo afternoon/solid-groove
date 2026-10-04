@@ -217,6 +217,31 @@ describe("LibraryModal shell", () => {
     expect(onActions).toHaveBeenLastCalledWith(null);
   });
 
+  it("clears the search on Escape only from a field with a query in it (#877)", () => {
+    const onActions = vi.fn();
+    renderShell({ onActions });
+    const actions = onActions.mock.calls[0][0] as LibraryActions;
+    const search = screen.getByRole("searchbox", { name: "Search sounds" });
+
+    // An empty field: nothing to clear.
+    search.focus();
+    expect(actions.escapeSearch()).toBe(false);
+
+    fireEvent.input(search, { target: { value: "kick" } });
+    flush();
+    // Focus elsewhere: Escape leaves the query alone.
+    search.blur();
+    expect(actions.escapeSearch()).toBe(false);
+    expect(search).toHaveValue("kick");
+
+    search.focus();
+    expect(actions.escapeSearch()).toBe(true);
+    flush();
+    expect(search).toHaveValue("");
+    expect(search).toHaveFocus();
+    expect(actions.escapeSearch()).toBe(false);
+  });
+
   it("opens similar sounds for the selected sound, and backs out of it", async () => {
     const onActions = vi.fn();
     renderShell({ onActions });
