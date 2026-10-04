@@ -343,3 +343,100 @@
   border-radius: 0;
   font-size: var(--font-size-tiny);
 }
+
+/* The returns (#386): strips after the tracks and before the master, pinned
+   with it to the desk's right edge, and the button that adds the next one. */
+.mixer-returns {
+  display: flex;
+  flex: none;
+  align-items: stretch;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.mixer-returns + .mixer-master-strip {
+  margin-left: 0;
+}
+
+.mixer-return-strips {
+  display: flex;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A return has no colour of its own: its top edge is the plain rule. */
+.mixer-return-strip .mixer-strip-controls {
+  margin-top: auto;
+}
+
+.mixer-add-return {
+  align-self: flex-start;
+  white-space: nowrap;
+}
+
+/* A track's sends, one row per return (#386). */
+.mixer-strip-sends {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Every row is one height, open or not, so the faders below stay on one line
+   across the desk however many sends each track has. */
+.mixer-send {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  height: 44px;
+  min-width: 0;
+}
+
+.mixer-send-head {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.mixer-send-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-tiny);
+  color: var(--color-foreground);
+}
+
+.mixer-send .fill-slider.horizontal {
+  --fill-slider-track-thickness: 14px;
+
+  gap: 4px;
+}
+
+.mixer-send-add {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  height: 22px;
+  padding: 0 6px;
+  border: 1px dashed var(--color-border);
+  border-radius: 0;
+  background: transparent;
+  color: var(--color-foreground);
+  font-size: var(--font-size-tiny);
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.mixer-send-add:hover {
+  background-color: var(--color-background-tertiary);
+  color: var(--color-text);
+}
