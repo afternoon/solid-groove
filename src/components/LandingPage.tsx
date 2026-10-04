@@ -4,6 +4,7 @@ import { useNavigate } from "@solidjs/router";
 import type { User } from "firebase/auth";
 import { createSignal } from "solid-js";
 import { SITE_TITLE } from "../../site.config.mjs";
+import { isNotOnAllowlistError, NOT_ON_ALLOWLIST_PATH } from "../access/allowlist";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import type { AuthService } from "../auth/authService";
 import { reportError as defaultReportError } from "../monitoring/errorReporting";
@@ -196,6 +197,14 @@ export default function LandingPage(props: LandingPageProps) {
       await authService.signInWithGoogle();
       navigate("/projects");
     } catch (error) {
+      // The alpha allowlist refused the address (#854): not a failure to
+      // report, an answer to show. The page it lands on says why and offers
+      // Request access.
+      if (isNotOnAllowlistError(error)) {
+        analytics.log("sign_in_blocked", { source: "landing" });
+        navigate(NOT_ON_ALLOWLIST_PATH);
+        return;
+      }
       // A cancelled popup is the common case and is not worth a fatal report,
       // but a broken provider looks identical from here — report it non-fatally
       // and let the visitor try again or start as a guest instead.

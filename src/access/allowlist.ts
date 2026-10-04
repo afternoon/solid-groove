@@ -50,6 +50,9 @@ export const ALLOWLIST_ENTRY_FIELDS = ["email", "addedAt"] as const;
  */
 export const NOT_ON_ALLOWLIST = "GROOVE_NOT_ON_ALPHA_LIST";
 
+/** The page a refused sign-in is sent to (`src/components/NotOnAllowlist.tsx`). */
+export const NOT_ON_ALLOWLIST_PATH = "/not-invited";
+
 /**
  * Whether a failed sign-in (or a guest's failed link) was the allowlist
  * refusing it, as opposed to a closed popup or a broken provider. Reads the

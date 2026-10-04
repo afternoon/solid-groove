@@ -1,5 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { requestAccessUrl } from "../../site.config.mjs";
+import { NOT_ON_ALLOWLIST } from "../access/allowlist";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
 import { createRecordingTransport } from "../analytics/transport";
@@ -73,5 +75,33 @@ describe("UpgradeAccountPrompt", () => {
 
     await screen.findByText(/could not link a google account/i);
     expect(transport.named("account_upgraded")).toHaveLength(0);
+  });
+
+  it("tells a guest whose Google account is not on the alpha list, and offers Request access (#854)", async () => {
+    linkWithGoogle.mockRejectedValue(
+      Object.assign(
+        new Error(`BLOCKING_FUNCTION_ERROR_RESPONSE : ((${NOT_ON_ALLOWLIST}))`),
+        {
+          code: "auth/internal-error",
+        },
+      ),
+    );
+    const { transport } = renderPrompt();
+
+    fireEvent.click(screen.getByRole("button", { name: /sign up with google/i }));
+
+    expect(await screen.findByText(/isn't on the alpha list yet/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Request access" })).toHaveAttribute(
+      "href",
+      requestAccessUrl,
+    );
+    expect(
+      screen.queryByText(/could not link a google account/i),
+    ).not.toBeInTheDocument();
+    expect(transport.named("account_upgraded")).toHaveLength(0);
+    expect(transport.named("sign_in_blocked")).toHaveLength(1);
+    expect(transport.named("sign_in_blocked")[0].params).toMatchObject({
+      source: "upgrade",
+    });
   });
 });
