@@ -29,6 +29,7 @@ export * from "./definitions/packs";
 export * from "./definitions/parameters";
 export * from "./definitions/placements";
 export * from "./definitions/project";
+export * from "./definitions/returns";
 export * from "./definitions/tracks";
 export * from "./definitions/transforms";
 export * from "./execute";

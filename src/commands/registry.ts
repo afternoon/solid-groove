@@ -10,6 +10,7 @@ import { packCommands } from "./definitions/packs";
 import { parameterCommands } from "./definitions/parameters";
 import { placementCommands } from "./definitions/placements";
 import { projectCommands } from "./definitions/project";
+import { returnCommands } from "./definitions/returns";
 import { trackCommands } from "./definitions/tracks";
 import { transformCommands } from "./definitions/transforms";
 import type { RegisteredCommand } from "./types";
@@ -32,6 +33,7 @@ const ALL_DEFINITIONS: readonly RegisteredCommand[] = [
   ...transformCommands,
   ...clipCommands,
   ...trackCommands,
+  ...returnCommands,
   ...placementCommands,
   ...parameterCommands,
   ...drumCommands,

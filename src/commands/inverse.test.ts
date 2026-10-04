@@ -8,7 +8,9 @@ import {
   createNoteEvent,
   createPack,
   createPlacement,
+  createReturnBus,
   createSeededIdFactory,
+  createSend,
   createSynthInstrument,
   createTrack as createTrackEntity,
   PAD_PITCH,
@@ -26,6 +28,8 @@ import {
   addPack,
   addPad,
   addPlacement,
+  addReturn,
+  addSend,
   addTrack,
   changeInstrument,
   clearNotes,
@@ -41,6 +45,8 @@ import {
   removePack,
   removePad,
   removePlacement,
+  removeReturn,
+  removeSend,
   removeTrack,
   renamePad,
   renameProject,
@@ -65,6 +71,7 @@ import {
   updateClip,
   updateNote,
   updatePlacement,
+  updateReturn,
   updateTrack,
   varyNotes,
 } from ".";
@@ -234,6 +241,33 @@ const cases: InverseCase[] = [
   {
     type: "track.setFlag",
     build: (fixture) => setTrackFlag(fixture.trackAId, "muted", true),
+  },
+  {
+    type: "return.create",
+    build: () =>
+      addReturn(
+        createReturnBus(createTestFactoryContext("inverse-return"), {
+          name: "Delay",
+          order: 0,
+        }),
+      ),
+  },
+  {
+    // Cascades to track A's send, which the undo has to put back.
+    type: "return.delete",
+    build: (fixture) => removeReturn(fixture.returnId),
+  },
+  {
+    type: "return.update",
+    build: (fixture) => updateReturn(fixture.returnId, { name: "Plate" }),
+  },
+  {
+    type: "send.add",
+    build: (fixture) => addSend(fixture.trackBId, createSend(fixture.returnId, 0.5)),
+  },
+  {
+    type: "send.remove",
+    build: (fixture) => removeSend(fixture.trackAId, fixture.returnId),
   },
   {
     type: "placement.create",

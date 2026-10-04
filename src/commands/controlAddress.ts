@@ -43,7 +43,7 @@ export const GLOBAL_CONTROL_ENTITIES = [SONG_ENTITY, MASTER_ENTITY] as const;
 export const CONTROL_PARTS = {
   /** A clip's content: its notes, steps or loop. */
   notes: "notes",
-  /** A track's header, wherever tracks are listed. */
+  /** A track's header, wherever tracks are listed, or a return bus's strip. */
   header: "header",
   /** A clip on the arrangement. */
   placement: "placement",
@@ -53,6 +53,10 @@ export const CONTROL_PARTS = {
   lane: "lane",
   /** The song's track list: the parent of a deleted track. */
   tracks: "tracks",
+  /** The song's return buses: the parent of a deleted return (#386). */
+  returns: "returns",
+  /** A track's sends: the parent of a removed send (#386). */
+  sends: "sends",
   /** A chain's devices: the parent of a removed device. */
   devices: "devices",
   /** A drum machine's pads: the parent of a removed pad. */
@@ -63,7 +67,7 @@ export const CONTROL_PARTS = {
   instrument: "instrument",
   /** The sound a sampler or a pad plays. */
   sample: "sample",
-  /** A user-authored name: a project's, a clip's, a pad's. */
+  /** A user-authored name: a project's, a clip's, a pad's, a return's. */
   name: "name",
   /** A clip's colour. */
   color: "color",
