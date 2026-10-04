@@ -1,11 +1,28 @@
 import { useLocation, useNavigate, useParams } from "@solidjs/router";
 import { Show } from "solid-js";
-import { AuthProvider } from "../../auth/AuthProvider";
+import { AuthProvider, useAuth } from "../../auth/AuthProvider";
 import { detectCapabilities } from "../../browser/capabilities";
 import AccountControl from "../../components/AccountControls";
 import ProjectNotFound from "../../components/ProjectNotFound";
 import EditorView from "../../editor/EditorView";
 import { editorViewFromPath, editorViewPath } from "../../editor/editorViews";
+
+/**
+ * The editor with the signed-in account handed in, so the library can offer
+ * the producer their own packs (#282). Inside `AuthProvider`, which is what
+ * `useAuth` reads.
+ */
+function AccountEditor(props: Parameters<typeof EditorView>[0]) {
+  const auth = useAuth();
+  return (
+    <EditorView
+      {...props}
+      libraryAccount={
+        auth.user ? { uid: auth.user.uid, registered: !auth.isAnonymous } : null
+      }
+    />
+  );
+}
 
 export default function ProjectPage() {
   const params = useParams();
@@ -28,7 +45,7 @@ export default function ProjectPage() {
     <AuthProvider>
       <Show when={params.id} fallback={<ProjectNotFound />}>
         {(id) => (
-          <EditorView
+          <AccountEditor
             projectId={id()}
             view={editorViewFromPath(location.pathname)}
             viewHref={(view) => editorViewPath(id(), view)}

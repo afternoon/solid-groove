@@ -137,6 +137,23 @@ describe("checkPackUpgrade", () => {
     expect(check).toMatchObject({ kind: "unsafe", missing: null });
   });
 
+  it("checks a version the caller holds itself without reading the index", async () => {
+    const [, newer] = drumSamples();
+    const project = pinnedProject(true);
+    const offline = new LibraryClient(async () => {
+      throw new Error("offline");
+    });
+    const everything = new Set(project.song.assets.map((asset) => asset.storageRef));
+    const held = (packId: string, version: string) =>
+      packId === newer.packId && version === newer.packVersion ? everything : null;
+    expect((await checkPackUpgrade(project, newer, offline, held)).kind).toBe("safe");
+    // Holding some other version is no help: the index decides, and is offline.
+    expect(await checkPackUpgrade(project, newer, offline, () => null)).toMatchObject({
+      kind: "unsafe",
+      missing: null,
+    });
+  });
+
   it("needs no upgrade for a pack the project does not use yet", async () => {
     const [, newer] = drumSamples();
     const check = await checkPackUpgrade(

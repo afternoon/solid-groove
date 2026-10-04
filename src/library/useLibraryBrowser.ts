@@ -120,6 +120,12 @@ export interface UseLibraryBrowserOptions {
   readonly assetTypes?: Accessor<readonly LibraryAssetType[] | undefined>;
   /** Called with a sound the moment it is auditioned: hearing one selects it. */
   readonly onSelect?: (asset: LibraryAsset) => void;
+  /**
+   * Packs that are not in the published index — the producer's own (#282) —
+   * so an audition of one of their sounds is attributed as a user pack rather
+   * than an unknown one.
+   */
+  readonly extraPacks?: Accessor<readonly LibraryPackSummary[]>;
 }
 
 export function useLibraryBrowser(
@@ -193,7 +199,10 @@ export function useLibraryBrowser(
    * naming it.
    */
   function packBySlug(slug: string): LibraryPackSummary | undefined {
-    return packs().find((candidate) => candidate.slug === slug);
+    return (
+      packs().find((candidate) => candidate.slug === slug) ??
+      options.extraPacks?.().find((candidate) => candidate.slug === slug)
+    );
   }
 
   const tree = createMemo<readonly LibraryTreePack[]>(() =>

@@ -335,6 +335,12 @@ importing sounds. Being signed in is now a precondition, the way "signed in with
 no projects" already is for its neighbours, and the flow starts where the producer
 starts. What it proves is unchanged.
 
+**Made to pass by #282.** The library is the Library view (#817), and My packs
+is in its rail: step 2 goes to it with `4`, and step 7's reload comes back to it.
+The spec matches each sound by its whole name: the factory library carries a
+"Dusty Tape Kick", which a search for "tape" lists beside the producer's
+"tape kick".
+
 **Preconditions:** signed in to a registered account whose personal library is
 empty. Importing requires an account: a guest is offered the upgrade path instead,
 which is asserted at the component layer rather than walked here.

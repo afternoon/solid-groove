@@ -9,7 +9,7 @@ import FilterRow from "./FilterRow";
 import { filterSounds, genreCounts, roleJumps } from "./filters";
 import type { LibraryClient } from "./libraryClient";
 import { LOAD_REASON_LABELS } from "./loadReasons";
-import type { LibraryAsset, LibraryAssetType } from "./manifest";
+import type { LibraryAsset, LibraryAssetType, LibraryPackSummary } from "./manifest";
 import Shelf, { allLabel } from "./Shelf";
 import SoundRow from "./SoundRow";
 import { shelfFamilyOf } from "./shelf";
@@ -58,6 +58,17 @@ export interface SoundsViewProps {
    * return focus to its button, false when it was not open.
    */
   onCloseMenu?(close: (() => boolean) | null): void;
+  /**
+   * Sounds from outside the published library — the producer's own packs
+   * (#282) — listed, searched and filtered alongside it, and their packs.
+   */
+  readonly extraAssets?: readonly LibraryAsset[];
+  readonly extraPacks?: readonly LibraryPackSummary[];
+  /**
+   * Hands the library this view's audition, so a sound listed elsewhere in the
+   * view (a personal pack in the rail) is heard through the same one voice.
+   */
+  onAuditioner?(handler: ((asset: LibraryAsset) => void) | null): void;
 }
 
 /**
@@ -76,6 +87,7 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
     previewEngine: props.previewEngine,
     analytics: props.analytics,
     onSelect: (asset) => props.onSelect(asset),
+    extraPacks: () => props.extraPacks ?? [],
   });
   const [ready, setReady] = createSignal(false);
   // The loader is for the first load only. A later visit with the same client
@@ -105,8 +117,7 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
     return true;
   }
   const typed = createMemo(() =>
-    browser
-      .assets()
+    [...browser.assets(), ...(props.extraAssets ?? [])]
       .filter((asset) => !props.assetTypes || props.assetTypes.includes(asset.type))
       .filter((asset) => !props.packSlug || asset.packSlug === props.packSlug),
   );
@@ -212,9 +223,11 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
   onSettled(() => {
     props.onKeys(press);
     props.onCloseMenu?.(closeGenreMenu);
+    props.onAuditioner?.((asset) => void browser.audition(asset));
     return () => {
       props.onKeys(null);
       props.onCloseMenu?.(null);
+      props.onAuditioner?.(null);
     };
   });
 

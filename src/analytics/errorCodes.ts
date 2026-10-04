@@ -84,6 +84,10 @@ export const ERROR_CODES = [
   // --- Assets ------------------------------------------------------------
   "asset_missing",
   "asset_too_large",
+  /** A file offered for import is not audio of a type we accept (#282). */
+  "unsupported_format",
+  /** A personal pack already holds as many sounds as one pack can (#282). */
+  "pack_full",
 ] as const;
 
 export type ErrorCode = (typeof ERROR_CODES)[number];

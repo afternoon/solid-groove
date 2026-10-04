@@ -16,6 +16,7 @@ import ArrangementView, {
   type PlacementEditingActions,
 } from "../arrangement/ArrangementView";
 import { getAudioRuntime } from "../audio/AudioRuntime";
+import { provideStoredAudio } from "../audio/storedAudio";
 import { clampTempo } from "../audio/Transport";
 import { type CapabilityReport, FULLY_CAPABLE } from "../browser/capabilities";
 import { reportMissingCapabilities } from "../browser/reportCapabilities";
@@ -43,6 +44,7 @@ import {
   replaceLoopCommands,
 } from "../library/insertion";
 import { type LibraryClient, sharedLibraryClient } from "../library/libraryClient";
+import type { LibraryAsset } from "../library/manifest";
 import type { SlotAudition } from "../library/slotAudition";
 import { ToneAuditionEngine } from "../library/toneAuditionEngine";
 import { getProjectRepository } from "../projectRepositoryClient";
@@ -55,6 +57,10 @@ import {
 } from "../selection";
 import { timeoutScheduler } from "../shared/scheduler";
 import ShortcutGuide from "../shortcuts/ShortcutGuide";
+import { getUserLibraryRepository } from "../userLibrary/userLibraryClient";
+import type { UserLibraryRepository } from "../userLibrary/userLibraryRepository";
+import { userPackAvailability } from "../userLibrary/userPacks";
+import { type UserLibraryAccount, useUserLibrary } from "../userLibrary/useUserLibrary";
 import AssistantPanel from "./assistant/AssistantPanel";
 import { useAssistantPanel } from "./assistant/useAssistantPanel";
 import CompatibilityNotice from "./CompatibilityNotice";
@@ -96,6 +102,7 @@ import {
   resizeLoopByBars,
   toggleLooping,
 } from "./loopActions";
+import MissingSounds from "./MissingSounds";
 import Mixer from "./Mixer";
 import NewTrackButtons from "./NewTrackButtons";
 import ProjectLoadStates from "./ProjectLoadStates";
@@ -156,6 +163,13 @@ export interface EditorViewProps {
    * not under the editor and so cannot `useEditorControls()` — and for tests.
    */
   onControlsReady?(controls: EditorControls): void;
+  /**
+   * Who is signed in, for the personal library (#282). A guest, or no one,
+   * sees My packs but is offered an account when they try to use it.
+   */
+  readonly libraryAccount?: UserLibraryAccount | null;
+  /** Injected in tests; Firestore and Cloud Storage (or memory) otherwise. */
+  readonly userLibraryRepository?: () => Promise<UserLibraryRepository>;
 }
 
 /** What the arrangement and the instrument view both show for an empty song. */
@@ -341,6 +355,39 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   // The one shared library client, so the Library view and the
   // pack-upgrade check (#892) share its cached index and manifests.
   const libraryClient = props.libraryClient ?? sharedLibraryClient();
+  // The producer's own packs (#282). Held by the editor, not the library
+  // view, so an import keeps going after you leave the Library view.
+  const loadUserLibrary = props.userLibraryRepository ?? getUserLibraryRepository;
+  const userLibrary = useUserLibrary({
+    account: () => props.libraryAccount ?? null,
+    analytics: props.analytics,
+    repository: loadUserLibrary,
+  });
+  // A personal sound has no URL: playback and audition read its bytes from
+  // where it is stored, as the signed-in user, through the same repository.
+  onCleanup(
+    provideStoredAudio(async (storageRef) =>
+      (await loadUserLibrary()).readAudio(storageRef),
+    ),
+  );
+  // The personal sounds this project uses that are gone from the producer's
+  // packs (#282), named with the tracks and clips they leave silent. Judged
+  // only once the packs have loaded, so nothing reads as missing while they
+  // are on their way, and again whenever the project or the packs change.
+  const missingSounds = createMemo(() => {
+    const current = project();
+    const owner = props.libraryAccount?.uid;
+    if (!current || !owner || userLibrary.status() !== "ready") return null;
+    const report = userPackAvailability(current, userLibrary.packs(), owner);
+    return report.missingAssets.length + report.missingPacks.length > 0 ? report : null;
+  });
+  const userPackName = (packId: string): string | null =>
+    userLibrary.packs().find((pack) => pack.id === packId)?.name ?? null;
+  /** Whether the open project uses a sound: its stored audio is one of the song's. */
+  const projectUses = (asset: LibraryAsset): boolean =>
+    asset.storageRef !== undefined &&
+    (project()?.song.assets.some((used) => used.storageRef === asset.storageRef) ??
+      false);
 
   const createAuditionEngine =
     props.createAuditionEngine ??
@@ -924,6 +971,8 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
       get analytics() {
         return props.analytics ?? defaultAnalytics;
       },
+      // A newer version of one's own pack is checked against the pack itself.
+      heldPacks: userLibrary.heldPack,
       insert,
     };
   }
@@ -1006,6 +1055,11 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                   <LoadRecoveryNotice
                     droppedPlacements={session.state.droppedPlacements}
                   />
+                  <Show when={missingSounds()}>
+                    {(report) => (
+                      <MissingSounds report={report()} packName={userPackName} />
+                    )}
+                  </Show>
                   {/* The views' device panels draw live spectra from playback (LOOP-022). */}
                   <DeviceSpectrumContext value={spectrumSource}>
                     <div class="editor-body">
@@ -1206,6 +1260,8 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                                 onInsertAndReturn={() =>
                                   returnFromInsert("library_insert")
                                 }
+                                userLibrary={userLibrary}
+                                isInUse={projectUses}
                               />
                             )}
                           </Show>

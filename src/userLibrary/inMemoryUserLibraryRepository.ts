@@ -131,7 +131,7 @@ export function createInMemoryUserLibraryRepository(
     async uploadAudio(path, file, _contentType, upload: UploadOptions = {}) {
       const { signal, onProgress } = upload;
       onProgress?.(0);
-      await delay(options.uploadMs ?? 0, signal);
+      await delay(options.uploadMs ?? 0, signal, onProgress);
       if (signal?.aborted) throw new UserLibraryError("cancelled", "Upload cancelled");
       if (failure) throw new UserLibraryError(failure, "Upload failed");
       onProgress?.(1);
@@ -165,15 +165,29 @@ function bytesOf(blob: Blob): Promise<ArrayBuffer> {
   });
 }
 
-function delay(ms: number, signal: AbortSignal | undefined): Promise<void> {
+/** Wait out a simulated upload, reporting its progress in fifths. */
+function delay(
+  ms: number,
+  signal: AbortSignal | undefined,
+  onProgress: ((fraction: number) => void) | undefined,
+): Promise<void> {
   return new Promise((resolve) => {
     if (ms <= 0) {
       queueMicrotask(resolve);
       return;
     }
-    const timer = setTimeout(resolve, ms);
+    let step = 0;
+    const timer = setInterval(() => {
+      step += 1;
+      if (step < 5) {
+        onProgress?.(step / 5);
+        return;
+      }
+      clearInterval(timer);
+      resolve();
+    }, ms / 5);
     signal?.addEventListener("abort", () => {
-      clearTimeout(timer);
+      clearInterval(timer);
       resolve();
     });
   });

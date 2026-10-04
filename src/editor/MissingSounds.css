@@ -1,0 +1,28 @@
+/* The project's personal sounds that are gone (#282). Status is monochrome
+   (docs/design.md): it reads as a warning through its frame and its words. */
+.missing-sounds {
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  border: 1px solid var(--color-danger-edge);
+  background: var(--color-danger-wash);
+  color: var(--color-text);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.missing-sounds-title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.missing-sounds-list {
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--color-text-secondary);
+}
+
+.missing-sounds-list b {
+  color: var(--color-text);
+  font-weight: 600;
+}

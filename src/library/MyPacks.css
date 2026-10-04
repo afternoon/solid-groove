@@ -1,0 +1,291 @@
+/* My packs (#282): the producer's own packs in the library rail. Same rows as
+   the rest of the rail; a drop target brightens its edge, the way a focused
+   field does, and refuses with a dimmed one. */
+
+.my-packs {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  padding-bottom: 6px;
+  outline: 1px dashed transparent;
+  outline-offset: -2px;
+}
+
+.my-packs[data-drop="accepted"] {
+  outline-color: var(--color-accent);
+  background: var(--color-background-highlight);
+}
+
+.my-packs h3 {
+  margin: 0;
+}
+
+.my-packs-add {
+  color: var(--color-text);
+}
+
+.my-packs-list,
+.my-packs-sounds {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.my-packs-pack {
+  outline: 1px solid transparent;
+  outline-offset: -1px;
+}
+
+.my-packs-pack[data-drop="accepted"] {
+  outline-color: var(--color-accent);
+  background: var(--color-background-highlight);
+}
+
+.my-packs-pack[data-drop="refused"],
+.my-packs[data-drop="refused"] {
+  outline-color: var(--color-border-strong);
+}
+
+.my-packs-pack-head {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.my-packs-pack-name {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* The pack's tools show under the pointer or focus, so the rail stays a list
+   of whole names at rest. Focus anywhere in the row shows them, so tabbing
+   from the name reaches them. */
+.my-packs-pack-tools {
+  display: none;
+  flex: none;
+  padding-right: 8px;
+}
+
+.my-packs-pack-head:hover .my-packs-pack-tools,
+.my-packs-pack-head:focus-within .my-packs-pack-tools {
+  display: flex;
+}
+
+.my-packs-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  color: var(--color-foreground-muted);
+  background: transparent;
+}
+
+.my-packs-icon:hover,
+.my-packs-icon:focus-visible {
+  color: var(--color-accent);
+  background: transparent;
+}
+
+.my-packs-name-form {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.my-packs-name-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 2px 10px;
+  padding: 4px 6px;
+  font-size: 13px;
+  color: var(--color-text);
+  background: var(--color-background-well);
+  border: 1px solid var(--color-accent);
+}
+
+/* A sound's name being typed sits where its name was, inside the row's indent. */
+.my-packs-sound .my-packs-name-input {
+  margin: 2px 0;
+}
+
+.my-packs-sound,
+.my-packs-import,
+.my-packs-empty {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 0 8px 0 28px;
+}
+
+.my-packs-sound-main {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 4px 0;
+  color: var(--color-text-secondary);
+  background: transparent;
+}
+
+.my-packs-sound-main:hover {
+  color: var(--color-accent);
+  background: transparent;
+}
+
+.my-packs-sound-name,
+.my-packs-import-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.my-packs-sound small {
+  flex: none;
+  font-size: 11px;
+  color: var(--color-foreground-muted);
+}
+
+.my-packs-sound-selected {
+  background: var(--color-accent);
+}
+
+.my-packs-sound-selected .my-packs-sound-main,
+.my-packs-sound-selected .my-packs-sound-main:hover,
+.my-packs-sound-selected small,
+.my-packs-sound-selected .my-packs-icon {
+  color: var(--color-on-accent);
+}
+
+/* A file on its way: its name over its own progress bar and Cancel. */
+.my-packs-import {
+  flex-wrap: wrap;
+  row-gap: 2px;
+  padding-top: 3px;
+  padding-bottom: 3px;
+  color: var(--color-text-secondary);
+}
+
+.my-packs-import-name {
+  flex-basis: calc(100% - 28px);
+}
+
+.my-packs-progress {
+  flex: 1 1 auto;
+  order: 3;
+  height: 4px;
+  appearance: none;
+  border: 0;
+  background: var(--color-background-well);
+}
+
+.my-packs-progress::-webkit-progress-bar {
+  background: var(--color-background-well);
+}
+
+.my-packs-progress::-webkit-progress-value {
+  background: var(--color-accent);
+}
+
+.my-packs-progress::-moz-progress-bar {
+  background: var(--color-accent);
+}
+
+/* A failed or cancelled file keeps its row, with why, until dismissed. */
+.my-packs-hint,
+.my-packs-notice {
+  display: block;
+}
+
+.my-packs-import-message {
+  flex: 1 0 100%;
+  order: 3;
+  font-size: 11px;
+  color: var(--color-foreground);
+}
+
+.my-packs-import-failed {
+  background: var(--color-danger-wash);
+  box-shadow: inset 2px 0 0 var(--color-danger-edge);
+}
+
+.my-packs-empty,
+.my-packs-hint,
+.my-packs-usage {
+  margin: 0;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  font-size: 11px;
+  color: var(--color-foreground-muted);
+}
+
+.my-packs-hint,
+.my-packs-usage {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+.my-packs-notice {
+  margin: 4px 10px 0;
+  padding: 6px 8px;
+  font-size: 11px;
+  color: var(--color-text);
+  background: var(--color-danger-wash);
+  border: 1px solid var(--color-danger-edge);
+}
+
+.my-packs-confirm {
+  margin: 2px 10px 4px;
+  padding: 6px 8px;
+  font-size: 11px;
+  color: var(--color-text);
+  background: var(--color-danger-wash);
+  border: 1px solid var(--color-danger-edge);
+}
+
+.my-packs-sound .my-packs-confirm {
+  flex: 1 1 auto;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.my-packs-confirm p {
+  margin: 0 0 6px;
+}
+
+.my-packs-confirm-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.my-packs-confirm-actions button {
+  padding: 3px 8px;
+  color: var(--color-text);
+  background: transparent;
+  border: 1px solid var(--color-border-strong);
+}
+
+/* Destructive: the loudest control on screen, white with black on it. */
+.my-packs-confirm-actions .my-packs-danger {
+  color: var(--color-on-accent);
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.my-packs-upgrade {
+  margin: 4px 10px;
+  font-size: 11px;
+}
+
+.my-packs-upgrade p {
+  margin: 0 0 6px;
+}
