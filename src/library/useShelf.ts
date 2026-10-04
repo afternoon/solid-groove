@@ -99,6 +99,10 @@ export function useShelf(
 
   return {
     selection,
+    /** The producer's own choice (`null`: none yet), to put back later. */
+    picked,
+    /** Put back a choice `picked` handed out. */
+    restore: setPicked,
     families,
     roles,
     inView,

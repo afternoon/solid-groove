@@ -124,6 +124,25 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
   });
   const narrowed = () => filters.active() || (props.query ?? "").trim() !== "";
 
+  // An opened pack starts under every pack's shelf and filters, but what the
+  // producer changes inside it stays there: leaving puts every pack's back (#875).
+  let outsidePack: {
+    shelf: ReturnType<typeof shelf.picked>;
+    filters: ReturnType<typeof filters.snapshot>;
+  } | null = null;
+  createEffect(
+    () => props.packSlug ?? null,
+    (slug) => {
+      if (slug !== null && outsidePack === null) {
+        outsidePack = { shelf: shelf.picked(), filters: filters.snapshot() };
+      } else if (slug === null && outsidePack !== null) {
+        shelf.restore(outsidePack.shelf);
+        filters.restore(outsidePack.filters);
+        outsidePack = null;
+      }
+    },
+  );
+
   function clearFilters(): void {
     filters.clear();
     props.onQueryChange?.("");
