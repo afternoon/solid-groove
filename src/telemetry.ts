@@ -433,8 +433,7 @@ export function afterFirstPaint(task: () => void): void {
 
 /** Maps a pathname onto the surface it belongs to. */
 export function surfaceForPath(pathname: string): Surface {
-  if (pathname.startsWith("/projects/")) return "editor";
-  if (pathname.startsWith("/dashboard")) return "dashboard";
+  if (/^\/projects\/[^/]/.test(pathname)) return "editor";
   if (pathname === "/" || pathname === "") return "landing";
   return "dashboard";
 }

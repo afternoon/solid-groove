@@ -11,7 +11,7 @@ const rail = (page: Page): Locator =>
   page.getByRole("main").getByRole("list", { name: "Tracks", exact: true });
 
 test("inserting a loop from Add loop selects its new track", async ({ page }) => {
-  await page.goto("/dashboard");
+  await page.goto("/projects");
   await page.getByRole("button", { name: "New Project" }).click();
   await page.getByTestId("arrangement-view-ready").waitFor();
   await page

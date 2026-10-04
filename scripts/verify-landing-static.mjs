@@ -55,9 +55,9 @@ const landingMarkers = [
 for (const [marker, what] of landingMarkers) {
   if (!index.includes(marker)) fail(`index.html is missing ${what} (${marker}).`);
 }
-const startLinks = index.match(/href="\/dashboard"/g)?.length ?? 0;
+const startLinks = index.match(/href="\/projects"/g)?.length ?? 0;
 if (startLinks !== 3) {
-  fail(`index.html has ${startLinks} start links to /dashboard, expected 3.`);
+  fail(`index.html has ${startLinks} start links to /projects, expected 3.`);
 }
 for (const marker of [
   "<title",
@@ -124,7 +124,7 @@ if (existsSync(manifestPath)) {
 
 // Robots, which is what keeps the app's own routes out of a search result.
 const robots = read("robots.txt");
-for (const line of ["Disallow: /dashboard", "Disallow: /projects/"]) {
+for (const line of ["Disallow: /projects", "Disallow: /dashboard"]) {
   if (!robots.includes(line)) fail(`robots.txt is missing "${line}".`);
 }
 

@@ -128,7 +128,7 @@ test.describe("CF-014", () => {
     // 1. Create a new project. It opens on the arrangement with the starter
     //    track, BD. Add a synth track and then a sampler track. The track list
     //    reads BD, Synth, Sampler, top to bottom.
-    await page.goto("/dashboard");
+    await page.goto("/projects");
     await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page).toHaveURL(/\/projects\/prj_/);

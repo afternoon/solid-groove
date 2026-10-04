@@ -92,8 +92,8 @@ export async function seedRegisteredSession(
   const displayName = options.displayName ?? "Flow Producer";
 
   // A guest visit, purely so the SDK writes a record of its own to copy.
-  // `/dashboard` is where `AuthProvider` runs the anonymous start.
-  await page.goto("/dashboard");
+  // `/projects` is where `AuthProvider` runs the anonymous start.
+  await page.goto("/projects");
   const template = await readPersistedUser(page);
 
   // A real account, through the emulator's Google-provider endpoint, so the

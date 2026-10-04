@@ -181,7 +181,7 @@ test.describe("CF-010", () => {
     //    clip across bars 1 to 3.
     //    #493: an edge drag now tiles linked copies, so it ends at the end
     //    of bar 2 and "Sampler" has clips in bars 1 and 2.
-    await page.goto("/dashboard");
+    await page.goto("/projects");
     await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page).toHaveURL(/\/projects\/prj_/);

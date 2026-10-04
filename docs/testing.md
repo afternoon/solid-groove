@@ -378,7 +378,7 @@ The playback tests annotate each run `playback-asserted` or `playback-skipped`, 
 
 ### Why this suite warms the dev server first
 
-Vite does not pre-bundle a dependency until something imports it, and each discovery force-reloads the open page (`[vite] ✨ optimized dependencies changed. reloading`). A reload landing mid-test discards whatever interaction was in flight. Measured on a cold server, this suite took **four** such rounds to settle — analytics, then the Firebase SDK and Sentry, then the small utilities, then `tone` when the first project editor mounted — and the reload ate `slice.spec.ts`'s `New Project` click, so the URL never left `/dashboard` and the test failed on `toHaveURL(/\/projects\/prj_/)`. That reads exactly like a broken create-project flow and is not one: the same suite passed in 17s against an already-warm server.
+Vite does not pre-bundle a dependency until something imports it, and each discovery force-reloads the open page (`[vite] ✨ optimized dependencies changed. reloading`). A reload landing mid-test discards whatever interaction was in flight. Measured on a cold server, this suite took **four** such rounds to settle — analytics, then the Firebase SDK and Sentry, then the small utilities, then `tone` when the first project editor mounted — and the reload ate `slice.spec.ts`'s `New Project` click, so the URL never left `/projects` and the test failed on `toHaveURL(/\/projects\/prj_/)`. That reads exactly like a broken create-project flow and is not one: the same suite passed in 17s against an already-warm server.
 
 CI is always the cold case — a fresh checkout has no `node_modules/.vite`. `retries: 2` would usually have hidden this (the dev server survives between retries, so retry #1 sees a warm cache), which is worse than failing: the suite goes green and the real cause stays invisible.
 
@@ -611,7 +611,7 @@ Neither GA4 nor Sentry can be verified from the unit suite — the last mile is 
 
 | Event | How to trigger it | Check |
 | --- | --- | --- |
-| `app_opened` | Load `/dashboard` or a project. Then, in a fresh session, load `/` and click through to the dashboard — that navigation is client-side, so it must be checked separately. Staying on the landing page fires nothing; that surface measures `landing_cta_click` instead. | Fires once per app load on reaching the dashboard or editor, whichever way the session got there, with `surface` and `release_sha`. |
+| `app_opened` | Load `/projects` or a project. Then, in a fresh session, load `/` and click through to the dashboard — that navigation is client-side, so it must be checked separately. Staying on the landing page fires nothing; that surface measures `landing_cta_click` instead. | Fires once per app load on reaching the dashboard or editor, whichever way the session got there, with `surface` and `release_sha`. |
 | `landing_cta_click` | On `/`, click "Start in your browser" (or either "Start free"). Then, in a fresh session, click "Log in". | Fires once per click, with `cta_id: start_free` or `cta_id: log_in` and `surface: landing`. |
 | `first_edit` | Make the first edit in a project. | Fires once for that project, never again — reload and edit again to confirm. |
 | `feature_first_use` | Use a feature for the first time in that browser. | Fires once per `feature`, carrying the feature key. |

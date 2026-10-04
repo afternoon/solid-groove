@@ -23,7 +23,7 @@ test("changes a track's instrument from its own panel", async ({ page }) => {
     title: "Change a track's instrument",
   });
 
-  await page.goto("/dashboard");
+  await page.goto("/projects");
   await page.getByRole("button", { name: "New Project" }).click();
   await expect(page.getByTestId("arrangement-view-ready")).toBeVisible();
   await goToInstrument(page);
@@ -80,7 +80,7 @@ test("changes a track's instrument from its own panel", async ({ page }) => {
 // panel grew from 273px tall to 491px, with a wide empty gap beside the wrapped
 // group. The groups belong on one row.
 test("keeps the sampler's parameter groups on one row", async ({ page }) => {
-  await page.goto("/dashboard");
+  await page.goto("/projects");
   await page.getByRole("button", { name: "New Project" }).click();
   await expect(page.getByTestId("arrangement-view-ready")).toBeVisible();
   await goToInstrument(page);

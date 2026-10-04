@@ -32,7 +32,7 @@ test.describe("Double", () => {
   test("a one-bar clip doubled in the piano roll is two bars on the timeline", async ({
     page,
   }) => {
-    await page.goto("/dashboard");
+    await page.goto("/projects");
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page).toHaveURL(/\/projects\/prj_/);
     await page.getByTestId("arrangement-view-ready").waitFor();

@@ -102,7 +102,7 @@ test.describe("CF-012", () => {
 
     // 1. Create a new project and bring a library loop into it, so the
     //    starter kick and the loop sit on two tracks.
-    await page.goto("/dashboard");
+    await page.goto("/projects");
     await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page).toHaveURL(/\/projects\/prj_/);

@@ -19,7 +19,7 @@ import "./app.css";
  * navigation; it renders nothing itself.
  *
  * Navigation off the landing page is client-side — the CTA calls
- * `navigate("/dashboard")` with no page load — so this is also where monitoring
+ * `navigate("/projects")` with no page load — so this is also where monitoring
  * starts and `app_opened` fires for a session that entered on `/`. Handing the
  * surface to `Telemetry` rather than to `analytics` directly is what makes that
  * one decision instead of three.

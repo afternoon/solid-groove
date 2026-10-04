@@ -40,7 +40,7 @@ export default function ProjectLoadStates(props: ProjectLoadStatesProps) {
             >
               Try again
             </button>
-            <a class="project-error-home" href="/dashboard">
+            <a class="project-error-home" href="/projects">
               Back to your projects
             </a>
           </div>

@@ -24,7 +24,7 @@ test.describe("hosted alpha smoke test", () => {
     // Anonymous session start (Firebase Authentication, not the mock), through
     // the PRD PRJ-06 landing page's primary call to action.
     await page.getByRole("link", { name: "Start in your browser" }).click();
-    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page).toHaveURL(/\/projects$/);
     await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
 
     // Project open. The hosted alpha has no seeded project for a fresh

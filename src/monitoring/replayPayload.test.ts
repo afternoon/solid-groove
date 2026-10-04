@@ -337,9 +337,9 @@ describe("the OPS-03 content rule against the replay payload (ADR 0002 decision 
       // ...the same ID, read through the accessor a keyed `For` hands its row.
       "project().id",
       // A caller-supplied route constant with a static fallback.
-      'props.homeHref ?? "/dashboard"',
+      'props.homeHref ?? "/projects"',
       // The landing page's start destination: a module-level constant in
-      // `LandingPageContent.tsx` holding the literal "/dashboard". Bound rather
+      // `LandingPageContent.tsx` holding the literal "/projects". Bound rather
       // than repeated inline because three controls share it.
       "START_HREF",
       // The view dock's addresses (UI-001). `props.href` is handed

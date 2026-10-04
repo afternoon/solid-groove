@@ -15,7 +15,7 @@ const bodyFont = (page: Page): Promise<string> =>
 
 /** The dashboard's rename form shows a button and a text input together. */
 async function openRename(page: Page): Promise<{ button: Locator; input: Locator }> {
-  await page.goto("/dashboard");
+  await page.goto("/projects");
   await page.getByRole("button", { name: "New Project" }).click();
   await expect(page).toHaveURL(/\/projects\/prj_/);
   // A client-side return keeps the in-memory project (see smoke.spec.ts).
@@ -45,7 +45,7 @@ test.describe("control font", () => {
     await page.route("https://fonts.googleapis.com/**", (route) =>
       route.fulfill({ status: 200, contentType: "text/css", body: "" }),
     );
-    await page.goto("/dashboard?font=Inter");
+    await page.goto("/projects?font=Inter");
     const { button, input } = await openRename(page);
 
     expect(await fontOf(button)).toContain("Inter");

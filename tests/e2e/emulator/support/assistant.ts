@@ -53,7 +53,7 @@ export const volume = (page: Page, track: string): Locator =>
  * Returns the project's address.
  */
 export async function newProject(page: Page): Promise<string> {
-  await page.goto("/dashboard");
+  await page.goto("/projects");
   await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
   await page.getByRole("button", { name: "New Project" }).click();
   await expect(page).toHaveURL(/\/projects\/prj_[^/]+$/);

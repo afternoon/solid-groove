@@ -90,7 +90,7 @@ describe("Dashboard account controls (#951)", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Log in with Google" }));
     flush();
 
-    await vi.waitFor(() => expect(navigate).toHaveBeenCalledWith("/dashboard"));
+    await vi.waitFor(() => expect(navigate).toHaveBeenCalledWith("/projects"));
     expect(fakeAuth.service.signInWithGoogle).toHaveBeenCalledTimes(1);
     expect(fakeAuth.service.linkWithGoogle).not.toHaveBeenCalled();
     expect(transport.named("feature_first_use")).toEqual([

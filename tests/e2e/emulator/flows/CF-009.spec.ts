@@ -131,7 +131,7 @@ test.describe("CF-009", () => {
 
     // 1. Create a new project. The starter clip sits on the "BD" track in
     //    bar 1, and nothing is selected.
-    await page.goto("/dashboard");
+    await page.goto("/projects");
     await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page).toHaveURL(/\/projects\/prj_/);

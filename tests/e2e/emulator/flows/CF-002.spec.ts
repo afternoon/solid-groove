@@ -174,7 +174,7 @@ test.describe("CF-002", () => {
 
     // 1. Create a new project. It opens on the arrangement with the starter
     //    kick, a drum machine named "BD", four on the floor.
-    await page.goto("/dashboard");
+    await page.goto("/projects");
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page).toHaveURL(/\/projects\/prj_/);
     await page.getByTestId("arrangement-view-ready").waitFor();

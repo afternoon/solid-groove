@@ -151,7 +151,7 @@ test.describe("CF-006", () => {
 
       // 1. You arrive on the dashboard signed in to your own account, not
       //    working as a guest.
-      await page.goto("/dashboard");
+      await page.goto("/projects");
       await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
       await expect(page.getByText(GUEST_NOTICE)).toHaveCount(0);
       await step("You arrive on the dashboard, signed in to your own account");

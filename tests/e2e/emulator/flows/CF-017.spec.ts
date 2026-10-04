@@ -197,7 +197,7 @@ test.describe("CF-017", () => {
     //    Open it. The sequence view shows the piano roll: 16 steps, rows
     //    named down the left with white rows for white keys and black rows for
     //    black keys, and the key reads "Chromatic".
-    await page.goto("/dashboard");
+    await page.goto("/projects");
     await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page).toHaveURL(/\/projects\/prj_/);

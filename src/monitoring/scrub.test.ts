@@ -136,7 +136,7 @@ describe("pathOnly and scrubFramePath", () => {
 describe("scrubRoute", () => {
   it("keeps route words we ship and reduces a prefixed ID to :id", () => {
     expect(scrubRoute("/projects/prj_abc123")).toBe("/projects/:id");
-    expect(scrubRoute("/dashboard")).toBe("/dashboard");
+    expect(scrubRoute("/projects")).toBe("/projects");
     expect(scrubRoute("/")).toBe("/");
   });
 
@@ -152,7 +152,7 @@ describe("scrubRoute", () => {
   });
 
   it("drops a query string and a transaction that is not a route", () => {
-    expect(scrubRoute(`/dashboard?q=${FORBIDDEN.searchTerm}`)).toBe("/dashboard");
+    expect(scrubRoute(`/projects?q=${FORBIDDEN.searchTerm}`)).toBe("/projects");
     expect(scrubRoute(FORBIDDEN.assistantText)).not.toContain("euphoric");
     expect(scrubRoute(undefined)).toBeUndefined();
     expect(scrubRoute("")).toBeUndefined();
@@ -233,11 +233,11 @@ describe("scrubBreadcrumb", () => {
     const crumb = scrubBreadcrumb({
       category: "navigation",
       data: {
-        from: "https://app.example.com/dashboard?q=dusty vinyl piano",
+        from: "https://app.example.com/projects?q=dusty vinyl piano",
         to: "https://app.example.com/projects/prj_abc123#token",
       },
     });
-    expect(crumb?.data?.from).toBe("/dashboard");
+    expect(crumb?.data?.from).toBe("/projects");
     expect(crumb?.data?.to).toBe("/projects/:id");
     expect(JSON.stringify(crumb)).not.toContain("dusty");
   });
@@ -344,7 +344,7 @@ describe("scrubSentryEvent", () => {
         {
           category: "navigation",
           data: {
-            from: "/dashboard",
+            from: "/projects",
             to: `/projects/${FORBIDDEN.projectName}`,
           },
         },

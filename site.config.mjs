@@ -45,3 +45,13 @@ export const SITE_DESCRIPTION =
  * with `SITE_TITLE`, which is the one a crawler and a link preview see.
  */
 export const APP_TITLE = "Groove";
+
+/**
+ * The tab title for one page of the app: `Projects – Groove`, or a project's
+ * own name in the editor. Every in-app page names itself this way.
+ *
+ * @param {string} page
+ */
+export function pageTitle(page) {
+  return `${page} – ${APP_TITLE}`;
+}

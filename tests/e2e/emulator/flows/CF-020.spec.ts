@@ -110,7 +110,7 @@ test.describe("CF-020", () => {
 
     // 1. Create a new project. Go to the instrument view for the starter "BD"
     //    track and add a pad. It is called "Pad 2".
-    await page.goto("/dashboard");
+    await page.goto("/projects");
     await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
     await page.getByRole("button", { name: "New Project" }).click();
     await expect(page).toHaveURL(/\/projects\/prj_/);
