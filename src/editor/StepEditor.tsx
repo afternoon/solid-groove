@@ -3,6 +3,8 @@ import { type Accessor, createMemo, createSignal } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import type { Gesture, GestureOptions, RawCommandInput } from "../commands";
 import { removeNotes } from "../commands";
+import { CONTROL_PARTS, controlAddress } from "../commands/controlAddress";
+import { control } from "../controls/control";
 import type {
   Clip,
   Instrument,
@@ -268,6 +270,9 @@ export default function StepEditor(props: StepEditorProps): JSX.Element {
         onTogglePlay={() => props.onTogglePlay?.()}
       />
       <div
+        // The clip's notes as a control (`UI-004`): what a note edit reveals
+        // and outlines.
+        ref={control(() => controlAddress(props.clip.id, CONTROL_PARTS.notes))}
         class="step-editor-grid"
         style={{
           "--step-count": String(stepCount(props.clip)),

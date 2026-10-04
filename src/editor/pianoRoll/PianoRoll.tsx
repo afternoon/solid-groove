@@ -9,6 +9,8 @@ import type {
   TransactionResult,
 } from "../../commands";
 import { noteEventsOf, removeNotes } from "../../commands";
+import { CONTROL_PARTS, controlAddress } from "../../commands/controlAddress";
+import { control } from "../../controls/control";
 import type { Clip, NoteEvent, Project } from "../../domain/entities";
 import { createFactoryContext } from "../../domain/factories";
 import type { EventId } from "../../domain/ids";
@@ -237,7 +239,12 @@ export default function PianoRoll(props: PianoRollProps): JSX.Element {
         playing={props.playing ?? false}
         onTogglePlay={() => props.onTogglePlay?.()}
       />
-      <div class="pr-frame">
+      {/* The clip's notes as a control (`UI-004`): what a note edit reveals
+          and outlines. */}
+      <div
+        class="pr-frame"
+        ref={control(() => controlAddress(props.clip.id, CONTROL_PARTS.notes))}
+      >
         <div class="pr-ruler-row">
           <div class="pr-corner" />
           <div

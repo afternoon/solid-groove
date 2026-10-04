@@ -21,6 +21,8 @@ import { reportMissingCapabilities } from "../browser/reportCapabilities";
 import { createControlGesture } from "../commands";
 import { setParameter } from "../commands/definitions/parameters";
 import { renameProject } from "../commands/definitions/project";
+import { ControlRegistryContext } from "../controls/control";
+import { createControlRegistry } from "../controls/registry";
 import type { NoteTrigger, Project } from "../domain/entities";
 import { createFactoryContext } from "../domain/factories";
 import type { EventId, PadId, PlacementId, TrackId } from "../domain/ids";
@@ -485,6 +487,9 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     selectView("library", via);
   }
   const sampleAssets = createMemo(() => model.sampleAssets(project()));
+  // The editor's controls by address, and their marks (`UI-004`): every part
+  // under the editor registers here when it mounts. UI-only, like selection.
+  const controls = createControlRegistry();
   /** The clip being programmed: the opened one, not the selection's. */
   const clip = createMemo(() => opened()?.clip ?? null);
 
@@ -811,260 +816,267 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   }
 
   return (
-    <main class={["editor", `editor-${props.view}`]}>
-      <Switch>
-        <Match
-          when={session.state.loading || session.state.notFound || session.state.error}
-        >
-          <ProjectLoadStates
-            loading={session.state.loading}
-            notFound={session.state.notFound}
-            error={session.state.error}
-          />
-        </Match>
-        <Match when={project()}>
-          {(currentProject) => (
-            <>
-              <Title>{pageTitle(currentProject().metadata.name)}</Title>
-              <EditorHeader
-                projectName={currentProject().metadata.name}
-                onRename={(name) => session.dispatch(renameProject(name))}
-                session={session}
-                audio={audio}
-                onToggleLoop={() => toggleLooping(loopActions)}
-                tempo={tempo}
-                onTempoChange={applyTempo}
-                swing={swing}
-                onSwingInput={swingGesture.input}
-                onSwingCommit={commitSwing}
-                onOpenGuide={() => setGuideOpen(true)}
-                onExportOpenChange={setExportOpen}
-                keyHint={keyHint}
-                account={props.account}
-              />
-              <CompatibilityNotice
-                items={compatibilityNoticeItems(capabilities(), audio.startFailure())}
-              />
-              <LoadRecoveryNotice droppedPlacements={session.state.droppedPlacements} />
-              <div class="editor-body">
-                {/*
-                 * One view at a time (`UI-001`). A view you are not on is not
-                 * on the page at all rather than hidden behind the one you
-                 * are — the bet this change exists to test.
-                 */}
-                <Switch>
-                  <Match when={props.view === "arrangement"}>
-                    <div class="editor-main">
-                      <div class="arrangement-panel">
-                        <ArrangementView
-                          project={currentProject()}
-                          playheadTicks={audio.positionTicks}
-                          isPlaying={audio.isPlaying}
-                          trackLevel={audio.trackLevel}
-                          dispatch={session.dispatch}
-                          beginGesture={session.beginGesture}
-                          onEditingActionsReady={setArrangementEditingActions}
-                          selectedTrackId={track()?.id ?? null}
-                          chosenTrackId={deletableTrackId()}
-                          onSelectTrack={selectTrackFrom}
-                          onOpenPlacement={openPlacement}
-                          onSelectPlacement={selectPlacement}
-                          initialSelection={arrangementSelection}
-                          onSelectionChange={(selected) => {
-                            arrangementSelection = selected;
-                          }}
-                          onLoopBraceFocusChange={setLoopBraceFocused}
-                          /* The arrangement's own way to add a track
+    <ControlRegistryContext value={controls}>
+      <main class={["editor", `editor-${props.view}`]}>
+        <Switch>
+          <Match
+            when={session.state.loading || session.state.notFound || session.state.error}
+          >
+            <ProjectLoadStates
+              loading={session.state.loading}
+              notFound={session.state.notFound}
+              error={session.state.error}
+            />
+          </Match>
+          <Match when={project()}>
+            {(currentProject) => (
+              <>
+                <Title>{pageTitle(currentProject().metadata.name)}</Title>
+                <EditorHeader
+                  projectName={currentProject().metadata.name}
+                  onRename={(name) => session.dispatch(renameProject(name))}
+                  session={session}
+                  audio={audio}
+                  onToggleLoop={() => toggleLooping(loopActions)}
+                  tempo={tempo}
+                  onTempoChange={applyTempo}
+                  swing={swing}
+                  onSwingInput={swingGesture.input}
+                  onSwingCommit={commitSwing}
+                  onOpenGuide={() => setGuideOpen(true)}
+                  onExportOpenChange={setExportOpen}
+                  keyHint={keyHint}
+                  account={props.account}
+                />
+                <CompatibilityNotice
+                  items={compatibilityNoticeItems(capabilities(), audio.startFailure())}
+                />
+                <LoadRecoveryNotice droppedPlacements={session.state.droppedPlacements} />
+                <div class="editor-body">
+                  {/*
+                   * One view at a time (`UI-001`). A view you are not on is not
+                   * on the page at all rather than hidden behind the one you
+                   * are — the bet this change exists to test.
+                   */}
+                  <Switch>
+                    <Match when={props.view === "arrangement"}>
+                      <div class="editor-main">
+                        <div class="arrangement-panel">
+                          <ArrangementView
+                            project={currentProject()}
+                            playheadTicks={audio.positionTicks}
+                            isPlaying={audio.isPlaying}
+                            trackLevel={audio.trackLevel}
+                            dispatch={session.dispatch}
+                            beginGesture={session.beginGesture}
+                            onEditingActionsReady={setArrangementEditingActions}
+                            selectedTrackId={track()?.id ?? null}
+                            chosenTrackId={deletableTrackId()}
+                            onSelectTrack={selectTrackFrom}
+                            onOpenPlacement={openPlacement}
+                            onSelectPlacement={selectPlacement}
+                            initialSelection={arrangementSelection}
+                            onSelectionChange={(selected) => {
+                              arrangementSelection = selected;
+                            }}
+                            onLoopBraceFocusChange={setLoopBraceFocused}
+                            /* The arrangement's own way to add a track
                              (`UI-001`), the same unit and the same route the
                              mixer uses — rendered by the arrangement directly
                              below the last track, where the next one would
                              go, rather than in a band above the timeline. */
-                          belowTracks={
-                            <NewTrackButtons
-                              label="Add track to the arrangement"
-                              onAdd={(spec) => addTrack(currentProject(), spec)}
-                              onAddLoop={() => aimLibrary("arrangement", true)}
-                            />
-                          }
-                        />
+                            belowTracks={
+                              <NewTrackButtons
+                                label="Add track to the arrangement"
+                                onAdd={(spec) => addTrack(currentProject(), spec)}
+                                onAddLoop={() => aimLibrary("arrangement", true)}
+                              />
+                            }
+                          />
+                        </div>
+                        <Show when={currentProject().song.tracks.length === 0}>
+                          <NoTracks />
+                        </Show>
                       </div>
-                      <Show when={currentProject().song.tracks.length === 0}>
-                        <NoTracks />
+                    </Match>
+                    <Match when={props.view === "sequence"}>
+                      <Show
+                        when={opened()}
+                        fallback={
+                          <EmptyView
+                            view="sequence"
+                            title="No clip selected"
+                            body="Select a clip in the arrangement, then press 2 to edit its steps or notes."
+                            fixes={[viewFix("arrangement")]}
+                            onFix={(view) => selectView(view, "empty_screen")}
+                          />
+                        }
+                      >
+                        {(open) => (
+                          <SequenceEditor
+                            clip={open().clip}
+                            track={open().track}
+                            project={currentProject()}
+                            showPianoRoll={showPianoRoll}
+                            loop={model.loopEntryFor(currentProject(), open().clip)}
+                            songTempo={tempo()}
+                            editorPlaybackStep={editorPlaybackStep}
+                            selectedNoteIds={selectedNoteIds}
+                            setSelectedNoteIds={setSelectedNoteIds}
+                            playheadTicks={audio.positionTicks()}
+                            registerPianoRollActions={setPianoRollActions}
+                            playing={audio.isPlaying()}
+                            onTogglePlay={() => void audio.toggle()}
+                            audition={(pitch, velocity) =>
+                              void audio.auditionTrack(
+                                open().track.id,
+                                { kind: "pitch", pitch },
+                                AUDITION_DURATION_TICKS,
+                                velocity,
+                              )
+                            }
+                            selectedPadId={selectedPadOf(padSelection(), open().track)}
+                            onSelectPad={(padId) => selectPad(open().track.id, padId)}
+                            auditionPad={(padId) =>
+                              void audio.auditionPad(open().track.id, padId)
+                            }
+                            dispatch={session.dispatch}
+                            beginGesture={session.beginGesture}
+                          />
+                        )}
                       </Show>
-                    </div>
-                  </Match>
-                  <Match when={props.view === "sequence"}>
-                    <Show
-                      when={opened()}
-                      fallback={
-                        <EmptyView
-                          view="sequence"
-                          title="No clip selected"
-                          body="Select a clip in the arrangement, then press 2 to edit its steps or notes."
-                          fixes={[viewFix("arrangement")]}
-                          onFix={(view) => selectView(view, "empty_screen")}
-                        />
-                      }
-                    >
-                      {(open) => (
-                        <SequenceEditor
-                          clip={open().clip}
-                          track={open().track}
+                    </Match>
+                    <Match when={props.view === "instrument"}>
+                      <SampleSlotTargetingContext value={slotTargeting}>
+                        <EditorInstrument
                           project={currentProject()}
-                          showPianoRoll={showPianoRoll}
-                          loop={model.loopEntryFor(currentProject(), open().clip)}
-                          songTempo={tempo()}
-                          editorPlaybackStep={editorPlaybackStep}
-                          selectedNoteIds={selectedNoteIds}
-                          setSelectedNoteIds={setSelectedNoteIds}
-                          playheadTicks={audio.positionTicks()}
-                          registerPianoRollActions={setPianoRollActions}
-                          playing={audio.isPlaying()}
-                          onTogglePlay={() => void audio.toggle()}
-                          audition={(pitch, velocity) =>
-                            void audio.auditionTrack(
-                              open().track.id,
-                              { kind: "pitch", pitch },
-                              AUDITION_DURATION_TICKS,
-                              velocity,
-                            )
+                          track={track() ?? null}
+                          drumTrack={drumTrack() ?? null}
+                          sampleAssets={sampleAssets()}
+                          instrument={instrument()}
+                          instrumentTrackId={instrumentPanelTrackId()}
+                          sampleName={sampleName()}
+                          loadSample={(sample) => void dropFromLibrary(dropHost, sample)}
+                          audition={auditionInstrument}
+                          auditionPad={(trackId, padId) =>
+                            void audio.auditionPad(trackId, padId)
                           }
-                          selectedPadId={selectedPadOf(padSelection(), open().track)}
-                          onSelectPad={(padId) => selectPad(open().track.id, padId)}
-                          auditionPad={(padId) =>
-                            void audio.auditionPad(open().track.id, padId)
+                          onBrowse={() => aimLibrary("slot")}
+                          onBrowsePad={(trackId, padId) => {
+                            selectPad(trackId, padId);
+                            aimLibrary("slot");
+                          }}
+                          onBrowseLoop={() => aimLibrary("slot")}
+                          watchPeaks={audio.watchAssetPeaks}
+                          watchTriggers={audio.watchTriggers}
+                          trackLevel={audio.trackLevel}
+                          onSelectTrack={selectTrackFrom}
+                          chosenTrackId={deletableTrackId()}
+                          selectedPadId={selectedPadOf(
+                            padSelection(),
+                            drumTrack() ?? null,
+                          )}
+                          onSelectPad={selectPad}
+                          onAddTrack={(spec) =>
+                            addTrack(currentProject(), spec, "instrument_add_track")
                           }
+                          onAddLoop={() => aimLibrary("slot", true)}
                           dispatch={session.dispatch}
                           beginGesture={session.beginGesture}
                         />
-                      )}
-                    </Show>
-                  </Match>
-                  <Match when={props.view === "instrument"}>
-                    <SampleSlotTargetingContext value={slotTargeting}>
-                      <EditorInstrument
-                        project={currentProject()}
-                        track={track() ?? null}
-                        drumTrack={drumTrack() ?? null}
-                        sampleAssets={sampleAssets()}
-                        instrument={instrument()}
-                        instrumentTrackId={instrumentPanelTrackId()}
-                        sampleName={sampleName()}
-                        loadSample={(sample) => void dropFromLibrary(dropHost, sample)}
-                        audition={auditionInstrument}
-                        auditionPad={(trackId, padId) =>
-                          void audio.auditionPad(trackId, padId)
-                        }
-                        onBrowse={() => aimLibrary("slot")}
-                        onBrowsePad={(trackId, padId) => {
-                          selectPad(trackId, padId);
-                          aimLibrary("slot");
-                        }}
-                        onBrowseLoop={() => aimLibrary("slot")}
-                        watchPeaks={audio.watchAssetPeaks}
-                        watchTriggers={audio.watchTriggers}
-                        trackLevel={audio.trackLevel}
-                        onSelectTrack={selectTrackFrom}
-                        chosenTrackId={deletableTrackId()}
-                        selectedPadId={selectedPadOf(padSelection(), drumTrack() ?? null)}
-                        onSelectPad={selectPad}
-                        onAddTrack={(spec) =>
-                          addTrack(currentProject(), spec, "instrument_add_track")
-                        }
-                        onAddLoop={() => aimLibrary("slot", true)}
-                        dispatch={session.dispatch}
-                        beginGesture={session.beginGesture}
-                      />
-                    </SampleSlotTargetingContext>
-                  </Match>
-                  <Match when={props.view === "library"}>
-                    {/* A fresh audition engine per visit: leaving disposes it
+                      </SampleSlotTargetingContext>
+                    </Match>
+                    <Match when={props.view === "library"}>
+                      {/* A fresh audition engine per visit: leaving disposes it
                         (LOOP-013), so a cached one would be dead. */}
-                    <Show
-                      when={libraryTargetOf()}
-                      fallback={
-                        <LibraryEmpty
-                          kind={libraryAimed().kind as "synth" | "no-slot" | "no-track"}
-                          fix={viewFix}
-                          onFix={(view) => selectView(view, "empty_screen")}
-                        />
-                      }
-                    >
-                      {(target) => (
-                        <LibraryModal
-                          client={libraryClient}
-                          previewEngine={createAuditionEngine()}
-                          slotAudition={slotAudition()}
+                      <Show
+                        when={libraryTargetOf()}
+                        fallback={
+                          <LibraryEmpty
+                            kind={libraryAimed().kind as "synth" | "no-slot" | "no-track"}
+                            fix={viewFix}
+                            onFix={(view) => selectView(view, "empty_screen")}
+                          />
+                        }
+                      >
+                        {(target) => (
+                          <LibraryModal
+                            client={libraryClient}
+                            previewEngine={createAuditionEngine()}
+                            slotAudition={slotAudition()}
+                            analytics={props.analytics}
+                            onInsert={(asset, options) => {
+                              insertedInto = target();
+                              return insertFromLibrary(
+                                targetHost(insertedInto),
+                                asset,
+                                options,
+                              );
+                            }}
+                            addedPackIds={addedPackIds()}
+                            assetTypes={targetAssetTypes(target())}
+                            heading={
+                              SLOT_KINDS[target().kind] === "loop-track"
+                                ? "Loops"
+                                : "Library"
+                            }
+                            path={targetPath(currentProject(), target())}
+                            slot={targetPath(currentProject(), target())
+                              .split(" › ")
+                              .at(-1)}
+                            trackColor={track()?.color}
+                            keyLabel={keyHint}
+                            current={
+                              targetSound(currentProject(), target())?.name ?? null
+                            }
+                            slotKind={SLOT_KINDS[target().kind]}
+                            songBpm={tempo()}
+                            currentRef={
+                              targetSound(currentProject(), target())?.storageRef ?? null
+                            }
+                            onActions={(actions) => setLibraryActions(() => actions)}
+                            onInsertAndReturn={() => returnFromInsert("library_insert")}
+                          />
+                        )}
+                      </Show>
+                    </Match>
+                    <Match when={props.view === "mixer"}>
+                      <div class="mixer-view">
+                        <Mixer
+                          project={currentProject()}
                           analytics={props.analytics}
-                          onInsert={(asset, options) => {
-                            insertedInto = target();
-                            return insertFromLibrary(
-                              targetHost(insertedInto),
-                              asset,
-                              options,
-                            );
-                          }}
-                          addedPackIds={addedPackIds()}
-                          assetTypes={targetAssetTypes(target())}
-                          heading={
-                            SLOT_KINDS[target().kind] === "loop-track"
-                              ? "Loops"
-                              : "Library"
-                          }
-                          path={targetPath(currentProject(), target())}
-                          slot={targetPath(currentProject(), target())
-                            .split(" › ")
-                            .at(-1)}
-                          trackColor={track()?.color}
-                          keyLabel={keyHint}
-                          current={targetSound(currentProject(), target())?.name ?? null}
-                          slotKind={SLOT_KINDS[target().kind]}
-                          songBpm={tempo()}
-                          currentRef={
-                            targetSound(currentProject(), target())?.storageRef ?? null
-                          }
-                          onActions={(actions) => setLibraryActions(() => actions)}
-                          onInsertAndReturn={() => returnFromInsert("library_insert")}
+                          dispatch={session.dispatch}
+                          beginGesture={session.beginGesture}
+                          trackLevel={audio.trackLevel}
+                          selectedTrackId={track()?.id ?? null}
+                          onSelectTrack={selectTrackFrom}
                         />
-                      )}
-                    </Show>
-                  </Match>
-                  <Match when={props.view === "mixer"}>
-                    <div class="mixer-view">
-                      <Mixer
-                        project={currentProject()}
-                        analytics={props.analytics}
-                        dispatch={session.dispatch}
-                        beginGesture={session.beginGesture}
-                        trackLevel={audio.trackLevel}
-                        selectedTrackId={track()?.id ?? null}
-                        onSelectTrack={selectTrackFrom}
-                      />
-                    </div>
-                  </Match>
-                </Switch>
-              </div>
-              <ViewDock
-                view={props.view}
-                href={props.viewHref}
-                onSelect={(view) => selectView(view, "dock")}
-                keyHint={(view) => keyHint(editorViewSpec(view).actionId)}
-                opens={dockOpens}
-                dimmed={(view) => view === "sequence" && opened() === null}
-                marked={(view) => view === "library" && libraryTargetOf() !== null}
-              />
-              <Show when={guideOpen()}>
-                <ShortcutGuide
-                  contexts={editorContexts()}
-                  platform={shortcuts.platform}
-                  isEnabled={(id) => shortcuts.isEnabled(id)}
-                  onClose={() => setGuideOpen(false)}
+                      </div>
+                    </Match>
+                  </Switch>
+                </div>
+                <ViewDock
+                  view={props.view}
+                  href={props.viewHref}
+                  onSelect={(view) => selectView(view, "dock")}
+                  keyHint={(view) => keyHint(editorViewSpec(view).actionId)}
+                  opens={dockOpens}
+                  dimmed={(view) => view === "sequence" && opened() === null}
+                  marked={(view) => view === "library" && libraryTargetOf() !== null}
                 />
-              </Show>
-            </>
-          )}
-        </Match>
-      </Switch>
-    </main>
+                <Show when={guideOpen()}>
+                  <ShortcutGuide
+                    contexts={editorContexts()}
+                    platform={shortcuts.platform}
+                    isEnabled={(id) => shortcuts.isEnabled(id)}
+                    onClose={() => setGuideOpen(false)}
+                  />
+                </Show>
+              </>
+            )}
+          </Match>
+        </Switch>
+      </main>
+    </ControlRegistryContext>
   );
 }

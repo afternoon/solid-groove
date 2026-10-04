@@ -46,6 +46,10 @@ equal. Colour is kept for the few things that must stand out.
 - **A level meter's clip is the one status in colour.** A meter is green while
   its track peaks under 0 dBFS, and red for a moment after a peak goes over
   (`--signal-ok`, `--signal-clip`). Only `LevelMeter.css` may read them.
+- **A marked control is outlined in white** (`UI-004`): dashed while a
+  proposed change to it is previewed, solid once the change has landed. One
+  rule draws it for every part (`src/controls/controlMarks.css`), and an
+  outline moves nothing.
 - **Errors speak through emphasis and words**: framing, weight and wording,
   never red text.
 - Style against semantic aliases (`--color-text`, `--color-background-secondary`),

@@ -5,7 +5,12 @@ import type {
   RawCommandInput,
   TransactionResult,
 } from "../commands";
-import { createControlGesture, type ParameterTarget, setParameter } from "../commands";
+import {
+  createControlGesture,
+  type ParameterTarget,
+  parameterTargetControl,
+  setParameter,
+} from "../commands";
 import type { Track } from "../domain/entities";
 import { dbToFaderPosition, faderPositionToDb, formatDb } from "../domain/faders";
 import {
@@ -72,6 +77,7 @@ export function DbFader(props: DbFaderProps): JSX.Element {
   return (
     <FillSlider
       definition={props.definition}
+      control={parameterTargetControl(props.target)}
       inputId={props.inputId}
       orientation={props.orientation}
       label="Vol"

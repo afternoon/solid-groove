@@ -1,5 +1,6 @@
 import type { JSX } from "@solidjs/web";
 import type { Accessor } from "solid-js";
+import { parameterControl, SONG_ENTITY } from "../commands/controlAddress";
 import { SONG_SWING } from "../domain/parameters";
 import FillSlider from "../instrument/FillSlider";
 
@@ -23,6 +24,7 @@ export default function SwingControl(props: SwingControlProps): JSX.Element {
     <div class="swing-control">
       <FillSlider
         definition={SONG_SWING}
+        control={parameterControl(SONG_ENTITY, SONG_SWING.id)}
         value={props.swing()}
         inputId="swing-input"
         label="Swing"

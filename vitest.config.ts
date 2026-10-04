@@ -181,6 +181,7 @@ export default defineConfig({
         "src/components/**/*.test.{ts,tsx}",
         "src/instrument/**/*.test.{ts,tsx}",
         "src/arrangement/**/*.test.{ts,tsx}",
+        "src/controls/**/*.test.{ts,tsx}",
         "src/routes/**/*.test.{ts,tsx}",
       ]),
       // The boundaries that talk to something outside the app: the

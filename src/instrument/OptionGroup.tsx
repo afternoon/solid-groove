@@ -1,4 +1,6 @@
 import { For, type JSX } from "@solidjs/web";
+import type { ControlAddress } from "../commands/controlAddress";
+import { control as controlRef } from "../controls/control";
 import "./OptionGroup.css";
 
 export interface OptionGroupOption<V extends string | number> {
@@ -28,6 +30,8 @@ export interface OptionGroupProps<V extends string | number> {
   readonly fill?: boolean;
   /** Shown but not choosable, as a whole group (#447). */
   readonly disabled?: boolean;
+  /** The value this switch shows, as a control address (`UI-004`). */
+  readonly control?: ControlAddress;
 }
 
 /**
@@ -40,6 +44,7 @@ export default function OptionGroup<V extends string | number>(
 ): JSX.Element {
   return (
     <fieldset
+      ref={controlRef(() => props.control)}
       class={["option-group", { fill: props.fill === true }]}
       aria-label={props.legend}
       disabled={props.disabled}

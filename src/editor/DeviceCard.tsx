@@ -16,6 +16,8 @@ import {
   setDeviceBypass,
   type TransactionResult,
 } from "../commands";
+import { CONTROL_PARTS, controlAddress } from "../commands/controlAddress";
+import { control } from "../controls/control";
 import { deviceTypeDefinition } from "../domain/devices";
 import type { Device } from "../domain/entities";
 import type { DeviceId } from "../domain/ids";
@@ -59,7 +61,10 @@ export default function DeviceCard(props: DeviceCardProps): JSX.Element {
   const run = (command: RawCommandInput) => props.dispatch(command);
 
   return (
-    <article class={["device-card", { bypassed: props.device.bypassed }]}>
+    <article
+      ref={control(() => controlAddress(props.device.id, CONTROL_PARTS.faceplate))}
+      class={["device-card", { bypassed: props.device.bypassed }]}
+    >
       {/* The header and the card's background are the drag handle; the name
           is the keyboard's, a sortable button that takes the registry's
           `device.move_earlier`/`device.move_later` (Alt/Option+Up/Down). */}

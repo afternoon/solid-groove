@@ -3,6 +3,7 @@ import { HiSolidSquares2x2 } from "solid-icons/hi";
 import { type Accessor, createEffect, createSignal, Show } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import { MAX_TEMPO_BPM, MIN_TEMPO_BPM } from "../audio/Transport";
+import { parameterControl, SONG_ENTITY } from "../commands/controlAddress";
 import {
   HelpIcon,
   LoopIcon,
@@ -12,6 +13,8 @@ import {
   StopIcon,
   UndoIcon,
 } from "../components/icons";
+import { control } from "../controls/control";
+import { SONG_TEMPO } from "../domain/parameters";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import { ariaBool } from "../shared/aria";
 import type { shortcutLabel } from "../shortcuts";
@@ -176,7 +179,10 @@ export default function EditorHeader(props: EditorHeaderProps) {
         </div>
         <PlayheadInput positionTicks={props.audio.positionTicks} onSeek={seek} />
         <div class="header-cell-group">
-          <div class="tempo-control">
+          <div
+            class="tempo-control"
+            ref={control(parameterControl(SONG_ENTITY, SONG_TEMPO.id))}
+          >
             {/* Named on the input itself as well as by the label (#866), so
                 an audit reading the name off the element finds it. The
                 printed unit is decoration. */}

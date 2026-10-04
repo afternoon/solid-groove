@@ -7,6 +7,8 @@ import type {
   RawCommandInput,
   TransactionResult,
 } from "../commands";
+import { CONTROL_PARTS, controlAddress } from "../commands/controlAddress";
+import { control } from "../controls/control";
 import type { Track } from "../domain/entities";
 import type { TrackId } from "../domain/ids";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
@@ -88,6 +90,7 @@ export default function TrackHeader(props: TrackHeaderProps): JSX.Element {
     // biome-ignore lint/a11y/noStaticElementInteractions: a pointer shortcut for the header's own Edit button
     // biome-ignore lint/a11y/useKeyWithClickEvents: the Edit button, and every control's own keys, are the keyboard path
     <div
+      ref={control(() => controlAddress(props.track.id, CONTROL_PARTS.header))}
       class={[
         "track-header",
         {

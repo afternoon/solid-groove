@@ -1,5 +1,7 @@
 import type { JSX } from "@solidjs/web";
 import { createMemo } from "solid-js";
+import type { ControlAddress } from "../commands/controlAddress";
+import { control as controlRef } from "../controls/control";
 import { clampParameterValue, type ParameterDefinition } from "../domain/parameters";
 import "./FillSlider.css";
 import { parseParameterInput } from "./parseValue";
@@ -74,6 +76,12 @@ export interface FillSliderProps {
    * field takes input.
    */
   readonly disabled?: boolean;
+  /**
+   * The value this slider shows, as a control address (`UI-004`), so a reveal
+   * can find it and a proposal can outline it. Omitted for a slider that does
+   * not stand for one domain value.
+   */
+  readonly control?: ControlAddress;
 }
 
 /**
@@ -185,6 +193,7 @@ export default function FillSlider(props: FillSliderProps): JSX.Element {
 
   return (
     <div
+      ref={controlRef(() => props.control)}
       class={[
         "fill-slider",
         {

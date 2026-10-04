@@ -9,6 +9,7 @@ import {
   setParameter,
   type TransactionResult,
 } from "../commands";
+import { type ControlAddress, parameterControl } from "../commands/controlAddress";
 import { deviceParameters } from "../domain/devices";
 import type { Device } from "../domain/entities";
 import {
@@ -85,6 +86,7 @@ export default function DeviceControls(props: DeviceControlsProps): JSX.Element 
         fallback={
           <DeviceSlider
             definition={definition}
+            control={parameterControl(props.device.id, definition.id)}
             value={reading().value}
             derived={reading().derived}
             inputId={key(definition)}
@@ -97,6 +99,7 @@ export default function DeviceControls(props: DeviceControlsProps): JSX.Element 
         {(options) => (
           <OptionGroup
             legend={definition.label}
+            control={parameterControl(props.device.id, definition.id)}
             radioGroup={key(definition)}
             fill
             value={value()}
@@ -134,6 +137,7 @@ function DeviceSlider(props: {
   /** Shown but set elsewhere (a synced delay's Time), so not adjustable. */
   readonly derived: boolean;
   readonly inputId: string;
+  readonly control: ControlAddress;
   command(value: number): RawCommandInput;
   dispatch(
     commands: RawCommandInput | readonly RawCommandInput[],
@@ -154,6 +158,7 @@ function DeviceSlider(props: {
         // 1/2 at a slow tempo); the fill stops at the end, the reading does not.
         value={clampParameterValue(props.definition, props.value)}
         inputId={props.inputId}
+        control={props.control}
         displayValue={formatDeviceValue(props.definition, props.value)}
         disabled={props.derived}
         onInput={(next) => control.input(next)}

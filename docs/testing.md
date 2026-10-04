@@ -34,7 +34,7 @@ in it, and read a failure or a slowdown as belonging to a layer rather than to
 | --- | --- | --- |
 | `domain` | `src/domain`, `src/commands`, `src/projection`, `src/selection` | 38 |
 | `audio` | `src/audio` | 25 |
-| `ui` | `src/editor`, `src/components`, `src/instrument`, `src/arrangement` | 51 |
+| `ui` | `src/editor`, `src/components`, `src/instrument`, `src/arrangement`, `src/controls` | 51 |
 | `data` | `src/persistence`, `src/library`, `src/auth` | 19 |
 | `platform` | `src/analytics`, `src/monitoring`, `src/shortcuts`, `src/shared`, `src/testing`, root `src/*.test.ts` | 25 |
 | `library-pipeline` | `scripts/` — the sample-library build tooling, not the app | 16 |
