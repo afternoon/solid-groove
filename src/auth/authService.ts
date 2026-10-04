@@ -8,6 +8,13 @@ export interface AuthService {
   signOut(): Promise<void>;
   onAuthStateChanged(callback: (user: User | null) => void): () => void;
   getCurrentUser(): User | null;
+  /**
+   * Whether the signed-in account carries the `admin: true` custom claim
+   * (#854), read from its ID token. `false` with no session, for a guest, and
+   * for every other account. The claim is what `firestore.rules` checks; this
+   * only decides whether the admin page is shown.
+   */
+  isAdmin(): Promise<boolean>;
 }
 
 // Firebase implementation
@@ -95,6 +102,14 @@ class FirebaseAuthService implements AuthService {
 
   getCurrentUser(): User | null {
     return this.auth?.currentUser ?? null;
+  }
+
+  async isAdmin(): Promise<boolean> {
+    const auth = await this.ready;
+    const user = auth.currentUser;
+    if (!user || user.isAnonymous) return false;
+    const token = await user.getIdTokenResult();
+    return token.claims.admin === true;
   }
 }
 
@@ -189,6 +204,11 @@ class MockAuthService implements AuthService {
 
   getCurrentUser(): User | null {
     return this.mockUser;
+  }
+
+  /** The mock's Google account is an admin, so `/admin` can be tried in the mock backend. */
+  async isAdmin(): Promise<boolean> {
+    return this.mockUser !== null && !this.mockUser.isAnonymous;
   }
 }
 

@@ -2,7 +2,12 @@
 // value sets that are about Groove itself rather than a project in it.
 
 import { ERROR_AREAS, ERROR_CODES } from "../errorCodes";
-import { type AnalyticsEventDefinition, boolParam, enumParam } from "./params";
+import {
+  type AnalyticsEventDefinition,
+  boolParam,
+  countParam,
+  enumParam,
+} from "./params";
 
 /**
  * The surfaces the app can log from. Attached to every event automatically
@@ -37,6 +42,8 @@ export const APP_FEATURE_KEYS = [
   // account, and signing out.
   "log_in",
   "sign_out",
+  // The admin page's batch approval of the alpha allowlist (#854).
+  "allowlist_admin",
 ] as const;
 
 export const APP_EVENTS = {
@@ -56,6 +63,29 @@ export const APP_EVENTS = {
     phase: 1,
     owners: ["LOOP-001"],
     params: {},
+  },
+
+  // The alpha allowlist (#854). A sign-in the blocking function refused,
+  // counted where the browser learns of it; which surface it was refused on,
+  // never the address.
+  sign_in_blocked: {
+    phase: 1,
+    owners: ["#854"],
+    params: { source: enumParam(["landing", "log_in", "upgrade"]) },
+  },
+
+  // An admin approving addresses onto the allowlist (#854): from a paste or a
+  // blocked attempt's one-click Approve, and how many of each outcome. Counts
+  // only; an address is never a parameter.
+  allowlist_approved: {
+    phase: 1,
+    owners: ["#854"],
+    params: {
+      source: enumParam(["paste", "attempt"]),
+      added_count: countParam(1000),
+      already_listed_count: countParam(1000),
+      invalid_count: countParam(1000),
+    },
   },
 
   account_upgraded: {
