@@ -396,6 +396,17 @@ Note for anyone extending this suite: do not wait on `networkidle`. The app hold
 
 Five projects run: `chromium`, `chrome`, `msedge`, `firefox`, `webkit`. Per the PRD section 10 supported-environment policy, Chrome, Edge and Firefox are P0-gating; WebKit runs alongside them as a signal only (`.github/workflows/ci.yml` marks the WebKit job `continue-on-error`) — WebKit passing is evidence, not proof, about real Safari. `chromium` is Playwright's own build: it is not a browser anyone ships, but it is the one every environment can install, so it stays as the pre-flight and keeps gating alongside the branded two.
 
+### The compatibility suite
+
+`tests/e2e/mock/compatibility.spec.ts` (#75) runs in every browser project and covers what PRD section 10 says differs between browsers, one `describe` per area:
+
+- **Capability fallbacks**, forced by taking the API away in an init script before any app code runs (no Web Audio, no `OfflineAudioContext`, a `localStorage` that throws, a canvas that refuses a 2D context, no `download` attribute). Each asserts the editor still opens with no page error and that the notice (`src/browser/`, `src/editor/CompatibilityNotice.tsx`) says what is missing and what to do.
+- **Audio unlock**: Play starts sound (Chromium family only, the known Firefox gap below), and a context whose `resume()` rejects with `NotAllowedError` is explained as blocked sound, recovering once allowed.
+- **Decoding**, through the production loader on the shared context (`tests/e2e/mock/support/decodeHarness.ts`): a factory WAV decodes to its manifest's shape, and bytes that are not audio classify as `decode_failed`.
+- **Shortcuts**, **downloads** (an exported WAV arrives as one download), and **Canvas at device pixel ratio 1 and 2** (each arrangement layer's backing store is its CSS size times the ratio, and the content layer paints).
+
+Firebase's failure states need a real backend, so `tests/e2e/emulator/firebaseFailure.spec.ts` takes the browser offline mid-edit against the emulator: the save fails visibly, offers Retry, and the offline edit is the one that persists.
+
 ### Chrome and Edge, and what "current and previous" means here
 
 `chrome` and `msedge` are Playwright **channels** (#75): they drive the branded Google Chrome and Microsoft Edge installed on the machine, not a Playwright download, so they carry each browser's own media stack, codecs and autoplay policy — the differences PRD section 10 gates on. `bunx playwright install --with-deps chrome msedge` installs (or updates to) the current stable release of each, which is what CI's `chrome`/`msedge` jobs do on every run. It needs `sudo` on Linux and installs the browsers system-wide, which is why `bun run test:browser:install` does not do it for you; on a machine with neither installed, run the suites with `--project=chromium --project=firefox --project=webkit` and let CI run the branded two.
