@@ -27,6 +27,16 @@
 // with the feature" rule (CLAUDE.md's definition of done) enforced by the compiler rather than
 // by review.
 //
+// ## Where an entry goes
+//
+// The catalog is split by feature area under `./catalog/`: each area file
+// declares its own events, value sets, `feature_first_use` keys and
+// `shortcut_used` action IDs, and this module combines them into the one
+// public catalog. A feature adds its entries to its own area's file, so two
+// features in different areas never edit the same list. Only the two events
+// whose values span every area, `feature_first_use` and `shortcut_used`, are
+// declared here.
+//
 // ## Changing this file
 //
 // Event names, parameter names, and parameter values are a published contract:
@@ -34,378 +44,126 @@
 // one splits a metric across two values for the same behavior. Adding is
 // routine; renaming or removing is a task of its own.
 
-import { type BucketLabel, type BucketScaleName, bucketLabels } from "./buckets";
-import { ERROR_AREAS, ERROR_CODES } from "./errorCodes";
+import type { BucketLabel } from "./buckets";
+import { APP_EVENTS, APP_FEATURE_KEYS } from "./catalog/app";
 import {
-  isPublishedPackSlug,
-  PACK_KINDS,
-  type PublishedPackId,
-  RESERVED_PACK_IDS,
-} from "./packIdentity";
+  ARRANGEMENT_EVENTS,
+  ARRANGEMENT_FEATURE_KEYS,
+  ARRANGEMENT_SHORTCUT_ACTION_IDS,
+} from "./catalog/arrangement";
+import {
+  ASSISTANT_EVENTS,
+  ASSISTANT_FEATURE_KEYS,
+  ASSISTANT_SHORTCUT_ACTION_IDS,
+} from "./catalog/assistant";
+import {
+  AUDIO_EVENTS,
+  AUDIO_FEATURE_KEYS,
+  AUDIO_SHORTCUT_ACTION_IDS,
+} from "./catalog/audio";
+import {
+  CLIP_EVENTS,
+  CLIP_FEATURE_KEYS,
+  CLIP_SHORTCUT_ACTION_IDS,
+} from "./catalog/clips";
+import { EDITING_EVENTS, EDITING_SHORTCUT_ACTION_IDS } from "./catalog/editing";
+import {
+  EXPORT_EVENTS,
+  EXPORT_FEATURE_KEYS,
+  EXPORT_SHORTCUT_ACTION_IDS,
+} from "./catalog/export";
+import {
+  LIBRARY_EVENTS,
+  LIBRARY_FEATURE_KEYS,
+  LIBRARY_SHORTCUT_ACTION_IDS,
+} from "./catalog/library";
+import {
+  NAVIGATION_EVENTS,
+  NAVIGATION_FEATURE_KEYS,
+  NAVIGATION_SHORTCUT_ACTION_IDS,
+} from "./catalog/navigation";
+import {
+  type AnalyticsEventDefinition,
+  type AnalyticsParamValue,
+  type BooleanParam,
+  type BucketParam,
+  type CountParam,
+  coerceParam,
+  type EnumParam,
+  enumParam,
+  type SlugParam,
+} from "./catalog/params";
+import { PROJECT_EVENTS } from "./catalog/project";
+import {
+  TRACK_EVENTS,
+  TRACK_FEATURE_KEYS,
+  TRACK_SHORTCUT_ACTION_IDS,
+} from "./catalog/tracks";
+import type { PublishedPackId } from "./packIdentity";
+
+export {
+  ACCOUNT_TYPES,
+  type AccountType,
+  BROWSER_CAPABILITY_IDS,
+  SURFACES,
+  type Surface,
+} from "./catalog/app";
+export { SAMPLE_RATE_KEYS, type SampleRateKey, sampleRateKey } from "./catalog/audio";
+export {
+  NOTE_EDIT_OPERATIONS,
+  type NoteEditOperation,
+  SCALE_KEYS,
+} from "./catalog/clips";
+export { LIBRARY_PACK_SLUGS, type LibraryPackSlug } from "./catalog/library";
+export {
+  EDITOR_VIEWS,
+  type EditorViewName,
+  VIEW_CHANGE_SOURCES,
+  type ViewChangeSource,
+} from "./catalog/navigation";
+export {
+  type AnalyticsEventDefinition,
+  type AnalyticsParam,
+  type AnalyticsParamValue,
+  type BooleanParam,
+  type BucketParam,
+  type CountParam,
+  declaredValues,
+  type EnumParam,
+  PARAM_KINDS,
+  type SlugParam,
+} from "./catalog/params";
+export { COMMAND_IDS, type CommandId } from "./catalog/project";
+export {
+  DEVICE_OPERATIONS,
+  type DeviceOperation,
+  INSTRUMENT_TYPES,
+  type InstrumentTypeKey,
+} from "./catalog/tracks";
 
 // ---------------------------------------------------------------------------
-// Parameter kinds
+// Values that span every area
 // ---------------------------------------------------------------------------
-
-export interface EnumParam<V extends string = string, O extends boolean = boolean> {
-  readonly kind: "enum";
-  readonly values: readonly V[];
-  readonly optional: O;
-}
-
-export interface BucketParam<
-  S extends BucketScaleName = BucketScaleName,
-  O extends boolean = boolean,
-> {
-  readonly kind: "bucket";
-  readonly scale: S;
-  readonly optional: O;
-}
-
-export interface BooleanParam<O extends boolean = boolean> {
-  readonly kind: "boolean";
-  readonly optional: O;
-}
-
-export interface CountParam<O extends boolean = boolean> {
-  readonly kind: "count";
-  /** Values above this are clamped, so cardinality stays bounded. */
-  readonly max: number;
-  readonly optional: O;
-}
-
-/**
- * A value set an enum cannot express because it is *published* rather than
- * compiled: a third-party pack's slug enters the library by publication, so no
- * table in this repository can enumerate it ahead of time (LIB-05, LIB-08).
- *
- * The guarantee is therefore a shape and a set of reserved sentinels instead of
- * a fixed list — a kebab-case slug within {@link MAX_PACK_ID_LENGTH}, or one of
- * `reserved`. Anything else is dropped exactly like an out-of-set enum value.
- * This is the *only* parameter kind that admits a value the catalog has not
- * seen, which is why the decision about whether a value may travel at all is
- * made before it gets here, by `packAnalyticsIdentity`.
- */
-export interface SlugParam<O extends boolean = boolean> {
-  readonly kind: "slug";
-  /** Non-slug values that are always allowed (e.g. `"user"`, `"unknown"`). */
-  readonly reserved: readonly string[];
-  readonly optional: O;
-}
-
-export type AnalyticsParam =
-  | EnumParam
-  | BucketParam
-  | BooleanParam
-  | CountParam
-  | SlugParam;
-
-/** Every parameter kind, for exhaustiveness checks in tests and validation. */
-export const PARAM_KINDS = ["enum", "bucket", "boolean", "count", "slug"] as const;
-
-function enumParam<const V extends string>(values: readonly V[]): EnumParam<V, false> {
-  return { kind: "enum", values, optional: false };
-}
-
-function optionalEnumParam<const V extends string>(
-  values: readonly V[],
-): EnumParam<V, true> {
-  return { kind: "enum", values, optional: true };
-}
-
-function bucketParam<S extends BucketScaleName>(scale: S): BucketParam<S, false> {
-  return { kind: "bucket", scale, optional: false };
-}
-
-function boolParam(): BooleanParam<false> {
-  return { kind: "boolean", optional: false };
-}
-
-function countParam(max: number): CountParam<false> {
-  return { kind: "count", max, optional: false };
-}
-
-function optionalCountParam(max: number): CountParam<true> {
-  return { kind: "count", max, optional: true };
-}
-
-function slugParam<const R extends string>(reserved: readonly R[]): SlugParam<false> {
-  return { kind: "slug", reserved, optional: false };
-}
-
-// ---------------------------------------------------------------------------
-// Shared value sets
-// ---------------------------------------------------------------------------
-
-/**
- * The surfaces the app can log from. Attached to every event automatically
- * (see `AUTOMATIC_PARAMS`), so no event declares it.
- */
-export const SURFACES = ["landing", "dashboard", "editor"] as const;
-export type Surface = (typeof SURFACES)[number];
-
-/** Non-identifying account facts, logged as a GA4 user property. */
-export const ACCOUNT_TYPES = ["anonymous", "registered", "unknown"] as const;
-export type AccountType = (typeof ACCOUNT_TYPES)[number];
-
-/**
- * The instruments a track can carry, as reported by `instrument_changed` and
- * by `track_added` when the added track is created with one.
- */
-export const INSTRUMENT_TYPES = ["synth", "sampler", "drum_machine"] as const;
-export type InstrumentTypeKey = (typeof INSTRUMENT_TYPES)[number];
-
-/**
- * The editor's views (`UI-001`), as `view_changed`'s `view`, in the order of
- * their keys.
- *
- * A view is a low-cardinality *place in the editor*, not a surface: `SURFACES`
- * stays `landing / dashboard / editor`, because every one of these is the
- * editor. `src/editor/editorViews.ts` builds the view table — label, URL
- * segment, dock order — over this list, so the analytics vocabulary and the
- * addresses cannot drift apart.
- */
-export const EDITOR_VIEWS = [
-  "arrangement",
-  "sequence",
-  "instrument",
-  "library",
-  "mixer",
-] as const;
-export type EditorViewName = (typeof EDITOR_VIEWS)[number];
-
-/**
- * How a view was reached. The entrypoints must stay equivalent, so the one
- * that was used is the interesting half of the event: `dock` is the floating
- * tab bar, `keyboard` is `1`-`5`, and `url` is everything the address bar does
- * on its own — the back button, a deep link followed within the session, a
- * restored session. `arrangement` is opening a clip from the timeline (a
- * double-click, or `Enter` on a selected clip), `slot` is pressing a sample
- * slot, which aims the Library at it, `empty_screen` is the fix button on
- * a view that had nothing to show, and `library_insert` is the Library's
- * Insert button, which inserts and goes back (`UI-002`). `reveal` is the
- * editor moving itself to show a control (`UI-004`): a proposal line followed
- * to the control it changes, or the view it left restored on Cancel.
- */
-export const VIEW_CHANGE_SOURCES = [
-  "dock",
-  "keyboard",
-  "url",
-  "arrangement",
-  "slot",
-  "empty_screen",
-  "library_insert",
-  "reveal",
-] as const;
-export type ViewChangeSource = (typeof VIEW_CHANGE_SOURCES)[number];
-
-/**
- * The device-chain edits that can fail, as `device_edit_failed`'s `operation`
- * (LOOP-020).
- *
- * One value per `device.*` command the chain UI dispatches, so a failure can be
- * attributed to the edit that caused it without carrying the command id (which
- * `first_edit` already owns) or any chain, track, or project identity.
- */
-export const DEVICE_OPERATIONS = [
-  "add",
-  "remove",
-  "reorder",
-  "duplicate",
-  "bypass",
-  "reset",
-] as const;
-export type DeviceOperation = (typeof DEVICE_OPERATIONS)[number];
-
-/**
- * The song key's scales, as `key_changed`'s `scale` (ARR-010). Pinned here
- * like `COMMAND_IDS` rather than imported from the domain: `catalog.test.ts`
- * asserts it equals `SCALE_IDS` exactly, so a new scale needs an analytics
- * decision in the same change.
- */
-export const SCALE_KEYS = [
-  "chromatic",
-  "major",
-  "minor",
-  "dorian",
-  "mixolydian",
-  "harmonic_minor",
-  "major_pentatonic",
-  "minor_pentatonic",
-  "blues",
-] as const;
-
-/**
- * One value per piano roll edit that a command can refuse (ARR-010), so a
- * refusal can be attributed to the edit that caused it without carrying the
- * command id or any clip, note, or project identity.
- */
-export const NOTE_EDIT_OPERATIONS = [
-  "transpose",
-  "scale_velocity",
-  "quantize",
-  "quantize_to_scale",
-  "double",
-  "halve",
-  "clear",
-  "vary",
-  "vary_velocity",
-  "paste",
-  "nudge",
-] as const;
-export type NoteEditOperation = (typeof NOTE_EDIT_OPERATIONS)[number];
-
-/**
- * The browser capabilities Groove feature-detects (PRD section 10, #75), as
- * `browser_capability_missing`'s `capability`. Pinned here like
- * `SHORTCUT_ACTION_IDS`: `catalog.test.ts` asserts it equals
- * `CAPABILITY_IDS` in `src/browser/capabilities.ts` exactly, so a new probe has
- * to be given an analytics decision in the same change.
- */
-export const BROWSER_CAPABILITY_IDS = [
-  "web_audio",
-  "audio_decoding",
-  "offline_audio",
-  "site_storage",
-  "canvas_2d",
-  "file_download",
-] as const;
 
 /**
  * `feature_first_use` keys (PRD `OPS-02`). One low-cardinality key rather than
  * an event name per feature, so first-use is comparable across features in one
  * report and the catalog stays well inside GA4's distinct-event-name limit.
- * A feature task adds its key here with the feature.
+ * A feature task adds its key to its own area's list under `./catalog/` with
+ * the feature.
  */
 export const FEATURE_KEYS = [
-  "step_editor",
-  "piano_roll",
-  "drum_machine",
-  "synth",
-  "sampler",
-  "audio_loop",
-  "device_chain",
-  "send_return",
-  "mixer",
-  "library_browser",
-  "pack_browser",
-  "shortcut_guide",
-  "arrangement",
-  "arrangement_selection",
-  "arrangement_toggle_select",
-  "arrangement_extend_select",
-  "arrangement_drag_copy",
-  "arrangement_create_clip",
-  "sections",
-  "automation",
-  "assistant",
-  "export_stereo",
-  "export_stems",
-  "export_stems_selection",
-  "playhead_seek",
-  "track_color",
-  "track_delete",
-  "instrument_add_track",
-  "musical_key",
-  "note_clipboard",
-  "velocity_lane",
-  "note_audition",
-  "swing",
-  // The step grid's Generate panel (#643): one key per kind of generator.
-  "step_pattern",
-  "step_euclidean",
-  "step_random",
-  "step_clear_row",
-  "drum_pad_rename",
-  "library_similar",
-  "library_shuffle",
-  "library_pack_preview",
-  // The Bars control the step grid and the piano roll share (#869).
-  "clip_length",
-  // Moving a project's pin for a pack to a newer version so a sound from it can
-  // go in (#892), whether automatic or chosen with "Upgrade anyway".
-  "pack_upgrade",
-  // The in-app account controls (#951): logging a guest in to an existing
-  // account, and signing out.
-  "log_in",
-  "sign_out",
-  // The first EQ added to any chain, and the first band dragged on an EQ's
-  // curve (LOOP-022).
-  "eq_device",
-  "eq_curve",
-  "library_favourites",
-  // Adding a drum pad from the Sequence view's [+ Pad] row (#947).
-  "sequence_add_pad",
-  // A producer's own packs and the sounds they import into them (#282).
-  "user_packs",
+  ...APP_FEATURE_KEYS,
+  ...AUDIO_FEATURE_KEYS,
+  ...TRACK_FEATURE_KEYS,
+  ...CLIP_FEATURE_KEYS,
+  ...ARRANGEMENT_FEATURE_KEYS,
+  ...NAVIGATION_FEATURE_KEYS,
+  ...LIBRARY_FEATURE_KEYS,
+  ...EXPORT_FEATURE_KEYS,
+  ...ASSISTANT_FEATURE_KEYS,
 ] as const;
 export type FeatureKey = (typeof FEATURE_KEYS)[number];
-
-/**
- * Registered command types, as `first_edit`'s `command_id`.
- *
- * Pinned here rather than derived from `src/commands/registry.ts` because that
- * registry erases its command types to `string`, which would make `command_id`
- * accept free text. `catalog.test.ts` asserts this list equals the registry's
- * exactly, so adding a command without deciding how it appears in analytics
- * fails the suite.
- */
-export const COMMAND_IDS = [
-  "note.add",
-  "note.remove",
-  "note.update",
-  "notes.clear",
-  "notes.duplicate",
-  "notes.quantize",
-  "notes.scaleVelocity",
-  "notes.transpose",
-  "notes.vary",
-  "notes.quantizeToScale",
-  "clip.create",
-  "clip.delete",
-  "clip.update",
-  "track.create",
-  "track.delete",
-  "track.reorder",
-  "track.setFlag",
-  "track.update",
-  "return.create",
-  "return.delete",
-  "return.update",
-  "send.add",
-  "send.remove",
-  "placement.create",
-  "placement.delete",
-  "placement.update",
-  "parameter.set",
-  "drum.setPadAsset",
-  "drum.renamePad",
-  "drum.setPadFlag",
-  "drum.setPadChoke",
-  "drum.setPadParameter",
-  "drum.addPad",
-  "drum.removePad",
-  "drum.reorderPad",
-  "instrument.change",
-  "instrument.setSample",
-  "pack.add",
-  "pack.remove",
-  "pack.setVersion",
-  "asset.add",
-  "asset.remove",
-  "device.add",
-  "device.remove",
-  "device.reorder",
-  "device.duplicate",
-  "device.setBypass",
-  "device.reset",
-  "device.restoreParameters",
-  "loop.setRange",
-  "loop.setEnabled",
-  "key.set",
-  "project.rename",
-] as const;
-export type CommandId = (typeof COMMAND_IDS)[number];
 
 /**
  * Registered shortcut actions, as `shortcut_used`'s `action_id` (PRD `KEY-01`).
@@ -413,149 +171,21 @@ export type CommandId = (typeof COMMAND_IDS)[number];
  * Pinned here for the same reason as `COMMAND_IDS`: an analytics parameter's
  * value set is a published contract, and pinning it means a mapping added to
  * `src/shortcuts/registry.ts` has to be given an analytics decision in the same
- * change. `catalog.test.ts` asserts this list equals the registry's exactly.
+ * change, in the same area's list under `./catalog/`. `catalog.test.ts` asserts
+ * this list equals the registry's exactly.
  */
 export const SHORTCUT_ACTION_IDS = [
-  "transport.play_stop",
-  "transport.continue",
-  "transport.metronome",
-  "transport.toggle_loop",
-  "edit.undo",
-  "edit.redo",
-  "edit.cut",
-  "edit.copy",
-  "edit.paste",
-  "edit.select_all",
-  "edit.delete",
-  "edit.duplicate",
-  "arrangement.split_clip",
-  "arrangement.toggle_loop",
-  "arrangement.toggle_automation_view",
-  "clip.quantize",
-  "clip.toggle_draw_mode",
-  "view.zoom_to_selection",
-  "view.zoom_back",
-  "view.zoom_to_arrangement",
-  "view.scroll_to_playhead",
-  "view.zoom_in",
-  "view.zoom_out",
-  "view.show_arrangement",
-  "view.show_sequence",
-  "view.show_instrument",
-  "view.show_library",
-  "view.show_mixer",
-  "arrangement.open_clip",
-  "view.close_surface",
-  "help.shortcut_guide",
-  "device.move_earlier",
-  "device.move_later",
-  "track.move_left",
-  "track.move_right",
-  "arrangement.loop_move_earlier",
-  "arrangement.loop_move_later",
-  "arrangement.loop_shorten",
-  "arrangement.loop_lengthen",
-  "track.select_previous",
-  "track.select_next",
-  "note.move_up",
-  "note.move_down",
-  "note.octave_up",
-  "note.octave_down",
-  "note.move_earlier",
-  "note.move_later",
-  "note.shorten",
-  "note.lengthen",
-  "value.nudge_up",
-  "value.nudge_down",
-  "library.select_previous",
-  "library.select_next",
-  "library.audition",
-  "library.insert",
-  "library.insert_and_return",
-  "library.like",
-  "library.similar",
-  "library.shuffle",
-  "library.pick_all",
-  "library.category_previous",
-  "library.category_next",
-  "library.family_previous",
-  "library.family_next",
-  "library.genre_menu",
-  "library.loop_tempo",
-  "library.all_sounds",
-  "library.favourites",
-  "library.browse_packs",
-  "library.back",
-  "library.search",
-  "export.focus_previous",
-  "export.focus_next",
-  "export.extend_previous",
-  "export.extend_next",
-  "export.toggle_focused",
-  "export.pick_all",
-  "assistant.toggle",
-  "assistant.grow",
-  "assistant.shrink",
-  "assistant.grow_more",
-  "assistant.shrink_more",
+  ...AUDIO_SHORTCUT_ACTION_IDS,
+  ...TRACK_SHORTCUT_ACTION_IDS,
+  ...CLIP_SHORTCUT_ACTION_IDS,
+  ...EDITING_SHORTCUT_ACTION_IDS,
+  ...ARRANGEMENT_SHORTCUT_ACTION_IDS,
+  ...NAVIGATION_SHORTCUT_ACTION_IDS,
+  ...LIBRARY_SHORTCUT_ACTION_IDS,
+  ...EXPORT_SHORTCUT_ACTION_IDS,
+  ...ASSISTANT_SHORTCUT_ACTION_IDS,
 ] as const;
 export type ShortcutActionId = (typeof SHORTCUT_ACTION_IDS)[number];
-
-/**
- * Audio sample rates, as an enumerated key rather than a raw number, so
- * `audio_underrun` cannot carry an unusual exact rate that helps identify a
- * machine. `sampleRateKey()` maps a measured rate onto this set.
- */
-export const SAMPLE_RATE_KEYS = [
-  "44100",
-  "48000",
-  "88200",
-  "96000",
-  "176400",
-  "192000",
-  "other",
-] as const;
-export type SampleRateKey = (typeof SAMPLE_RATE_KEYS)[number];
-
-export function sampleRateKey(rate: number): SampleRateKey {
-  const candidate = String(Math.round(rate));
-  return (SAMPLE_RATE_KEYS as readonly string[]).includes(candidate)
-    ? (candidate as SampleRateKey)
-    : "other";
-}
-
-/**
- * Our own published packs, as `pack_id` values (PRD LIB-05, LOOP-013, LIB-08).
- *
- * `pack_id` is a pack's stable **slug** — never its display name, never its
- * `pak_` ID. This list is *not* the parameter's whole value set: a third-party
- * pack is published into the library out of band, so no table compiled into the
- * app can enumerate every legitimate slug, and `pack_id` is a
- * {@link SlugParam} that admits any published slug by shape (see
- * `packAnalyticsIdentity`, which decides whether a given pack's slug may travel
- * at all).
- *
- * What the list still buys is a decision point for *our* catalogue: a factory
- * pack shipped without an analytics decision fails `catalog.test.ts` rather than
- * quietly appearing in reports, and the frozen slugs document what a saved GA4
- * exploration of the first-party library can rely on.
- */
-export const LIBRARY_PACK_SLUGS = [
-  "core-electronic-drums",
-  "foundation-bass",
-  "tonal-elements",
-  "ambient-textures",
-  "transitions-fx",
-  "cc0-percussion",
-  "cc0-keys-mallets",
-  "cc0-synth-tones",
-  // Private-alpha only; leaves with the pack itself (CNT-003, #676).
-  "alpha-drum-machines",
-] as const;
-export type LibraryPackSlug = (typeof LIBRARY_PACK_SLUGS)[number];
-
-/** Keys owned by a task that has not landed yet — see the file banner. */
-const UNCLAIMED: readonly never[] = [];
 
 // ---------------------------------------------------------------------------
 // Automatic parameters and user properties
@@ -587,21 +217,8 @@ export const USER_PROPERTIES = {
 // The event catalog
 // ---------------------------------------------------------------------------
 
-export interface AnalyticsEventDefinition {
-  /**
-   * Delivery milestone, matching the PRD `OPS-02` catalog table's
-   * `Alpha Milestone` column. The field keeps its `phase` name because
-   * renaming it changes this published catalog contract, which is its own
-   * task rather than part of a documentation rename.
-   */
-  readonly phase: 0 | 1 | 2 | 3;
-  /** Backlog task(s) that must ship the event with the feature it measures. */
-  readonly owners: readonly string[];
-  readonly params: Readonly<Record<string, AnalyticsParam>>;
-}
-
 /**
- * Every event in the PRD `OPS-02` catalog table, in that table's order.
+ * Every event in the PRD `OPS-02` catalog table, grouped by feature area.
  *
  * `surface`, `release_sha`, `account_type`, and `internal` appear in the PRD's
  * "key parameters" column for some rows but are not declared per-event: the
@@ -609,254 +226,22 @@ export interface AnalyticsEventDefinition {
  * properties.
  */
 export const ANALYTICS_EVENTS = {
-  app_opened: {
-    phase: 0,
-    owners: ["FND-001c"],
-    params: {},
-  },
-
-  landing_cta_click: {
-    phase: 1,
-    owners: ["LOOP-001b"],
-    params: { cta_id: enumParam(["start_free", "log_in"]) },
-  },
-
-  anon_session_created: {
-    phase: 1,
-    owners: ["LOOP-001"],
-    params: {},
-  },
-
-  account_upgraded: {
-    phase: 1,
-    owners: ["LOOP-001"],
-    // The alpha's only upgrade path is linking an anonymous account to a
-    // Google identity (see src/auth/authService.ts). A second provider adds
-    // its key here with the sign-in method itself.
-    params: { method: enumParam(["google"]) },
-  },
-
-  project_created: {
-    phase: 1,
-    owners: ["LOOP-001", "LOOP-015"],
-    params: {
-      source: enumParam(["blank", "template", "duplicate"]),
-      // Template keys belong to LOOP-015; genres are the PRD LIB-02 set,
-      // pinned here so a library re-tagging cannot rewrite analytics history.
-      template_id: optionalEnumParam(UNCLAIMED),
-      genre: optionalEnumParam([
-        "house",
-        "techno",
-        "hip_hop",
-        "trap",
-        "drum_and_bass",
-        "jungle",
-        "dubstep",
-        "ambient",
-        "lofi",
-        "trance",
-        "uk_garage",
-        "breakbeat",
-        "electronic_pop",
-      ]),
-    },
-  },
-
-  project_opened: {
-    phase: 1,
-    owners: ["LOOP-001"],
-    params: {
-      project_age_bucket: bucketParam("project_age"),
-      track_count_bucket: bucketParam("track_count"),
-      is_first_open: boolParam(),
-    },
-  },
-
-  project_deleted: {
-    phase: 1,
-    owners: ["LOOP-001"],
-    params: { project_age_bucket: bucketParam("project_age") },
-  },
-
-  first_edit: {
-    phase: 0,
-    owners: ["FND-009"],
-    params: {
-      command_id: enumParam(COMMAND_IDS),
-      seconds_since_open_bucket: bucketParam("elapsed_seconds"),
-    },
-  },
+  ...APP_EVENTS,
+  ...PROJECT_EVENTS,
+  ...AUDIO_EVENTS,
+  ...TRACK_EVENTS,
+  ...CLIP_EVENTS,
+  ...EDITING_EVENTS,
+  ...ARRANGEMENT_EVENTS,
+  ...NAVIGATION_EVENTS,
+  ...LIBRARY_EVENTS,
+  ...EXPORT_EVENTS,
+  ...ASSISTANT_EVENTS,
 
   feature_first_use: {
     phase: 0,
     owners: ["FND-001c", "each owning feature task"],
     params: { feature: enumParam(FEATURE_KEYS) },
-  },
-
-  transport_play: {
-    phase: 1,
-    owners: ["LOOP-003"],
-    params: { is_first_play_in_session: boolParam() },
-  },
-
-  track_added: {
-    phase: 1,
-    owners: ["LOOP-007"],
-    params: {
-      track_type: enumParam(["instrument", "audio", "return"]),
-      // Which instrument the new track was created with. Optional because a
-      // track need not carry one (an audio track, a return); `track_type`
-      // alone cannot separate a sampler from a synth, and choosing between
-      // them is the whole point of the affordance that adds a track (#223).
-      instrument_type: optionalEnumParam(INSTRUMENT_TYPES),
-    },
-  },
-
-  track_reordered: {
-    phase: 1,
-    owners: ["TRK-02"],
-    // One committed reorder (#331): a whole drag, or one move-left/right
-    // press — never a position crossed mid-drag. Only where it happened and
-    // how; which track moved, and where to, stay out of it. `view`, not
-    // `surface`: the boundary attaches `surface` to every event.
-    params: {
-      view: enumParam(["arrangement", "mixer", "instrument"]),
-      method: enumParam(["drag", "button", "keyboard"]),
-    },
-  },
-
-  instrument_changed: {
-    phase: 1,
-    owners: ["LOOP-004", "LOOP-005"],
-    params: {
-      instrument_type: enumParam(INSTRUMENT_TYPES),
-    },
-  },
-
-  device_added: {
-    phase: 1,
-    owners: ["LOOP-008", "LOOP-009"],
-    params: {
-      // The alpha's core device types (LOOP-008); LOOP-009 and LOOP-022 (the
-      // EQ) extend this list as they author more. Kept in sync with `src/domain/devices.ts`.
-      device_type: enumParam([
-        "filter",
-        "overdrive",
-        "saturator",
-        "compressor",
-        "delay",
-        "reverb",
-        "eq",
-      ]),
-      chain: enumParam(["insert", "return", "master"]),
-    },
-  },
-
-  library_audition: {
-    phase: 1,
-    owners: ["LOOP-013"],
-    params: {
-      asset_type: enumParam(["one_shot", "loop", "instrument_preset"]),
-      had_genre_filter: boolParam(),
-      // The pack's stable slug (never its display name), so an audition can
-      // be attributed to a pack without leaking library copy — see
-      // `packIdentity.ts` for which packs may be named at all.
-      pack_id: slugParam(RESERVED_PACK_IDS),
-      pack_kind: enumParam(PACK_KINDS),
-    },
-  },
-
-  library_pack_added: {
-    phase: 1,
-    owners: ["LOOP-013", "LIB-08"],
-    // This is the pack-popularity measure, so it has to say *which* pack —
-    // including a third party's, whose creator the adoption number is fed back
-    // to (LIB-05, LIB-06). `pack_id` therefore carries any *published* pack's
-    // slug, first-party or third-party, and `"user"` for an unpublished pack a
-    // producer authored themselves. `packAnalyticsIdentity` is what draws that
-    // line; the same two parameters as `library_audition`, so a pack's
-    // auditions and its adds join on one vocabulary.
-    params: {
-      pack_id: slugParam(RESERVED_PACK_IDS),
-      pack_kind: enumParam(PACK_KINDS),
-    },
-  },
-
-  library_pack_upgraded: {
-    phase: 1,
-    owners: ["#892"],
-    // An insert moved the project's pin for a pack to the newer version the
-    // sound came from (#892). `choice` says whether that was the automatic,
-    // safe upgrade (every sound the project used is still in the pack) or the
-    // producer's "Upgrade anyway" over sounds that would go missing, and
-    // `missing_sound_count` how many went missing (0 when automatic; absent
-    // when the newer version's manifest could not be read to count them).
-    // Neither the pack nor any sound is named.
-    params: {
-      choice: enumParam(["automatic", "upgrade_anyway"]),
-      missing_sound_count: optionalCountParam(100),
-    },
-  },
-
-  library_favourite_changed: {
-    phase: 1,
-    owners: ["LIB-010", "LIB-011"],
-    // One heart press or `L`: added or removed. The sound is deliberately not
-    // named, and neither is its pack: what a producer keeps is theirs.
-    params: { favourited: boolParam() },
-  },
-
-  user_pack_created: {
-    phase: 1,
-    owners: ["#282"],
-    // A producer made a pack of their own: with "Add pack", or by dropping
-    // files on empty space, which makes "My Sounds". The pack is never named.
-    params: { method: enumParam(["button", "drop"]) },
-  },
-
-  sound_imported: {
-    phase: 1,
-    owners: ["#282"],
-    // One file landed in a personal pack. What sort of sound it became and how
-    // it came in; never its filename, its name, its pack, or where it is stored.
-    params: {
-      asset_type: enumParam(["one_shot", "loop"]),
-      method: enumParam(["drop", "picker"]),
-    },
-  },
-
-  sound_import_failed: {
-    phase: 1,
-    owners: ["#282"],
-    // An import that did not land, by a stable code: the file's type or size,
-    // the account's allowance, a file that would not decode, or a refused or
-    // dropped upload. A cancelled import is the producer's choice, not a
-    // failure, and is not reported.
-    params: { error_code: enumParam(ERROR_CODES) },
-  },
-
-  clip_edited: {
-    phase: 1,
-    owners: ["LOOP-010", "LOOP-011"],
-    params: {
-      editor: enumParam(["step", "piano_roll"]),
-      event_count_bucket: bucketParam("event_count"),
-    },
-  },
-
-  view_changed: {
-    phase: 1,
-    owners: ["UI-001", "UI-002"],
-    // Which view, and how it was reached. The editor is one job at a time
-    // (UI-001), so how often a producer switches — and whether the dock or the
-    // keyboard is what they reach for — is the measure that says whether the
-    // bet paid off. Both parameters are closed sets; nothing user-entered can
-    // reach this event, since `view` is an address segment and `via` is an
-    // entrypoint.
-    params: {
-      view: enumParam(EDITOR_VIEWS),
-      via: enumParam(VIEW_CHANGE_SOURCES),
-    },
   },
 
   shortcut_used: {
@@ -865,253 +250,6 @@ export const ANALYTICS_EVENTS = {
     // Action IDs come from the KEY-01 shortcut registry (LOOP-014), and the
     // registry — not the handler — is what logs them.
     params: { action_id: enumParam(SHORTCUT_ACTION_IDS) },
-  },
-
-  key_changed: {
-    phase: 1,
-    owners: ["ARR-010"],
-    // One committed change of the song's key from the piano roll. Only the
-    // scale travels: which keys producers reach for, and how often they leave
-    // chromatic, is the measure. The root is left out as noise.
-    params: { scale: enumParam(SCALE_KEYS) },
-  },
-
-  loop_range_set: {
-    phase: 1,
-    owners: ["LOOP-017", "LOOP-018"],
-    // One committed change to the song's loop range (AUD-02) — a whole drag,
-    // not every pointer move. Only the span's length travels, clamped, so the
-    // event says how producers size their loop and nothing about the song.
-    params: { bar_count: countParam(64) },
-  },
-
-  loop_toggled: {
-    phase: 1,
-    owners: ["LOOP-017", "LOOP-018"],
-    // Whether the transport now obeys the song's loop range: the state the
-    // toggle left it in, so on/off rates read straight off the event.
-    params: { enabled: boolParam() },
-  },
-
-  undo_used: {
-    phase: 1,
-    owners: ["LOOP-002"],
-    params: {
-      direction: enumParam(["undo", "redo"]),
-      actor: enumParam(["user", "assistant"]),
-    },
-  },
-
-  placement_duplicated: {
-    phase: 2,
-    owners: ["ARR-002", "ARR-011"],
-    // CLP-01 requires duplicating a placement to be able to either reuse the
-    // source clip or fork an independent variation, with the UI saying which
-    // will happen. `mode` is how we learn whether producers actually reach for
-    // reuse — the whole point of clips being reusable — or always fork.
-    params: { mode: enumParam(["linked", "independent"]) },
-  },
-
-  section_created: {
-    phase: 2,
-    owners: ["ARR-003"],
-    params: { origin: enumParam(["manual", "template", "assistant"]) },
-  },
-
-  arrangement_outline_created: {
-    phase: 2,
-    owners: ["ARR-003"],
-    params: {
-      template_id: enumParam(UNCLAIMED),
-      section_count: countParam(64),
-    },
-  },
-
-  automation_lane_created: {
-    phase: 2,
-    owners: ["ARR-004"],
-    params: {
-      target_kind: enumParam(["track", "device", "return", "master"]),
-    },
-  },
-
-  arrangement_milestone: {
-    phase: 2,
-    owners: ["ARR-003"],
-    params: {
-      section_count: countParam(64),
-      duration_bucket: bucketParam("musical_duration"),
-    },
-  },
-
-  export_started: {
-    phase: 2,
-    owners: ["EXP-002", "EXP-003", "EXP-004"],
-    params: {
-      export_type: enumParam(["stereo", "stems"]),
-      duration_bucket: bucketParam("musical_duration"),
-      track_count_bucket: bucketParam("track_count"),
-      // Stems only (EXP-004): how many ZIPs the export is split into.
-      zip_count: optionalCountParam(32),
-    },
-  },
-
-  export_completed: {
-    phase: 2,
-    owners: ["EXP-002", "EXP-003"],
-    params: {
-      export_type: enumParam(["stereo", "stems"]),
-      elapsed_ms_bucket: bucketParam("elapsed_ms"),
-      zip_count: optionalCountParam(32),
-    },
-  },
-
-  export_failed: {
-    phase: 2,
-    owners: ["EXP-002", "EXP-003"],
-    params: {
-      export_type: enumParam(["stereo", "stems"]),
-      error_code: enumParam(ERROR_CODES),
-      was_cancelled: boolParam(),
-    },
-  },
-
-  assistant_message_sent: {
-    phase: 3,
-    owners: ["AI-004"],
-    params: { scope: enumParam(["clip", "track", "section", "song"]) },
-  },
-
-  assistant_suggestion_clicked: {
-    phase: 3,
-    owners: ["AI-004"],
-    params: { suggestion_id: enumParam(UNCLAIMED) },
-  },
-
-  assistant_proposal_shown: {
-    phase: 3,
-    owners: ["AI-003"],
-    params: {
-      // Capability keys come from the Appendix A command families (AI-001).
-      capability: enumParam(UNCLAIMED),
-      command_count_bucket: bucketParam("command_count"),
-    },
-  },
-
-  assistant_proposal_applied: {
-    phase: 3,
-    owners: ["AI-003"],
-    params: {
-      capability: enumParam(UNCLAIMED),
-      seconds_to_decision_bucket: bucketParam("elapsed_seconds"),
-    },
-  },
-
-  assistant_proposal_cancelled: {
-    phase: 3,
-    owners: ["AI-003"],
-    params: { capability: enumParam(UNCLAIMED) },
-  },
-
-  assistant_proposal_undone: {
-    phase: 3,
-    owners: ["AI-003"],
-    params: {
-      capability: enumParam(UNCLAIMED),
-      seconds_to_undo_bucket: bucketParam("elapsed_seconds"),
-    },
-  },
-
-  assistant_result_edited: {
-    phase: 3,
-    owners: ["AI-004"],
-    params: { capability: enumParam(UNCLAIMED) },
-  },
-
-  save_failed: {
-    phase: 0,
-    owners: ["FND-001c", "LOOP-002"],
-    params: {
-      error_code: enumParam(ERROR_CODES),
-      retry_count: countParam(20),
-    },
-  },
-
-  save_recovered: {
-    phase: 1,
-    owners: ["LOOP-002"],
-    params: { retry_count: countParam(20) },
-  },
-
-  audio_start_failed: {
-    phase: 0,
-    owners: ["FND-001c", "LOOP-003"],
-    params: {
-      error_code: enumParam(ERROR_CODES),
-      was_browser_blocked: boolParam(),
-    },
-  },
-
-  browser_capability_missing: {
-    phase: 1,
-    owners: ["#75"],
-    // The editor opened in a browser that lacks a capability Groove depends
-    // on, so the producer was shown what it costs and what to do (PRD section
-    // 10, #75). Once per capability per browser: a missing API is a property
-    // of the browser, not of a session. `is_required` separates "no sound at
-    // all" from one feature being unavailable.
-    params: {
-      capability: enumParam(BROWSER_CAPABILITY_IDS),
-      is_required: boolParam(),
-    },
-  },
-
-  audio_underrun: {
-    phase: 1,
-    owners: ["LOOP-003"],
-    params: {
-      dropped_event_bucket: bucketParam("dropped_events"),
-      sample_rate: enumParam(SAMPLE_RATE_KEYS),
-    },
-  },
-
-  asset_load_failed: {
-    phase: 1,
-    owners: ["LOOP-006", "LOOP-013"],
-    params: {
-      asset_type: enumParam(["one_shot", "loop", "instrument_preset"]),
-      error_code: enumParam(ERROR_CODES),
-    },
-  },
-
-  device_edit_failed: {
-    phase: 1,
-    owners: ["LOOP-020"],
-    params: {
-      operation: enumParam(DEVICE_OPERATIONS),
-      error_code: enumParam(ERROR_CODES),
-    },
-  },
-
-  note_edit_failed: {
-    phase: 1,
-    owners: ["ARR-010"],
-    // A piano roll edit the command layer refused: the roll's principal
-    // failure. The operation and a stable code only, never a note or a clip.
-    params: {
-      operation: enumParam(NOTE_EDIT_OPERATIONS),
-      error_code: enumParam(ERROR_CODES),
-    },
-  },
-
-  exception: {
-    phase: 0,
-    owners: ["FND-001c"],
-    params: {
-      fatal: boolParam(),
-      area: enumParam(ERROR_AREAS),
-      error_code: enumParam(ERROR_CODES),
-    },
   },
 } as const satisfies Record<string, AnalyticsEventDefinition>;
 
@@ -1177,11 +315,6 @@ export type LogArgs<N extends AnalyticsEventName> = HasNoParams<N> extends true
 // Runtime validation
 // ---------------------------------------------------------------------------
 
-/**
- * Values sent to the transport. GA4 accepts strings, numbers, and booleans.
- */
-export type AnalyticsParamValue = string | number | boolean;
-
 export interface ValidationResult {
   readonly params: Record<string, AnalyticsParamValue>;
   readonly issues: readonly string[];
@@ -1236,48 +369,4 @@ export function validateEventPayload(
   }
 
   return { params, issues };
-}
-
-function coerceParam(
-  spec: AnalyticsParam,
-  value: unknown,
-): AnalyticsParamValue | undefined {
-  switch (spec.kind) {
-    case "enum":
-      return typeof value === "string" && spec.values.includes(value) ? value : undefined;
-    case "bucket":
-      return typeof value === "string" &&
-        (bucketLabels(spec.scale) as readonly string[]).includes(value)
-        ? value
-        : undefined;
-    case "boolean":
-      return typeof value === "boolean" ? value : undefined;
-    case "count":
-      if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
-      return Math.min(Math.max(Math.round(value), 0), spec.max);
-    case "slug":
-      if (typeof value !== "string") return undefined;
-      if (spec.reserved.includes(value)) return value;
-      // Shape, not membership — the published set is not knowable here. A
-      // value that is not a well-formed slug (a `pak_` ID, a display name, a
-      // user-entered string) is dropped exactly like an out-of-set enum value.
-      return isPublishedPackSlug(value) ? value : undefined;
-  }
-}
-
-/**
- * Every allowed value of an `enum` or `bucket` parameter, for tests. A `slug`
- * parameter has no closed set — only its reserved sentinels are declared.
- */
-export function declaredValues(spec: AnalyticsParam): readonly string[] {
-  switch (spec.kind) {
-    case "enum":
-      return spec.values;
-    case "bucket":
-      return bucketLabels(spec.scale);
-    case "slug":
-      return spec.reserved;
-    default:
-      return [];
-  }
 }
