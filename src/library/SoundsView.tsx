@@ -12,7 +12,7 @@ import { LOAD_REASON_LABELS } from "./loadReasons";
 import type { LibraryAsset, LibraryAssetType } from "./manifest";
 import Shelf, { allLabel } from "./Shelf";
 import SoundRow from "./SoundRow";
-import { familyLabel, shelfFamilyOf } from "./shelf";
+import { shelfFamilyOf } from "./shelf";
 import type { SoundsKeyAction } from "./soundKeys";
 import { nextIn, previousIn } from "./stepping";
 import { groupLabel } from "./tree";
@@ -99,17 +99,15 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
   const matching = createMemo(() =>
     filterSounds(typed(), filters.read(props.query ?? "")),
   );
+  // Every family in scope keeps its tab through a search or filter, at zero if
+  // nothing in it matches, so the window stays put and shows where hits are.
   const shelf = useShelf(
     matching,
     () => browser.assets(),
     () => props.slot,
+    typed,
   );
   const sounds = shelf.inView;
-  // Filters that leave nothing keep the shelf, at zero, so the window stays put.
-  const shelfFamilies = () =>
-    shelf.families().length > 0
-      ? shelf.families()
-      : [{ key: family(), label: familyLabel(family()), count: 0 }];
   const family = () => shelf.selection().family;
   // The genre menu counts what the other filters leave, in the family in view.
   const genres = createMemo(() =>
@@ -232,9 +230,9 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
               </button>
             </div>
           </Show>
-          <Show when={typed().length > 0}>
+          <Show when={shelf.families().length > 0}>
             <Shelf
-              families={shelfFamilies()}
+              families={shelf.families()}
               family={family()}
               roles={shelf.roles()}
               role={shelf.selection().role}
