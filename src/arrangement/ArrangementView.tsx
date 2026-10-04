@@ -63,7 +63,7 @@ import {
 } from "./placementEditingController";
 import { type ArrangementProjection, buildArrangementProjection } from "./projection";
 import { describeArrangementSelection } from "./selectionAnnouncement";
-import { useArrangementCanvas } from "./useArrangementCanvas";
+import { useArrangementCanvas, visibleViewportSize } from "./useArrangementCanvas";
 import { ZoomControls } from "./ZoomControls";
 import "./ArrangementView.css";
 
@@ -530,9 +530,9 @@ export default function ArrangementView(props: ArrangementViewProps) {
     canvas.observeViewport(scrollEl, bumpState);
 
     // Prime the initial size and paint every layer once.
-    const rect = scrollEl.getBoundingClientRect();
-    if (rect.width > 0 && rect.height > 0) {
-      shell.resize(rect.width, rect.height);
+    const size = visibleViewportSize(scrollEl);
+    if (size.width > 0 && size.height > 0) {
+      shell.resize(size.width, size.height);
     } else {
       shell.markDirty("background", "content", "interaction");
     }
@@ -602,7 +602,16 @@ export default function ArrangementView(props: ArrangementViewProps) {
     ({ ticks, playing }) => {
       if (!shell) return;
       shell.setPlayheadFollow(playing);
+      const scrollLeftBefore = shell.getViewport().scrollLeft;
       shell.seekTo(ticks);
+      // Follow turned the page: move the native scroll container with it, so
+      // the scrollbar, the DOM overlays, and the next wheel scroll all start
+      // from the page on screen. Only on a page turn, not every frame (#964).
+      if (shell.getViewport().scrollLeft !== scrollLeftBefore) {
+        syncSpacer();
+        syncScrollElToShell();
+        bumpState();
+      }
     },
   );
 
