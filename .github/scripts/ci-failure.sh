@@ -121,11 +121,11 @@ Reverts #$pr automatically: CI failed on \`main\` after it landed, and \`main\` 
 Failing jobs:
 $(sed 's/^/- /' <<<"$failed")
 
-Landing it again is tracked in $reland. This PR is labelled \`approved\`, so it merges through the queue once its checks pass.
+Landing it again is tracked in $reland. This PR is labelled \`status:approved\`, so it merges through the queue once its checks pass.
 $footer
 EOF
 )"
-	gh pr edit "$revert" --repo "$repo" --add-label approved >/dev/null
+	gh pr edit "$revert" --repo "$repo" --add-label status:approved >/dev/null
 	gh pr comment "$pr" --repo "$repo" --body "CI failed on \`main\` after this landed ($run_url), so it is being reverted in $revert. Re-landing is tracked in $reland.$footer" >/dev/null
 	log "reverting #$pr in $revert; re-land in $reland"
 	;;

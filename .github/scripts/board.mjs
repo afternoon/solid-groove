@@ -56,6 +56,13 @@ const COLUMNS = [
     color: "5319E7",
     about: "QA passed; final pass before merge",
   },
+  {
+    label: "status:approved",
+    title: "Approved",
+    color: "006B75",
+    about:
+      "Product owner approved; merge.yml queues its PRs and the merge queue lands them",
+  },
 ];
 const STATUS = new Set(COLUMNS.map((c) => c.label));
 const BOARD_LABEL = "board";
@@ -348,6 +355,7 @@ function openIssues() {
  */
 const PRECEDENCE = [
   "status:blocked",
+  "status:approved",
   "status:review",
   "status:qa",
   "status:in-progress",
@@ -432,7 +440,7 @@ function backlogLines(cards) {
     out.push(...group.slice(0, BACKLOG_PER_MILESTONE).map(line));
     if (group.length > BACKLOG_PER_MILESTONE) {
       const scope = milestone ? `milestone:"${milestone.title}"` : "no:milestone";
-      const query = `is:issue is:open ${scope} -label:status:ready -label:status:in-progress -label:status:qa -label:status:review -label:status:blocked -label:board`;
+      const query = `is:issue is:open ${scope} -label:status:ready -label:status:in-progress -label:status:qa -label:status:review -label:status:approved -label:status:blocked -label:board`;
       out.push(
         `- … and ${group.length - BACKLOG_PER_MILESTONE} more: [all](${search(query)})`,
       );
@@ -452,6 +460,7 @@ function renderBody(issues, done, now) {
     "status:in-progress",
     "status:qa",
     "status:review",
+    "status:approved",
     "status:blocked",
     "status:backlog",
   ];

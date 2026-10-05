@@ -1,7 +1,7 @@
 name: Merge
 
 # Merges what the product owner approved, one whole stack at a time. Add the
-# `approved` label to an issue to approve every open PR for it (and the PRs
+# `status:approved` label to an issue (the board's Approved column) to approve every open PR for it (and the PRs
 # stacked under them), or to a PR to approve it and the PRs under it (to land
 # the bottom of a stack early). See `.github/scripts/merge.mjs`.
 #
@@ -23,9 +23,9 @@ permissions:
 jobs:
   merge:
     if: >-
-      (github.event_name == 'issues' && github.event.label.name == 'approved' && !github.event.issue.pull_request) ||
+      (github.event_name == 'issues' && github.event.label.name == 'status:approved' && !github.event.issue.pull_request) ||
       (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && (
-        (github.event.action == 'labeled' && github.event.label.name == 'approved') ||
+        (github.event.action == 'labeled' && github.event.label.name == 'status:approved') ||
         (github.event.action == 'edited' && github.event.changes.base != null) ||
         github.event.action == 'synchronize'
       ))

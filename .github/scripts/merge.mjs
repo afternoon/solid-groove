@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 // Merge what the product owner approved, a whole stack at a time.
 //
-//   node .github/scripts/merge.mjs issue <n>   The `approved` label went on issue <n>:
+//   node .github/scripts/merge.mjs issue <n>   `status:approved` went on issue <n>:
 //                                              approve every open PR that refers to it,
 //                                              and every PR stacked under those.
-//   node .github/scripts/merge.mjs pr <n>      The `approved` label went on PR <n>:
+//   node .github/scripts/merge.mjs pr <n>      `status:approved` went on PR <n>:
 //                                              approve it and every PR stacked under it.
 //   node .github/scripts/merge.mjs sync <n>    PR <n> moved (pushed, or retargeted when
 //                                              the PR under it merged): queue it if it
 //                                              is approved and now sits on main.
 //
-// Approving labels each PR `approved`. Only a PR on `main` can be queued, so the
+// Approving labels each PR `status:approved` too. Only a PR on `main` can be queued, so the
 // bottom of a stack is queued at once and each PR above it is queued by `sync`
 // when restack.yml moves it onto `main`. Queuing is auto-merge: with the merge
 // queue on, GitHub queues the PR once its checks pass, tests it on top of
@@ -23,7 +23,7 @@ import { execFileSync } from "node:child_process";
 import { chainThrough } from "./stack-link.mjs";
 
 const REPO = process.env.GITHUB_REPOSITORY;
-const APPROVED = "approved";
+const APPROVED = "status:approved";
 const BASE = "main";
 
 const gh = (args) =>
