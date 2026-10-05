@@ -1,5 +1,5 @@
-import { expect, type Page, test } from "@playwright/test";
 import { walkthrough } from "../support/walkthrough";
+import { expect, type Page, test } from "./support/test";
 
 /**
  * The editor shows one view at a time (`UI-001`), so the mixer is reached
