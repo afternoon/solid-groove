@@ -52,6 +52,8 @@ export const LIBRARY_FEATURE_KEYS = [
   // go in (#892), whether automatic or chosen with "Upgrade anyway".
   "pack_upgrade",
   "library_favourites",
+  // Opening the library's Recently heard place (#815).
+  "library_recently_heard",
   // A producer's own packs and the sounds they import into them (#282).
   "user_packs",
 ] as const;

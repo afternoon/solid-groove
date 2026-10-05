@@ -20,6 +20,7 @@ import {
 } from "../library/__fixtures__/fixtures";
 import { LibraryClient } from "../library/libraryClient";
 import { packAssets, parsePackManifest } from "../library/manifest";
+import { createRecentlyHeardStore } from "../library/recentlyHeard";
 import { useFavourites } from "../library/useFavourites";
 import { InMemoryFavouritesRepository } from "../persistence/inMemoryFavouritesRepository";
 import { createManualClock } from "../shared/clock";
@@ -141,6 +142,7 @@ describe("LibraryModal shell", () => {
         path="BD › Drum machine › BD"
         slot="BD"
         current="Rounded Club Kick"
+        recentlyHeard={createRecentlyHeardStore(memoryStorage())}
         onActions={extra.onActions}
         keyLabel={extra.keyLabel}
       />
@@ -222,15 +224,20 @@ describe("LibraryModal shell", () => {
     clickAndFlush(place("Favourites"));
     expect(place("Favourites")).toHaveAttribute("aria-current", "true");
     expect(screen.getByRole("region", { name: "Browse sounds" })).toBeVisible();
-    expect(await screen.findByText("No favourites yet.")).toBeVisible();
     expect(
-      screen.getByText(/Press the heart on a sound, or <library.like>/),
+      await screen.findByText(
+        /^No favourites yet\. Press the heart on a sound, or <library\.like>/,
+      ),
     ).toBeVisible();
 
-    clickAndFlush(place("Recently viewed"));
-    expect(screen.queryByRole("region", { name: "Browse sounds" })).toBeNull();
-    expect(screen.getByText("Recently viewed will appear here.")).toBeVisible();
-    // Shuffle picks from a list of sounds, which a placeholder does not have.
+    // So is Recently heard, which says how a sound gets there.
+    clickAndFlush(place("Recently heard"));
+    expect(place("Recently heard")).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("region", { name: "Browse sounds" })).toBeVisible();
+    expect(screen.getByText(/^Nothing heard yet\. Sounds you audition/)).toBeVisible();
+
+    // Shuffle picks from a list of sounds, which Browse packs does not show.
+    clickAndFlush(place("Browse packs"));
     expect(screen.getByRole("button", { name: /Shuffle/ })).toBeDisabled();
   });
 
@@ -1144,5 +1151,109 @@ describe("LibraryModal favourites (#815)", () => {
     // All sounds is still every sound.
     clickAndFlush(allSounds());
     await waitFor(() => expect(rows()).toEqual(kicks));
+  });
+});
+
+describe("LibraryModal recently heard (#815)", () => {
+  function renderRecent(storage: Storage, analytics?: Analytics) {
+    const rendered = render(() => (
+      <LibraryModal
+        client={new LibraryClient(fixtureFetcher())}
+        previewEngine={fakePreviewEngine()}
+        onInsert={() => undefined}
+        addedPackIds={[]}
+        analytics={analytics}
+        recentlyHeard={createRecentlyHeardStore(storage)}
+      />
+    ));
+    const rail = within(screen.getByRole("navigation", { name: "Places" }));
+    const place = (name: string) =>
+      rail.getByRole("button", { name: new RegExp(`^${name}`) });
+    return { ...rendered, place };
+  }
+
+  const rows = () =>
+    within(screen.getByRole("list", { name: "Sounds" }))
+      .getAllByRole("button", { name: /^Audition / })
+      .map((button) => button.getAttribute("aria-label")?.replace(/^Audition /, ""));
+  const hear = (name: string) =>
+    fireEvent.click(screen.getByRole("button", { name: `Audition ${name}` }));
+  const hearing = () => screen.getByRole("group", { name: "Hearing" });
+
+  it("lists what was heard, last first, and holds still while you listen", async () => {
+    const { place } = renderRecent(memoryStorage());
+    await screen.findAllByRole("listitem");
+    const [a, b, c] = rows() as string[];
+    for (const name of [a, b, c]) {
+      hear(name);
+      await waitFor(() => expect(hearing()).toHaveTextContent(name));
+    }
+
+    clickAndFlush(place("Recently heard"));
+    await waitFor(() => expect(rows()).toEqual([c, b, a]));
+
+    // Hearing one again moves it to the top, but not under the pointer: the
+    // list is the one the place was chosen with until it is chosen again.
+    hear(a);
+    await waitFor(() => expect(hearing()).toHaveTextContent(a));
+    expect(rows()).toEqual([c, b, a]);
+    clickAndFlush(place("Recently heard"));
+    await waitFor(() => expect(rows()).toEqual([a, c, b]));
+  });
+
+  it("survives closing and opening the library again", async () => {
+    const storage = memoryStorage();
+    const first = renderRecent(storage);
+    await screen.findAllByRole("listitem");
+    const [a, b] = rows() as string[];
+    hear(a);
+    hear(b);
+    await waitFor(() => expect(hearing()).toHaveTextContent(b));
+    first.unmount();
+
+    const second = renderRecent(storage);
+    clickAndFlush(second.place("Recently heard"));
+    await waitFor(() => expect(rows()).toEqual([b, a]));
+  });
+
+  it("leaves out sounds heard through Browse packs' Hear it", async () => {
+    const storage = memoryStorage();
+    const { place } = renderRecent(storage);
+    await screen.findAllByRole("listitem");
+    clickAndFlush(place("Browse packs"));
+    const packName = FIXTURE_PACK_INDEX_DOC.packs[0].name;
+    // The cover's Hear it waits for its pack's manifest, which re-renders it.
+    const hearPack = await waitFor(() => {
+      const button = screen.getByRole("button", { name: `Hear ${packName}` });
+      expect(button).toBeEnabled();
+      return button;
+    });
+    fireEvent.click(hearPack);
+    // The run is playing the pack's sounds.
+    await screen.findByRole("button", { name: `Stop ${packName}` });
+
+    clickAndFlush(place("Recently heard"));
+    expect(await screen.findByText(/^Nothing heard yet/)).toBeVisible();
+  });
+
+  it("logs feature_first_use once, however often the place is opened", async () => {
+    const transport = createRecordingTransport();
+    const analytics = new Analytics({
+      transport,
+      consent: new ConsentStore(memoryStorage()),
+      storage: memoryStorage(),
+    });
+    const { place } = renderRecent(memoryStorage(), analytics);
+
+    clickAndFlush(place("Recently heard"));
+    clickAndFlush(place("All sounds"));
+    clickAndFlush(place("Recently heard"));
+
+    const firstUses = transport.events.filter(
+      (event) =>
+        event.name === "feature_first_use" &&
+        event.params.feature === "library_recently_heard",
+    );
+    expect(firstUses).toHaveLength(1);
   });
 });
