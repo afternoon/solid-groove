@@ -366,6 +366,16 @@
   color: var(--color-danger);
 }
 
+/* The reason is held to one short line (#1031): the document controls keep
+   their whole width, so a longer reason would push them off the window. The
+   recovery group's title carries the whole of it. */
+.editor-header .save-recovery-message {
+  max-width: 24ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .editor-header .save-retry-button {
   font-size: var(--font-size-small);
   color: inherit;
@@ -551,6 +561,21 @@
 .editor-header .assistant-button[aria-pressed="true"]:hover {
   background: var(--color-accent-dim);
   color: var(--color-on-accent);
+}
+
+/* Below 1000px a failed save shows "Save failed" and Retry, and its reason
+   only on hover (#1031): there is no room for it beside the document
+   controls. It stays in the alert, so a screen reader still announces it. */
+@media (max-width: 1000px) {
+  .editor-header .save-recovery-message {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
 }
 
 /* Below 900px the Assistant button is its icon alone (#1031), so the

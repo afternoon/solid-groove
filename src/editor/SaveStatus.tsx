@@ -56,7 +56,9 @@ export default function SaveStatus(props: SaveStatusProps) {
         {saveStatusLabel()}
       </div>
       <Show when={saveFailure()}>
-        <div class="save-recovery" role="alert">
+        {/* Titled with the reason, which narrow widths and long reasons
+            hide or cut short (#1031). */}
+        <div class="save-recovery" role="alert" title={saveFailureMessage() ?? undefined}>
           <span class="save-recovery-message">{saveFailureMessage()}</span>
           <Show when={saveFailure()?.retryable}>
             <button

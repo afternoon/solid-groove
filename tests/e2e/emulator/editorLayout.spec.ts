@@ -129,74 +129,115 @@ function overlaps(a: Box, b: Box): boolean {
   );
 }
 
-// #1031: the editor header's right-hand controls (undo/redo, Assistant,
-// Export, `?` and the account control) stay whole, on screen, and clear of
-// each other and of the transport at the narrow widths producers use. At
-// ~800px the right-hand zone was held to half the spare width, so its buttons
-// were squeezed to a bare cell and their labels ran over each other and off
-// the right edge ("Assista", "Expor", "Sign ou").
+/**
+ * #1031: the editor header's right-hand controls (undo/redo, Assistant,
+ * Export, `?` and the account control) are whole, on screen, and clear of
+ * each other and of the transport, and the project's side keeps some room.
+ * A failed save adds its Retry to the controls checked, and leaves the
+ * project's side less room while it lasts.
+ */
+async function expectHeaderWhole(
+  page: Page,
+  width: number,
+  { failedSave = false } = {},
+): Promise<void> {
+  const header = page.locator(".editor-header");
+  const account = header.getByRole("button", { name: "Sign out" });
+  await expect(account).toBeVisible();
+  const controls = {
+    transport: header.locator(".editor-header-center"),
+    history: header.locator(".editor-header-end .header-cell-group"),
+    assistant: header.getByRole("button", { name: "Assistant" }),
+    export: header.getByRole("button", { name: "Export", exact: true }),
+    guide: header.getByRole("button", { name: "Keyboard shortcuts" }),
+    account,
+    ...(failedSave ? { retry: header.getByRole("button", { name: "Retry" }) } : {}),
+  };
+  // A worded button holds its whole label: nothing spills past its edge.
+  const spilled = await header
+    .locator(".editor-header-end button")
+    .evaluateAll((buttons) =>
+      buttons
+        .filter((button) => button.scrollWidth > button.clientWidth)
+        .map((button) => button.textContent?.trim() || button.className),
+    );
+  expect(spilled, "header buttons whose label overflows them").toEqual([]);
+  const boxes: Record<string, Box> = {};
+  for (const [name, locator] of Object.entries(controls)) {
+    const box = await locator.boundingBox();
+    expect(box, `${name} has a box`).not.toBeNull();
+    boxes[name] = box as Box;
+  }
+  for (const [name, box] of Object.entries(boxes)) {
+    expect(box.x, `${name} starts on screen`).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width, `${name} ends on screen`).toBeLessThanOrEqual(width);
+  }
+  const names = Object.keys(boxes);
+  for (let i = 0; i < names.length; i += 1) {
+    for (let j = i + 1; j < names.length; j += 1) {
+      expect(
+        overlaps(boxes[names[i]], boxes[names[j]]),
+        `${names[i]} clear of ${names[j]}`,
+      ).toBe(false);
+    }
+  }
+  // The project's side gives way, but keeps room for some of the name.
+  // Its zone is measured rather than the name, which is as long as the
+  // random starter name is.
+  const start = await header.locator(".editor-header-start").boundingBox();
+  expect(start?.width ?? 0, "project zone width").toBeGreaterThanOrEqual(
+    failedSave ? 60 : 110,
+  );
+  // Still a real click target: the button is the topmost thing at its centre.
+  const a = boxes.account;
+  const hit = await page.evaluate(
+    ([x, y]) => document.elementFromPoint(x, y)?.closest("button")?.textContent ?? null,
+    [a.x + a.width / 2, a.y + a.height / 2],
+  );
+  expect(hit).toBe("Sign out");
+}
+
+async function openNewProject(page: Page, width: number): Promise<void> {
+  await page.setViewportSize({ width, height: 800 });
+  await page.goto("/projects");
+  await page.getByRole("button", { name: "New Project" }).click();
+  await page.getByTestId("arrangement-view-ready").waitFor();
+}
+
+// #1031: at ~800px the right-hand zone was held to half the spare width, so
+// its buttons were squeezed to a bare cell and their labels ran over each
+// other and off the right edge ("Assista", "Expor", "Sign ou"). Then, with
+// that fixed, a failed save's reason and Retry widened the zone past the
+// window and pushed Sign out off its right edge.
 test.describe("editor header at narrow widths", () => {
   for (const width of [768, 800, 1024]) {
     test(`keeps every header control whole and on screen at ${width}px`, async ({
       page,
     }) => {
-      await page.setViewportSize({ width, height: 800 });
-      await page.goto("/projects");
-      await page.getByRole("button", { name: "New Project" }).click();
-      await page.getByTestId("arrangement-view-ready").waitFor();
+      await openNewProject(page, width);
+      await expectHeaderWhole(page, width);
+    });
 
-      const header = page.locator(".editor-header");
-      const account = header.getByRole("button", { name: "Sign out" });
-      await expect(account).toBeVisible();
-      const controls = {
-        transport: header.locator(".editor-header-center"),
-        history: header.locator(".editor-header-end .header-cell-group"),
-        assistant: header.getByRole("button", { name: "Assistant" }),
-        export: header.getByRole("button", { name: "Export", exact: true }),
-        guide: header.getByRole("button", { name: "Keyboard shortcuts" }),
-        account,
-      };
-      // A worded button holds its whole label: nothing spills past its edge.
-      const spilled = await header
-        .locator(".editor-header-end button")
-        .evaluateAll((buttons) =>
-          buttons
-            .filter((button) => button.scrollWidth > button.clientWidth)
-            .map((button) => button.textContent?.trim() || button.className),
-        );
-      expect(spilled, "header buttons whose label overflows them").toEqual([]);
-      const boxes: Record<string, Box> = {};
-      for (const [name, locator] of Object.entries(controls)) {
-        const box = await locator.boundingBox();
-        expect(box, `${name} has a box`).not.toBeNull();
-        boxes[name] = box as Box;
-      }
-      for (const [name, box] of Object.entries(boxes)) {
-        expect(box.x, `${name} starts on screen`).toBeGreaterThanOrEqual(0);
-        expect(box.x + box.width, `${name} ends on screen`).toBeLessThanOrEqual(width);
-      }
-      const names = Object.keys(boxes);
-      for (let i = 0; i < names.length; i += 1) {
-        for (let j = i + 1; j < names.length; j += 1) {
-          expect(
-            overlaps(boxes[names[i]], boxes[names[j]]),
-            `${names[i]} clear of ${names[j]}`,
-          ).toBe(false);
-        }
-      }
-      // The project's side gives way, but keeps room for some of the name.
-      // Its zone is measured rather than the name, which is as long as the
-      // random starter name is.
-      const start = await header.locator(".editor-header-start").boundingBox();
-      expect(start?.width ?? 0, "project zone width").toBeGreaterThanOrEqual(110);
-      // Still a real click target: the button is the topmost thing at its centre.
-      const a = boxes.account;
-      const hit = await page.evaluate(
-        ([x, y]) =>
-          document.elementFromPoint(x, y)?.closest("button")?.textContent ?? null,
-        [a.x + a.width / 2, a.y + a.height / 2],
-      );
-      expect(hit).toBe("Sign out");
+    test(`keeps every header control on screen when a save fails at ${width}px`, async ({
+      page,
+      context,
+    }) => {
+      test.setTimeout(120_000);
+      await openNewProject(page, width);
+      await context.setOffline(true);
+      const tempo = page.getByRole("spinbutton", { name: "Tempo (BPM)" });
+      await tempo.fill("128");
+      await tempo.press("Enter");
+      await expect(page.locator(".save-status")).toHaveText("Save failed", {
+        timeout: 60_000,
+      });
+      const recovery = page.getByRole("alert");
+      await expect(recovery.getByRole("button", { name: "Retry" })).toBeVisible();
+      await expectHeaderWhole(page, width, { failedSave: true });
+      // The reason is still there to read, for a screen reader and on hover.
+      await expect(recovery).toContainText("Check your connection.");
+      await expect(recovery).toHaveAttribute("title", "Check your connection.");
+      await context.setOffline(false);
     });
   }
 });
