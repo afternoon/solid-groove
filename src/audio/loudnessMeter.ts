@@ -11,6 +11,11 @@ const WINDOW_FRAMES = 8_192;
 /**
  * A gap between reads longer than this means playback stopped and started
  * again, not that audio went unmeasured: the next read starts afresh.
+ *
+ * A known under-count: a browser throttles animation frames in a background
+ * tab to about one a second, so every gap there is over this and the audio
+ * played while the tab was hidden never reaches the integrated figure. The
+ * short-term figure recovers within three seconds of the tab coming back.
  */
 const MAX_GAP_SECONDS = 0.5;
 
@@ -39,6 +44,13 @@ export class LoudnessMeter {
     const [shelf, highPass] = kWeighting(this.sampleRate);
     this.shelf = context.createIIRFilter([...shelf.b], [...shelf.a]);
     this.highPass = context.createIIRFilter([...highPass.b], [...highPass.a]);
+    // BS.1770 sums the power of every channel, and a mono signal on a stereo
+    // bus is heard in both speakers. Up-mixed at the first stage, a mono source
+    // reads as left and right rather than as one channel and a silent one,
+    // which would put it about 3 LU low.
+    this.shelf.channelCount = 2;
+    this.shelf.channelCountMode = "explicit";
+    this.shelf.channelInterpretation = "speakers";
     this.analyser = new Tone.Analyser({
       context,
       type: "waveform",

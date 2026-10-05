@@ -353,8 +353,14 @@ describe("useProjectAudio", () => {
 
       await result.play();
       expect(reset).toHaveBeenCalledTimes(1);
+      // A pause before the transport has advanced still sits on tick 0, but
+      // resuming from it carries on with the same programme.
       result.pause();
-      // Resuming from a pause carries on with the same programme.
+      await result.play();
+      expect(reset).toHaveBeenCalledTimes(1);
+      // So does a resume from a pause further in.
+      result.seekTicks(2 * TICKS_PER_BAR);
+      result.pause();
       await result.play();
       expect(reset).toHaveBeenCalledTimes(1);
       result.stop();
