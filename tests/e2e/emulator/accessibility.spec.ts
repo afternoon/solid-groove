@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, type Page, test } from "@playwright/test";
 import { assistantButton, newProject, panel, panelButton } from "./support/assistant";
 import { soundList } from "./support/library";
+import { expect, type Page, test } from "./support/test";
 import { pressView, type ViewName } from "./support/views";
 
 /**
@@ -67,6 +67,46 @@ test.describe("accessibility (axe)", { tag: "@sanity" }, () => {
       }
       await expectAccessible(page, `the ${view.toLowerCase()} view`);
     }
+  });
+
+  // A muted track, strip or pad and a bypassed device recede, but each is
+  // still a control a producer operates, so its text has to read at AA too.
+  // They dimmed with opacity before, which axe only sees once they are muted.
+  test("a muted track, strip and pad, and a bypassed device", async ({ page }) => {
+    await newProject(page);
+    const muteTrack = page.getByRole("button", { name: "Mute BD" }).first();
+    await muteTrack.click();
+    await expect(muteTrack).toHaveAttribute("aria-pressed", "true");
+    await expectAccessible(page, "the arrangement with a muted track");
+
+    await pressView(page, "Mixer");
+    await expect(page.getByRole("button", { name: "Mute BD" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    await expectAccessible(page, "the mixer with a muted strip");
+
+    await pressView(page, "Instrument");
+    const padMute = page.getByRole("table").getByRole("button", { name: "Mute BD" });
+    await padMute.click();
+    await expect(padMute).toHaveAttribute("aria-pressed", "true");
+
+    const chain = page.getByRole("region", { name: "Device chain" });
+    await chain
+      .getByRole("group", { name: "Add device" })
+      .getByRole("button", { name: "Add overdrive device" })
+      .click();
+    const bypass = chain
+      .getByRole("list", { name: "Device chain" })
+      .getByRole("listitem")
+      .first()
+      .getByRole("button", { name: /^Bypass/ });
+    await bypass.click();
+    await expect(bypass).toHaveAttribute("aria-pressed", "true");
+    await expectAccessible(
+      page,
+      "the instrument view with a muted pad and a bypassed device",
+    );
   });
 
   test("the shortcut guide, the assistant and the Export dialog", async ({ page }) => {

@@ -39,7 +39,7 @@ check leaves the rule out rather than waiving it control by control.
 
 | Check | Where | What it covers |
 | --- | --- | --- |
-| axe-core over every surface | [`tests/e2e/emulator/accessibility.spec.ts`](../tests/e2e/emulator/accessibility.spec.ts), in the per-push `@sanity` subset | The dashboard (empty, listing a project, the delete confirmation), the editor's five views, the shortcut guide, the assistant floating and docked, and the Export dialog |
+| axe-core over every surface | [`tests/e2e/emulator/accessibility.spec.ts`](../tests/e2e/emulator/accessibility.spec.ts), in the per-push `@sanity` subset | The dashboard (empty, listing a project, the delete confirmation), the editor's five views, a muted track, strip and pad and a bypassed device, the shortcut guide, the assistant floating and docked, and the Export dialog |
 | Palette contrast | [`src/theme.test.ts`](../src/theme.test.ts) | Every text alias against the ground, a panel, a well and a raised card |
 | Modal focus | [`tests/e2e/emulator/dialogFocus.spec.ts`](../tests/e2e/emulator/dialogFocus.spec.ts) | Tab never leaves the Export dialog, and the editor behind it is `inert` |
 | Library focus | [`tests/e2e/emulator/libraryFocus.spec.ts`](../tests/e2e/emulator/libraryFocus.spec.ts) | Where focus goes as the library opens, filters and inserts |

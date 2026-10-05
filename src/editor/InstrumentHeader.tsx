@@ -24,8 +24,9 @@ export default function InstrumentHeader(props: InstrumentHeaderProps): JSX.Elem
         <span class="instrument-header-label">
           {props.facts.slot} · {props.facts.kind}
         </span>
-        {/* The view's heading (#76): its panels' headings are h3s under it,
-            as a return's are under its name (`ReturnPanel`). */}
+        {/* The view's one h2 (#76): every panel's heading under it, the
+            instrument picker's included, is an h3, as a return's are under
+            its name (`ReturnPanel`). */}
         <h2 class={`instrument-header-name ${MASK_CONTENT}`}>{props.trackName}</h2>
       </div>
       <dl class="instrument-header-readouts">

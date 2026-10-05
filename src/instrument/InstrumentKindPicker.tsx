@@ -107,8 +107,11 @@ export default function InstrumentKindPicker(
   return (
     <section class="instrument-panel instrument-kind" aria-label="Instrument">
       <div class="instrument-panel-group">
-        {/* An h2: it heads the view (#447), so the panels under it are h3s (#76). */}
-        <h2 class="instrument-panel-heading">Instrument</h2>
+        {/* A title, not a heading (#76): the view's one h2 is the track's
+            name in the unit below (`InstrumentHeader`), and this comes first,
+            so an h3 here would skip a level and a second h2 would sit beside
+            it. The region carries the name for assistive tech instead. */}
+        <p class="instrument-panel-heading">Instrument</p>
         <OptionGroup
           legend="Instrument type"
           value={props.instrument?.kind ?? null}
