@@ -242,6 +242,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     track,
     selectedReturn,
     selectReturn,
+    selectMaster,
   } = trackSelection;
 
   // What the editing surfaces hand up so the shortcut layer can act on them.
@@ -477,6 +478,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                                 onSelectTrack={selectTrackFrom}
                                 selectedReturnId={selectedReturn()?.id ?? null}
                                 onSelectReturn={selectReturn}
+                                onSelectMaster={selectMaster}
                               />
                             </div>
                           </Match>

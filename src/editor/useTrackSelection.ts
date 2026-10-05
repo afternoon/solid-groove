@@ -58,6 +58,11 @@ export interface TrackSelection {
   readonly selectedReturn: Accessor<ReturnBus | null>;
   /** Points the instrument view at a return's chain (#386). */
   selectReturn(returnId: ReturnId): void;
+  /**
+   * Lets go of the return (#1106), so the mixer's chain slot shows the
+   * master's again and the instrument view goes back to the track.
+   */
+  selectMaster(): void;
   /** Makes a placement's clip the one `2` edits, and selects its track. */
   selectPlacement(placementId: PlacementId): void;
   /** Where the selection is now, for putting it back later. */
@@ -105,7 +110,7 @@ export function useTrackSelection(options: UseTrackSelectionOptions): TrackSelec
   // instrument view in return mode. UI-only like the track selection, and
   // beside it rather than in it: the arrangement and the step editor keep
   // following the track while a return's chain is open. Selecting any track
-  // clears it, and so does the return being deleted or undone away: the view
+  // or the master clears it, and so does the return being deleted or undone away: the view
   // falls back to the track, and stays there when an undo brings the return
   // back.
   const [returnSelection, setReturnSelection] = createSignal<ReturnId | null>(null);
@@ -186,6 +191,7 @@ export function useTrackSelection(options: UseTrackSelectionOptions): TrackSelec
     selectPad,
     selectedReturn,
     selectReturn: (returnId) => setReturnSelection(returnId),
+    selectMaster: () => setReturnSelection(null),
     selectPlacement,
     location: () => ({
       selection: selection(),

@@ -11,6 +11,7 @@ import type { Project, ReturnBus } from "../domain/entities";
 import type { IdFactory } from "../domain/ids";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import { DeviceChain, type DeviceChainLabels } from "./DeviceChainPanel";
+import "./ReturnPanel.css";
 
 export interface ReturnPanelProps {
   readonly project: Project;
@@ -42,7 +43,8 @@ export function sendersLabel(project: Project, returnBus: ReturnBus): string {
 }
 
 /**
- * The instrument view's return mode (#386): the selected return's effects
+ * A selected return's effects (#386), in the instrument view's return mode
+ * and the mixer's chain slot (#1106): its
  * chain, on the same `DeviceChain` a track's inserts (#241) and the master's
  * (#283) use, so adding, editing, reordering, bypass, duplicate, reset and
  * failure reporting behave exactly alike. A return has no instrument, so there

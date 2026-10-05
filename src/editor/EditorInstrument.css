@@ -87,32 +87,3 @@
   /* Where it stands unscrolled: under the header and the gap below it. */
   top: calc(var(--editor-header-height) + 3 * var(--size-divider));
 }
-
-/* Return mode (#386): a return's name over its chain, on the bare rack. A
-   return has no instrument, so the chain is the only unit. */
-.instrument-return-head {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.instrument-return-kind,
-.instrument-return-senders {
-  margin: 0;
-  font-size: var(--font-size-tiny);
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--color-foreground-muted);
-}
-
-.instrument-return-senders {
-  letter-spacing: 0;
-  text-transform: none;
-}
-
-.instrument-return-name {
-  margin: 0;
-  font-size: var(--font-size-title);
-  font-weight: 600;
-  color: var(--color-foreground-bright);
-}
