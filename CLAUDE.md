@@ -64,6 +64,10 @@ src/
 │   ├── offlineClock.ts      # Runs Tone's offline clock in chunks, the offline context installed only while each chunk runs
 │   ├── renderLength.ts      # Where a render ends: the last clip, plus a tail trimmed to the last audible sample
 │   └── scheduling.ts        # Placement/clip -> absolute-tick event expansion (musical time, not wall clock)
+├── access/             # Who may sign in during the alpha (#854)
+│   ├── allowlist.ts         # The allowlist contract: normaliser, batch parser, paths, approval
+│   ├── grandfather.ts       # Who `allowlist:seed` may add: never a refused address, a cutoff once the gate has refused anyone
+│   └── signInGate.ts        # The blocking beforeSignIn function's decision, Firebase-free
 ├── auth/               # Authentication logic
 │   ├── AuthProvider.tsx     # Context provider for auth state
 │   └── authService.ts       # Firebase auth service wrapper

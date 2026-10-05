@@ -1,4 +1,5 @@
 import type { Page } from "@playwright/test";
+import { allowlist } from "./access";
 
 /**
  * Puts a **registered** (non-anonymous) Firebase session into a page, without
@@ -97,7 +98,10 @@ export async function seedRegisteredSession(
   const template = await readPersistedUser(page);
 
   // A real account, through the emulator's Google-provider endpoint, so the
-  // session carries `google.com` the way a genuine login would.
+  // session carries `google.com` the way a genuine login would. Its address
+  // goes on the alpha allowlist first (#854): the blocking `beforeSignIn`
+  // function refuses anyone else, here as in production.
+  await allowlist(email);
   const account = await signInWithGoogleThroughEmulator(email, displayName);
 
   // The SDK's own record with this account's identity in place of the guest's.

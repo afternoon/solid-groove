@@ -91,7 +91,10 @@
     "smoke:hosted": "playwright test --config=tests/e2e/hosted/playwright.config.ts",
     "verify:no-solid-1": "node scripts/check-no-solid-1.mjs",
     "postbuild": "node scripts/emit-app-shell.mjs",
-    "verify:landing-static": "node scripts/verify-landing-static.mjs"
+    "verify:landing-static": "node scripts/verify-landing-static.mjs",
+    "allowlist:add": "bun scripts/access/allowlistAdd.ts",
+    "allowlist:seed": "bun scripts/access/allowlistSeed.ts",
+    "admin:grant": "bun scripts/access/adminGrant.ts"
   },
   "type": "module",
   "trustedDependencies": [
