@@ -1,0 +1,14 @@
+{
+  "id": "m-after",
+  "title": "After: muted and bypassed (#76)",
+  "steps": [
+    {
+      "file": "01-after-a-muted-mixer-strip.png",
+      "caption": "After: a muted mixer strip"
+    },
+    {
+      "file": "02-after-a-muted-track-and-pad-and-a-bypass.png",
+      "caption": "After: a muted track and pad, and a bypassed overdrive"
+    }
+  ]
+}

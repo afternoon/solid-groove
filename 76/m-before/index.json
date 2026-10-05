@@ -1,0 +1,14 @@
+{
+  "id": "m-before",
+  "title": "Before: muted and bypassed (#76)",
+  "steps": [
+    {
+      "file": "01-before-a-muted-mixer-strip.png",
+      "caption": "Before: a muted mixer strip"
+    },
+    {
+      "file": "02-before-a-muted-track-and-pad-and-a-bypas.png",
+      "caption": "Before: a muted track and pad, and a bypassed overdrive"
+    }
+  ]
+}
