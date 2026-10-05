@@ -1,3 +1,6 @@
+// The polyphonic subtractive synth node: a PolySynth into one smoothed
+// low-pass filter.
+
 import * as Tone from "tone";
 import {
   readInstrumentParameter,

@@ -1,3 +1,6 @@
+// Context provider for auth state. Read it through `useAuth()`; it redirects
+// unauthenticated users to the home page.
+
 import type { User } from "firebase/auth";
 import {
   createContext,

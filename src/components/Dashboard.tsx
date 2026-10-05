@@ -1,3 +1,5 @@
+// The signed-in producer's dashboard: their project list and New Project.
+
 import { useNavigate } from "@solidjs/router";
 import { HiSolidArrowPath, HiSolidPlus } from "solid-icons/hi";
 import { createEffect, createMemo, createSignal, Match, Show, Switch } from "solid-js";

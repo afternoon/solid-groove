@@ -1,3 +1,5 @@
+// Firebase auth service wrapper, with a mock for the in-memory backend.
+
 import type { Auth, User } from "firebase/auth";
 import { isMockBackend } from "../devBackend";
 

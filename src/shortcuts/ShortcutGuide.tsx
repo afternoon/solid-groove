@@ -1,3 +1,5 @@
+// The searchable `?` mapping guide, generated from the shortcut registry.
+
 import { For, type JSX, Show } from "@solidjs/web";
 import { createMemo, createSignal, createUniqueId, onSettled } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics";
