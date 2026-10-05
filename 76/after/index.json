@@ -1,0 +1,22 @@
+{
+  "id": "after",
+  "title": "After (#76)",
+  "steps": [
+    {
+      "file": "01-after-the-instrument-view-s-dimmed-label.png",
+      "caption": "After: the instrument view's dimmed labels"
+    },
+    {
+      "file": "02-after-the-shortcut-guide-unavailable-row.png",
+      "caption": "After: the shortcut guide, unavailable rows dimmed"
+    },
+    {
+      "file": "03-after-the-clips-list-has-focus-so-the-ti.png",
+      "caption": "After: the Clips list has focus, so the timeline wears the ring and Down selected the clip"
+    },
+    {
+      "file": "04-after-the-editor-at-200-zoom-640x360-css.png",
+      "caption": "After: the editor at 200% zoom (640x360 CSS pixels)"
+    }
+  ]
+}

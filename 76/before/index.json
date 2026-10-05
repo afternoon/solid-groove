@@ -1,0 +1,18 @@
+{
+  "id": "before",
+  "title": "Before (#76)",
+  "steps": [
+    {
+      "file": "01-before-the-instrument-view-s-dimmed-labe.png",
+      "caption": "Before: the instrument view's dimmed labels"
+    },
+    {
+      "file": "02-before-the-shortcut-guide-unavailable-ro.png",
+      "caption": "Before: the shortcut guide, unavailable rows dimmed"
+    },
+    {
+      "file": "03-before-the-editor-at-200-zoom-640x360-cs.png",
+      "caption": "Before: the editor at 200% zoom (640x360 CSS pixels)"
+    }
+  ]
+}
