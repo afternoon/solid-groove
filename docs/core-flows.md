@@ -1398,3 +1398,35 @@ is covered by the rules and component tests, and CF-001 is what an approved
 address then does. A guest from before the alpha closed upgrading to an address
 that is not on the list, which the same blocking function refuses and is tested
 below the browser.
+
+### CF-033 — A producer finds a sound they heard earlier
+
+**Issue:** #815 · **Suite:** `tests/e2e/emulator/flows/CF-033.spec.ts` · **Entrypoint:**
+the project dashboard
+
+**Preconditions:** signed in with no projects, on a browser that has auditioned
+nothing. The library holds at least three kicks besides the starter's.
+
+1. Create a new project, go to the instrument view and press the "BD" pad's
+   sample slot. The editor goes to the Library view. Choose Recently heard. It
+   says nothing has been heard yet, and how to hear something.
+2. Go back to All sounds and hear three kicks, one after another, without
+   inserting any.
+3. Choose Recently heard. The three kicks are listed, the last one heard first.
+4. Hear the first kick you heard again, at the bottom of the list. The list
+   holds still while you listen. Choose Recently heard again: that kick is now
+   at the top.
+5. Press 3 to go back to the instrument view without inserting anything, and
+   reload the page.
+6. Press the slot again and choose Recently heard. The same kicks are there in
+   the same order.
+7. Select one and press Insert. The editor goes back to the instrument view,
+   and the slot names that kick.
+
+**Outcome:** a sound a producer passed over is one click away when they change
+their mind, even after a reload.
+
+**Out of scope:** how many sounds the list keeps, which is unit-tested. Recently
+heard on another device or browser, which it deliberately doesn't follow
+(per-device by decision). Sounds heard through Browse packs' "Hear it", which
+plays a pack, not a sound, and is left out at the component layer.
