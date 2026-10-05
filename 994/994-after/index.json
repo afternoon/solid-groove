@@ -3,11 +3,11 @@
   "title": "After: entering the pack settles onto its own Drums family",
   "steps": [
     {
-      "file": "01-all-sounds-bass-chosen-and-the-search-ma.png",
+      "file": "bass.png",
       "caption": "All sounds: Bass chosen, and the search matches nothing"
     },
     {
-      "file": "02-core-electronic-drums-opened-its-one-tab.png",
+      "file": "pack.png",
       "caption": "Core Electronic Drums opened: Drums is selected, and the chip reads All drums 0"
     }
   ]
