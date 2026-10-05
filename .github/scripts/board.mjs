@@ -65,12 +65,38 @@ const BOARD_LABEL = "board";
  */
 const OFF_BOARD = new Set([BOARD_LABEL, "qa-sweep"]);
 
-const gh = (args, input) =>
-  execFileSync("gh", args, {
-    encoding: "utf8",
-    input,
-    stdio: [input === undefined ? "ignore" : "pipe", "pipe", "inherit"],
-  }).trim();
+/**
+ * A GitHub outage or rate limit, not a real failure: worth another try. A 503
+ * from the GraphQL API once crashed the status job mid-move, so a card stayed
+ * in Ready and `/ship` never started.
+ */
+const TRANSIENT =
+  /HTTP (5\d\d|429)|No server is currently available|secondary rate limit|timed? ?out|ECONNRESET|ETIMEDOUT|EAI_AGAIN|connection reset/i;
+const RETRY_DELAYS_MS = [2_000, 5_000, 15_000, 30_000];
+
+const sleep = (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
+/** Run `gh`, retrying transient GitHub failures; any other failure throws at once. */
+const gh = (args, input) => {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return execFileSync("gh", args, {
+        encoding: "utf8",
+        input,
+        stdio: [input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
+      }).trim();
+    } catch (error) {
+      const stderr = String(error.stderr ?? "");
+      if (stderr) process.stderr.write(stderr);
+      const delay = RETRY_DELAYS_MS[attempt];
+      if (delay === undefined || !TRANSIENT.test(stderr)) throw error;
+      console.warn(
+        `gh ${args[0]} ${args[1] ?? ""}: transient failure, retrying in ${delay / 1000}s`,
+      );
+      sleep(delay);
+    }
+  }
+};
 const graphql = (query, vars = {}) => {
   const args = ["api", "graphql", "-f", `query=${query}`];
   for (const [k, v] of Object.entries(vars))
