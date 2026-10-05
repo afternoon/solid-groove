@@ -13,9 +13,9 @@ the list is run.
   `functions/src/index.ts`, deciding through `src/access/signInGate.ts`)
   refuses every sign-in whose address is not on the list or not verified, a
   guest linking Google included. That is the enforcement; what the browser
-  shows is only UI. It is exported from `functions/src/index.ts` only by the
-  change that retires guest start, so it never deploys ahead of the pages it
-  sends people to.
+  shows is only UI. It deploys with the other functions (`bun run deploy`),
+  and it shipped in the same change that retired guest start, so it never went
+  live ahead of the pages it sends people to.
 - Firebase never runs a blocking function for an **anonymous** sign-in, so the
   function cannot stop a new guest session. Disabling the Anonymous provider
   (step 4 below) is the control for that, not the function.
@@ -105,5 +105,6 @@ it gone:
   a visitor with no session out, and the not-on-the-list page. It no longer
   creates a project or starts audio, because it has no account to sign in with.
 - **The scheduled QA sweep** (`tests/e2e/hosted/qa-sweep/`) still starts by
-  creating a guest, which the live app no longer offers. It needs an allowlisted
-  test account and a way to sign it in from CI before it can run again.
+  creating a guest, which the live app no longer offers, so its weekly schedule
+  is turned off in `.github/workflows/qa-sweep.yml`. It needs an allowlisted
+  test account and a way to sign it in from CI before it can run again (#1055).

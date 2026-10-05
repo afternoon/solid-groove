@@ -17,7 +17,7 @@ This document is the map of "which suite do I run, and how." It does not restate
 | Firebase Emulator | `bun run test:emulator` | Vitest (`tests/emulator/vitest.config.ts`), wrapped by `firebase emulators:exec` | Node | Local Firestore emulator only, started and torn down automatically |
 | Browser E2E against the emulator | `bun run test:browser:emulator` | Playwright (`tests/e2e/emulator/playwright.config.ts`), wrapped by `firebase emulators:exec` | Real browsers (Chromium, Chrome, Edge, Firefox) | A local dev server against a local Firestore + Auth emulator, started and torn down automatically |
 | Post-deploy smoke test | `bun run smoke:hosted` | Playwright (`tests/e2e/hosted/playwright.config.ts`) | Real browser (Chromium) | The real deployed Hosting URL (`SMOKE_URL`), real Firebase Auth/Firestore — see "Deploy" below |
-| Scheduled QA sweep | `.github/workflows/qa-sweep.yml` (weekly, or run it by hand) | Agents driving Playwright (`tests/e2e/hosted/qa-sweep/playwright.config.ts`) | Real browser (Chromium) | The live app, real Firebase Auth/Firestore, as a fresh guest — see "Scheduled QA sweep" below |
+| Scheduled QA sweep | `.github/workflows/qa-sweep.yml` (weekly, paused until #1055; or run it by hand) | Agents driving Playwright (`tests/e2e/hosted/qa-sweep/playwright.config.ts`) | Real browser (Chromium) | The live app, real Firebase Auth/Firestore, as a fresh guest — see "Scheduled QA sweep" below |
 
 ### The unit suite's six projects
 
@@ -544,6 +544,8 @@ Visiting the hosted alpha with `?internal=1` (e.g. `https://trygroove.app/?inter
 ### Scheduled QA sweep
 
 `.github/workflows/qa-sweep.yml` (#859) sends a few agents at the live app every Monday, or whenever it is run by hand from the Actions tab. It is exploratory testing, not a gate: nothing waits on it, and what it produces is issues.
+
+**The weekly schedule is off for now** (#854): the sweep starts as a guest, and the invite-only alpha retired guest start, so a run cannot get past the landing page. It comes back once the sweep signs in as an allowlisted QA account (#1055).
 
 - **Plan.** `scripts/qa-sweep/plan.mjs` picks the flows: the next few in a weekly rotation through `docs/core-flows.md`, so successive runs cover the whole register, or the ones named in the `flows` input. A flow whose spec is still `test.fixme` is walked too, as *parked*: its agent is told the unbuilt parts are not bugs.
 - **Explore.** One job per flow. `session.sweep.ts` makes a fresh guest session (the live app has no other kind of test account; a guest owns nothing, so it cannot touch anyone's projects) marked as internal traffic. The agent follows [`.github/qa-sweep/explorer.md`](../.github/qa-sweep/explorer.md): walk the flow, then try odd input, rapid clicks, keyboard-only use, resizing and reloads on everything it reached, and write `findings.json`. Its specs import `tests/e2e/hosted/qa-sweep/fixtures.ts`, which fails any test that lost the guest's session. Then, whatever the agent did, `cleanup.sweep.ts` deletes every project the guest owns and records the result.

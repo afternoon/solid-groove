@@ -172,7 +172,7 @@ class MockAuthService implements AuthService {
     // This must not use `setTimeout`, which schedules a macrotask that
     // can fire *after* an unrelated later event (e.g. a click handler
     // that runs synchronously right after subscribing, such as
-    // `signInAnonymously`). If that happens, the pending timeout would
+    // `signInWithGoogle`). If that happens, the pending timeout would
     // still fire later, re-invoking `callback` directly - bypassing
     // `callbacks.delete` from an unsubscribe in between - with whatever
     // `mockUser` happens to be by then, i.e. a stale, duplicate
