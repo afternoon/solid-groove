@@ -150,6 +150,12 @@
   color: var(--color-on-accent);
 }
 
+/* The eyebrow's muted grey is for a dark card; on the white fill it takes the
+   card's own dark ink, or it falls under WCAG AA's 4.5:1 (#76). */
+.export-card.checked .export-label {
+  color: inherit;
+}
+
 .export-card:has(input:focus-visible) {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;

@@ -52,7 +52,9 @@
   --mono-08: #141414; /* a panel lifted off the ground */
   --mono-16: #292929; /* a raised card, and every hairline rule */
   --mono-28: #474747; /* a border that has to be seen; a control under the pointer */
-  --mono-47: #787878; /* deliberately dimmed text; the recessive accent step */
+  /* Dimmed text still has to be read: #919191 is the darkest grey that clears
+     WCAG AA's 4.5:1 on a raised card (--mono-16) as well as on a panel (#76). */
+  --mono-57: #919191; /* deliberately dimmed text; the recessive accent step */
   --mono-65: #a6a6a6; /* label text */
   --mono-85: #d9d9d9; /* secondary text */
   --mono-96: #f6f6f6; /* primary text */
@@ -65,7 +67,7 @@
    * pointer and for material that should read as present but not chosen. */
   --color-accent: var(--mono-100);
   --color-accent-dim: var(--mono-85);
-  --color-accent-deep: var(--mono-47);
+  --color-accent-deep: var(--mono-57);
   --color-on-accent: var(--mono-00);
   --color-accent-wash: rgb(255 255 255 / 15%);
   --color-accent-wash-strong: rgb(255 255 255 / 28%);
@@ -132,7 +134,7 @@
   --color-text-primary: var(--mono-96);
   --color-text-secondary: var(--mono-85);
   --color-foreground: var(--mono-65);
-  --color-foreground-muted: var(--mono-47);
+  --color-foreground-muted: var(--mono-57);
 
   /* The ink a well, a meter's track edge and a header's colour bar draw in.
      A surface sets it to its track's own colour, the one hue in the product

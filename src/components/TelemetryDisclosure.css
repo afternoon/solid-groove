@@ -19,7 +19,9 @@
   cursor: pointer;
   list-style: none;
   text-align: right;
-  opacity: 0.55;
+  /* Recessive, but still readable text (#76): a dimmer grey, not a fade that
+     took it under WCAG AA's 4.5:1. */
+  color: var(--color-foreground-muted);
 }
 
 .telemetry-disclosure-summary::-webkit-details-marker {
@@ -28,7 +30,7 @@
 
 .telemetry-disclosure-summary:hover,
 .telemetry-disclosure[open] .telemetry-disclosure-summary {
-  opacity: 1;
+  color: var(--color-foreground);
 }
 
 .telemetry-disclosure-body {

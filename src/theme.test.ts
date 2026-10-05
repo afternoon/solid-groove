@@ -241,6 +241,59 @@ describe("the theme is the only place a colour is written down", () => {
   });
 });
 
+/** WCAG 2.x relative luminance of a `#rrggbb` grey. */
+function luminance(hex: string): number {
+  const channels = [1, 3, 5].map((i) => Number.parseInt(hex.slice(i, i + 2), 16) / 255);
+  const [r = 0, g = 0, b = 0] = channels.map((c) =>
+    c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4,
+  );
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** WCAG 2.x contrast ratio between two `#rrggbb` colours. */
+function contrast(a: string, b: string): number {
+  const [light, dark] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (Number(light) + 0.05) / (Number(dark) + 0.05);
+}
+
+describe("text is readable on every surface it sits on (#76)", () => {
+  // WCAG 2.1 AA (1.4.3): 4.5:1 for body text. The interface's labels are
+  // small, so no text alias may lean on the 3:1 large-text allowance. The
+  // browser suite's axe pass (`accessibility.spec.ts`) checks what is actually
+  // painted; this pins the palette those pixels come from.
+  const TEXT = [
+    "--color-foreground-bright",
+    "--color-text",
+    "--color-text-secondary",
+    "--color-foreground",
+    "--color-foreground-muted",
+  ];
+  const SURFACES = [
+    "--color-background",
+    "--color-background-well",
+    "--color-background-secondary",
+    "--color-background-tertiary",
+  ];
+
+  it.each(TEXT)("%s clears 4.5:1 on the ground, a panel and a raised card", (text) => {
+    for (const surface of SURFACES) {
+      const ratio = contrast(resolveToken(text), resolveToken(surface));
+      expect(
+        ratio,
+        `${text} on ${surface}: ${ratio.toFixed(2)}:1`,
+      ).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+
+  it("puts readable ink on a full-strength accent fill", () => {
+    const ratio = contrast(
+      resolveToken("--color-on-accent"),
+      resolveToken("--color-accent"),
+    );
+    expect(ratio).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
 describe("control marks (UI-004, #850)", () => {
   const marks = stylesheets["controls/controlMarks.css"] ?? "";
   const rule = (mark: string): string =>

@@ -98,7 +98,7 @@ export const COLOR_TOKENS = {
   text: ["--color-foreground", "#a6a6a6"],
   rulerText: ["--color-text-secondary", "#d9d9d9"],
   /* Dimmed text on the ground: the Export sleeve's tempo and length. */
-  textMuted: ["--color-foreground-muted", "#787878"],
+  textMuted: ["--color-foreground-muted", "#919191"],
   playhead: ["--color-accent", "#ffffff"],
   selection: ["--color-accent-wash", "rgb(255 255 255 / 15%)"],
   selectionBorder: ["--color-accent", "#ffffff"],

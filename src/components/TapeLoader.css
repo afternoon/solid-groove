@@ -55,9 +55,10 @@
 }
 
 @keyframes label-blink {
+  /* Never fades below WCAG AA's 4.5:1 on the ground (#76). */
   0%,
   100% {
-    opacity: 0.5;
+    opacity: 0.75;
   }
   50% {
     opacity: 1;
