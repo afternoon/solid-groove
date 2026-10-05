@@ -14,13 +14,18 @@
  * Firestore trigger on the attempts it records emails the admin (#1112), as
  * `src/access/blockedSignInAlert.ts` decides.
  *
+ * A streaming callable, `assistantTurn` (#69), is the assistant's gateway to
+ * its model provider: `src/assistant/gateway.ts` decides everything, and the
+ * provider's API key is a Secret Manager secret bound to that function alone.
+ *
  * Every kind of user data (packs today, recordings and presets later) is a
  * folder under `users/{uid}/`, so a new kind is counted as soon as it is added
  * to `USER_DATA_KINDS` — nothing here changes.
  *
  * Built by `firebase.json`'s `functions.predeploy` with `bun build`, which
- * bundles the shared modules in and leaves `firebase-admin` and
- * `firebase-functions` to the runtime's own install of `functions/package.json`.
+ * bundles the shared modules in and leaves `firebase-admin`,
+ * `firebase-functions` and `@anthropic-ai/sdk` to the runtime's own install of
+ * `functions/package.json`.
  */
 import { initializeApp } from "firebase-admin/app";
 import { type Firestore, getFirestore, type Transaction } from "firebase-admin/firestore";
@@ -29,6 +34,7 @@ import { logger } from "firebase-functions";
 import { defineSecret, defineString } from "firebase-functions/params";
 import { setGlobalOptions } from "firebase-functions/v2";
 import { onDocumentWritten } from "firebase-functions/v2/firestore";
+import { onCall } from "firebase-functions/v2/https";
 import { beforeUserSignedIn, HttpsError } from "firebase-functions/v2/identity";
 import {
   onObjectDeleted,
@@ -45,6 +51,10 @@ import {
 } from "../../src/access/allowlist";
 import { alertBlockedSignIn } from "../../src/access/blockedSignInAlert";
 import { gateSignIn, type SignInGateStore } from "../../src/access/signInGate";
+import {
+  ASSISTANT_API_KEY_SECRET,
+  ASSISTANT_CALL_LIMITS,
+} from "../../src/assistant/config";
 import type { VersionedPack } from "../../src/userData/packVersions";
 import { withdrawRefusedSound } from "../../src/userData/refusedSound";
 import {
@@ -60,6 +70,8 @@ import {
   usageObjectDocPath,
   userPackDocPath,
 } from "../../src/userData/userData";
+import { createAnthropicProvider } from "./anthropicProvider";
+import { createAssistantHandler } from "./assistantHandler";
 
 /**
  * Where the functions run. A Storage trigger has to run in the default
@@ -248,4 +260,24 @@ export const allowlistBlockedSignInAlert = onDocumentWritten(
       logger,
     });
   },
+);
+
+/** The provider's API key, readable by `assistantTurn` and nothing else. */
+const anthropicApiKey = defineSecret(ASSISTANT_API_KEY_SECRET);
+
+/**
+ * The assistant's gateway (#69, ADR 0006): one authenticated turn, its reply
+ * streamed back as it is written. A callable, so Firebase verifies the
+ * caller's ID token before the handler runs; the gateway then refuses a
+ * guest. Nothing it logs carries the conversation, the project or the
+ * account (`src/assistant/telemetry.ts`).
+ */
+export const assistantTurn = onCall(
+  {
+    secrets: [anthropicApiKey],
+    timeoutSeconds: ASSISTANT_CALL_LIMITS.functionTimeoutSeconds,
+  },
+  createAssistantHandler(() => ({
+    provider: createAnthropicProvider({ apiKey: anthropicApiKey.value() }),
+  })),
 );

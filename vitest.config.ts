@@ -194,6 +194,7 @@ export default defineConfig({
         "src/userData/**/*.test.{ts,tsx}",
         "src/userLibrary/**/*.test.{ts,tsx}",
         "src/access/**/*.test.{ts,tsx}",
+        "src/assistant/**/*.test.{ts,tsx}",
       ]),
       // The cross-cutting rail, plus the handful of root-level
       // `src/*.test.ts` files (telemetry, release, devBackend, firebaseConfig).
@@ -206,6 +207,18 @@ export default defineConfig({
         "src/testing/**/*.test.{ts,tsx}",
         "src/*.test.{ts,tsx}",
       ]),
+      // The Cloud Functions' own glue (`functions/src`): the provider adapter
+      // over the real SDK and the callable handler. Node, not jsdom, because
+      // that is where they run, and the SDK refuses to start in a browser.
+      {
+        test: {
+          name: "functions",
+          environment: "node",
+          exclude,
+          include: ["functions/src/**/*.test.ts"],
+          env: hermeticEnv,
+        },
+      },
       // Build tooling, not the app: the sample-library pipeline. Node only —
       // it never renders a component — and by far the slowest project.
       {
