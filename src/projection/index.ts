@@ -15,3 +15,4 @@ export * from "./audioProjection";
 export * from "./fingerprint";
 export * from "./projectAnalysisProjection";
 export * from "./projectSummaryProjection";
+export * from "./selectedNotes";

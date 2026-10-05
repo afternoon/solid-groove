@@ -116,3 +116,45 @@ describe("buildAssistantContext", () => {
     });
   });
 });
+
+describe("buildAssistantContext: selected notes (ADR 0007)", () => {
+  it("carries no note events when nothing is selected", () => {
+    const project = createSliceFixtureProject();
+    expect(buildAssistantContext(project).selectedNotes).toBeNull();
+    expect(buildAssistantContext(project, emptySelection()).selectedNotes).toBeNull();
+  });
+
+  it("carries the selected track's notes, and only that track's", () => {
+    const project = createReferenceProject();
+    const [first, second] = project.song.tracks;
+    const context = buildAssistantContext(
+      project,
+      selectOnly({ kind: "track", id: first.id }),
+    );
+    const trackIds = new Set(context.selectedNotes?.clips.map((clip) => clip.trackId));
+    expect([...trackIds]).toEqual([first.id]);
+    const serialized = JSON.stringify(context.selectedNotes);
+    for (const clip of project.clips.filter((c) => c.trackId === second.id)) {
+      if (clip.content.kind !== "notes") continue;
+      for (const event of clip.content.events) expect(serialized).not.toContain(event.id);
+    }
+  });
+
+  it("changes the fingerprint when the selected notes change", () => {
+    const project = createReferenceProject();
+    const [first, second] = project.song.tracks;
+    const a = buildAssistantContext(project, selectOnly({ kind: "track", id: first.id }));
+    const b = buildAssistantContext(
+      project,
+      selectOnly({ kind: "track", id: second.id }),
+    );
+    expect(a.fingerprint).not.toBe(b.fingerprint);
+  });
+
+  it("carries each track's fader and pan", () => {
+    const project = createSliceFixtureProject();
+    const [track] = buildAssistantContext(project).tracks;
+    expect(track.volume).toBe(project.song.tracks[0].mixer.volume);
+    expect(track.pan).toBe(project.song.tracks[0].mixer.pan);
+  });
+});

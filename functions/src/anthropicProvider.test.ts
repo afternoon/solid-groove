@@ -16,6 +16,7 @@ import {
 import { ProviderFailure } from "../../src/assistant/provider";
 import { buildProviderRequest } from "../../src/assistant/providerRequest";
 import type { AssistantTurnLog } from "../../src/assistant/telemetry";
+import { MINIMAL_ASSISTANT_CONTEXT } from "../../src/testing/scriptedAssistantProvider";
 import { createAnthropicProvider } from "./anthropicProvider";
 
 const request = buildProviderRequest(ASSISTANT_MODELS["claude-sonnet-5"], {
@@ -235,15 +236,7 @@ describe("createAnthropicProvider", () => {
 describe("the gateway over the real SDK", () => {
   const turn: AssistantTurnRequest = {
     messages: [{ role: "user", text: "hello" }],
-    context: {
-      projectName: "Song",
-      tempo: 120,
-      timeSignature: { numerator: 4, denominator: 4 },
-      totalTicks: 0,
-      tracks: [],
-      sections: [],
-      selection: null,
-    },
+    context: MINIMAL_ASSISTANT_CONTEXT,
   };
 
   function deps(fetchImpl: typeof fetch, logs: AssistantTurnLog[]): AssistantGatewayDeps {

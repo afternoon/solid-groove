@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   type CallScript,
   createScriptedAssistantProvider,
+  MINIMAL_ASSISTANT_CONTEXT,
   replyEvents,
 } from "../testing/scriptedAssistantProvider";
 import { ASSISTANT_CALL_LIMITS, ASSISTANT_MODELS } from "./config";
@@ -39,15 +40,7 @@ const LIMITS: AssistantGuardLimits = {
 const CALLER: AssistantCaller = { uid: "contract-uid", signInProvider: "google.com" };
 const TURN = {
   messages: [{ role: "user", text: "Name the private track" }],
-  context: {
-    projectName: "Private Project",
-    tempo: 120,
-    timeSignature: { numerator: 4, denominator: 4 },
-    totalTicks: 0,
-    tracks: [],
-    sections: [],
-    selection: null,
-  },
+  context: { ...MINIMAL_ASSISTANT_CONTEXT, projectName: "Private Project" },
 };
 
 export function describeGuardStoresContract(

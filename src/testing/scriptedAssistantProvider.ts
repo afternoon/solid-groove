@@ -4,6 +4,7 @@
  * throw, a hang) and the provider plays them back in order, one script per
  * call, recording every request it was given. No key, no network.
  */
+import type { AssistantContextPayload } from "../assistant/protocol";
 import type { AssistantProvider } from "../assistant/provider";
 import { ProviderFailure, type ProviderFailureKind } from "../assistant/provider";
 import type { ProviderMessagesRequest } from "../assistant/providerRequest";
@@ -135,3 +136,25 @@ export function createScriptedAssistantProvider(
     },
   };
 }
+
+/** The smallest valid project context a turn can carry: an empty song. */
+export const MINIMAL_ASSISTANT_CONTEXT: AssistantContextPayload = {
+  projectName: "Song",
+  tempo: 120,
+  timeSignature: { numerator: 4, denominator: 4 },
+  totalTicks: 0,
+  tracks: [],
+  sections: [],
+  noteStats: {
+    song: {
+      noteCount: 0,
+      padNoteCount: 0,
+      register: null,
+      meanVelocity: null,
+      notesPerBar: null,
+    },
+    tracks: [],
+  },
+  selection: null,
+  selectedNotes: null,
+};

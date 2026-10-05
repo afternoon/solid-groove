@@ -11,21 +11,14 @@ import type { AssistantTurnLog } from "../../src/assistant/telemetry";
 import {
   type CallScript,
   createScriptedAssistantProvider,
+  MINIMAL_ASSISTANT_CONTEXT,
   replyEvents,
 } from "../../src/testing/scriptedAssistantProvider";
 import { createAssistantHandler } from "./assistantHandler";
 
 const turn: AssistantTurnRequest = {
   messages: [{ role: "user", text: "hello" }],
-  context: {
-    projectName: "Song",
-    tempo: 120,
-    timeSignature: { numerator: 4, denominator: 4 },
-    totalTicks: 0,
-    tracks: [],
-    sections: [],
-    selection: null,
-  },
+  context: MINIMAL_ASSISTANT_CONTEXT,
 };
 
 function callable(
