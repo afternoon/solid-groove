@@ -21,6 +21,33 @@ provider's API key or talks to the provider directly.
   Never the conversation, the project, the account or the provider's error
   text.
 
+## Limits and the kill switch
+
+ADR 0006 decisions 4 to 7. Every figure is in `ASSISTANT_LIMITS` in
+`src/assistant/config.ts`, alongside the 30-day transcript retention window.
+
+- **Per account: 100 requests in a rolling 24 hours.** Every provider call
+  counts, retries included, so the number can be higher than the messages a
+  producer sent. Kept in `assistantUsage/{uid}` as the times of the recent
+  calls. Over the cap, the call fails with `resource-exhausted` and
+  `details.resetsAt`, the time the oldest request leaves the window.
+- **Organisation-wide: $25 per UTC day.** Each call's cost is estimated from
+  the provider's token counts and the configured prices and added to
+  `assistantSpend/{YYYY-MM-DD}` (in micro-dollars). At the ceiling every call
+  fails with `unavailable` and `details.code: "spend_ceiling_reached"` until
+  midnight UTC. Compare against the Anthropic console's usage page now and
+  then: the figure is an estimate.
+- **The kill switch.** To stop the assistant at once, with no deploy: in the
+  Firebase console, Firestore, create (or edit) the document
+  `assistantControl/settings` with a boolean field `enabled` set to `false`.
+  Every call then fails with `details.code: "assistant_disabled"` before
+  reaching the provider. Set it back to `true`, or delete the document, to
+  turn it on again. A missing document means on.
+- Clients cannot read or write any of the three collections
+  (`firestore.rules`); only the function, with the admin credential, does.
+- To give one account a fresh allowance (a tester hit the cap during a
+  session you asked for), delete its `assistantUsage/{uid}` document.
+
 ## Before the first deploy that includes `assistantTurn`
 
 `main` deploys functions on every merge (`bun run deploy` in
