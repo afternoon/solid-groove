@@ -1,0 +1,18 @@
+{
+  "id": "hdr-after",
+  "title": "After: the editor header at narrow widths",
+  "steps": [
+    {
+      "file": "01-at-800px-wide.png",
+      "caption": "At 800px wide"
+    },
+    {
+      "file": "02-at-768px-wide.png",
+      "caption": "At 768px wide"
+    },
+    {
+      "file": "03-at-1024px-wide-unchanged.png",
+      "caption": "At 1024px wide, unchanged"
+    }
+  ]
+}
