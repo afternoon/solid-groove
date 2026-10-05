@@ -93,14 +93,43 @@ an omission.
       Google sign-in work on a preview URL; without this role the preview still
       deploys and anonymous start still works, and only `signInWithPopup` fails
       there. Not needed for the production `deploy` job itself.
-- [ ] For Cloud Functions (#282, deployed by the same `deploy` job), the project
-      needs the Blaze plan and the Cloud Functions, Cloud Build and Artifact
-      Registry APIs enabled, and the deploy account needs
-      `roles/iam.serviceAccountUser` (to act as
-      `<project>@appspot.gserviceaccount.com`, which the functions run as),
-      `roles/cloudfunctions.admin`, `roles/artifactregistry.writer`,
-      `roles/cloudbuild.builds.editor` and `roles/eventarc.admin`. Grant these to
-      the deploy account itself, not to the appspot account.
+- [ ] **Cloud Functions** (#282's usage triggers, #854's sign-in gate) deploy
+      in the same `deploy` job. The deploy account cannot enable APIs or grant
+      roles, so a project owner does all of this once, before the first deploy
+      that carries functions. Each item below was a separate deploy failure the
+      first time round. `<N>` is the project number, `<bucket>` the default
+      bucket (`<project>.firebasestorage.app`), `<deployer>` the deploy account.
+      - The **Blaze** plan.
+      - **APIs:** Cloud Functions, Cloud Build, Artifact Registry, Cloud Run
+        Admin, Eventarc, Cloud Billing (Firebase checks Blaze through it) and,
+        optionally, Firebase Extensions (silences a warning).
+      - **Roles on `<deployer>`**, granted to the deploy account itself, never
+        to the appspot account: Service Account User (to act as
+        `<project>@appspot.gserviceaccount.com`, which the functions run as),
+        Cloud Functions Admin, Cloud Run Admin, Artifact Registry Writer, Cloud
+        Build Editor, Eventarc Admin and Browser.
+      - **Service-agent roles** (the deploy prints these if they are missing):
+        ```sh
+        gcloud projects add-iam-policy-binding <project> --member=serviceAccount:service-<N>@gs-project-accounts.iam.gserviceaccount.com --role=roles/pubsub.publisher
+        gcloud projects add-iam-policy-binding <project> --member=serviceAccount:service-<N>@gcp-sa-pubsub.iam.gserviceaccount.com --role=roles/iam.serviceAccountTokenCreator
+        gcloud projects add-iam-policy-binding <project> --member=serviceAccount:<N>-compute@developer.gserviceaccount.com --role=roles/run.invoker
+        gcloud projects add-iam-policy-binding <project> --member=serviceAccount:<N>-compute@developer.gserviceaccount.com --role=roles/eventarc.eventReceiver
+        gcloud projects add-iam-policy-binding <project> --member=serviceAccount:service-<N>@gcp-sa-eventarc.iam.gserviceaccount.com --role=roles/eventarc.serviceAgent
+        ```
+      - **Bucket read for the Storage triggers**, which Eventarc checks before
+        it creates one:
+        ```sh
+        gcloud storage buckets add-iam-policy-binding gs://<bucket> --member=serviceAccount:service-<N>@gcp-sa-eventarc.iam.gserviceaccount.com --role=roles/storage.legacyBucketReader
+        gcloud storage buckets add-iam-policy-binding gs://<bucket> --member=serviceAccount:<deployer> --role=roles/storage.legacyBucketReader
+        ```
+      - **An Artifact Registry cleanup policy** in the functions' region, or the
+        deploy fails after the functions are created:
+        `npx firebase-tools functions:artifacts:setpolicy --project <project> --location us-east1`.
+      - The functions' region (`setGlobalOptions` in `functions/src/index.ts`)
+        must match the bucket's location; production's is `us-east1`.
+      - Before the first deploy with the sign-in gate, follow
+        [`alpha-allowlist.md`](./alpha-allowlist.md) (Identity Platform, seed
+        the allowlist, grant an admin, turn off Anonymous).
 - [ ] Create a JSON key for it and keep it somewhere you can paste from once.
       It goes into a GitHub secret in part 3 and nowhere else — never into a
       developer `.env`, never into the repo. `.gitignore` already covers the
