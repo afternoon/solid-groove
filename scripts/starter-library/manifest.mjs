@@ -17,6 +17,7 @@ import {
 import {
   createRng,
   integratedLoudness,
+  measureTuning,
   normalizePeak,
   reverse as reverseBuffer,
   SAMPLE_RATE,
@@ -24,6 +25,7 @@ import {
 } from "./dsp.mjs";
 import { partitionByIntake } from "./intake.mjs";
 import { analyzeSeam, renderLoop, verifyGrid } from "./loops.mjs";
+import { noteToFrequency } from "./music.mjs";
 import { PACKS, packForFamily, packRef } from "./packs.mjs";
 import { renderVoice } from "./voices.mjs";
 import {
@@ -114,10 +116,11 @@ export function buildAsset(entry) {
       },
       audio: {
         ...analyze(samples),
-        // Synthesized at an exact frequency, so the root note is known
-        // rather than detected and there is nothing to correct.
+        // The root is the note the voice was rendered at. How far the sound
+        // actually sits from it is measured from the delivered bytes
+        // (`measureDelivered`), never claimed here.
         rootNote: entry.rootNote,
-        tuningCents: entry.rootNote ? 0 : null,
+        tuningCents: null,
         // One-shots carry no tempo. Loops (a `CNT-002` concern) populate
         // these; the fields exist so the shape does not change later.
         bpm: null,
@@ -233,7 +236,7 @@ export function buildLoop(entry, renderSource) {
       audio: {
         ...analyze(samples),
         rootNote: entry.rootNote,
-        tuningCents: entry.rootNote ? 0 : null,
+        tuningCents: null, // measured in `measureDelivered`
         bpm: entry.bpm,
         bars: entry.bars,
         timeSignature: entry.timeSignature,
@@ -349,7 +352,7 @@ export function buildDerived(entry, renderSource, sourceHashes) {
       audio: {
         ...analyze(samples),
         rootNote: entry.rootNote,
-        tuningCents: entry.rootNote ? 0 : null,
+        tuningCents: null, // measured in `measureDelivered`
         bpm: null,
         bars: null,
         loopable: false,
@@ -534,22 +537,43 @@ export function buildAllPacks(
 
 /**
  * The measurements taken from a delivered WAV master rather than from whatever
- * produced it: the row overview the library draws (`peaks`), and the
- * integrated loudness the section 10 audit compares within a role
- * (`audio.loudnessLufs`, ITU-R BS.1770-4, rounded to 0.1 LU). Measured, never
- * applied: nothing here changes a sample of the audio.
+ * produced it: the row overview the library draws (`peaks`), the integrated
+ * loudness the section 10 audit compares within a role (`audio.loudnessLufs`,
+ * ITU-R BS.1770-4, rounded to 0.1 LU), and, for a sound whose root names its
+ * pitch, the measured `audio.tuningCents` with the `audio.tuningStatus` that
+ * says whether a pitch was found at all. Measured, never applied: nothing here
+ * changes a sample of the audio.
  */
 export function measureDelivered(asset, bytes) {
   const { channels, sampleRate } = decodeWav(bytes);
   const loudness = integratedLoudness(channels, sampleRate);
+  const tuning = tuningTarget(asset)
+    ? measureTuning(channels, noteToFrequency(asset.audio.rootNote), sampleRate)
+    : null;
   return {
     ...asset,
     audio: {
       ...asset.audio,
       loudnessLufs: loudness === null ? null : Math.round(loudness * 10) / 10,
+      // Whatever an ingest path or catalogue entry claimed is replaced by what
+      // the bytes measure: section 10 says to detect root and tuning, and a
+      // claim of 0 cents is not a detection.
+      ...(tuning
+        ? { tuningCents: tuning.cents, tuningStatus: tuning.status }
+        : { tuningStatus: null }),
     },
     peaks: peaksFromWav(bytes),
   };
+}
+
+/**
+ * Whether an asset's `rootNote` names the one pitch it sounds at, so its tuning
+ * can be measured against it. A loop's `rootNote` is its *key*: a bassline or a
+ * motif moves through other notes by design, so there is no single pitch to
+ * hold against the root, and a loop is not tuning-audited.
+ */
+export function tuningTarget(asset) {
+  return Boolean(asset.audio?.rootNote) && asset.type !== "loop";
 }
 
 /** Delivery path for one pack manifest version. Immutable once published. */
