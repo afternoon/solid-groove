@@ -1,0 +1,14 @@
+{
+  "id": "wdpack",
+  "title": "A withdrawn library pack",
+  "steps": [
+    {
+      "file": "01-the-editor-names-the-sound-track-and-cli.png",
+      "caption": "The editor names the sound, track and clip a withdrawn pack takes down"
+    },
+    {
+      "file": "02-export-still-goes-ahead-and-says-first-t.png",
+      "caption": "Export still goes ahead, and says first that the file may go without it"
+    }
+  ]
+}
