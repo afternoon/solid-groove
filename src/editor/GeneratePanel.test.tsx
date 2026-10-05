@@ -165,7 +165,9 @@ describe("GeneratePanel (#643)", () => {
   });
 
   it("logs each generate once through the catalog, by kind of generator", () => {
-    const { events } = setUp();
+    // A fixed roll that always hits: an unseeded one empties the row about
+    // one run in a thousand, leaving "Clear row" nothing to write or log.
+    const { events } = setUp({ random: () => 0 });
     press("Offbeats");
     press("Backbeat");
     press("Write Euclidean");
