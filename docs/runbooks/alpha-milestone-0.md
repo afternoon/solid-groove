@@ -93,6 +93,14 @@ an omission.
       Google sign-in work on a preview URL; without this role the preview still
       deploys and anonymous start still works, and only `signInWithPopup` fails
       there. Not needed for the production `deploy` job itself.
+- [ ] For Cloud Functions (#282, deployed by the same `deploy` job), the project
+      needs the Blaze plan and the Cloud Functions, Cloud Build and Artifact
+      Registry APIs enabled, and the deploy account needs
+      `roles/iam.serviceAccountUser` (to act as
+      `<project>@appspot.gserviceaccount.com`, which the functions run as),
+      `roles/cloudfunctions.admin`, `roles/artifactregistry.writer`,
+      `roles/cloudbuild.builds.editor` and `roles/eventarc.admin`. Grant these to
+      the deploy account itself, not to the appspot account.
 - [ ] Create a JSON key for it and keep it somewhere you can paste from once.
       It goes into a GitHub secret in part 3 and nowhere else — never into a
       developer `.env`, never into the repo. `.gitignore` already covers the
