@@ -131,6 +131,61 @@ describe("discrete operations", () => {
   });
 });
 
+describe("resizing the selection from the keyboard (#76)", () => {
+  it("moves the selected clip's end a bar either way, never under a bar", () => {
+    const h = harness();
+    const id = h.placementId();
+    const before = h.getProject().song.placements[0].durationTicks;
+    h.editing.select(id);
+    expect(h.editing.resizeSelection("end", 1)).toBe(true);
+    expect(h.getProject().song.placements[0].durationTicks).toBe(before + TICKS_PER_BAR);
+    expect(h.editing.resizeSelection("end", -1)).toBe(true);
+    expect(h.getProject().song.placements[0].durationTicks).toBe(before);
+    // Shortening stops at one bar.
+    while (h.editing.resizeSelection("end", -1)) {
+      /* down to the floor */
+    }
+    expect(h.getProject().song.placements[0].durationTicks).toBe(TICKS_PER_BAR);
+    expect(h.editing.getSelection()).toEqual([id]);
+  });
+
+  it("moves the start edge as its drag does, trimming the clip's head", () => {
+    const h = harness();
+    const id = h.placementId();
+    h.editing.select(id);
+    h.editing.resizeSelection("end", 1);
+    const before = h.getProject().song.placements[0];
+    expect(h.editing.resizeSelection("start", 1)).toBe(true);
+    const after = h.getProject().song.placements[0];
+    expect(after.startTicks).toBe(before.startTicks + TICKS_PER_BAR);
+    expect(after.durationTicks).toBe(before.durationTicks - TICKS_PER_BAR);
+    expect(after.clipOffsetTicks).toBe(before.clipOffsetTicks + TICKS_PER_BAR);
+    // And back: the start rewinds over what it trimmed.
+    expect(h.editing.resizeSelection("start", -1)).toBe(true);
+    expect(h.getProject().song.placements[0]).toEqual(before);
+  });
+
+  it("does nothing with nothing selected", () => {
+    const h = harness();
+    const before = h.getProject();
+    expect(h.editing.resizeSelection("end", 1)).toBe(false);
+    expect(h.getProject()).toBe(before);
+  });
+
+  it("logs its feature_first_use once", () => {
+    const h = harness();
+    h.editing.select(h.placementId());
+    h.editing.resizeSelection("end", 1);
+    h.editing.resizeSelection("end", 1);
+    const firstUses = h.transport.events.filter(
+      (event) =>
+        event.name === "feature_first_use" &&
+        event.params.feature === "arrangement_clip_resize",
+    );
+    expect(firstUses).toHaveLength(1);
+  });
+});
+
 describe("paste anchor", () => {
   /**
    * With nothing selected, paste lands at the anchor the caller passes (the

@@ -1,5 +1,5 @@
-import { expect, type Locator, type Page, test } from "@playwright/test";
 import { newProject } from "./support/assistant";
+import { expect, type Locator, type Page, test } from "./support/test";
 import { backToArrangement, expectView, sequenceView } from "./support/views";
 
 /**
@@ -63,5 +63,27 @@ test.describe("the clip list", () => {
     await expect(announcement(page)).toHaveText("Selected clip on BD, bar 2");
     await page.keyboard.press("Delete");
     await expect(clipList(page).getByRole("option")).toHaveCount(1);
+  });
+
+  test("resizes a clip and extends the selection with the keyboard alone", async ({
+    page,
+  }) => {
+    await newProject(page);
+    await tabToClipList(page);
+    await page.keyboard.press("ArrowDown");
+    const option = clipList(page).getByRole("option").first();
+    await expect(option).toHaveText(/on BD, bar 1$/);
+
+    // Shift+Right and Shift+Left move its end a bar, as its edge drag does.
+    await page.keyboard.press("Shift+ArrowRight");
+    await expect(option).toHaveText(/on BD, bars 1 to 2$/);
+    await page.keyboard.press("Shift+ArrowLeft");
+    await expect(option).toHaveText(/on BD, bar 1$/);
+
+    // Shift+Down adds the next clip to the selection rather than moving it.
+    await page.keyboard.press("ControlOrMeta+d");
+    await page.keyboard.press("ArrowUp");
+    await page.keyboard.press("Shift+ArrowDown");
+    await expect(clipList(page).getByRole("option", { selected: true })).toHaveCount(2);
   });
 });

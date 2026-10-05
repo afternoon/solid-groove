@@ -56,12 +56,30 @@ export const ARRANGEMENT_SHORTCUTS: readonly ShortcutDefinition[] = [
 export const CLIP_LIST_SHORTCUT_IDS = [
   "arrangement.clip_previous",
   "arrangement.clip_next",
+  "arrangement.clip_extend_previous",
+  "arrangement.clip_extend_next",
+  "arrangement.clip_shorten",
+  "arrangement.clip_lengthen",
+  "arrangement.clip_start_earlier",
+  "arrangement.clip_start_later",
 ] as const;
 
 const CLIP_LIST_PARITY = {
   kind: "solid_groove",
   reason:
     "Live picks a clip by clicking it; this is the keyboard way to do what the click does on the canvas.",
+} as const;
+
+const CLIP_LIST_EXTEND_PARITY = {
+  kind: "solid_groove",
+  reason:
+    "Live adds a clip to the selection with a modified click; this is the keyboard way to do it from the clip list.",
+} as const;
+
+const CLIP_LIST_RESIZE_PARITY = {
+  kind: "solid_groove",
+  reason:
+    "Live resizes a clip by dragging its edge; this is the keyboard way to do what that drag does on the canvas, a bar at a time.",
 } as const;
 
 export const CLIP_LIST_SHORTCUTS: readonly ShortcutDefinition[] = [
@@ -84,6 +102,65 @@ export const CLIP_LIST_SHORTCUTS: readonly ShortcutDefinition[] = [
     contexts: ["clip_list"],
     keys: "ArrowDown",
     ableton: CLIP_LIST_PARITY,
+  }),
+  define({
+    id: "arrangement.clip_extend_previous",
+    label: "Add previous clip to selection",
+    description:
+      "Adds the clip before the last one picked to the selection, reading the arrangement track by track.",
+    group: "arrangement",
+    contexts: ["clip_list"],
+    keys: "Shift+ArrowUp",
+    ableton: CLIP_LIST_EXTEND_PARITY,
+  }),
+  define({
+    id: "arrangement.clip_extend_next",
+    label: "Add next clip to selection",
+    description:
+      "Adds the clip after the last one picked to the selection, reading the arrangement track by track.",
+    group: "arrangement",
+    contexts: ["clip_list"],
+    keys: "Shift+ArrowDown",
+    ableton: CLIP_LIST_EXTEND_PARITY,
+  }),
+  define({
+    id: "arrangement.clip_shorten",
+    label: "Shorten clip",
+    description: "Moves the end of each selected clip a bar earlier, down to one bar.",
+    group: "arrangement",
+    contexts: ["clip_list"],
+    keys: "Shift+ArrowLeft",
+    ableton: CLIP_LIST_RESIZE_PARITY,
+  }),
+  define({
+    id: "arrangement.clip_lengthen",
+    label: "Lengthen clip",
+    description:
+      "Moves the end of each selected clip a bar later, over whatever follows it.",
+    group: "arrangement",
+    contexts: ["clip_list"],
+    keys: "Shift+ArrowRight",
+    ableton: CLIP_LIST_RESIZE_PARITY,
+  }),
+  define({
+    id: "arrangement.clip_start_earlier",
+    label: "Move clip start earlier",
+    description:
+      "Moves the start of each selected clip a bar earlier, revealing more of its content.",
+    group: "arrangement",
+    contexts: ["clip_list"],
+    keys: "Alt+Shift+ArrowLeft",
+    ableton: CLIP_LIST_RESIZE_PARITY,
+  }),
+  define({
+    id: "arrangement.clip_start_later",
+    label: "Move clip start later",
+    description:
+      "Moves the start of each selected clip a bar later, trimming its head, down to one bar.",
+    group: "arrangement",
+    contexts: ["clip_list"],
+    keys: "Alt+Shift+ArrowRight",
+    ableton: CLIP_LIST_RESIZE_PARITY,
   }),
 ];
 

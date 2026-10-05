@@ -1102,7 +1102,7 @@ describe("the clip list (#76)", () => {
       })(),
       storage: memoryStorage(),
     });
-    render(() => (
+    const { unmount } = render(() => (
       <ArrangementView
         project={session.project}
         analytics={analytics}
@@ -1114,7 +1114,7 @@ describe("the clip list (#76)", () => {
       />
     ));
     const list = screen.getByRole("listbox", { name: "Clips" });
-    return { ...built, session, transport, actions, focusChanges, list };
+    return { ...built, session, transport, actions, focusChanges, list, unmount };
   }
 
   const announcement = () =>
@@ -1137,6 +1137,55 @@ describe("the clip list (#76)", () => {
     fireEvent.focus(list);
     fireEvent.blur(list);
     expect(focusChanges).toEqual([true, false]);
+  });
+
+  it("says it has lost focus when it goes with focus in it", async () => {
+    const { list, focusChanges, unmount } = await withClipList();
+    fireEvent.focus(list);
+    // No blur: Firefox fires none when a focused element is removed.
+    unmount();
+    expect(focusChanges).toEqual([true, false]);
+  });
+
+  it("adds the next clip to the selection with Shift, and carries on from it", async () => {
+    const { list, actions, placementIds } = await withClipList();
+    actions.current?.stepClip(1);
+    actions.current?.extendClip(1);
+    flush();
+    expect(actions.current?.getSelection()).toEqual([
+      placementIds[0][0],
+      placementIds[0][1],
+    ]);
+    const selected = within(list)
+      .getAllByRole("option")
+      .map((option) => option.getAttribute("aria-selected"));
+    expect(selected).toEqual(["true", "true", "false"]);
+    const active = list.getAttribute("aria-activedescendant");
+    expect(active).toBe(within(list).getAllByRole("option")[1].id);
+
+    actions.current?.extendClip(1);
+    flush();
+    expect(actions.current?.getSelection()).toHaveLength(3);
+  });
+
+  it("moves the selected clips' ends a bar, the edge drag's keyboard twin", async () => {
+    const { actions, placementIds, session } = await withClipList();
+    const duration = (id: PlacementId) =>
+      session.project.song.placements.find((p) => p.id === id)?.durationTicks;
+    actions.current?.select(placementIds[1][0]);
+    actions.current?.resizeSelection("end", -1);
+    flush();
+    expect(duration(placementIds[1][0])).toBe(2 * BAR);
+
+    // Lengthening the first clip over the second overwrites it, as a drop does.
+    actions.current?.select(placementIds[0][0]);
+    actions.current?.resizeSelection("end", 1);
+    actions.current?.resizeSelection("end", 1);
+    flush();
+    expect(duration(placementIds[0][0])).toBe(3 * BAR);
+    expect(duration(placementIds[0][1])).toBeUndefined();
+    session.undo();
+    expect(duration(placementIds[0][0])).toBe(2 * BAR);
   });
 
   it("steps the selection through the clips as a click on each would", async () => {

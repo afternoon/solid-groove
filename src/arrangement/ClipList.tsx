@@ -1,5 +1,5 @@
 import type { JSX } from "@solidjs/web";
-import { createUniqueId, For, Show } from "solid-js";
+import { createUniqueId, For, onCleanup, Show } from "solid-js";
 import type { PlacementId } from "../domain/ids";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import type { ClipListEntry } from "./clipListModel";
@@ -25,13 +25,37 @@ export interface ClipListProps {
  * follows the arrows, so the canvas draws where a sighted keyboard user is,
  * and the timeline is outlined while the list has focus (ArrangementView.css).
  *
+ * Up and Down move the selection; Shift+Up and Shift+Down add the next clip
+ * to it instead, which is why the listbox is multi-selectable; Shift+Left and
+ * Shift+Right move the selected clips' ends a bar, and Alt+Shift+Left and
+ * Alt+Shift+Right their starts: the canvas's edge drags.
+ *
  * Only there while the arrangement has clips: an empty listbox is not one.
  */
 export function ClipList(props: ClipListProps): JSX.Element {
-  const baseId = createUniqueId();
-  const optionId = (id: PlacementId) => `${baseId}-${id}`;
   return (
     <Show when={props.entries.length > 0}>
+      <ClipListBox {...props} />
+    </Show>
+  );
+}
+
+function ClipListBox(props: ClipListProps): JSX.Element {
+  const baseId = createUniqueId();
+  const optionId = (id: PlacementId) => `${baseId}-${id}`;
+  let focused = false;
+  const report = (next: boolean) => {
+    focused = next;
+    props.onFocusChange(next);
+  };
+  // Removing a focused element does not blur it in every browser (Firefox
+  // fires nothing), so leaving says so itself; otherwise the `clip_list`
+  // context would outlive the list, as when Enter opens the clip.
+  onCleanup(() => {
+    if (focused) report(false);
+  });
+  return (
+    <>
       {/* biome-ignore lint/a11y/useAriaActivedescendantWithTabindex: it is tabbable; Solid's JSX types spell the attribute `tabindex`, which the rule does not read */}
       <div
         class={`arrangement-clip-list ${MASK_CONTENT}`}
@@ -41,8 +65,8 @@ export function ClipList(props: ClipListProps): JSX.Element {
         aria-multiselectable="true"
         aria-activedescendant={props.active ? optionId(props.active) : undefined}
         data-testid="arrangement-clip-list"
-        onFocus={() => props.onFocusChange(true)}
-        onBlur={() => props.onFocusChange(false)}
+        onFocus={() => report(true)}
+        onBlur={() => report(false)}
       >
         <For each={props.entries}>
           {(entry) => (
@@ -57,6 +81,6 @@ export function ClipList(props: ClipListProps): JSX.Element {
           )}
         </For>
       </div>
-    </Show>
+    </>
   );
 }

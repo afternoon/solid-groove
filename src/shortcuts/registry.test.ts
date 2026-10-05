@@ -418,6 +418,33 @@ describe("guide sections", () => {
       );
     });
 
+    it("extend the selection with Shift+Up/Down and resize with (Alt+)Shift+Left/Right", () => {
+      const active: readonly ShortcutContext[] = ["editor", "arrangement", "clip_list"];
+      const shifted = (key: string) => ({ ...arrow(key), shiftKey: true }) as ChordEvent;
+      expect(matchShortcut(shifted("ArrowDown"), "other", active)?.id).toBe(
+        "arrangement.clip_extend_next",
+      );
+      expect(matchShortcut(shifted("ArrowUp"), "mac", active)?.id).toBe(
+        "arrangement.clip_extend_previous",
+      );
+      expect(matchShortcut(shifted("ArrowLeft"), "other", active)?.id).toBe(
+        "arrangement.clip_shorten",
+      );
+      expect(matchShortcut(shifted("ArrowRight"), "mac", active)?.id).toBe(
+        "arrangement.clip_lengthen",
+      );
+      const optionShifted = (key: string) =>
+        ({ ...arrow(key), shiftKey: true, altKey: true }) as ChordEvent;
+      expect(matchShortcut(optionShifted("ArrowLeft"), "mac", active)?.id).toBe(
+        "arrangement.clip_start_earlier",
+      );
+      expect(matchShortcut(optionShifted("ArrowRight"), "other", active)?.id).toBe(
+        "arrangement.clip_start_later",
+      );
+      // Nowhere else: the editor has no meaning for them to take over.
+      expect(matchShortcut(shifted("ArrowRight"), "mac", ["editor"])).toBeUndefined();
+    });
+
     it("leave Enter to open the clip and Space to play", () => {
       const active: readonly ShortcutContext[] = ["editor", "arrangement", "clip_list"];
       expect(matchShortcut(arrow("Enter"), "other", active)?.id).toBe(

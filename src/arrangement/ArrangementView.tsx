@@ -81,6 +81,8 @@ import "./ArrangementView.css";
 export type PlacementEditingActions = PlacementEditing & {
   /** Select the clip one step either way in the clip list (#76). */
   stepClip(by: -1 | 1): void;
+  /** Add the clip one step either way in the clip list to the selection (#76). */
+  extendClip(by: -1 | 1): void;
   zoomToSelection(): void;
   canZoomToSelection(): boolean;
   zoomToArrangement(): void;
@@ -526,7 +528,8 @@ export default function ArrangementView(props: ArrangementViewProps) {
     if (props.dispatch) {
       props.onEditingActionsReady?.({
         ...editing,
-        stepClip: stepClipFromList,
+        stepClip: (by) => stepClipFromList(by, false),
+        extendClip: (by) => stepClipFromList(by, true),
         zoomToSelection,
         canZoomToSelection: () => canZoomToSelection(),
         zoomToArrangement,
@@ -996,9 +999,11 @@ export default function ArrangementView(props: ArrangementViewProps) {
   /**
    * The clip list's arrows (#76): select the next or previous clip in reading
    * order, exactly as a click on it would, and scroll it into view so the
-   * canvas shows a sighted keyboard user where they are.
+   * canvas shows a sighted keyboard user where they are. With `extend` (Shift)
+   * the clip joins the selection instead, as a modified click adds one, and
+   * the next step carries on from it.
    */
-  function stepClipFromList(by: -1 | 1): void {
+  function stepClipFromList(by: -1 | 1, extend: boolean): void {
     if (!editing) return;
     const next = stepClip(
       clipEntries().map((entry) => entry.id),
@@ -1007,7 +1012,9 @@ export default function ArrangementView(props: ArrangementViewProps) {
     );
     if (!next) return;
     activeClipId = next;
-    editing.select(next);
+    if (!extend) editing.select(next);
+    else if (!editing.getSelection().includes(next)) editing.select(next, true);
+    else bumpState();
     const placement = projection().placementsById.get(next);
     if (placement) {
       selectTrack(placement.trackId, "follow");
