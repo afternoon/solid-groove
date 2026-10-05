@@ -1,0 +1,18 @@
+{
+  "id": "lim",
+  "title": "Limiter on a new project's master",
+  "steps": [
+    {
+      "file": "01-a-new-project-s-master-starts-with-a-lim.png",
+      "caption": "A new project's master starts with a Limiter at -0.3 dBFS"
+    },
+    {
+      "file": "02-driven-while-it-plays-gain-reduction-and.png",
+      "caption": "Driven while it plays: gain reduction and loudness in LUFS"
+    },
+    {
+      "file": "03-any-chain-can-add-a-limiter.png",
+      "caption": "Any chain can add a Limiter"
+    }
+  ]
+}
