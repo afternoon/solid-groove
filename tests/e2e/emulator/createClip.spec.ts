@@ -1,4 +1,4 @@
-import { expect, type Locator, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "./support/test";
 
 /**
  * Double-clicking an empty bar creates a one-bar clip there (#661), selected

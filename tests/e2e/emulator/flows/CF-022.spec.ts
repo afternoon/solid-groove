@@ -1,4 +1,3 @@
-import { expect, type Locator, type Page, test } from "@playwright/test";
 import { walkthrough } from "../../support/walkthrough";
 import {
   downloadedBytes,
@@ -9,6 +8,7 @@ import {
   type WavFacts,
 } from "../support/exportedAudio";
 import { buildExportSong, reloadAndExpectSongUnchanged } from "../support/exportSong";
+import { expect, type Locator, type Page, test } from "../support/test";
 
 /**
  * `CF-022`: a producer exports aligned stems for another DAW.

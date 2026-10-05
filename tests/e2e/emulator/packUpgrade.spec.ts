@@ -1,4 +1,4 @@
-import { expect, type Locator, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "./support/test";
 
 // #892: a project made before the factory packs moved from 1.0.0 to 1.1.0 pins
 // Core Electronic Drums at 1.0.0, and production serves only 1.1.0. Inserting a

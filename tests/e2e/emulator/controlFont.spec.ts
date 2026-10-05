@@ -1,4 +1,4 @@
-import { expect, type Locator, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "./support/test";
 
 // #811: form controls do not inherit `font-family`, so without an explicit
 // rule every button and input renders in the browser's default face (Arial in

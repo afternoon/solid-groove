@@ -355,8 +355,10 @@ describe("the OPS-03 content rule against the replay payload (ADR 0002 decision 
       // shell is not a surface a session replay can record in the first place.
       "SITE_ORIGIN",
       // The request-access form's address (#854), a build-time constant in
-      // `site.config.mjs`. It names no person and carries no token.
+      // `site.config.mjs`, also bound through the landing page's own alias.
+      // It names no person and carries no token.
       "requestAccessUrl",
+      "REQUEST_ACCESS_HREF",
     ];
     const offenders: string[] = [];
     for (const file of sourceFiles()) {

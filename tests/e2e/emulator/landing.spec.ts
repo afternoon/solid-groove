@@ -1,10 +1,14 @@
 import { expect, test } from "@playwright/test";
+import { requestAccessUrl } from "../../../site.config.mjs";
+import { test as signedInTest } from "./support/test";
 
 // The public landing page (`LOOP-001b`, the PRD PRJ-06 front door) and the
-// project list's address. CF-001 walks the landing page's call to action into
-// a playing loop; these pin the page's own claims, its keyboard reach and its
+// project list's address. CF-001 walks the landing page's Sign in into a
+// playing loop; these pin the page's own claims, its keyboard reach and its
 // single analytics disclosure, which no flow asserts. Moved here from the
-// retired mock-backend suite's `smoke.spec.ts`.
+// retired mock-backend suite's `smoke.spec.ts`. #854 made the alpha
+// invite-only, so its two entry points are Request access and Sign in, and a
+// visitor here has no session.
 test.describe("landing page", () => {
   test("states the promise, the alpha status, and the supported browsers", async ({
     page,
@@ -17,16 +21,22 @@ test.describe("landing page", () => {
     await expect(page.getByText(/music studio that runs in your browser/i)).toBeVisible();
     await expect(page.getByText("Private alpha · browser-based")).toBeVisible();
     await expect(page.getByText(/Chrome, Edge and Firefox/)).toBeVisible();
-    await expect(page.getByRole("link", { name: "Start in your browser" })).toBeVisible();
-    await expect(page.getByRole("button", { name: "Log in" })).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Request access" }).first(),
+    ).toBeVisible();
+    await expect(page.getByRole("button", { name: "Sign in" }).first()).toBeVisible();
   });
 
   // PRD section 10: "Interactive controls have accessible names, visible
   // focus". The whole page is reachable and operable from the keyboard alone.
-  test("starts from the keyboard, with visible focus", async ({ page }) => {
+  test("requests access from the keyboard, with visible focus", async ({ page }) => {
+    // The form is another site's page; answer it here instead.
+    await page.route(`${requestAccessUrl}**`, (route) =>
+      route.fulfill({ contentType: "text/html", body: "<title>Request access</title>" }),
+    );
     await page.goto("/");
 
-    const cta = page.getByRole("link", { name: "Start in your browser" });
+    const cta = page.getByRole("link", { name: "Request access" }).first();
     // The unfocused baseline, so the assertions below cannot be satisfied by
     // a ring that was always there.
     expect(await cta.evaluate((element) => getComputedStyle(element).outlineStyle)).toBe(
@@ -67,7 +77,7 @@ test.describe("landing page", () => {
     expect(ring.color).toBe(ring.accent);
 
     await page.keyboard.press("Enter");
-    await expect(page).toHaveURL(/\/projects$/);
+    await expect(page).toHaveURL(requestAccessUrl);
   });
 
   test("carries the analytics disclosure and opt-out, exactly once", async ({ page }) => {
@@ -97,8 +107,10 @@ test.describe("landing page", () => {
   });
 });
 
-test.describe("project list address", () => {
-  test("sends the old /dashboard address on to /projects", async ({ page }) => {
+// The project list keeps a visitor with no session out (#854), so this one
+// signs in first.
+signedInTest.describe("project list address", () => {
+  signedInTest("sends the old /dashboard address on to /projects", async ({ page }) => {
     await page.goto("/dashboard");
     await expect(page).toHaveURL(/\/projects$/);
     await expect(page).toHaveTitle("Projects – Groove");

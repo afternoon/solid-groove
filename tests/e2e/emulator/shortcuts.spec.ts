@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Page, test } from "./support/test";
 
 // `LOOP-014`: the KEY-01 registry and the KEY-02 mapping guide, in a real
 // browser — where keyboard layout, focus, and the browser's own defaults are

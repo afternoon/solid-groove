@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./support/test";
 
 // `LOOP-003`: the transport bar, in every gating browser. Playback itself is
 // still Chromium-only (see `docs/testing.md`, "Playback is asserted in Chromium

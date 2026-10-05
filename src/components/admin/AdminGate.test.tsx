@@ -18,7 +18,6 @@ const fakeAuth = vi.hoisted(() => {
           callback = null;
         };
       },
-      signInAnonymously: vi.fn(() => new Promise(() => {})),
       signInWithGoogle: vi.fn(),
       signOut: vi.fn(),
       isAdmin: vi.fn(),

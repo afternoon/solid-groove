@@ -169,9 +169,20 @@ Then the dev server:
 bun run dev:emulator
 ```
 
-Open <http://localhost:3000>, click "Start in your browser", and you are an
-anonymous Firebase user in the emulator. Create a project, edit it, and reload
-the page — the edit comes back from Firestore.
+`firebase:emulator` builds and runs the Cloud Functions too, so the emulator
+keeps sign-in to the alpha allowlist the way production does (#854). Put the
+address you will sign in with on the list first:
+
+```sh
+FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:9099 \
+  FIREBASE_PROJECT_ID=demo-solid-groove bun run allowlist:add -- you@example.com
+```
+
+Open <http://localhost:3000>, click "Sign in", and add that address as a new
+account in the emulator's account chooser. Create a project, edit it, and reload
+the page — the edit comes back from Firestore. An address that is not on the list
+lands on the "not on the alpha list" page instead. See
+[`docs/runbooks/alpha-allowlist.md`](./docs/runbooks/alpha-allowlist.md).
 
 `dev:emulator` needs no other configuration: emulator mode implies
 `firebase.json`'s host and port for both emulators, and supplies the placeholder

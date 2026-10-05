@@ -1,4 +1,4 @@
-import { expect, type Locator, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "./support/test";
 
 // The editor's layout in a real browser: the sequence view fills the page, the
 // Export dialog's scrim stays clear under the pointer, and the arrangement

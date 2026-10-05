@@ -76,7 +76,7 @@ src/
 │   └── authService.ts       # Firebase auth service wrapper
 ├── components/         # Reusable UI components
 │   ├── Dashboard.tsx
-│   ├── LandingPage.tsx     # Public marketing landing page and the entry into anonymous start
+│   ├── LandingPage.tsx     # Public marketing landing page: Request access, and Google sign-in for invited producers (#854)
 │   ├── ProjectList.tsx
 │   └── ConfirmDialog.tsx   # Accessible confirmation modal for destructive actions
 ├── editor/             # The FND-009 foundation vertical slice: editor state, audio wiring, and its 16-step UI

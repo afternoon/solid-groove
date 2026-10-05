@@ -1,5 +1,5 @@
-import { expect, type Locator, type Page, test } from "@playwright/test";
 import { walkthrough } from "../../support/walkthrough";
+import { expect, type Locator, type Page, test } from "../support/test";
 
 /**
  * `CF-004` — a producer sets the span they are working in.

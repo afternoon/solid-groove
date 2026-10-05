@@ -1,5 +1,6 @@
 import type { JSX } from "@solidjs/web";
 import { For, Show } from "solid-js";
+import { requestAccessUrl } from "../../site.config.mjs";
 import "./LandingPage.css";
 
 /**
@@ -27,7 +28,7 @@ import "./LandingPage.css";
 
 /** Shipped and reachable in the alpha today. */
 const WHAT_WORKS_TODAY = [
-  "Start with no account and keep your projects in the browser.",
+  "Sign in with the Google account you were invited with; your projects are kept in it.",
   "A sampler track with a 16-step sequencer you can play back.",
   "Every edit runs through undo and redo.",
   "Projects save as you work and are there when you come back.",
@@ -49,18 +50,18 @@ const WHAT_IS_BEING_BUILT = [
 const GATING_BROWSERS = "Chrome, Edge and Firefox";
 
 /**
- * Where every "start" call to action points.
+ * Where every "Request access" call to action points: the request-access form
+ * (#854). The alpha is invite-only, so asking to be let in is the front door
+ * for anyone who has not been invited.
  *
- * A real destination rather than an `onClick` alone, for three reasons: the
- * control works before this page's JavaScript has loaded, it behaves like a
- * link when a visitor middle-clicks or opens it in a new tab, and a crawler
- * that does not execute scripts can see that the front door leads somewhere.
- * `AuthProvider` runs the PRJ-01 anonymous start on arrival either way.
+ * A real link rather than an `onClick` alone, so it works before this page's
+ * JavaScript has loaded, opens in a new tab on a middle-click, and is visible
+ * to a crawler that does not execute scripts.
  *
- * "Log in" stays a `<button>`: it opens an identity-provider popup and goes
+ * "Sign in" stays a `<button>`: it opens an identity-provider popup and goes
  * nowhere on its own, so it is an action, not a destination.
  */
-const START_HREF = "/projects";
+const REQUEST_ACCESS_HREF = requestAccessUrl;
 
 export interface LandingPageContentProps {
   /** Whether a sign-in is in flight; disables every control while it is. */
@@ -68,17 +69,12 @@ export interface LandingPageContentProps {
   /** Shown in the hero when a sign-in attempt failed. */
   loginError?: string | null;
   /**
-   * Starts the PRJ-01 anonymous session.
-   *
-   * The three start controls are anchors with a real `href`, so a click that
-   * lands before the page's JavaScript has loaded is still honoured -- by the
-   * browser, as an ordinary navigation. This handler is the enhancement on top:
-   * it is what makes the same click a client-side navigation once the app is
-   * running, and it receives the event so it can decide whether to take it
-   * (see `LandingPage`). Absent, every click is a plain navigation.
+   * A "Request access" control was activated. The controls are plain links to
+   * the form, so this only observes the click (for analytics) and never takes
+   * it over.
    */
-  onStartFree?: (event: MouseEvent) => void;
-  /** Signs in an existing account. */
+  onRequestAccess?: (event: MouseEvent) => void;
+  /** Signs in an invited account. */
   onLogIn?: () => void;
   /**
    * The footer's telemetry disclosure (`DEC-009`), supplied by the caller.
@@ -106,15 +102,14 @@ export default function LandingPageContent(props: LandingPageContentProps) {
             disabled={props.busy}
             onClick={() => props.onLogIn?.()}
           >
-            {props.busy ? "Logging in…" : "Log in"}
+            {props.busy ? "Signing in…" : "Sign in"}
           </button>
           <a
             class="landing-button landing-button-primary"
-            href={START_HREF}
-            aria-disabled={props.busy ? "true" : undefined}
-            onClick={(event) => props.onStartFree?.(event)}
+            href={REQUEST_ACCESS_HREF}
+            onClick={(event) => props.onRequestAccess?.(event)}
           >
-            Start free
+            Request access
           </a>
         </nav>
       </header>
@@ -135,15 +130,22 @@ export default function LandingPageContent(props: LandingPageContentProps) {
           <div class="landing-hero-actions">
             <a
               class="landing-button landing-button-primary landing-button-large"
-              href={START_HREF}
-              aria-disabled={props.busy ? "true" : undefined}
-              onClick={(event) => props.onStartFree?.(event)}
+              href={REQUEST_ACCESS_HREF}
+              onClick={(event) => props.onRequestAccess?.(event)}
             >
-              Start in your browser
+              Request access
             </a>
+            <button
+              type="button"
+              class="landing-button landing-button-quiet landing-button-large"
+              disabled={props.busy}
+              onClick={() => props.onLogIn?.()}
+            >
+              {props.busy ? "Signing in…" : "Sign in"}
+            </button>
             <p class="landing-hero-hint">
-              No account, no install. You land on your projects and can open one in a
-              couple of clicks.
+              The alpha is invite-only. Already invited? Sign in with Google and you land
+              on your projects. Nothing to install.
             </p>
           </div>
           <p class="landing-support">
@@ -174,11 +176,9 @@ export default function LandingPageContent(props: LandingPageContentProps) {
             </div>
           </div>
           <p class="landing-note">
-            This is an early build, shared privately. Features change, and things break.
-            Guest projects are kept for 180 days after you last open them; to keep them
-            indefinitely and open them on another device, start free and then use "Sign up
-            with Google" on your projects page. Logging in here opens an existing
-            account's own projects, and does not move guest projects into it.
+            This is an early build, shared privately with invited producers. Features
+            change, and things break. Request access and we'll let you know when you're
+            in.
           </p>
         </section>
 
@@ -186,16 +186,15 @@ export default function LandingPageContent(props: LandingPageContentProps) {
           <div>
             <h2 id="landing-close-heading">Start with what you've got.</h2>
             <p class="landing-close-copy">
-              Open a project and hear it play. Nothing to install, nothing to sign up for.
+              Once you're in, open a project and hear it play. Nothing to install.
             </p>
           </div>
           <a
             class="landing-button landing-button-primary landing-button-large"
-            href={START_HREF}
-            aria-disabled={props.busy ? "true" : undefined}
-            onClick={(event) => props.onStartFree?.(event)}
+            href={REQUEST_ACCESS_HREF}
+            onClick={(event) => props.onRequestAccess?.(event)}
           >
-            Start free — no account needed
+            Request access
           </a>
         </section>
       </main>

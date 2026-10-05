@@ -55,6 +55,6 @@ describe("FirebaseAuthService construction", () => {
     const { createAuthService } = await import("./authService");
     const service = createAuthService();
 
-    await expect(service.signInAnonymously()).rejects.toThrow();
+    await expect(service.signOut()).rejects.toThrow();
   });
 });

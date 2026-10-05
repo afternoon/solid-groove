@@ -1,10 +1,10 @@
-import { expect, type Locator, type Page, test } from "@playwright/test";
 import {
   library,
   newProjectOnInstrumentView,
   openPadSlot,
   soundList,
 } from "./support/library";
+import { expect, type Locator, type Page, test } from "./support/test";
 import { expectView } from "./support/views";
 
 // #877: Escape in the library's search field left the library, and the slot

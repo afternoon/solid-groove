@@ -144,7 +144,11 @@ jobs:
         # skipped this whole job, and with it the only automated proof of the
         # FND-009 slice. Prefix it like every other node_modules binary in this
         # workflow (`bunx playwright`, `bun run test:emulator`).
-        run: bunx firebase emulators:exec --only firestore,auth,storage --project demo-solid-groove "bunx playwright test --config=tests/e2e/emulator/playwright.config.ts --project=${{ matrix.browser }}"
+        #
+        # `functions` too, built first: the Auth emulator runs the blocking
+        # `beforeSignIn` function that keeps the alpha to its allowlist (#854),
+        # and CF-032 is about being refused by it.
+        run: bun run functions:build && bunx firebase emulators:exec --only firestore,auth,storage,functions --project demo-solid-groove "bunx playwright test --config=tests/e2e/emulator/playwright.config.ts --project=${{ matrix.browser }}"
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
         with:
@@ -185,7 +189,9 @@ jobs:
       - name: Install Playwright browser (chromium)
         run: bunx playwright install --with-deps chromium
       - name: Run the sanity subset against the Firebase Emulator
-        run: bunx firebase emulators:exec --only firestore,auth,storage --project demo-solid-groove "bunx playwright test --config=tests/e2e/emulator/playwright.config.ts --project=chromium --grep @sanity"
+        # With `functions`, built first, as in `browser-emulator`: sign-in goes
+        # through the real allowlist gate (#854).
+        run: bun run functions:build && bunx firebase emulators:exec --only firestore,auth,storage,functions --project demo-solid-groove "bunx playwright test --config=tests/e2e/emulator/playwright.config.ts --project=chromium --grep @sanity"
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
         with:

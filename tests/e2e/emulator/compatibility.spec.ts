@@ -1,5 +1,5 @@
-import { expect, type Page, test } from "@playwright/test";
 import type * as DecodeHarness from "./support/decodeHarness";
+import { expect, type Page, test } from "./support/test";
 
 /**
  * The cross-browser compatibility suite (#75, PRD section 10).

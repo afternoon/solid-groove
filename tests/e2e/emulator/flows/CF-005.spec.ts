@@ -1,6 +1,6 @@
-import { expect, type Locator, type Page, test } from "@playwright/test";
 import { walkthrough } from "../../support/walkthrough";
 import { library, libraryHeader } from "../support/library";
+import { expect, type Locator, type Page, test } from "../support/test";
 import { backToArrangement, expectView, sequenceView } from "../support/views";
 
 /**

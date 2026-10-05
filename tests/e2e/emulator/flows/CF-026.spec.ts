@@ -1,4 +1,3 @@
-import { expect, type Locator, type Page, test } from "@playwright/test";
 import { walkthrough } from "../../support/walkthrough";
 import {
   audition,
@@ -17,6 +16,7 @@ import {
   slotSound,
   soundList,
 } from "../support/library";
+import { expect, type Locator, type Page, test } from "../support/test";
 import { pressView } from "../support/views";
 
 /**

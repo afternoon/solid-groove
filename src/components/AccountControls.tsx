@@ -109,7 +109,7 @@ export function LogInButton(props: AccountControlProps): JSX.Element {
 /**
  * "Sign out" for a signed-in user. The session ends without a new guest
  * starting in its place (`AuthProvider.signOut`), and the app leaves for the
- * landing page, where "Log in" and "Start free" are the two ways back in.
+ * landing page, where "Sign in" is the way back in.
  */
 export function SignOutButton(props: AccountControlProps): JSX.Element {
   const auth = useAuth();

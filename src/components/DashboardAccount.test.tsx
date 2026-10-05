@@ -26,7 +26,6 @@ const fakeAuth = vi.hoisted(() => {
           callback = null;
         };
       },
-      signInAnonymously: vi.fn(),
       signInWithGoogle: vi.fn(),
       linkWithGoogle: vi.fn(),
       signOut: vi.fn(),
@@ -117,7 +116,6 @@ describe("Dashboard account controls (#951)", () => {
 
     await vi.waitFor(() => expect(navigate).toHaveBeenCalledWith("/"));
     expect(fakeAuth.service.signOut).toHaveBeenCalledTimes(1);
-    expect(fakeAuth.service.signInAnonymously).not.toHaveBeenCalled();
     expect(transport.named("feature_first_use")).toEqual([
       expect.objectContaining({
         params: expect.objectContaining({ feature: "sign_out" }),

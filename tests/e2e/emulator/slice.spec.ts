@@ -1,4 +1,4 @@
-import { expect, type Locator, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "./support/test";
 
 /** One bar at 192 PPQ. */
 const TICKS_PER_BAR = 4 * 192;

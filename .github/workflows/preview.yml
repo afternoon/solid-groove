@@ -163,12 +163,9 @@ jobs:
       - name: Install Playwright browser (chromium) for the preview smoke test
         run: bunx playwright install --with-deps chromium
       # The same PRD OPS-01 smoke test the `deploy` job runs, pointed at the
-      # channel URL: it is the only check that the preview actually starts a
-      # session and plays audio, which no build-time verification can prove.
-      # It signs in anonymously and creates a project, so each preview deploy
-      # leaves one real anonymous project in the production database -- the
-      # same cost the production deploy already pays per merge, and the reason
-      # previews are opt-in rather than automatic.
+      # channel URL. Since #854 retired guest start it cannot sign in, so it
+      # checks the landing page, that a visitor with no session is kept out of
+      # the app, and the not-on-the-alpha-list page; it writes nothing.
       - name: Smoke test the preview URL
         run: bun run smoke:hosted
         env:

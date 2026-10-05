@@ -1,5 +1,5 @@
-import { expect, type Locator, type Page, test } from "@playwright/test";
 import { walkthrough } from "../../support/walkthrough";
+import { expect, type Locator, type Page, test } from "../support/test";
 
 /**
  * `CF-014` — a producer drags their tracks into order.

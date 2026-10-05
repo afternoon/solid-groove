@@ -13,28 +13,19 @@ interface AuthState {
   user: User | null;
   loading: boolean;
   isAnonymous: boolean;
-  /**
-   * The anonymous sign-in a visitor with no session needs has failed (a
-   * dropped network, most often). `user` is `null` and `loading` is `false`
-   * alongside it, so a consumer can tell "signing in" from "could not sign in"
-   * and offer `retrySignIn` instead of waiting forever (#868).
-   */
-  signInFailed: boolean;
 }
 
 export interface AuthContextValue extends Readonly<AuthState> {
-  /** Attempts the anonymous sign-in again after `signInFailed`. */
-  retrySignIn(): void;
   /**
-   * Logs in to an existing account (#951). This *signs in*, it does not link:
-   * the session moves to that account's uid, and any projects made as a guest
+   * Signs in with Google (#951). This *signs in*, it does not link: the
+   * session moves to that account's uid, and any projects made as a guest
    * stay with the guest. Rejects if the provider does (a closed popup, most
-   * often), leaving the current session as it was.
+   * often, or the alpha allowlist refusing the address, #854), leaving the
+   * current session as it was.
    */
   logIn(): Promise<void>;
   /**
-   * Ends the session (#951). Unlike a visitor arriving with no session, this
-   * does not start a new guest: the provider reports no user and the caller
+   * Ends the session (#951). The provider reports no user and the caller
    * decides where to go (the app leaves for `/`).
    */
   signOut(): Promise<void>;
@@ -53,60 +44,16 @@ export function AuthProvider(props: AuthProviderProps) {
     user: null,
     loading: true,
     isAnonymous: false,
-    signInFailed: false,
   });
 
-  // No session yet: sign the visitor in anonymously so they can start working
-  // immediately. Firebase persists this session locally, so returning users
-  // keep their work and uid, and this never runs for them —
-  // `onAuthStateChanged` reports their existing user directly instead. That
-  // is what makes it safe to log `anon_session_created` (PRD `OPS-02`)
-  // unconditionally on success: reaching here at all means a genuinely new
-  // anonymous Firebase identity is about to be created, not a returning one.
-  //
-  // A failure is a state, not just a log line: the consumer is told with
-  // `signInFailed` so it can stop showing its loader and offer a retry.
-  // Success needs no write here — `onAuthStateChanged` reports the new user.
-  const signInAnonymously = () => {
-    authService
-      .signInAnonymously()
-      .then(() => analytics.log("anon_session_created"))
-      .catch((error) => {
-        console.error("Error signing in anonymously:", error);
-        setState((auth) => {
-          auth.user = null;
-          auth.loading = false;
-          auth.isAnonymous = false;
-          auth.signInFailed = true;
-        });
-      });
-  };
-
-  // Set while the session is ending on purpose, so the no-user report that
-  // follows a sign-out is not mistaken for a first visit and answered with a
-  // fresh anonymous session the person just asked to leave.
-  let signingOut = false;
-
+  // No session means signed out. Guest start is retired (#854): the alpha is
+  // invite-only, so a visitor with no session is not signed in as anyone, and
+  // the surfaces that need an account send them to the landing page
+  // (`SignedInOnly`). A guest session from before keeps working: Firebase
+  // restores it like any other, and `onAuthStateChanged` reports it below.
   const logIn = () => authService.signInWithGoogle();
 
-  const signOut = async () => {
-    signingOut = true;
-    try {
-      await authService.signOut();
-    } catch (error) {
-      signingOut = false;
-      throw error;
-    }
-  };
-
-  const retrySignIn = () => {
-    if (!state.signInFailed) return;
-    setState((auth) => {
-      auth.loading = true;
-      auth.signInFailed = false;
-    });
-    signInAnonymously();
-  };
+  const signOut = () => authService.signOut();
 
   // PRD `OPS-02`: account type is a GA4 *user property*, not an event
   // parameter, and it is the only account fact analytics carries. The
@@ -132,25 +79,10 @@ export function AuthProvider(props: AuthProviderProps) {
     () => undefined,
     () => {
       const unsubscribe = authService.onAuthStateChanged((user) => {
-        if (!user) {
-          if (signingOut) {
-            setState((auth) => {
-              auth.user = null;
-              auth.loading = false;
-              auth.isAnonymous = false;
-            });
-            return;
-          }
-          signInAnonymously();
-          return;
-        }
-        signingOut = false;
-
         setState((auth) => {
           auth.user = user;
           auth.loading = false;
-          auth.isAnonymous = user.isAnonymous;
-          auth.signInFailed = false;
+          auth.isAnonymous = user?.isAnonymous ?? false;
         });
       });
 
@@ -169,10 +101,6 @@ export function AuthProvider(props: AuthProviderProps) {
     get isAnonymous() {
       return state.isAnonymous;
     },
-    get signInFailed() {
-      return state.signInFailed;
-    },
-    retrySignIn,
     logIn,
     signOut,
   };

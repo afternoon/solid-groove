@@ -1,4 +1,3 @@
-import { expect, test } from "@playwright/test";
 import { walkthrough } from "../../support/walkthrough";
 import {
   ASSISTANT_CHORD,
@@ -10,6 +9,7 @@ import {
   panelButton,
   resizeEdge,
 } from "../support/assistant";
+import { expect, test } from "../support/test";
 
 /**
  * `CF-028`: the assistant stays where a producer puts it.

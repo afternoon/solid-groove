@@ -1,4 +1,4 @@
-import { expect, type Locator, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "./support/test";
 
 /**
  * Double grows the clip on the arrangement timeline too (#647): a one-bar

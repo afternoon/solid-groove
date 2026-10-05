@@ -126,6 +126,13 @@ separate errand.
 
 ## Flows
 
+**"Signed in" means an invited producer (#854).** The alpha is invite-only:
+guest start is retired, and only a Google address on the alpha allowlist can sign
+in. So a flow whose precondition is "signed in" starts signed in to a fresh,
+allowlisted Google account with nothing in it, and its spec gets there through
+`tests/e2e/emulator/support/test.ts` rather than by signing in. Signing in
+itself is CF-001's journey, and being refused is CF-032's.
+
 ### CF-001 — An invited producer signs in and reaches a playing loop
 
 **Issue:** #854 for this revision (the flow itself pre-dates the register and
@@ -188,7 +195,9 @@ sequence view and a sound is loaded in the Library view, so "from the library"
 in steps 4-5 means pressing the sampler's sample slot, inserting there, and
 coming back.
 
-**Preconditions:** signed in as a guest with no projects — where CF-001 ends.
+**Preconditions:** signed in, as an invited producer, with no projects — where
+CF-001 ends. (Revised for #854: this was "signed in as a guest" until guest start
+was retired.)
 
 1. Create a new project. It opens on the arrangement with the starter kick, a
    drum machine named "BD", four on the floor.
@@ -215,7 +224,8 @@ own editing beyond the steps written here, which CF-017 to CF-020 cover.
 **Issue:** #61 · **Suite:** `tests/e2e/emulator/flows/CF-003.spec.ts` · **Entrypoint:** the
 project dashboard
 
-**Preconditions:** signed in as a guest with no projects.
+**Preconditions:** signed in, as an invited producer, with no projects. (Revised
+for #854: this was "signed in as a guest" until guest start was retired.)
 
 1. Create a new project and duplicate its placement further along the timeline,
    so there are two distinct parts to label.

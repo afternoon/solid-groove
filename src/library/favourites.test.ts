@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
 import {
@@ -162,40 +162,5 @@ describe("createFavouriteActions", () => {
 
     const listed = await repository.listFavourites(UID);
     expect(listed.ok && listed.favourites).toEqual([{ ...KICK, favouritedAt: 1 }]);
-  });
-});
-
-describe("an anonymous user's favourites", () => {
-  it("are still theirs after the account is upgraded", async () => {
-    // The mock auth service upgrades in place, as Firebase's linking does; the
-    // emulator suite proves the same uid reaches the same Firestore documents.
-    vi.stubEnv("VITE_DEV_BACKEND", "mock");
-    vi.resetModules();
-    const { createAuthService } = await import("../auth/authService");
-    const auth = createAuthService();
-    const repository = new InMemoryFavouritesRepository({ clock: createManualClock(1) });
-    const uidOf = () =>
-      new Promise<string>((resolve) => {
-        const stop = auth.onAuthStateChanged((user) => {
-          if (user) {
-            stop();
-            resolve(user.uid);
-          }
-        });
-      });
-
-    await auth.signInAnonymously();
-    const guest = await uidOf();
-    await repository.addFavourite(guest, KICK);
-
-    await auth.linkWithGoogle();
-    const registered = await uidOf();
-
-    expect(registered).toBe(guest);
-    const listed = await repository.listFavourites(registered);
-    expect(listed.ok && listed.favourites.map((entry) => entry.assetId)).toEqual([
-      KICK.assetId,
-    ]);
-    vi.unstubAllEnvs();
   });
 });

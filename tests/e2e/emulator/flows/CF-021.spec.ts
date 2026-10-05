@@ -1,4 +1,3 @@
-import { expect, type Locator, type Page, test } from "@playwright/test";
 import { walkthrough } from "../../support/walkthrough";
 import {
   downloadedBytes,
@@ -12,6 +11,7 @@ import {
   reloadAndExpectSongUnchanged,
   songSeconds,
 } from "../support/exportSong";
+import { expect, type Locator, type Page, test } from "../support/test";
 
 /**
  * `CF-021`: a producer exports their song as a stereo WAV.

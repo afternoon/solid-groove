@@ -1,6 +1,7 @@
 import { useLocation, useNavigate, useParams } from "@solidjs/router";
 import { Show } from "solid-js";
 import { AuthProvider, useAuth } from "../../auth/AuthProvider";
+import SignedInOnly from "../../auth/SignedInOnly";
 import { detectCapabilities } from "../../browser/capabilities";
 import AccountControl from "../../components/AccountControls";
 import ProjectNotFound from "../../components/ProjectNotFound";
@@ -43,18 +44,20 @@ export default function ProjectPage() {
   // if the route table ever changes underneath this component.
   return (
     <AuthProvider>
-      <Show when={params.id} fallback={<ProjectNotFound />}>
-        {(id) => (
-          <AccountEditor
-            projectId={id()}
-            view={editorViewFromPath(location.pathname)}
-            viewHref={(view) => editorViewPath(id(), view)}
-            onSelectView={(view) => navigate(editorViewPath(id(), view))}
-            account={<AccountControl class="account-button" />}
-            capabilities={capabilities}
-          />
-        )}
-      </Show>
+      <SignedInOnly>
+        <Show when={params.id} fallback={<ProjectNotFound />}>
+          {(id) => (
+            <AccountEditor
+              projectId={id()}
+              view={editorViewFromPath(location.pathname)}
+              viewHref={(view) => editorViewPath(id(), view)}
+              onSelectView={(view) => navigate(editorViewPath(id(), view))}
+              account={<AccountControl class="account-button" />}
+              capabilities={capabilities}
+            />
+          )}
+        </Show>
+      </SignedInOnly>
     </AuthProvider>
   );
 }

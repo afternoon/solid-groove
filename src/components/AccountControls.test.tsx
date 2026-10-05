@@ -25,7 +25,6 @@ const fakeAuth = vi.hoisted(() => {
           callback = null;
         };
       },
-      signInAnonymously: vi.fn(),
       signInWithGoogle: vi.fn(),
       signOut: vi.fn(),
     },
@@ -165,7 +164,6 @@ describe("AccountControl (#951)", () => {
     flush();
 
     await vi.waitFor(() => expect(navigate).toHaveBeenCalledWith("/"));
-    expect(fakeAuth.service.signInAnonymously).not.toHaveBeenCalled();
     expect(
       transport
         .named("feature_first_use")

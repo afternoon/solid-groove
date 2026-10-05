@@ -1,4 +1,4 @@
-import { cleanup, render, waitFor } from "@solidjs/testing-library";
+import { cleanup, render } from "@solidjs/testing-library";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
@@ -24,7 +24,6 @@ function createFakeAuthService() {
           callback = null;
         };
       }),
-      signInAnonymously: vi.fn(() => Promise.resolve()),
       signInWithGoogle: vi.fn(() => Promise.resolve()),
       linkWithGoogle: vi.fn(() => Promise.resolve()),
       signOut: vi.fn(() => Promise.resolve()),
@@ -59,43 +58,28 @@ async function renderAuthProvider() {
 }
 
 describe("AuthProvider", () => {
-  it("signs in anonymously and logs anon_session_created when there is no existing session", async () => {
+  // #854: guest start is retired. No session means signed out, and nothing
+  // is minted in its place.
+  it("leaves a visitor with no session signed out, and starts no guest", async () => {
     const { fake, transport } = await renderAuthProvider();
 
     fake.emit(null);
-
-    await waitFor(() => {
-      expect(fake.service.signInAnonymously).toHaveBeenCalledTimes(1);
-    });
-    await waitFor(() => {
-      expect(transport.named("anon_session_created")).toHaveLength(1);
-    });
-  });
-
-  it("does not sign in anonymously or log anon_session_created for a returning session", async () => {
-    const { fake, transport } = await renderAuthProvider();
-
-    fake.emit({ uid: "user_returning", isAnonymous: true });
-
-    // Give any (incorrect) async sign-in attempt a chance to happen.
     await Promise.resolve();
     await Promise.resolve();
 
-    expect(fake.service.signInAnonymously).not.toHaveBeenCalled();
+    expect(fake.service.signInWithGoogle).not.toHaveBeenCalled();
+    expect("signInAnonymously" in fake.service).toBe(false);
     expect(transport.named("anon_session_created")).toHaveLength(0);
   });
 
-  it("does not log anon_session_created again on a second null->user cycle from the same provider instance", async () => {
+  it("restores a guest session from before the alpha closed, as it is", async () => {
     const { fake, transport } = await renderAuthProvider();
 
-    fake.emit(null);
-    await waitFor(() => {
-      expect(transport.named("anon_session_created")).toHaveLength(1);
-    });
-
-    fake.emit({ uid: "mock-anon-123", isAnonymous: true });
+    fake.emit({ uid: "user_returning", isAnonymous: true });
+    await Promise.resolve();
     await Promise.resolve();
 
-    expect(transport.named("anon_session_created")).toHaveLength(1);
+    expect(fake.service.signInWithGoogle).not.toHaveBeenCalled();
+    expect(transport.named("anon_session_created")).toHaveLength(0);
   });
 });

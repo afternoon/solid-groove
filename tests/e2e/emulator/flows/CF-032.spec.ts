@@ -17,15 +17,9 @@ import { signInWithGoogle, uniqueEmail } from "../support/access";
  * The request-access form is a third-party page (Tally). Following the button
  * is asserted by where the browser goes, and that address is answered locally
  * so the flow never depends on a site outside the product being up.
- *
- * Parked at `test.fixme` until #854's stack lands; the PR that closes #854
- * removes the marker in the same diff that makes it pass.
  */
 
-// `test.fixme` (on the describe, so the body keeps its indentation) until
-// #854's stack lands: the PR that closes it removes this marker in the same
-// diff that makes the flow pass.
-test.describe.fixme("CF-032", () => {
+test.describe("CF-032", () => {
   test("a visitor who is not on the alpha list is told so and asks for access", async ({
     page,
     browserName,

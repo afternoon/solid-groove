@@ -28,7 +28,7 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { SITE_ORIGIN } from "../site.config.mjs";
+import { requestAccessUrl, SITE_ORIGIN } from "../site.config.mjs";
 
 const dir = process.argv[2] ?? "dist/client";
 const failures = [];
@@ -55,9 +55,13 @@ const landingMarkers = [
 for (const [marker, what] of landingMarkers) {
   if (!index.includes(marker)) fail(`index.html is missing ${what} (${marker}).`);
 }
-const startLinks = index.match(/href="\/projects"/g)?.length ?? 0;
-if (startLinks !== 3) {
-  fail(`index.html has ${startLinks} start links to /projects, expected 3.`);
+// The three Request access calls to action (#854: the alpha is invite-only,
+// so asking to be let in is the front door), each a real link to the form.
+const requestAccessLinks = index.split(`href="${requestAccessUrl}"`).length - 1;
+if (requestAccessLinks !== 3) {
+  fail(
+    `index.html has ${requestAccessLinks} Request access links to ${requestAccessUrl}, expected 3.`,
+  );
 }
 for (const marker of [
   "<title",
@@ -124,7 +128,12 @@ if (existsSync(manifestPath)) {
 
 // Robots, which is what keeps the app's own routes out of a search result.
 const robots = read("robots.txt");
-for (const line of ["Disallow: /projects", "Disallow: /dashboard"]) {
+for (const line of [
+  "Disallow: /projects",
+  "Disallow: /dashboard",
+  "Disallow: /admin",
+  "Disallow: /not-invited",
+]) {
   if (!robots.includes(line)) fail(`robots.txt is missing "${line}".`);
 }
 

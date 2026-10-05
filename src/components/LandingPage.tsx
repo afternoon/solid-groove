@@ -14,11 +14,11 @@ import TelemetryDisclosure from "./TelemetryDisclosure";
 /**
  * The public marketing landing page (PRD `PRJ-06`, task `LOOP-001b`).
  *
- * The product's front door, and the entry point into the PRJ-01 anonymous
- * start. Design reference: `docs/design/mocks/04-landing-page.png`. The mock is
- * directional — it shows a full marketing site with a tour, pricing, and
- * capabilities the alpha has not built — so this page keeps the mock's
- * structure and visual language and carries only claims that are true today.
+ * The product's front door. Design reference:
+ * `docs/design/mocks/04-landing-page.png`. The mock is directional — it shows a
+ * full marketing site with a tour, pricing, and capabilities the alpha has not
+ * built — so this page keeps the mock's structure and visual language and
+ * carries only claims that are true today.
  *
  * This module is the page's *behaviour*: the analytics it emits, the sign-in it
  * runs, and where it navigates. The markup and the copy live in
@@ -28,14 +28,13 @@ import TelemetryDisclosure from "./TelemetryDisclosure";
  *
  * ## Entering the app
  *
- * The primary call to action navigates to the dashboard and lets `AuthProvider`
- * run the PRJ-01 anonymous start — it deliberately does *not* sign in here.
- * That keeps one anonymous-start path in the product rather than two, and it is
- * what makes `anon_session_created` fire for a visitor who arrives through this
- * page: the event belongs to the provider that creates the session, and a
- * landing page that signed in first would silence it.
+ * The alpha is invite-only (#854): guest start is retired, and only an
+ * allowlisted Google address can sign in. So the page has two calls to action.
+ * **Request access** is a plain link to the request-access form; this page
+ * only counts the click. **Sign in** signs in with Google; a refused address
+ * lands on the "not on the alpha list" page instead of an error.
  *
- * Only the "Log in" path needs an identity provider, and it reaches
+ * Only the sign-in path needs an identity provider, and it reaches
  * `authService` through a dynamic `import()` on click. Nothing about a visitor
  * who never clicks should pay for the Firebase SDK: this is the surface with
  * the strictest first-impression budget and no editing state to protect (see
@@ -100,18 +99,6 @@ function restoreSession(
   });
 }
 
-/**
- * Whether a click on a link asks for it to be opened somewhere other than this
- * tab, in which case intercepting it would take away what the visitor asked
- * for. `button !== 0` covers a middle-click, which fires `click` in Chromium
- * with `auxclick` semantics elsewhere; the modifier keys cover the rest.
- */
-function opensElsewhere(event: MouseEvent): boolean {
-  return (
-    event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
-  );
-}
-
 export default function LandingPage(props: LandingPageProps) {
   const analytics = props.analytics ?? defaultAnalytics;
   const loadAuthService =
@@ -124,60 +111,34 @@ export default function LandingPage(props: LandingPageProps) {
 
   /**
    * PRD `OPS-02`: `landing_cta_click` "a visitor activates a landing-page call
-   * to action". Logged once per activation, before the path it starts, so a
-   * failing sign-in still counts the intent.
-   *
-   * The control is an anchor pointing at `/projects` (see `START_HREF` in
-   * `LandingPageContent`), so this handler's job is to *upgrade* a click that
-   * the browser would otherwise serve as a full page load. It takes the click
-   * only when it is the plain left-click that means "go there in this tab":
-   *
-   * - A modified click (new tab, new window, download, or a non-primary
-   *   button) is left to the browser, which is the whole point of having a
-   *   real `href`. The activation is still counted -- the visitor did choose
-   *   the call to action -- but this tab does not navigate.
-   * - While a sign-in is in flight the page is busy, so the click is
-   *   cancelled outright rather than racing the popup it would abandon.
+   * to action". The Request access controls are plain links to the form, so
+   * this counts the activation and leaves the navigation to the browser,
+   * whichever tab it opens in.
    */
-  const startFree = (event: MouseEvent) => {
-    if (busy()) {
-      event.preventDefault();
-      return;
-    }
-    analytics.log("landing_cta_click", { cta_id: "start_free" });
-    if (opensElsewhere(event)) return;
-    event.preventDefault();
-    navigate("/projects");
+  const requestAccess = () => {
+    analytics.log("landing_cta_click", { cta_id: "request_access" });
   };
 
   /**
-   * The path for someone who already has an account.
+   * The path for someone who has been invited.
    *
    * It starts by asking whether they are *already* signed in, because they
-   * often are: sessions persist (`browserLocalPersistence`), so a visitor who
-   * logged in last week and came back to `/` still has one. Sending them
+   * often are: sessions persist (`browserLocalPersistence`), so a producer who
+   * signed in last week and came back to `/` still has one. Sending them
    * through the identity provider again for a session the browser already holds
-   * is what #308 reports. A registered session goes straight to the dashboard;
-   * a guest session or none at all signs in exactly as before, since logging in
-   * over a guest is a real sign-in (see the uid-swap note below).
+   * is what #308 reports. Any session goes straight to the dashboard: a
+   * registered one to their projects, and a guest session from before the
+   * alpha closed (#854) to the guest's own projects, where upgrading to an
+   * invited Google account is offered.
+   *
+   * With no session it signs in with Google. The blocking `beforeSignIn`
+   * function refuses an address that is not on the alpha list, and that
+   * refusal goes to the page that says so, with Request access, rather than to
+   * an error.
    *
    * Reading the session here costs nothing extra: `authService` was already
    * behind a dynamic `import()` on this click, so `/` still ships no Firebase
    * to a visitor who never presses this button.
-   *
-   * It signs in, and signing in with Google is *not* the same as upgrading a
-   * guest session: Firebase does not auto-link, so it swaps the uid and leaves
-   * any projects made in this browser as a guest owned by the anonymous one.
-   * `authService.linkWithGoogle` is the operation that keeps the `DEC-001`
-   * retention promise, and it lives behind the dashboard's
-   * `UpgradeAccountPrompt`, where there is a known signed-in guest to link.
-   *
-   * So this page states the promise against that control rather than this
-   * button (see the note in the "Where the alpha is today" section), and says
-   * plainly what logging in here does instead. Teaching this button to link —
-   * which means resolving the current session first, and deciding what happens
-   * when the Google account already exists — is the account-linking task's
-   * call, not the landing page's.
    */
   const logIn = async () => {
     if (busy()) return;
@@ -190,7 +151,7 @@ export default function LandingPage(props: LandingPageProps) {
         authService,
         props.sessionRestoreTimeoutMs ?? SESSION_RESTORE_TIMEOUT_MS,
       );
-      if (session && !session.isAnonymous) {
+      if (session) {
         navigate("/projects");
         return;
       }
@@ -207,9 +168,9 @@ export default function LandingPage(props: LandingPageProps) {
       }
       // A cancelled popup is the common case and is not worth a fatal report,
       // but a broken provider looks identical from here — report it non-fatally
-      // and let the visitor try again or start as a guest instead.
+      // and let the visitor try again.
       reportError(error, { area: "shell", fatal: false });
-      setLoginError("Could not log in. Try again, or start free without an account.");
+      setLoginError("Could not sign in. Try again.");
       setBusy(false);
     }
   };
@@ -224,7 +185,7 @@ export default function LandingPage(props: LandingPageProps) {
       <LandingPageContent
         busy={busy()}
         loginError={loginError()}
-        onStartFree={startFree}
+        onRequestAccess={requestAccess}
         onLogIn={() => void logIn()}
         disclosure={<TelemetryDisclosure placement="inline" />}
       />

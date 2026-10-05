@@ -18,9 +18,13 @@ name: QA sweep
 # QA_SWEEP_MAX_ISSUES repository variables, else 5 and 15. Clamped to 10 and 50
 # by scripts/qa-sweep/sweep.mjs.
 on:
-  schedule:
-    # Mondays, 05:23 UTC.
-    - cron: "23 5 * * 1"
+  # The weekly schedule is off (#854, #1055). Each agent's session starts as a
+  # guest through "Start in your browser", which the invite-only alpha no
+  # longer offers, so every scheduled run would fail. It comes back when the
+  # sweep signs in as an allowlisted QA account (#1055). Restore:
+  #   schedule:
+  #     # Mondays, 05:23 UTC.
+  #     - cron: "23 5 * * 1"
   workflow_dispatch:
     inputs:
       agents:

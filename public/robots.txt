@@ -2,9 +2,12 @@
 # (task #297). Everything else the app serves is a client-rendered shell with
 # no content to index, behind a session: `/projects` is one person's project
 # list and `/projects/*` is one project's editor (`/dashboard` is the old
-# address of the list, kept as a redirect). Neither has anything for a
-# crawler, and neither should turn up in a search result.
+# address of the list, kept as a redirect). `/admin` is the alpha allowlist and
+# `/not-invited` is where a refused sign-in lands (#854). None has anything for
+# a crawler, and none should turn up in a search result.
 User-agent: *
 Allow: /$
 Disallow: /projects
 Disallow: /dashboard
+Disallow: /admin
+Disallow: /not-invited
