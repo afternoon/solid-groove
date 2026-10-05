@@ -108,7 +108,7 @@ const t = await agent(
   `Triage GitHub issue #${issue} for an unattended build. ${GITHUB}
 
 Read the issue body and every comment. Decide:
-- **kind**: \`feature\` (new capability, likely several PRs), \`fix\` (something is wrong), or \`polish\` (a small enhancement or tweak). The issue's own label does not decide it. Behaviour that works as coded but is not what the issue wants is a fix or polish, never a reason to stop.
+- **kind**: \`feature\` (new capability: one PR, or a short stack when it is big), \`fix\` (something is wrong), or \`polish\` (a small enhancement or tweak). The issue's own label does not decide it. Behaviour that works as coded but is not what the issue wants is a fix or polish, never a reason to stop.
 - **unclear**: true only if two reasonable readings would build materially different things and nothing in the issue, its comments, a core flow or the code decides. Terse is not unclear; a missing cause is not unclear (finding it is the job). If unclear, post the single question as an issue comment, written so a one-line answer unblocks it, and add the \`status:blocked\` label (the board removes the old status).
 - **existingPr**: an open PR that already closes #${issue}, if any.
 

@@ -12,6 +12,11 @@ on:
     # first PR run. Building CI on push makes that checkable when it matters.
     branches: [main, "claude/**"]
   pull_request:
+  # The merge queue (merge.yml) tests each PR on top of main and the PRs queued
+  # ahead of it before merging, so main only ever receives a green combination.
+  # A failed queue run goes back to the PR's agent (ci-failure.yml).
+  merge_group:
+    types: [checks_requested]
   # The full browser suite (`browser-emulator`) is too heavy to run on
   # every push: a stack of ten PRs queued over a hundred browser jobs. They run
   # once a day on `main` instead, and on demand from the Actions tab. A failed
@@ -173,7 +178,7 @@ jobs:
   browser-sanity:
     name: browser sanity (chromium)
     needs: checks
-    if: github.event_name == 'push' || github.event_name == 'pull_request'
+    if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'merge_group'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
