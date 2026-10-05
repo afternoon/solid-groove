@@ -379,6 +379,13 @@ export async function runAssistantTurn(
     history = prepared.history;
 
     while (true) {
+      // A browser already gone costs the account nothing.
+      if (options.signal.aborted) {
+        throw new AssistantGatewayError(
+          "cancelled",
+          "The assistant request was cancelled.",
+        );
+      }
       await checkSpend(deps.guards, deps.now(), guardLimits);
       const requestsRemaining = await reserveCall(
         deps.guards,
@@ -439,7 +446,9 @@ export async function runAssistantTurn(
       finish(error.code, null);
       throw error;
     }
-    finish("malformed_response", null);
+    // Not a known failure (a store that could not be reached, a bug): logged
+    // as such, and left for the function to report as an internal error.
+    finish("internal_error", null);
     throw error;
   }
 }

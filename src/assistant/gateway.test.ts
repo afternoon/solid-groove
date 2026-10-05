@@ -439,6 +439,16 @@ describe("runAssistantTurn: redacted telemetry", () => {
     },
   );
 
+  it("logs a failure it does not know as an internal error", async () => {
+    const h = harness([replyEvents(["ok"])]);
+    h.guards.reserveCall = async () => {
+      throw new Error("Firestore unreachable for Secret Project Name");
+    };
+    await expect(run(h)).rejects.toThrow();
+    expect(h.logs.map((log) => log.outcome)).toEqual(["internal_error"]);
+    expect(JSON.stringify(h.logs)).not.toContain("Secret Project Name");
+  });
+
   it("counts tokens over every attempt", async () => {
     const h = harness([
       [...replyEvents(["x"], { inputTokens: 50 }).slice(0, 1), { fail: "network" }],

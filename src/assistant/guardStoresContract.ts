@@ -196,9 +196,21 @@ export function describeGuardStoresContract(
       const t = await setup([[{ hang: true }]]);
       const controller = new AbortController();
       const pending = t.turn(CALLER, controller.signal);
-      setTimeout(() => controller.abort(), 5);
+      // Go away once the call is under way, however long the store took.
+      while (t.provider.requests.length === 0) {
+        await new Promise((resolve) => setTimeout(resolve, 2));
+      }
+      controller.abort();
       expect(await codeOf(pending)).toBe("cancelled");
       expect(await used(t.guards)).toBe(1);
+    });
+
+    it("never counts a request the browser abandoned before it was sent", async () => {
+      const t = await setup([replyEvents(["hi"])]);
+      const controller = new AbortController();
+      controller.abort();
+      expect(await codeOf(t.turn(CALLER, controller.signal))).toBe("cancelled");
+      expect(await used(t.guards)).toBe(0);
     });
 
     it("never lets racing turns take more than the cap", async () => {
