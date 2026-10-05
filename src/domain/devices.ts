@@ -34,7 +34,8 @@ export type DeviceTypeId =
   | "compressor"
   | "delay"
   | "reverb"
-  | "eq";
+  | "eq"
+  | "limiter";
 
 export interface DeviceTypeDefinition {
   readonly type: DeviceTypeId;
@@ -531,6 +532,51 @@ const EQ_PARAMETERS: readonly ParameterDefinition[] = [
   outputTrimParameter("eq"),
 ];
 
+// --- Limiter -----------------------------------------------------------------
+
+/**
+ * How hard the source is pushed into the ceiling (#937): a clean gain stage in
+ * front of the limiter, so turning it up makes the track louder while the
+ * ceiling keeps every peak under it. 0 dB is "only catch what is already over".
+ */
+const LIMITER_DRIVE = deviceParameter("limiter", {
+  id: "drive",
+  label: "Drive",
+  unit: "decibels",
+  min: 0,
+  max: 24,
+  defaultValue: 0,
+});
+
+/**
+ * The level no peak leaves above, in dBFS (#937). -0.3 dB leaves room for the
+ * small overshoot a lossy encode of the exported file can add; the range stops
+ * at 0 dBFS because a ceiling above full scale would let the device clip.
+ */
+const LIMITER_CEILING = deviceParameter("limiter", {
+  id: "ceiling",
+  label: "Ceiling",
+  unit: "decibels",
+  min: -12,
+  max: 0,
+  defaultValue: -0.3,
+});
+
+/**
+ * How fast the gain recovers after a peak (#937). Short enough to keep a mix
+ * from pumping audibly on every kick at the default, long enough not to
+ * distort low frequencies; the range spans a transparent catch to a squash.
+ */
+const LIMITER_RELEASE = deviceParameter("limiter", {
+  id: "release",
+  label: "Release",
+  unit: "seconds",
+  min: 0.01,
+  max: 1,
+  defaultValue: 0.1,
+  scale: "logarithmic",
+});
+
 const DEVICE_TYPES: readonly DeviceTypeDefinition[] = [
   {
     type: "filter",
@@ -603,6 +649,13 @@ const DEVICE_TYPES: readonly DeviceTypeDefinition[] = [
     // No Dry/Wet: blending an EQ with its own dry signal sums two copies a
     // phase shift apart, which comb-filters instead of mixing.
     parameters: EQ_PARAMETERS,
+  },
+  {
+    type: "limiter",
+    label: "Limiter",
+    // No Dry/Wet and no Output trim: either would let a peak back over the
+    // ceiling, which is the one thing a limiter promises never to do.
+    parameters: [LIMITER_DRIVE, LIMITER_CEILING, LIMITER_RELEASE],
   },
 ];
 

@@ -93,10 +93,11 @@ describe("DeviceChainPanel", () => {
       "Delay",
       "Reverb",
       "EQ",
+      "Limiter",
     ]);
     addFromPanel(panel, "Filter");
     // The buttons stay where they are, after the chain, ready for the next one.
-    expect(addButtons()).toHaveLength(7);
+    expect(addButtons()).toHaveLength(8);
 
     const entries = history.entries.length;
     addFromPanel(panel, "Delay");
@@ -143,6 +144,21 @@ describe("DeviceChainPanel", () => {
       transport
         .named("feature_first_use")
         .filter((event) => event.params.feature === "eq_device"),
+    ).toHaveLength(1);
+  });
+
+  it("logs the Limiter's own first use once, alongside device_added (#937)", () => {
+    const { transport, panel } = renderPanel();
+    addFromPanel(panel, "Limiter");
+    addFromPanel(panel, "Limiter");
+    expect(transport.named("device_added").map((event) => event.params)).toEqual([
+      expect.objectContaining({ device_type: "limiter", chain: "insert" }),
+      expect.objectContaining({ device_type: "limiter", chain: "insert" }),
+    ]);
+    expect(
+      transport
+        .named("feature_first_use")
+        .filter((event) => event.params.feature === "limiter_device"),
     ).toHaveLength(1);
   });
 

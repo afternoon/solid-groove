@@ -7,6 +7,7 @@ import { buildDeviceNode } from "./deviceNode";
 import { createOverdriveCore, createSaturatorCore } from "./distortion";
 import { createEqCore } from "./eq";
 import { createFilterCore } from "./filter";
+import { createLimiterCore, limiterLatencyFrames } from "./limiter";
 import { createReverbCore } from "./reverb";
 import type { DeviceCoreFactory, DeviceGraphContext } from "./types";
 
@@ -30,7 +31,7 @@ interface DeviceCoreEntry {
  * place a `device.type` becomes real DSP; adding a seventh device is a new core
  * module plus one entry here.
  *
- * Only the compressor looks ahead. The filters are IIR biquads, the shapers
+ * Only the compressor and the limiter look ahead. The filters are IIR biquads, the shapers
  * run without oversampling, and the delay's and reverb's time *is* the effect,
  * so none of them delays the signal it passes.
  */
@@ -45,6 +46,7 @@ const DEVICE_CORES: Readonly<Record<string, DeviceCoreEntry>> = {
   delay: { createCore: createDelayCore, latencyFrames: NO_LATENCY },
   reverb: { createCore: createReverbCore, latencyFrames: NO_LATENCY },
   eq: { createCore: createEqCore, latencyFrames: NO_LATENCY },
+  limiter: { createCore: createLimiterCore, latencyFrames: limiterLatencyFrames },
 };
 
 /**

@@ -293,6 +293,7 @@ export function DeviceChain(props: DeviceChainProps): JSX.Element {
  */
 const DEVICE_FIRST_USE: Partial<Record<DeviceTypeId, FeatureKey>> = {
   eq: "eq_device",
+  limiter: "limiter_device",
 };
 
 /** Which `device.*` command is which reportable edit. */

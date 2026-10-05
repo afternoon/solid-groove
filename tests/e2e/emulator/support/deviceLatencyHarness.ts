@@ -86,6 +86,21 @@ export async function readLatencies(): Promise<LatencyReading[]> {
         }),
       });
     }
+    for (const bypassed of [false, true]) {
+      readings.push({
+        path: bypassed ? "Limiter (bypassed)" : "Limiter",
+        sampleRate,
+        declared: deviceLatencyFrames("limiter", sampleRate),
+        measured: await lagThrough(sampleRate, () => {
+          const node = createNode({
+            ...createDevice("dev_probe" as DeviceId, "limiter", 0),
+            bypassed,
+          });
+          if (!node) throw new Error("no limiter core");
+          return node;
+        }),
+      });
+    }
     readings.push({
       path: "master limiter",
       sampleRate,

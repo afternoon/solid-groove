@@ -40,6 +40,11 @@ const DEVICE_GROUPS: Readonly<
     ["Colour", ["filter"]],
     ["Mix", ["wet", "output"]],
   ],
+  // Signal order: how hard it is pushed, where it stops, how it lets go.
+  limiter: [
+    ["Limit", ["drive", "ceiling"]],
+    ["Timing", ["release"]],
+  ],
   // Per band, low to high: its switch, then where and how much. The switch
   // stands in a bank of its own, as every mode does, so the faders beside it
   // keep their pitch; the EQ's faceplate shows one band's banks at a time.

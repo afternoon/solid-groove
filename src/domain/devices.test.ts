@@ -31,6 +31,7 @@ describe("device type registry", () => {
       "delay",
       "reverb",
       "eq",
+      "limiter",
     ]);
   });
 
