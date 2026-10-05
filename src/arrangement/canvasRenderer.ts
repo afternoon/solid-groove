@@ -181,6 +181,33 @@ export function clearLayer(env: DrawEnvironment): void {
   env.ctx.clearRect(0, 0, env.viewport.width, env.viewport.height);
 }
 
+/** The closest grid lines are allowed to sit, in CSS pixels (#1107). */
+export const MIN_GRID_SPACING_PX = 40;
+
+/** Every this many grid lines is drawn strong. */
+const STRONG_LINE_EVERY = 4;
+
+/** Ruler bar numbers are never closer together than this many bars. */
+const MIN_RULER_LABEL_EVERY_BARS = 4;
+
+/**
+ * How many bars apart the arrangement's grid lines are at a zoom of
+ * `pixelsPerBar`: the smallest of 1, 4, 8, 16, 32, … bars that keeps lines at
+ * least `MIN_GRID_SPACING_PX` apart (#1107). Zoomed in, a line every bar.
+ */
+export function gridStepBars(pixelsPerBar: number): number {
+  if (!(pixelsPerBar > 0)) return 1;
+  if (pixelsPerBar >= MIN_GRID_SPACING_PX) return 1;
+  let step = 4;
+  while (step * pixelsPerBar < MIN_GRID_SPACING_PX) step *= 2;
+  return step;
+}
+
+/** How many bars apart the ruler's bar numbers are, for a grid `step`. */
+export function rulerLabelEveryBars(step: number): number {
+  return Math.max(MIN_RULER_LABEL_EVERY_BARS, step);
+}
+
 /** Bar/beat grid, row backgrounds, and the bar/section ruler — changes only on
  * zoom, scroll, section edit, or track-count change. */
 export function drawBackgroundLayer(env: DrawEnvironment): void {
@@ -219,30 +246,39 @@ export function drawBackgroundLayer(env: DrawEnvironment): void {
     }
   }
 
-  const firstBar = Math.floor(env.tickRange.startTick / TICKS_PER_BAR);
+  // The grid coarsens as you zoom out (#1107): one line every `step` bars,
+  // starting from a multiple of it so the lines stay put while scrolling.
+  const step = gridStepBars(TICKS_PER_BAR * viewport.pixelsPerTick);
+  const firstBar = Math.floor(env.tickRange.startTick / TICKS_PER_BAR / step) * step;
   const lastBar = Math.ceil(env.tickRange.endTick / TICKS_PER_BAR);
   ctx.lineWidth = 1;
-  for (let bar = firstBar; bar <= lastBar; bar += 1) {
+  for (let bar = firstBar; bar <= lastBar; bar += step) {
     const x = Math.round(screenX(bar * TICKS_PER_BAR, viewport)) + 0.5;
-    ctx.strokeStyle = bar % 4 === 0 ? colors().gridBar : colors().gridBeat;
+    ctx.strokeStyle =
+      bar % (step * STRONG_LINE_EVERY) === 0 ? colors().gridBar : colors().gridBeat;
     ctx.beginPath();
     ctx.moveTo(x, top);
     ctx.lineTo(x, viewport.height);
     ctx.stroke();
   }
 
-  drawRuler(env, firstBar, lastBar);
+  drawRuler(env, firstBar, lastBar, step);
 }
 
 /** The bar-number and section-label strip across the top of the timeline. */
-function drawRuler(env: DrawEnvironment, firstBar: number, lastBar: number): void {
+function drawRuler(
+  env: DrawEnvironment,
+  firstBar: number,
+  lastBar: number,
+  step: number,
+): void {
   const { ctx, viewport } = env;
   ctx.fillStyle = colors().ruler;
   ctx.fillRect(0, 0, viewport.width, RULER_HEIGHT_PX);
 
   if (env.loop) drawLoopBrace(env, env.loop);
 
-  drawRulerLabels(env, firstBar, lastBar, colors().text, colors().rulerText);
+  drawRulerLabels(env, firstBar, lastBar, step, colors().text, colors().rulerText);
   // Over a switched-on brace the labels are drawn again, clipped to the brace
   // and inverted, so each glyph reads dark on white where it crosses it.
   const brace = env.loop?.enabled ? braceSpan(env, env.loop) : null;
@@ -252,7 +288,7 @@ function drawRuler(env: DrawEnvironment, firstBar: number, lastBar: number): voi
     ctx.rect(brace.left, 0, brace.width, RULER_HEIGHT_PX);
     ctx.clip();
     const onBrace = colors().rulerTextOnBrace;
-    drawRulerLabels(env, firstBar, lastBar, onBrace, onBrace);
+    drawRulerLabels(env, firstBar, lastBar, step, onBrace, onBrace);
     ctx.restore();
   }
 }
@@ -262,6 +298,7 @@ function drawRulerLabels(
   env: DrawEnvironment,
   firstBar: number,
   lastBar: number,
+  step: number,
   barColor: string,
   sectionColor: string,
 ): void {
@@ -282,12 +319,13 @@ function drawRulerLabels(
     ctx.fillText(section.name, Math.max(2, left + 4), RULER_HEIGHT_PX / 2);
   }
 
-  // Bar numbers every 4 bars, so labels do not crowd at small zoom.
+  // A bar number on every grid line, but never closer than every 4 bars.
+  const labelEvery = rulerLabelEveryBars(step);
   ctx.fillStyle = barColor;
   ctx.font = `10px ${fontFamily()}`;
   ctx.textBaseline = "middle";
-  for (let bar = firstBar; bar <= lastBar; bar += 1) {
-    if (bar % 4 !== 0) continue;
+  for (let bar = firstBar; bar <= lastBar; bar += step) {
+    if (bar % labelEvery !== 0) continue;
     const x = screenX(bar * TICKS_PER_BAR, viewport);
     if (x < -20 || x > viewport.width) continue;
     ctx.fillText(`${bar + 1}`, x + 3, RULER_HEIGHT_PX / 2);

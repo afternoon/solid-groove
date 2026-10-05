@@ -14,6 +14,8 @@ import {
   drawBackgroundLayer,
   drawContentLayer,
   drawInteractionLayer,
+  gridStepBars,
+  MIN_GRID_SPACING_PX,
   RULER_HEIGHT_PX,
   resetArrangementPalette,
 } from "./canvasRenderer";
@@ -163,6 +165,76 @@ describe("drawBackgroundLayer", () => {
       root.style.fontFamily = "";
       resetArrangementPalette();
     }
+  });
+});
+
+describe("gridStepBars (#1107)", () => {
+  it("draws a line every bar while a bar is at least the minimum spacing wide", () => {
+    expect(gridStepBars(MIN_GRID_SPACING_PX)).toBe(1);
+    expect(gridStepBars(200)).toBe(1);
+  });
+
+  it("steps to 4, 8, 16, 32 bars as you zoom out", () => {
+    expect(gridStepBars(39)).toBe(4);
+    expect(gridStepBars(10)).toBe(4);
+    expect(gridStepBars(9.9)).toBe(8);
+    expect(gridStepBars(5)).toBe(8);
+    expect(gridStepBars(4.9)).toBe(16);
+    expect(gridStepBars(2.5)).toBe(16);
+    expect(gridStepBars(2)).toBe(32);
+    expect(gridStepBars(0.5)).toBe(128);
+  });
+
+  it("always keeps lines at least the minimum spacing apart", () => {
+    for (let px = 0.1; px < 100; px += 0.37) {
+      const step = gridStepBars(px);
+      expect(step * px).toBeGreaterThanOrEqual(MIN_GRID_SPACING_PX);
+    }
+  });
+});
+
+describe("drawBackgroundLayer's grid at each zoom (#1107)", () => {
+  /** The x of every vertical grid line (row lines all start at x = 0). */
+  function barLineXs(env: { ctx: FakeContext }): number[] {
+    return env.ctx.moveToXs.filter((x) => x !== 0);
+  }
+
+  function rulerLabels(env: { ctx: FakeContext }): string[] {
+    const fillText = env.ctx.fillText as unknown as ReturnType<typeof vi.fn>;
+    return fillText.mock.calls
+      .map(([text]) => text as string)
+      .filter((t) => /^\d+$/.test(t));
+  }
+
+  it("zoomed in, draws one line per bar and numbers every fourth bar", () => {
+    // 100px per bar.
+    const env = envFor(baseViewport({ pixelsPerTick: 100 / TICKS_PER_BAR }));
+    drawBackgroundLayer(env);
+    const xs = barLineXs(env);
+    expect(xs[1] - xs[0]).toBe(100);
+    expect(rulerLabels(env).slice(0, 3)).toEqual(["1", "5", "9"]);
+  });
+
+  it("zoomed out, spaces lines and labels by the coarser step", () => {
+    // 3px per bar: a line every 16 bars, 48px apart.
+    const env = envFor(baseViewport({ pixelsPerTick: 3 / TICKS_PER_BAR }));
+    drawBackgroundLayer(env);
+    const xs = barLineXs(env);
+    for (let i = 1; i < xs.length; i += 1) {
+      expect(xs[i] - xs[i - 1]).toBe(48);
+    }
+    expect(rulerLabels(env).slice(0, 3)).toEqual(["1", "17", "33"]);
+  });
+
+  it("starts the coarse grid from a multiple of its step when scrolled", () => {
+    // 3px per bar, scrolled 10 bars in: the first line is bar 0, then bar 16.
+    const env = envFor(
+      baseViewport({ pixelsPerTick: 3 / TICKS_PER_BAR, scrollLeft: 30 }),
+    );
+    drawBackgroundLayer(env);
+    const labels = rulerLabels(env);
+    expect(labels).toContain("17");
+    expect(labels.every((l) => (Number(l) - 1) % 16 === 0)).toBe(true);
   });
 });
 
