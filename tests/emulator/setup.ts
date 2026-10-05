@@ -54,12 +54,18 @@ export async function createTestEnvironment(
     // The Storage emulator, for `storage.rules` (#282). Opt-in per file, so a
     // suite about Firestore alone does not need it running. Its host is the
     // one `emulators:exec` exports, like Firestore's.
+    //
+    // No `rules` here, unlike Firestore's: `emulators:exec` has already loaded
+    // `storage.rules` (named in `firebase.json`) before the suite starts. The
+    // Storage emulator holds ONE ruleset for every bucket and project, and
+    // replacing it throws the current one away before the new one compiles,
+    // so a file that reloaded it would deny every Storage request in every
+    // other file running at that moment ("no Storage ruleset is currently
+    // loaded"). Firestore keeps its rules per project, which is why each file
+    // can still load those for its own.
     ...(options.storage
       ? {
-          storage: {
-            ...parseHostAndPort(process.env.FIREBASE_STORAGE_EMULATOR_HOST, 9199),
-            rules: readFileSync(resolve(process.cwd(), "storage.rules"), "utf8"),
-          },
+          storage: parseHostAndPort(process.env.FIREBASE_STORAGE_EMULATOR_HOST, 9199),
         }
       : {}),
   });
