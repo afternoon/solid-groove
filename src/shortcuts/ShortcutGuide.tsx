@@ -173,7 +173,9 @@ export default function ShortcutGuide(props: ShortcutGuideProps): JSX.Element {
             </label>
           </div>
         </header>
-        <div class="shortcut-guide-sections">
+        {/* A tab stop of its own (#76): the list scrolls, and nothing in it is
+            focusable, so without one a keyboard could never scroll it. */}
+        <section class="shortcut-guide-sections" aria-label="Shortcuts" tabindex={0}>
           <For each={sections()}>
             {(section) => (
               <section class="shortcut-guide-section">
@@ -224,7 +226,7 @@ export default function ShortcutGuide(props: ShortcutGuideProps): JSX.Element {
           <Show when={sections().length === 0}>
             <p class="shortcut-guide-empty">No shortcuts match your search.</p>
           </Show>
-        </div>
+        </section>
         <footer class="shortcut-guide-footer">
           <button
             type="button"

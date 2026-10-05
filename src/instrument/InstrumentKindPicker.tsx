@@ -107,7 +107,8 @@ export default function InstrumentKindPicker(
   return (
     <section class="instrument-panel instrument-kind" aria-label="Instrument">
       <div class="instrument-panel-group">
-        <h3 class="instrument-panel-heading">Instrument</h3>
+        {/* An h2: it heads the view (#447), so the panels under it are h3s (#76). */}
+        <h2 class="instrument-panel-heading">Instrument</h2>
         <OptionGroup
           legend="Instrument type"
           value={props.instrument?.kind ?? null}

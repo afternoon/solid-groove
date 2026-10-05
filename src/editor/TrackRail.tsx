@@ -57,7 +57,7 @@ export interface TrackRailProps {
  * arrangement's toolbars, the same place (#447): switching views moves nothing.
  */
 export default function TrackRail(props: TrackRailProps): JSX.Element {
-  let list: HTMLUListElement | undefined;
+  let list: HTMLDivElement | undefined;
   const indexOf = (trackId: TrackId) => props.tracks.findIndex((t) => t.id === trackId);
   // Drag a row up or down to reorder its track (#447), as the arrangement's
   // header column does, with the same controller and the same one-entry drop.
@@ -73,10 +73,9 @@ export default function TrackRail(props: TrackRailProps): JSX.Element {
     previewOrder(props.tracks, (track) => track.id === drag.dragging(), drag.target());
 
   return (
-    <ul
+    <div
       ref={list}
       class="track-rail"
-      aria-label="Tracks"
       /* The arrangement's own header metrics, not a second set of numbers
          that would drift from them: a track's row is the same size and the
          column the same width in both views (`UI-001`). */
@@ -86,52 +85,56 @@ export default function TrackRail(props: TrackRailProps): JSX.Element {
         "--track-ruler-height": `${RULER_HEIGHT_PX}px`,
       }}
     >
-      {/* Keyed on the id, not the track: every edit mints a new track object,
+      <ul class="track-rail-list" aria-label="Tracks">
+        {/* Keyed on the id, not the track: every edit mints a new track object,
           and a row rebuilt mid-drag loses its fader under the pointer. */}
-      <For each={shown()} keyed={(track) => track.id}>
-        {(track) => (
-          <li
-            class={[
-              "track-rail-item",
-              { "track-dragging": drag.dragging() === track().id },
-            ]}
-            data-track-drag={props.onReorder ? track().id : undefined}
-          >
-            <TrackHeader
-              track={track()}
-              selected={props.selectedTrackId === track().id}
-              chosen={
-                props.chosenTrackId === undefined
-                  ? undefined
-                  : props.chosenTrackId === track().id
-              }
-              onSelect={() => props.onSelect(track().id)}
-              dispatch={props.dispatch}
-              beginGesture={props.beginGesture}
-              trackLevel={(trackId) => props.trackLevel?.(trackId) ?? null}
-              onDragStart={(event) => {
-                if (props.onReorder) drag.begin(event, track().id);
-              }}
-              onDelete={props.onDelete ? () => props.onDelete?.(track().id) : undefined}
-              surface="instrument"
-              analytics={props.analytics}
-            />
-          </li>
-        )}
-      </For>
+        <For each={shown()} keyed={(track) => track.id}>
+          {(track) => (
+            <li
+              class={[
+                "track-rail-item",
+                { "track-dragging": drag.dragging() === track().id },
+              ]}
+              data-track-drag={props.onReorder ? track().id : undefined}
+            >
+              <TrackHeader
+                track={track()}
+                selected={props.selectedTrackId === track().id}
+                chosen={
+                  props.chosenTrackId === undefined
+                    ? undefined
+                    : props.chosenTrackId === track().id
+                }
+                onSelect={() => props.onSelect(track().id)}
+                dispatch={props.dispatch}
+                beginGesture={props.beginGesture}
+                trackLevel={(trackId) => props.trackLevel?.(trackId) ?? null}
+                onDragStart={(event) => {
+                  if (props.onReorder) drag.begin(event, track().id);
+                }}
+                onDelete={props.onDelete ? () => props.onDelete?.(track().id) : undefined}
+                surface="instrument"
+                analytics={props.analytics}
+              />
+            </li>
+          )}
+        </For>
+      </ul>
       {/* The same per-kind buttons the arrangement offers below its last
-          track, in the place the next track's row would go (#495). */}
+          track, in the place the next track's row would go (#495). Outside
+          the list, as the arrangement keeps them: they are not a track, and a
+          list item with its role taken away is not valid list content (#76). */}
       <Show when={props.onAddTrack}>
         {(onAdd) => (
-          <li class="track-rail-add" role="none">
+          <div class="track-rail-add">
             <NewTrackButtons
               label="Add track"
               onAdd={onAdd()}
               onAddLoop={props.onAddLoop}
             />
-          </li>
+          </div>
         )}
       </Show>
-    </ul>
+    </div>
   );
 }

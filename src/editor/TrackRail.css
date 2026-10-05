@@ -21,9 +21,17 @@
   margin: calc(-1 * var(--size-divider)) 0 0 calc(-1 * var(--size-divider));
   padding: 0;
   overflow-y: auto;
-  list-style: none;
   background-color: var(--color-background-well);
   border-right: 1px solid var(--color-background-tertiary);
+}
+
+.track-rail-list {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .track-rail-item {

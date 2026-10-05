@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
+import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import { createSignal, flush } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { CommandHistory } from "../commands";
@@ -165,5 +165,28 @@ describe("TrackRail delete (#537)", () => {
     ));
     fireEvent.click(screen.getByRole("button", { name: `Delete ${b.name}` }));
     expect(onDelete).toHaveBeenCalledExactlyOnceWith(b.id);
+  });
+});
+
+describe("TrackRail semantics (#76)", () => {
+  it("lists only the tracks; the add-track buttons follow the list", () => {
+    const tracks = createReferenceProject({ trackCount: 3, placementCount: 3 }).song
+      .tracks;
+    render(() => (
+      <TrackRail
+        tracks={tracks}
+        selectedTrackId={null}
+        onSelect={() => {}}
+        onAddTrack={() => {}}
+        dispatch={() => undefined}
+        beginGesture={() => undefined}
+      />
+    ));
+    const list = screen.getByRole("list", { name: "Tracks" });
+    expect(within(list).getAllByRole("listitem")).toHaveLength(3);
+    // Every child of the list is a list item: nothing with its role removed.
+    expect([...list.children].every((child) => child.tagName === "LI")).toBe(true);
+    const addSynth = screen.getByRole("button", { name: "Add synth track" });
+    expect(list.contains(addSynth)).toBe(false);
   });
 });
