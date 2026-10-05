@@ -1,0 +1,22 @@
+{
+  "id": "815",
+  "title": "Favourites and recently heard",
+  "steps": [
+    {
+      "file": "01-favourites-empty-it-says-how-to-fill-it.png",
+      "caption": "Favourites, empty: it says how to fill it"
+    },
+    {
+      "file": "02-all-sounds-two-kicks-hearted-and-favouri.png",
+      "caption": "All sounds: two kicks hearted, and Favourites counts two"
+    },
+    {
+      "file": "03-favourites-lists-them-newest-first-under.png",
+      "caption": "Favourites lists them, newest first, under the same shelf and filters"
+    },
+    {
+      "file": "04-recently-heard-the-kicks-auditioned-on-t.png",
+      "caption": "Recently heard: the kicks auditioned on this device, the last one first"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "id": "815-before",
+  "title": "Before: placeholders",
+  "steps": [
+    {
+      "file": "01-before-the-hearts-are-disabled-on-every-.png",
+      "caption": "Before: the hearts are disabled on every row"
+    },
+    {
+      "file": "02-before-favourites-is-a-placeholder.png",
+      "caption": "Before: Favourites is a placeholder"
+    }
+  ]
+}
