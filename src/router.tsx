@@ -45,6 +45,9 @@ export const Router = createRouter({
     // The alpha allowlist (#854). Only an `admin`-claim account sees it; the
     // page answers everyone else with the 404 page.
     { path: "/admin", component: lazy(() => import("./routes/admin")) },
+    // Where a sign-in the allowlist refused lands (#854). Its path is
+    // `NOT_ON_ALLOWLIST_PATH` in `access/allowlist.ts`.
+    { path: "/not-invited", component: lazy(() => import("./routes/NotInvited")) },
     // One route, three addresses. A view *is* an address (`UI-001`), so the
     // back button, a deep link and a reload all land where they should without
     // the editor keeping a second copy of "which view" in a signal.

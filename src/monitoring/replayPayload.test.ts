@@ -354,6 +354,9 @@ describe("the OPS-03 content rule against the replay payload (ADR 0002 decision 
       // prerendered shell's canonical URL. A build-time constant, and the
       // shell is not a surface a session replay can record in the first place.
       "SITE_ORIGIN",
+      // The request-access form's address (#854), a build-time constant in
+      // `site.config.mjs`. It names no person and carries no token.
+      "requestAccessUrl",
     ];
     const offenders: string[] = [];
     for (const file of sourceFiles()) {

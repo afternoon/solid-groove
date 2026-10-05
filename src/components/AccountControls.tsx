@@ -1,6 +1,7 @@
 import { useNavigate } from "@solidjs/router";
 import { type JSX, Portal } from "@solidjs/web";
 import { createSignal, Show } from "solid-js";
+import { isNotOnAllowlistError, NOT_ON_ALLOWLIST_PATH } from "../access/allowlist";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import { useAuth } from "../auth/AuthProvider";
 import { reportError as defaultReportError } from "../monitoring/errorReporting";
@@ -63,6 +64,14 @@ export function LogInButton(props: AccountControlProps): JSX.Element {
       setConfirming(false);
       navigate("/projects");
     } catch (error) {
+      // The alpha allowlist refused that account (#854): the guest session
+      // is untouched, and the page it lands on says why.
+      if (isNotOnAllowlistError(error)) {
+        analytics().log("sign_in_blocked", { source: "log_in" });
+        setConfirming(false);
+        navigate(NOT_ON_ALLOWLIST_PATH);
+        return;
+      }
       // A closed popup is the common case and looks identical to a broken
       // provider from here, so it is reported non-fatally and the dialog stays
       // up to try again.

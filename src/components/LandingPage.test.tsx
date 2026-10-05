@@ -2,6 +2,7 @@ import { cleanup, render, screen, waitFor } from "@solidjs/testing-library";
 import userEvent from "@testing-library/user-event";
 import type { User } from "firebase/auth";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { NOT_ON_ALLOWLIST } from "../access/allowlist";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
 import { createFailingTransport, createRecordingTransport } from "../analytics/transport";
@@ -465,6 +466,41 @@ describe("LandingPage (PRD PRJ-06)", () => {
 
       expect(event.defaultPrevented).toBe(true);
       expect(navigate).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("the alpha allowlist (#854)", () => {
+    /** What Firebase hands back when the blocking function refuses a sign-in. */
+    const refusal = () =>
+      Object.assign(
+        new Error(
+          `Firebase: {"error":{"message":"BLOCKING_FUNCTION_ERROR_RESPONSE : ((${NOT_ON_ALLOWLIST}))"}} (auth/internal-error).`,
+        ),
+        { code: "auth/internal-error" },
+      );
+
+    it("sends a refused sign-in to the not-on-the-list page, not an error", async () => {
+      const { reportError } = setup({
+        signInWithGoogle: () => Promise.reject(refusal()),
+      });
+
+      await userEvent.click(screen.getByRole("button", { name: "Log in" }));
+
+      await waitFor(() => expect(navigate).toHaveBeenCalledWith("/not-invited"));
+      expect(navigate).not.toHaveBeenCalledWith("/projects");
+      expect(reportError).not.toHaveBeenCalled();
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+
+    it("counts the refusal once, naming only where it happened", async () => {
+      const { transport } = setup({ signInWithGoogle: () => Promise.reject(refusal()) });
+
+      await userEvent.click(screen.getByRole("button", { name: "Log in" }));
+
+      await waitFor(() => expect(transport.named("sign_in_blocked")).toHaveLength(1));
+      expect(transport.named("sign_in_blocked")[0].params).toMatchObject({
+        source: "landing",
+      });
     });
   });
 });

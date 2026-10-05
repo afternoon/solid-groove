@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
 import { flush } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { NOT_ON_ALLOWLIST } from "../access/allowlist";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
 import { createRecordingTransport } from "../analytics/transport";
@@ -110,6 +111,33 @@ describe("AccountControl (#951)", () => {
     });
     expect(navigate).not.toHaveBeenCalled();
     expect(transport.named("feature_first_use")).toHaveLength(0);
+  });
+
+  it("sends a guest whose account is not on the alpha list to the not-on-the-list page (#854)", async () => {
+    fakeAuth.service.signInWithGoogle.mockRejectedValue(
+      Object.assign(
+        new Error(`BLOCKING_FUNCTION_ERROR_RESPONSE : ((${NOT_ON_ALLOWLIST}))`),
+        {
+          code: "auth/internal-error",
+        },
+      ),
+    );
+    const { transport, reportError } = renderControl({
+      uid: "anon-1",
+      isAnonymous: true,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Log in" }));
+    flush();
+    fireEvent.click(screen.getByRole("button", { name: "Log in with Google" }));
+    flush();
+
+    await vi.waitFor(() => expect(navigate).toHaveBeenCalledWith("/not-invited"));
+    expect(reportError).not.toHaveBeenCalled();
+    expect(transport.named("sign_in_blocked")).toHaveLength(1);
+    expect(transport.named("sign_in_blocked")[0].params).toMatchObject({
+      source: "log_in",
+    });
   });
 
   it("stays put and says so when Sign out fails", async () => {

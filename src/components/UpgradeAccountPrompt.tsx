@@ -1,6 +1,8 @@
 import type { JSX } from "@solidjs/web";
 import { HiSolidUser } from "solid-icons/hi";
 import { createSignal, Show } from "solid-js";
+import { requestAccessUrl } from "../../site.config.mjs";
+import { isNotOnAllowlistError } from "../access/allowlist";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import { authService } from "../auth/authService";
 
@@ -28,10 +30,12 @@ export default function UpgradeAccountPrompt(props: UpgradeAccountPromptProps) {
   const analytics = props.analytics ?? defaultAnalytics;
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal<string | null>(null);
+  const [notListed, setNotListed] = createSignal(false);
 
   const upgrade = async () => {
     setBusy(true);
     setError(null);
+    setNotListed(false);
     try {
       await authService.linkWithGoogle();
       // PRD `OPS-02`: `account_upgraded` fires when "an anonymous account
@@ -39,6 +43,13 @@ export default function UpgradeAccountPrompt(props: UpgradeAccountPromptProps) {
       // provider (see `authService.linkWithGoogle`).
       analytics.log("account_upgraded", { method: "google" });
     } catch (err) {
+      // The alpha allowlist refused that Google account (#854). Nothing was
+      // linked, so the guest keeps working exactly as before.
+      if (isNotOnAllowlistError(err)) {
+        analytics.log("sign_in_blocked", { source: "upgrade" });
+        setNotListed(true);
+        return;
+      }
       console.error("Error linking Google account:", err);
       setError(
         "Could not link a Google account. It may already have a Groove account: use Log in instead to open it.",
@@ -64,6 +75,12 @@ export default function UpgradeAccountPrompt(props: UpgradeAccountPromptProps) {
       </div>
       <Show when={error()}>
         <p class="error">{error()}</p>
+      </Show>
+      <Show when={notListed()}>
+        <p class="error">
+          That Google account isn't on the alpha list yet, so your guest projects stay
+          here as they are. <a href={requestAccessUrl}>Request access</a>
+        </p>
       </Show>
     </div>
   );
