@@ -176,11 +176,19 @@
 }
 
 /* A muted track recedes, the way a muted drum pad does — the M button itself
-   stays at full strength so the way back out is never dimmed. */
+   stays at full strength so the way back out is never dimmed. Its text
+   recedes to the dimmed-text grey rather than fading, so it still reads at
+   AA (#76); only its meter fades. */
 .mixer-strip.muted .mixer-strip-head,
 .mixer-strip.muted .mixer-strip-pan,
 .mixer-strip.muted .mixer-strip-controls {
-  opacity: var(--muted-opacity);
+  --color-foreground-bright: var(--color-foreground-muted);
+  --color-text: var(--color-foreground-muted);
+  --color-text-primary: var(--color-foreground-muted);
+  --color-text-secondary: var(--color-foreground-muted);
+  --color-foreground: var(--color-foreground-muted);
+  /* What inherits its colour rather than naming a token. */
+  color: var(--color-foreground-muted);
 }
 
 .mixer-meter-column {
@@ -212,6 +220,10 @@
   left: 0;
   width: 100%;
   transition: height 0.06s linear;
+}
+
+.mixer-strip.muted .mixer-meter-fill {
+  opacity: var(--muted-opacity);
 }
 
 .mixer-strip-actions {

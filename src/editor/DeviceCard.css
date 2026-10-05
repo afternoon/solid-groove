@@ -116,7 +116,19 @@
 }
 
 /* A bypassed device is out of the signal but not gone: its controls recede,
-   while its header — and the way back in — stays at full strength. */
+   while its header — and the way back in — stays at full strength. Its text
+   recedes to the dimmed-text grey rather than fading, so it still reads at
+   AA (#76); only its well's drawing fades. */
 .device-card.bypassed .device-card-body {
-  opacity: 0.45;
+  --color-foreground-bright: var(--color-foreground-muted);
+  --color-text: var(--color-foreground-muted);
+  --color-text-primary: var(--color-foreground-muted);
+  --color-text-secondary: var(--color-foreground-muted);
+  --color-foreground: var(--color-foreground-muted);
+  /* What inherits its colour rather than naming a token. */
+  color: var(--color-foreground-muted);
+}
+
+.device-card.bypassed .device-card-body > .well .well-screen > svg {
+  opacity: var(--muted-opacity);
 }

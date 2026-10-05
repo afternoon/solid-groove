@@ -11,9 +11,17 @@
   height: 28px;
 }
 
-/* A muted pad dims, but its mute and solo stay readable to undo it. */
+/* A muted pad dims, but its mute and solo stay readable to undo it. Its
+   text dims to the dimmed-text grey rather than fading, so it still reads
+   at AA (#76); only its waveform fades. */
 .drum-pad.muted > :not(.pad-mute-solo-cell) {
-  opacity: var(--muted-opacity);
+  --color-foreground-bright: var(--color-foreground-muted);
+  --color-text: var(--color-foreground-muted);
+  --color-text-primary: var(--color-foreground-muted);
+  --color-text-secondary: var(--color-foreground-muted);
+  --color-foreground: var(--color-foreground-muted);
+  /* What inherits its colour rather than naming a token. */
+  color: var(--color-foreground-muted);
 }
 
 td.pad-index {
@@ -41,6 +49,10 @@ td.pad-index {
   inset: 3px 4px;
   width: calc(100% - 8px);
   height: calc(100% - 6px);
+}
+
+.drum-pad.muted .pad-preview svg {
+  opacity: var(--muted-opacity);
 }
 
 /* In a row the column header names each control, so its own label is kept

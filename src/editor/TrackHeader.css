@@ -88,9 +88,21 @@
 }
 
 /* A muted track recedes, as a muted strip or pad does; its M and S stay at
-   full strength, so the way back out is never dimmed. */
+   full strength, so the way back out is never dimmed. Its text recedes to
+   the dimmed-text grey rather than fading, so it still reads at AA (#76);
+   only its graphics fade. */
 .track-header.muted > :not(.track-header-title),
 .track-header.muted .track-header-title > :not(.mute-solo) {
+  --color-foreground-bright: var(--color-foreground-muted);
+  --color-text: var(--color-foreground-muted);
+  --color-text-primary: var(--color-foreground-muted);
+  --color-text-secondary: var(--color-foreground-muted);
+  --color-foreground: var(--color-foreground-muted);
+  /* What inherits its colour rather than naming a token. */
+  color: var(--color-foreground-muted);
+}
+
+.track-header.muted :is(.track-header-swatch, .mixer-meter-fill) {
   opacity: var(--muted-opacity);
 }
 

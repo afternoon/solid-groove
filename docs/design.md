@@ -104,7 +104,9 @@ component, and a surface only sizes it; it never restyles it.
   anywhere but a control starts a reorder drag, and the handle shows the grab
   cursor. Keys come only from the shortcut registry.
 - **Sizes and type come from tokens**: `--font-size-*`, `--rack-*`,
-  `--muted-opacity`. A muted track or pad recedes to one opacity, and its M
+  `--muted-opacity`. A muted track or pad, or a bypassed device, recedes: its
+  text drops to the dimmed-text grey (never an opacity, which would take it
+  under AA contrast, #76) and its graphics fade to that one opacity. Its M
   and S stay at full strength.
 - **Before adding a part, look for the one that exists.** A second way to draw
   a fader, a toggle or a slot is the first step to an interface that looks

@@ -14,7 +14,11 @@
   --font-size-xl: calc(var(--font-size-base) * 4);
   --font-size-title: 18px;
   --font-size-micro: 9px;
-  /* How far a muted track or pad recedes; its mute stays at full strength. */
+  /* How far a muted track, strip or pad, or a bypassed device, fades its
+     graphics: a meter, a swatch, a waveform. Its text does not fade; it
+     drops to the dimmed-text grey, which still reads at AA, because a muted
+     control is still one a producer operates (#76). Its M and S, and a
+     device's header, stay at full strength. */
   --muted-opacity: 0.4;
 }
 
