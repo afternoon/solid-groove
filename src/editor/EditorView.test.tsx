@@ -4068,3 +4068,37 @@ describe("EditorView withdrawn factory packs", () => {
     expect(screen.queryByRole("region", { name: "Missing sounds" })).toBeNull();
   });
 });
+
+describe("EditorView focus rescue (#76)", () => {
+  async function renderOpen() {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createSliceFixtureProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    renderEditor(project.metadata.id);
+    await screen.findByTestId("arrangement-view-ready");
+  }
+
+  it("puts focus on the arrangement when the view that held it goes", async () => {
+    await renderOpen();
+    await goToView("Mixer");
+    const fader = screen.getByRole("slider", { name: /^Volume for / });
+    fader.focus();
+
+    // `1` swaps the mixer, and the fader with it, out for the arrangement.
+    fireAndFlush(() => fireEvent.keyDown(fader, { key: "1", bubbles: true }));
+
+    const arrangement = await screen.findByTestId("arrangement-view-ready");
+    await vi.waitFor(() => expect(document.activeElement).toBe(arrangement));
+  });
+
+  it("puts focus on the view's body when the element that held it goes", async () => {
+    await renderOpen();
+    screen.getAllByRole("button", { name: /^Edit / })[0]?.focus();
+
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "5" }));
+
+    await screen.findByRole("region", { name: "Mixer" });
+    await vi.waitFor(() => expect(document.activeElement).toHaveClass("editor-body"));
+  });
+});

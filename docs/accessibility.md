@@ -134,11 +134,18 @@ means a visible focus ring.
 8. **Instrument view.** Press `3`. Hear the track's name as a heading, then
    the "Instrument" type choice as a radio group. Every fader is a slider with
    a spelled-out name and its value with its unit.
-9. **Library view.** Press `4`. Focus lands on the search field. Down moves
-   into the results; each sound is announced with its name. Enter inserts it
+9. **Library view.** Press `4`. Focus stays where it was, so the view keys
+   and Enter keep working; Down moves into the results, and each sound is
+   announced with its name. Enter inserts it
    and returns to the instrument; `?` lists the library's own keys.
 10. **Mixer.** Press `5`. Each strip's fader, pan, mute, solo and sends are
     reachable by Tab, named for their track.
+11. **Focus is never stranded.** Focus a fader in the mixer and press `1`: the
+    mixer is gone, and focus is on the arrangement (hear it, and see its
+    ring), not back at the top of the page. Delete a track from its header's
+    Delete button: focus lands on the arrangement again. In any other view,
+    the same loss puts focus on the view itself, and the next Tab goes to its
+    first control.
 
 ### Shortcut guide
 

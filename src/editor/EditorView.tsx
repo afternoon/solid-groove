@@ -8,6 +8,7 @@ import {
   createSignal,
   Match,
   onCleanup,
+  onSettled,
   Show,
   Switch,
   snapshot,
@@ -46,6 +47,7 @@ import { DeviceSpectrumContext, type DeviceSpectrumSource } from "./deviceSpectr
 import EditorHeader from "./EditorHeader";
 import { type EditorControls, EditorControlsContext } from "./editorControls";
 import { type EditorViewName, editorViewSpec } from "./editorViews";
+import { installFocusRescue } from "./focusRescue";
 import InstrumentPane from "./InstrumentPane";
 import LibraryPane from "./LibraryPane";
 import LoadRecoveryNotice from "./LoadRecoveryNotice";
@@ -234,6 +236,19 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
       };
     },
   );
+  // Focus is never stranded (#76): when the element holding it leaves the page
+  // — a view swapped out, a track deleted from its own header — it goes to the
+  // view on screen, not to the top of the document. A view marks its own home
+  // (`data-focus-home`, the arrangement); the others are the body itself.
+  let editorMain: HTMLElement | undefined;
+  onSettled(() => {
+    if (!editorMain) return;
+    const main = editorMain;
+    return installFocusRescue(main, () => {
+      const body = main.querySelector<HTMLElement>(".editor-body");
+      return body?.querySelector<HTMLElement>("[data-focus-home]") ?? body ?? null;
+    });
+  });
   // The sounds this project uses that are gone: personal sounds gone from the
   // producer's packs (#282) and factory packs the library has withdrawn (#78),
   // named with the tracks and clips they leave silent. Each half is judged
@@ -383,6 +398,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     <ControlRegistryContext value={controls}>
       <EditorControlsContext value={editorControls}>
         <main
+          ref={editorMain}
           class={["editor", `editor-${props.view}`]}
           style={{ "--assistant-dock-space": assistantDockSpace() }}
         >
@@ -440,7 +456,8 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                       and the Limiter its meters (#937). */}
                   <DeviceSpectrumContext value={spectrumSource}>
                     <DeviceMeterContext value={audio.deviceMeter}>
-                      <div class="editor-body">
+                      {/* Where focus goes when the element holding it is gone (#76). */}
+                      <div class="editor-body" tabindex={-1}>
                         {/*
                          * One view at a time (`UI-001`). A view you are not on is not
                          * on the page at all rather than hidden behind the one you
