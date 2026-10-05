@@ -64,22 +64,29 @@ export const assistantNoteEventSchema = z.strictObject({
 /**
  * The current selection's raw note events, and only the selection's
  * (ADR 0007 decision 3; `src/projection/selectedNotes.ts`). Never a clip's
- * name.
+ * name. The cap is on the notes across every clip, not per clip, and
+ * `noteCount` is exactly how many are sent.
  */
-export const assistantSelectedNotesSchema = z.strictObject({
-  clips: z
-    .array(
-      z.strictObject({
-        clipId: z.string().max(64),
-        trackId: z.string().max(64),
-        lengthTicks: ticks,
-        events: z.array(assistantNoteEventSchema).max(MAX_SELECTED_NOTES),
-      }),
-    )
-    .max(MAX_SELECTED_NOTES),
-  noteCount: count.max(MAX_SELECTED_NOTES),
-  omittedNoteCount: count,
-});
+export const assistantSelectedNotesSchema = z
+  .strictObject({
+    clips: z
+      .array(
+        z.strictObject({
+          clipId: z.string().max(64),
+          trackId: z.string().max(64),
+          lengthTicks: ticks,
+          events: z.array(assistantNoteEventSchema).max(MAX_SELECTED_NOTES),
+        }),
+      )
+      .max(MAX_SELECTED_NOTES),
+    noteCount: count.max(MAX_SELECTED_NOTES),
+    omittedNoteCount: count,
+  })
+  .refine(
+    (notes) =>
+      notes.clips.reduce((sum, clip) => sum + clip.events.length, 0) === notes.noteCount,
+    { message: "noteCount must be the number of notes sent, at most the cap" },
+  );
 
 const registerSchema = z.strictObject({
   lowestPitch: z.int().min(0).max(127),

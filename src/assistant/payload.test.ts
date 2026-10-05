@@ -6,7 +6,7 @@ import {
 } from "../domain/fixtures";
 import { selectOnly } from "../selection/selection";
 import { buildAssistantPayload } from "./payload";
-import { assistantContextPayloadSchema } from "./protocol";
+import { assistantContextPayloadSchema, assistantSelectedNotesSchema } from "./protocol";
 
 describe("buildAssistantPayload", () => {
   it("is what the gateway's allowlist schema accepts", () => {
@@ -91,5 +91,45 @@ describe("buildAssistantPayload", () => {
       volume: project.song.tracks[0].mixer.volume,
       pan: project.song.tracks[0].mixer.pan,
     });
+  });
+});
+
+describe("assistantSelectedNotesSchema", () => {
+  const event = (i: number) => ({
+    id: `evt_${i}`,
+    trigger: { kind: "pitch" as const, pitch: 60 },
+    startTicks: i,
+    durationTicks: 1,
+    velocity: 1,
+    probability: null,
+  });
+  const clip = (id: string, from: number, count: number) => ({
+    clipId: id,
+    trackId: "trk_a",
+    lengthTicks: 768,
+    events: Array.from({ length: count }, (_, i) => event(from + i)),
+  });
+
+  it("accepts the cap's worth of notes spread over several clips", () => {
+    const notes = {
+      clips: [clip("clp_a", 0, 1_000), clip("clp_b", 1_000, 1_000)],
+      noteCount: 2_000,
+      omittedNoteCount: 5,
+    };
+    expect(assistantSelectedNotesSchema.safeParse(notes).success).toBe(true);
+  });
+
+  it("refuses more than the cap across clips, even when each clip is under it", () => {
+    const notes = {
+      clips: [clip("clp_a", 0, 1_500), clip("clp_b", 1_500, 1_500)],
+      noteCount: 2_000,
+      omittedNoteCount: 0,
+    };
+    expect(assistantSelectedNotesSchema.safeParse(notes).success).toBe(false);
+  });
+
+  it("refuses a noteCount that is not the number of notes sent", () => {
+    const notes = { clips: [clip("clp_a", 0, 3)], noteCount: 2, omittedNoteCount: 0 };
+    expect(assistantSelectedNotesSchema.safeParse(notes).success).toBe(false);
   });
 });

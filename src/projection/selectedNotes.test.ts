@@ -1,5 +1,8 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
+import { buildAssistantPayload } from "../assistant/payload";
+import { buildSystemBlocks } from "../assistant/prompt";
+import { assistantContextPayloadSchema } from "../assistant/protocol";
 import type { Clip, NoteEvent, Project } from "../domain/entities";
 import {
   createBlankProject,
@@ -11,7 +14,7 @@ import {
   createTrack,
 } from "../domain/factories";
 import { createReferenceProject } from "../domain/fixtures";
-import { createSeededIdFactory } from "../domain/ids";
+import { createSeededIdFactory, type TrackId } from "../domain/ids";
 import { TICKS_PER_BAR, TICKS_PER_QUARTER, toTicks } from "../domain/time";
 import type { SelectionScope, SelectionState } from "../selection/types";
 import { MAX_SELECTED_NOTES, selectedNotes } from "./selectedNotes";
@@ -235,23 +238,73 @@ describe("selectedNotes", () => {
   });
 });
 
-describe("selectedNotes never includes a note outside the selection", () => {
-  const project = createReferenceProject();
+/**
+ * Every arrangement position `placement` plays `event` at, worked out
+ * independently of the module: each pass of the clip (any whole number of
+ * clip lengths, for a looped placement) that lands inside the placement.
+ */
+function playedAt(project: Project, event: NoteEvent, clip: Clip): number[] {
+  const positions: number[] = [];
+  for (const placement of project.song.placements) {
+    if (placement.clipId !== clip.id) continue;
+    const relative = event.startTicks - placement.clipOffsetTicks;
+    const passes = placement.looped
+      ? Math.ceil((placement.durationTicks + Math.abs(relative)) / clip.lengthTicks) + 1
+      : 0;
+    for (let pass = -passes; pass <= passes; pass += 1) {
+      const local = relative + pass * clip.lengthTicks;
+      if (local >= 0 && local < placement.durationTicks) {
+        positions.push(placement.startTicks + local);
+      }
+    }
+  }
+  return positions;
+}
+
+function describeNeverOutside(name: string, project: Project): void {
   const allEvents = project.clips.flatMap((clip) =>
     eventsOf(clip).map((event) => ({ clip, event })),
   );
+  const starts = new Map(
+    allEvents.map(({ clip, event }) => [event.id, playedAt(project, event, clip)]),
+  );
 
-  /** What each entity scope selects, worked out independently of the module. */
+  function inSpan(
+    clip: Clip,
+    event: NoteEvent,
+    from: number,
+    to: number,
+    trackIds: readonly string[],
+  ): boolean {
+    if (trackIds.length > 0 && !trackIds.includes(clip.trackId)) return false;
+    return (starts.get(event.id) ?? []).some((at) => at >= from && at < to);
+  }
+
+  /** What each scope selects, worked out independently of the module. */
   function expected(scopes: readonly SelectionScope[]): Set<string> {
     const chosen = new Set<string>();
     for (const scope of scopes) {
       for (const { clip, event } of allEvents) {
         const placements = project.song.placements.filter((p) => p.clipId === clip.id);
+        const section =
+          scope.kind === "section"
+            ? project.song.sections.find((candidate) => candidate.id === scope.id)
+            : undefined;
         if (
           (scope.kind === "event" && scope.id === event.id) ||
           (scope.kind === "clip" && scope.id === clip.id) ||
           (scope.kind === "track" && scope.id === clip.trackId) ||
-          (scope.kind === "placement" && placements.some((p) => p.id === scope.id))
+          (scope.kind === "placement" && placements.some((p) => p.id === scope.id)) ||
+          (scope.kind === "barRange" &&
+            inSpan(clip, event, scope.startTicks, scope.endTicks, scope.trackIds)) ||
+          (section !== undefined &&
+            inSpan(
+              clip,
+              event,
+              section.startTicks,
+              section.startTicks + section.durationTicks,
+              [],
+            ))
         ) {
           chosen.add(event.id);
         }
@@ -260,33 +313,70 @@ describe("selectedNotes never includes a note outside the selection", () => {
     return chosen;
   }
 
+  const songEnd = Math.max(
+    BAR,
+    ...project.song.placements.map((p) => p.startTicks + p.durationTicks),
+  );
+  const trackIds: TrackId[] = project.song.tracks.map((track) => track.id);
+  // Edges on the sixteenth grid notes start on, so a range often begins or
+  // ends exactly on a note: the half-open boundary is what gets exercised.
+  const SIXTEENTH = BEAT / 4;
+  const barRange = fc
+    .record({
+      start: fc.integer({ min: 0, max: Math.ceil(songEnd / SIXTEENTH) }),
+      length: fc.integer({ min: 1, max: (4 * BAR) / SIXTEENTH }),
+      tracks: fc.subarray(trackIds),
+    })
+    .map(({ start, length, tracks }) => ({
+      kind: "barRange" as const,
+      startTicks: toTicks(start * SIXTEENTH),
+      endTicks: toTicks((start + length) * SIXTEENTH),
+      trackIds: tracks,
+    }));
+
   const scope = fc.oneof(
     fc.constantFrom(...allEvents.map(({ event }) => ({ kind: "event", id: event.id }))),
     fc.constantFrom(...project.clips.map((clip) => ({ kind: "clip", id: clip.id }))),
-    fc.constantFrom(
-      ...project.song.tracks.map((track) => ({ kind: "track", id: track.id })),
-    ),
+    fc.constantFrom(...trackIds.map((id) => ({ kind: "track", id }))),
     fc.constantFrom(
       ...project.song.placements.map((placement) => ({
         kind: "placement",
         id: placement.id,
       })),
     ),
+    fc.constantFrom(
+      ...project.song.sections.map((section) => ({ kind: "section", id: section.id })),
+    ),
+    barRange,
   ) as fc.Arbitrary<SelectionScope>;
 
-  it("for any mix of notes, clips, placements and tracks", () => {
+  it(`${name}: for any mix of notes, clips, placements, tracks, bar ranges and sections`, () => {
     fc.assert(
       fc.property(fc.array(scope, { maxLength: 6 }), (scopes) => {
-        const notes = selectedNotes(project, select(...scopes));
+        const selection = select(...scopes);
+        const notes = selectedNotes(project, selection);
         const want = expected(scopes);
-        const serialized = JSON.stringify(notes);
-        expect(new Set(ids(notes))).toEqual(want);
-        for (const { event } of allEvents) {
-          if (!want.has(event.id)) expect(serialized).not.toContain(event.id);
+        if (want.size <= MAX_SELECTED_NOTES) {
+          expect(new Set(ids(notes))).toEqual(want);
         }
+        for (const id of ids(notes)) expect(want.has(id)).toBe(true);
         if (want.size === 0) expect(notes).toBeNull();
+
+        // What actually reaches the provider: the system blocks, serialized.
+        const payload = buildAssistantPayload(project, selection);
+        expect(assistantContextPayloadSchema.safeParse(payload).success).toBe(true);
+        const sent = JSON.stringify(buildSystemBlocks(payload));
+        for (const { event } of allEvents) {
+          if (!want.has(event.id)) expect(sent).not.toContain(event.id);
+        }
       }),
-      { numRuns: 60 },
+      { numRuns: 200 },
     );
-  });
+  }, 60_000);
+}
+
+describe("selectedNotes never includes a note outside the selection", () => {
+  describeNeverOutside("the reference project", createReferenceProject());
+  // Small, but with a looped placement that starts a beat into its clip.
+  describeNeverOutside("a looped, offset placement", fixture().project);
 });
