@@ -146,7 +146,10 @@ export function shelfRoles(
 /**
  * Keep the selection valid when scope or filters change: a family with no
  * sounds falls back to the first that has some, and a role with none falls back
- * to "all roles". With nothing in view the selection is returned as it is.
+ * to "all roles". When nothing matches, a family `scope` holds stays (its tab is
+ * there, at zero) and one it does not hold falls back to the first that it does
+ * (#994), so entering a pack always lands on one of the pack's own tabs. With
+ * nothing in scope at all the selection is returned as it is.
  *
  * `keepFamily` holds a family the producer has just chosen even when it has no
  * sounds (#878): a 0-count tab opens on its empty state rather than bouncing.
@@ -155,13 +158,18 @@ export function settle(
   sounds: readonly LibraryAsset[],
   selection: ShelfSelection,
   keepFamily = false,
+  scope: readonly LibraryAsset[] = sounds,
 ): ShelfSelection {
-  const families = shelfFamilies(sounds);
-  if (families.length === 0) return selection;
+  const tabs = shelfFamilies(sounds, scope);
+  if (tabs.length === 0) return selection;
+  const withSounds = tabs.filter((f) => f.count > 0);
+  const onTab = tabs.some((f) => f.key === selection.family);
   const family =
-    keepFamily || families.some((f) => f.key === selection.family)
+    onTab && (keepFamily || withSounds.length === 0)
       ? selection.family
-      : families[0].key;
+      : withSounds.some((f) => f.key === selection.family)
+        ? selection.family
+        : (withSounds[0] ?? tabs[0]).key;
   const role =
     family === selection.family &&
     selection.role !== null &&
