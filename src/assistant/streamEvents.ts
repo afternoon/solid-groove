@@ -8,6 +8,7 @@
  * The order the events arrive in is checked by {@link StreamReader}.
  */
 import { z } from "zod";
+import { ESTIMATED_CHARS_PER_TOKEN } from "./config";
 import type { AssistantStopReason } from "./protocol";
 import { ProviderFailure } from "./provider";
 
@@ -37,7 +38,11 @@ const knownEventSchema = z.discriminatedUnion("type", [
   z.looseObject({
     type: z.literal("content_block_delta"),
     index: z.int().min(0),
-    delta: z.looseObject({ type: z.string(), text: z.string().optional() }),
+    delta: z.looseObject({
+      type: z.string(),
+      text: z.string().optional(),
+      thinking: z.string().optional(),
+    }),
   }),
   z.looseObject({ type: z.literal("content_block_stop"), index: z.int().min(0) }),
   z.looseObject({
@@ -111,6 +116,10 @@ export class StreamReader {
   private readonly blocks = new Map<number, string>();
   private text = "";
   private currentUsage: ProviderUsage = NO_USAGE;
+  /** Characters of reply and thinking streamed so far. */
+  private streamedChars = 0;
+  /** Whether `message_delta` carried the call's final output count. */
+  private outputCounted = false;
 
   /** Validates one raw event; returns the text it adds, if any. */
   accept(raw: unknown): string | null {
@@ -137,6 +146,8 @@ export class StreamReader {
       case "content_block_delta": {
         const block = this.blocks.get(event.index);
         if (block === undefined) throw malformed();
+        this.streamedChars +=
+          (event.delta.text?.length ?? 0) + (event.delta.thinking?.length ?? 0);
         if (block !== "text" || event.delta.type !== "text_delta") return null;
         if (event.delta.text === undefined) throw malformed();
         this.text += event.delta.text;
@@ -153,6 +164,7 @@ export class StreamReader {
           this.stopReason = reason as AssistantStopReason;
         }
         this.currentUsage = mergeUsage(this.currentUsage, event.usage);
+        if (typeof event.usage?.output_tokens === "number") this.outputCounted = true;
         return null;
       }
       case "message_stop":
@@ -170,6 +182,22 @@ export class StreamReader {
   /** What the call has used so far, the provider's own figures. */
   get usage(): ProviderUsage {
     return this.currentUsage;
+  }
+
+  /**
+   * What the call should be charged against the spend ceiling. The provider's
+   * figures once it has given its final output count; before then (a call
+   * cancelled, timed out or broken mid-stream) the output is estimated from
+   * the text and thinking streamed so far, which the provider bills for even
+   * though it never reported it.
+   */
+  get billableUsage(): ProviderUsage {
+    if (this.outputCounted) return this.currentUsage;
+    const estimated = Math.ceil(this.streamedChars / ESTIMATED_CHARS_PER_TOKEN);
+    return {
+      ...this.currentUsage,
+      outputTokens: Math.max(this.currentUsage.outputTokens, estimated),
+    };
   }
 
   /** Whether any of the reply's text has been seen. */

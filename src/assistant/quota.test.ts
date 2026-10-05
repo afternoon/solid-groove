@@ -46,6 +46,20 @@ describe("admitCall", () => {
     const decision = admitCall(record, NOW);
     expect(decision.allowed && decision.next.calls).toEqual([NOW - DAY / 2, NOW]);
   });
+
+  it("keeps and counts a call stamped ahead of this clock", () => {
+    // Another instance's clock ran a minute fast; its calls still count.
+    const ahead = Array.from({ length: 99 }, () => NOW + 60_000);
+    const record = { schemaVersion: 1 as const, calls: [NOW - 1_000, ...ahead] };
+    expect(admitCall(record, NOW)).toEqual({
+      allowed: false,
+      resetsAt: NOW - 1_000 + DAY,
+    });
+
+    const decision = admitCall({ schemaVersion: 1, calls: [NOW + 60_000] }, NOW);
+    expect(decision.allowed && decision.next.calls).toEqual([NOW, NOW + 60_000]);
+    expect(decision.allowed && decision.remaining).toBe(98);
+  });
 });
 
 describe("quotaExceededMessage", () => {

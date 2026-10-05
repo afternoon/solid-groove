@@ -190,7 +190,10 @@ type AttemptOutcome =
 
 interface Attempt {
   readonly outcome: AttemptOutcome;
+  /** The provider's own token counts, as logged. */
   readonly usage: ProviderUsage;
+  /** What the call is charged against the spend ceiling (`StreamReader.billableUsage`). */
+  readonly billedUsage: ProviderUsage;
 }
 
 /**
@@ -228,29 +231,31 @@ async function attemptCall(
   let iterator: AsyncIterator<unknown> | undefined;
   const stopped = (): AttemptOutcome =>
     timedOut ? { kind: "timed_out" } : { kind: "cancelled" };
+  const ended = (outcome: AttemptOutcome): Attempt => ({
+    outcome,
+    usage: reader.usage,
+    billedUsage: reader.billableUsage,
+  });
   try {
     if (options.signal.aborted)
-      return { outcome: { kind: "cancelled" }, usage: NO_USAGE };
+      return { outcome: { kind: "cancelled" }, usage: NO_USAGE, billedUsage: NO_USAGE };
     iterator = deps.provider.stream(request, controller.signal)[Symbol.asyncIterator]();
     while (true) {
       const next = await Promise.race([iterator.next(), aborted]);
-      if (next === "aborted") return { outcome: stopped(), usage: reader.usage };
+      if (next === "aborted") return ended(stopped());
       if (next.done) break;
       restartTimer();
       const text = reader.accept(next.value);
       if (text) await options.onChunk({ type: "text", text });
     }
-    if (controller.signal.aborted) return { outcome: stopped(), usage: reader.usage };
+    if (controller.signal.aborted) return ended(stopped());
     const result = reader.result();
-    return { outcome: { kind: "completed", ...result }, usage: reader.usage };
+    return ended({ kind: "completed", ...result });
   } catch (error) {
-    if (controller.signal.aborted) return { outcome: stopped(), usage: reader.usage };
+    if (controller.signal.aborted) return ended(stopped());
     const failure =
       error instanceof ProviderFailure ? error : new ProviderFailure("malformed");
-    return {
-      outcome: { kind: "failed", failure, streamedText: reader.hasText },
-      usage: reader.usage,
-    };
+    return ended({ kind: "failed", failure, streamedText: reader.hasText });
   } finally {
     clearTimeout(timer);
     options.signal.removeEventListener("abort", onCancel);
@@ -297,7 +302,15 @@ const DISABLED_MESSAGE =
 const CEILING_MESSAGE =
   "The assistant has paused for the rest of the day. Everything else in Groove works as usual.";
 
-/** Stops the turn if the day's spend has reached the ceiling. */
+/**
+ * Stops the turn if the day's spend has reached the ceiling.
+ *
+ * Not transactional: it reads the total, and the call's cost is added only
+ * once the call ends, so turns running at the same moment can each pass the
+ * check and together go a little over the ceiling, by at most one call each.
+ * Acceptable for the alpha cohort's handful of concurrent turns; the ceiling
+ * is a cut-off, not a billing guarantee.
+ */
 async function checkSpend(
   guards: AssistantGuardStores,
   now: number,
@@ -401,7 +414,7 @@ export async function runAssistantTurn(
         limits.inactivityTimeoutMs,
       );
       usage = addUsage(usage, attempt.usage);
-      const cost = costMicroUsd(model, attempt.usage);
+      const cost = costMicroUsd(model, attempt.billedUsage);
       if (cost > 0) await deps.guards.addSpend(spendDay(deps.now()), cost);
       const { outcome } = attempt;
       if (outcome.kind === "completed") {

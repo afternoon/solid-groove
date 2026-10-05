@@ -43,14 +43,18 @@ export function admitCall(
   limits: QuotaLimits = ASSISTANT_LIMITS,
 ): QuotaDecision {
   const windowStart = now - limits.windowMs;
-  const recent = (record?.calls ?? []).filter((at) => at > windowStart && at <= now);
+  // A call stamped after `now` is kept and counted: another instance's clock
+  // can run ahead of this one, and dropping its calls would hand them back.
+  const recent = (record?.calls ?? [])
+    .filter((at) => at > windowStart)
+    .sort((a, b) => a - b);
   if (recent.length >= limits.requestsPerWindow) {
     const freedBy = recent[recent.length - limits.requestsPerWindow];
     return { allowed: false, resetsAt: freedBy + limits.windowMs };
   }
   return {
     allowed: true,
-    next: { schemaVersion: 1, calls: [...recent, now] },
+    next: { schemaVersion: 1, calls: [...recent, now].sort((a, b) => a - b) },
     remaining: limits.requestsPerWindow - recent.length - 1,
   };
 }

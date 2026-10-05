@@ -74,7 +74,7 @@ export function describeGuardStoresContract(
             log: (record) => logs.push(record),
             now: () => now,
             sleep: async () => {},
-            limits: { ...ASSISTANT_CALL_LIMITS, attemptTimeoutMs: 50 },
+            limits: { ...ASSISTANT_CALL_LIMITS, inactivityTimeoutMs: 50 },
             guardLimits: limits,
           },
           caller,
@@ -266,6 +266,17 @@ export function describeGuardStoresContract(
       // The ceiling is per UTC day.
       t.advance(24 * HOUR);
       expect((await t.turn()).text).toBe("pricey");
+    });
+
+    it("charges a call that stopped mid-reply for the text it streamed", async () => {
+      // 3,000 characters is an estimated 1,000 output tokens; the stream
+      // stalls before the provider reports its own count, and times out.
+      const [start, block, delta] = replyEvents(["x".repeat(3_000)], { inputTokens: 0 });
+      const t = await setup([[start, block, delta, { hang: true }]]);
+      expect(await codeOf(t.turn())).toBe("timeout");
+      expect(await t.guards.spentMicroUsd(spendDay(START))).toBe(
+        1_000 * ASSISTANT_MODELS["claude-sonnet-5"].priceUsdPerMillionTokens.output,
+      );
     });
   });
 }
