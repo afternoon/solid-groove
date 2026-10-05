@@ -31,6 +31,8 @@ export interface StemsExportRequest {
   readonly onProgress?: (fraction: number) => void;
   readonly analytics?: Analytics;
   readonly clock?: Clock;
+  /** Sounds the project reports missing: rendered around if they cannot load (#78). */
+  readonly missingAssetIds?: ReadonlySet<string>;
   /** Test seam: the export pipeline itself. */
   readonly exportStems?: (
     project: Project,
@@ -66,6 +68,7 @@ export async function exportStemsFile(
     onProgress: request.onProgress,
     analytics: request.analytics ?? defaultAnalytics,
     clock,
+    missingAssetIds: request.missingAssetIds,
   });
   return {
     blob: new Blob(archive.parts as Uint8Array<ArrayBuffer>[], {
@@ -131,6 +134,7 @@ export async function exportStemsBatch(
     clock,
     maxBytes: request.maxBytes,
     stems: batch.paths,
+    missingAssetIds: request.missingAssetIds,
     batch: { index: batch.index, count, startedAt: request.startedAt },
   });
   return {

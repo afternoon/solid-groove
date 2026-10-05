@@ -4039,6 +4039,14 @@ describe("EditorView withdrawn factory packs", () => {
     expect(loaded.value.song.assets).toEqual(project.song.assets);
   });
 
+  it("exports anyway, saying first that the file may go without the sound", async () => {
+    await openStarter(libraryWithout("core-electronic-drums"));
+    await screen.findByRole("region", { name: "Missing sounds" });
+    fireEvent.click(screen.getByRole("button", { name: "Export" }));
+    const dialog = await screen.findByRole("dialog", { name: "Export" });
+    expect(within(dialog).getByText("1 missing sound may be left out.")).toBeVisible();
+  });
+
   it("reports nothing while the library still lists the pack", async () => {
     await openStarter(libraryWithout(null));
     await screen.findByRole("navigation", { name: "Views" });

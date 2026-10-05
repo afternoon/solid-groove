@@ -43,6 +43,7 @@ const fakeRender =
       frames,
       songEndSeconds: frames / options.sampleRate,
       tailTruncated: false,
+      silencedAssetIds: [],
     };
   };
 
@@ -171,6 +172,32 @@ describe("exportStereoWav", () => {
     const logged = JSON.stringify(transport.events);
     expect(logged).not.toContain(project.metadata.name);
     expect(logged).not.toContain(".wav");
+  });
+
+  // #78: rendering around the sounds the project reports missing.
+  it("hands the reported-missing sounds to the render and counts them on export_started", async () => {
+    const { analytics, transport } = recordingAnalytics();
+    const project = createSliceFixtureProject();
+    const missing = new Set(project.song.assets.map((asset) => asset.id));
+    const seen: (ReadonlySet<string> | undefined)[] = [];
+    const render: RenderFunction = async (projection, options) => {
+      seen.push(options.missingAssetIds);
+      return fakeRender()(projection, options);
+    };
+    await exportStereoWav(project, { analytics, render, missingAssetIds: missing });
+    await exportStereoWav(project, { analytics, render, missingAssetIds: missing });
+
+    expect(seen).toEqual([missing, missing]);
+    expect(transport.named("export_started").map((event) => event.params)).toEqual([
+      expect.objectContaining({ missing_sound_count: missing.size }),
+      expect.objectContaining({ missing_sound_count: missing.size }),
+    ]);
+    expect(
+      transport
+        .named("feature_first_use")
+        .filter((event) => event.params.feature === "export_with_missing_sounds"),
+    ).toHaveLength(1);
+    expect(transport.named("export_completed")).toHaveLength(2);
   });
 
   it("reports a failed render with its error code and hands back no file", async () => {

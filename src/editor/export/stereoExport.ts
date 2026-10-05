@@ -9,6 +9,7 @@ import {
 import { songEndSeconds } from "../../audio/renderLength";
 import { wav24Chunks } from "../../audio/wavEncoder";
 import type { Project } from "../../domain/entities";
+import { missingSoundsAtStart } from "../../export/missingSounds";
 import {
   type AudioSongProjection,
   buildAudioProjection,
@@ -66,6 +67,8 @@ export interface StereoExportOptions {
   readonly clock?: Clock;
   /** Test seam: the offline renderer. */
   readonly render?: RenderFunction;
+  /** Sounds the project reports missing: rendered around if they cannot load (#78). */
+  readonly missingAssetIds?: ReadonlySet<string>;
 }
 
 export interface StereoExport {
@@ -120,6 +123,7 @@ export async function exportStereoWav(
     export_type: "stereo",
     duration_bucket: bucketOf("musical_duration", songEndSeconds(projection)),
     track_count_bucket: bucketOf("track_count", project.song.tracks.length),
+    ...missingSoundsAtStart(analytics, project, options.missingAssetIds),
   });
   analytics.logFeatureFirstUse("export_stereo");
 
@@ -129,6 +133,7 @@ export async function exportStereoWav(
       sampleRate,
       signal: options.signal,
       onProgress: (fraction) => options.onProgress?.(fraction * RENDERED),
+      missingAssetIds: options.missingAssetIds,
     });
     if (options.signal?.aborted) throw new OfflineRenderError("aborted", "Cancelled");
     const { frames, sampleRate: renderedRate } = rendered;

@@ -60,6 +60,47 @@ describe("stem export analytics", () => {
     expect(JSON.stringify(transport.events)).not.toMatch(/Lead|Bass|Verb|Delay|fixture/);
   });
 
+  // #78: a project with sounds it reports missing still exports; how many
+  // travels on export_started, once per export, and never which ones.
+  it("counts the reported-missing sounds once, and hands them to every render", async () => {
+    const { analytics, transport } = recordingAnalytics();
+    const project = createReferenceProject({ trackCount: 2 });
+    const missing = new Set([project.song.assets[0].id, "ast_not_in_this_project"]);
+    const { render, calls } = fakeRenderer();
+    for (let i = 0; i < 2; i++) {
+      await exportStems(project, {
+        sampleRate: RATE,
+        analytics,
+        render,
+        missingAssetIds: missing,
+      });
+    }
+    expect(params(transport, "export_started")).toEqual([
+      expect.objectContaining({ missing_sound_count: 1 }),
+      expect.objectContaining({ missing_sound_count: 1 }),
+    ]);
+    expect(
+      params(transport, "feature_first_use").filter(
+        (p) => p.feature === "export_with_missing_sounds",
+      ),
+    ).toHaveLength(1);
+    expect(calls.every(([, options]) => options.missingAssetIds === missing)).toBe(true);
+    expect(JSON.stringify(transport.events)).not.toContain(project.song.assets[0].id);
+  });
+
+  it("says nothing of missing sounds when none are reported", async () => {
+    const { analytics, transport } = recordingAnalytics();
+    await exportStems(createStemFixtureProject(), {
+      sampleRate: RATE,
+      analytics,
+      render: fakeRenderer().render,
+      missingAssetIds: new Set(),
+    });
+    expect(params(transport, "export_started")[0]).not.toHaveProperty(
+      "missing_sound_count",
+    );
+  });
+
   it("logs first use only for the first stem export", async () => {
     const { analytics, transport } = recordingAnalytics();
     for (let i = 0; i < 2; i++) {

@@ -13,6 +13,7 @@ import { OfflineRenderError } from "../../audio/offlineRenderer";
 import { CAPABILITY_MESSAGES } from "../../browser/capabilityMessages";
 import Dialog from "../../components/Dialog";
 import type { Project } from "../../domain/entities";
+import { missingSoundCount } from "../../export/missingSounds";
 import { StemExportError } from "../../export/stems/exportStems";
 import { systemClock } from "../../shared/clock";
 import { useShortcuts } from "../../shortcuts";
@@ -23,7 +24,7 @@ import ExportDone from "./ExportDone";
 import ExportFooter, { EXPORT_NOTE_ID } from "./ExportFooter";
 import ExportTitleRow from "./ExportTitleRow";
 import { estimateStereoBytes, exportFacts } from "./exportFacts";
-import { stemsNote, stoppedNote, zipFailure } from "./exportNotes";
+import { missingSoundsNote, stemsNote, stoppedNote, zipFailure } from "./exportNotes";
 import FormatCards, { type ExportFormat } from "./FormatCards";
 import { finishedExport } from "./finishedExport";
 import { formatBytes } from "./stemSelection";
@@ -36,6 +37,11 @@ import "./ExportDialog.css";
 export interface ExportDialogProps {
   /** The project as it is when Export is pressed; the render reads only that. */
   readonly project: () => Project;
+  /**
+   * The sounds the editor reports missing (#78). The export goes ahead without
+   * any of them that cannot load, rather than failing, and says so first.
+   */
+  readonly missingAssetIds?: () => ReadonlySet<string>;
   readonly analytics?: Analytics;
   /** Test seams: the export itself, and how its file reaches the browser. */
   readonly exportWav?: typeof exportStereoWav;
@@ -222,6 +228,7 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
         const options: StereoExportOptions = {
           signal: current.signal,
           analytics: props.analytics,
+          missingAssetIds: props.missingAssetIds?.(),
           onProgress: (fraction) => {
             if (!current.signal.aborted) {
               setPhase({ kind: "rendering", batch: index, fraction });
@@ -308,15 +315,23 @@ export default function ExportDialog(props: ExportDialogProps): JSX.Element {
       fraction: (current.batch + current.fraction) / count,
     };
   };
-  /** The note under the footer: why Export is off, how the stems split, or that it is done. */
+  /** How many of the project's sounds are reported missing. */
+  const missing = () => missingSoundCount(props.project(), props.missingAssetIds?.());
+  /** The note under the footer: why Export is off, what is missing, how the stems split, or that it is done. */
   const noteText = () => {
     if (rendering()) {
       return got() > 0 ? `${got()} of ${fileCount()} in your downloads.` : "";
     }
     if (stopped()) return stopped();
-    if (failed() || format() !== "stems") return "";
+    if (failed()) return "";
+    // Why Export is off comes first; then the sounds the file may lack.
+    const tracks = list.trackIds().length;
+    if (missing() > 0 && (format() !== "stems" || tracks > 0)) {
+      return missingSoundsNote(missing());
+    }
+    if (format() !== "stems") return "";
     return stemsNote({
-      tracks: list.trackIds().length,
+      tracks,
       zips: plan().length,
       // The bound the split was made on, so "over the limit" is always true.
       bytes: plan().reduce((sum, batch) => sum + batch.bytes, 0),

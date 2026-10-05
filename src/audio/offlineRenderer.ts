@@ -62,6 +62,9 @@ export interface OfflineRenderOptions {
   /** Every track feeds only its sends, so only the returns sound: how a
    * return's stem is rendered (EXP-003). */
   tracksSendOnly?: boolean;
+  /** Reported-missing sounds that render as silence if they cannot load
+   * (#78); see `OfflineSessionOptions`. */
+  missingAssetIds?: ReadonlySet<string>;
 }
 
 export interface OfflineRender {
@@ -73,6 +76,8 @@ export interface OfflineRender {
   readonly songEndSeconds: number;
   /** True when a tail was still sounding at the end of the tail budget. */
   readonly tailTruncated: boolean;
+  /** Reported-missing sounds that could not load and are silent in it (#78). */
+  readonly silencedAssetIds: readonly string[];
 }
 
 /** Progress reached when assets are ready, and when the clock has run. */
@@ -93,7 +98,14 @@ export async function renderProjectOffline(
   const endSeconds = songEndSeconds(projection);
   if (endSeconds <= 0) {
     const channels = Array.from({ length: RENDER_CHANNELS }, () => new Float32Array(0));
-    return { channels, sampleRate, frames: 0, songEndSeconds: 0, tailTruncated: false };
+    return {
+      channels,
+      sampleRate,
+      frames: 0,
+      songEndSeconds: 0,
+      tailTruncated: false,
+      silencedAssetIds: [],
+    };
   }
 
   let progress = 0;
@@ -144,6 +156,7 @@ export async function renderProjectOffline(
       frames: trimmed.frames,
       songEndSeconds: endSeconds,
       tailTruncated: trimmed.truncated,
+      silencedAssetIds: session.silencedAssetIds,
     };
   } catch (error) {
     if (error instanceof OfflineRenderError) throw error;

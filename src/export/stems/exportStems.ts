@@ -11,6 +11,7 @@ import { pcm24, WAV_BITS_PER_SAMPLE, wav24ByteLength } from "../../audio/wavEnco
 import type { Project } from "../../domain/entities";
 import type { TrackId } from "../../domain/ids";
 import { type Clock, systemClock } from "../../shared/clock";
+import { missingSoundsAtStart } from "../missingSounds";
 import {
   buildStemArchive,
   type EncodedStem,
@@ -89,6 +90,8 @@ export interface StemExportOptions {
   readonly maxBytes?: number;
   /** Test seam: the offline renderer. */
   readonly render?: StemRenderer;
+  /** Sounds the project reports missing: rendered around if they cannot load (#78). */
+  readonly missingAssetIds?: ReadonlySet<string>;
   /** Build only the stems at these archive paths (one ZIP of a batched
    * export, EXP-004). The reference mix still reflects the whole `trackIds`
    * selection, and every stem is still sized and aligned to it. */
@@ -217,6 +220,7 @@ export async function exportStems(
       duration_bucket: bucketOf("musical_duration", songSeconds),
       track_count_bucket: bucketOf("track_count", project.song.tracks.length),
       ...zipCount,
+      ...missingSoundsAtStart(analytics, project, options.missingAssetIds),
     });
   }
 
@@ -244,6 +248,7 @@ export async function exportStems(
         signal,
         maxTailSeconds: options.maxTailSeconds,
         tracksSendOnly: stem.tracksSendOnly,
+        missingAssetIds: options.missingAssetIds,
         onProgress: (fraction) => report(((index + fraction) / plan.length) * RENDERED),
       });
       encoded.push({

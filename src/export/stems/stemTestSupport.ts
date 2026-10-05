@@ -19,6 +19,7 @@ export function fakeRenderer(
       frames: length,
       songEndSeconds: 0,
       tailTruncated: false,
+      silencedAssetIds: [],
     };
   };
   return { render, calls };

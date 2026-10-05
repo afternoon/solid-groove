@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { stemsNote } from "./exportNotes";
+import { missingSoundsNote, stemsNote } from "./exportNotes";
 
 describe("stemsNote", () => {
   const GiB = 1024 ** 3;
@@ -20,5 +20,12 @@ describe("stemsNote", () => {
     expect(stemsNote({ tracks: 5, zips: 1, bytes: 0.5 * GiB })).toBe(
       "Stems over 2 GiB come as several ZIPs in track order. These fit in one.",
     );
+  });
+});
+
+describe("missingSoundsNote", () => {
+  it("says how many missing sounds the file may go without, in one short line", () => {
+    expect(missingSoundsNote(1)).toBe("1 missing sound may be left out.");
+    expect(missingSoundsNote(3)).toBe("3 missing sounds may be left out.");
   });
 });

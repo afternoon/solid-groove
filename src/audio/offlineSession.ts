@@ -76,6 +76,15 @@ export interface OfflineSessionOptions {
   createInstrument?: InstrumentNodeFactory;
   /** Tracks feed only their sends (a return's stem); see `ProjectAudioGraph`. */
   tracksSendOnly?: boolean;
+  /**
+   * Sounds the project has already reported missing: a personal sound gone
+   * from its pack, or a sound in a withdrawn library pack (#78). One of these
+   * that cannot load renders as silence rather than failing the render, so a
+   * project degrades to its reported state instead of not exporting at all.
+   * Any other sound that cannot load still fails it: that is a connection or
+   * a corrupt file, not a known gap, and a file missing it would be a lie.
+   */
+  missingAssetIds?: ReadonlySet<string>;
 }
 
 export interface OfflineSession {
@@ -84,6 +93,8 @@ export interface OfflineSession {
   build(): void;
   /** Waits for every asset and every asynchronously-built device. */
   prepare(): Promise<void>;
+  /** The reported-missing sounds that did not load and render as silence. */
+  readonly silencedAssetIds: readonly string[];
   /** Tears down the graph and the context. Idempotent. */
   release(): Promise<void>;
 }
@@ -125,6 +136,7 @@ export function openOfflineSession(
     },
   };
   let failedAsset: { asset: AudioAssetProjection; error: unknown } | null = null;
+  const silenced = new Set<string>();
 
   // The factory live playback uses, reading the tempo this render is at.
   const createDeviceNode = createDeviceNodeFactory({
@@ -137,6 +149,9 @@ export function openOfflineSession(
 
   return {
     context,
+    get silencedAssetIds() {
+      return [...silenced];
+    },
     build() {
       withGlobalContext(context, () => {
         graph = new ProjectAudioGraph(host, OFFLINE_OWNER, {
@@ -147,7 +162,8 @@ export function openOfflineSession(
           tracksSendOnly: options.tracksSendOnly,
           now: () => context.immediate(),
           onAssetLoadFailure: (asset, error) => {
-            failedAsset ??= { asset, error };
+            if (options.missingAssetIds?.has(asset.id)) silenced.add(asset.id);
+            else failedAsset ??= { asset, error };
           },
         });
         graph.reconcile(projection);

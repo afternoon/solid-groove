@@ -14,7 +14,10 @@ import type { StereoExportOptions } from "./stereoExport";
 afterEach(cleanup);
 stubCanvasContext();
 
-function renderDialog(project: Project = createSliceFixtureProject()) {
+function renderDialog(
+  project: Project = createSliceFixtureProject(),
+  missingAssetIds?: ReadonlySet<string>,
+) {
   let options: StereoExportOptions | undefined;
   let reject!: (error: unknown) => void;
   const exportWav = vi.fn((_p: Project, given?: StereoExportOptions) => {
@@ -27,6 +30,7 @@ function renderDialog(project: Project = createSliceFixtureProject()) {
   render(() => (
     <ExportDialog
       project={() => project}
+      missingAssetIds={missingAssetIds && (() => missingAssetIds)}
       exportWav={exportWav as never}
       download={vi.fn()}
       onClose={onClose}
@@ -34,6 +38,7 @@ function renderDialog(project: Project = createSliceFixtureProject()) {
   ));
   return {
     onClose,
+    options: () => options,
     progress: (fraction: number) => {
       options?.onProgress?.(fraction);
       flush();
@@ -117,5 +122,27 @@ describe("ExportDialog: the message slot", () => {
       "aria-describedby",
       "export-note",
     );
+  });
+
+  // #78: a project with sounds it reports missing still exports, and says so first.
+  it("says the export goes without a missing sound, and hands the render its id", () => {
+    const project = createSliceFixtureProject();
+    const missing = new Set([project.song.assets[0].id]);
+    const view = renderDialog(project, missing);
+    const note = document.getElementById("export-note") as HTMLElement;
+    expect(note).toHaveTextContent("1 missing sound may be left out.");
+    // Why Export is off still comes first.
+    stems();
+    clickAndFlush(screen.getAllByRole("option")[0]);
+    expect(note).toHaveTextContent("Turn on at least one track to export stems.");
+    clickAndFlush(screen.getByRole("radio", { name: "Stereo WAV" }));
+
+    clickAndFlush(screen.getByRole("button", { name: "Export" }));
+    expect(view.options()?.missingAssetIds).toBe(missing);
+  });
+
+  it("says nothing of missing sounds when none of the project's are", () => {
+    renderDialog(createSliceFixtureProject(), new Set(["ast_elsewhere"]));
+    expect(document.getElementById("export-note")).toHaveTextContent(/^$/);
   });
 });
