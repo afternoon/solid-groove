@@ -37,10 +37,10 @@ test.describe("the clip list", () => {
     await expect(announcement(page)).toHaveText("Selected clip on BD, bar 1");
     await expect(clipList(page).getByRole("option", { selected: true })).toHaveCount(1);
     // While the list has focus, the timeline it speaks for shows the ring.
-    const outline = await page
-      .locator(".arrangement-viewport")
-      .evaluate((el) => getComputedStyle(el).outlineStyle);
-    expect(outline).toBe("solid");
+    const ring = await page
+      .locator(".arrangement-body")
+      .evaluate((el) => getComputedStyle(el, "::after").borderTopStyle);
+    expect(ring).toBe("solid");
 
     // Cmd/Ctrl+D duplicates it, and the copy is the selection.
     await page.keyboard.press("ControlOrMeta+d");
