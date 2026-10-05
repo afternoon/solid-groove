@@ -12,15 +12,19 @@
  * 1. refuses a caller with no account, or a guest (`unauthenticated`);
  * 2. parses the request, whose project context is the ADR 0007 allowlist
  *    (`invalid_request`);
- * 3. builds the per-model provider request with a bounded history;
- * 4. calls the provider, streaming the reply's text as it arrives, under a
- *    per-attempt inactivity timeout, retrying a transient failure that has not streamed
- *    anything yet, and abandoning the call if the browser goes away;
- * 5. validates the reply and logs one redacted record of how it went.
+ * 3. stops if the kill switch is off or today's spend ceiling is reached;
+ * 4. builds the per-model provider request with a bounded history;
+ * 5. reserves one of the account's requests before **every** provider call,
+ *    retries included, and adds what each call cost to the day's spend;
+ * 6. calls the provider, streaming the reply's text as it arrives, under a
+ *    per-attempt inactivity timeout, retrying a transient failure that has
+ *    not streamed anything yet, and abandoning the call if the browser goes away;
+ * 7. validates the reply and logs one redacted record of how it went.
  */
 import {
   ASSISTANT_CALL_LIMITS,
   ASSISTANT_HISTORY_TOKEN_BUDGET,
+  ASSISTANT_LIMITS,
   ASSISTANT_MODEL_ID,
   ASSISTANT_MODELS,
   type AssistantCallLimits,
@@ -28,6 +32,7 @@ import {
   CONTEXT_WINDOW_MARGIN_TOKENS,
   SMALLEST_CONTEXT_WINDOW_TOKENS,
 } from "./config";
+import type { AssistantGuardStores } from "./guards";
 import { type BoundedHistory, boundHistory, estimateTokens } from "./history";
 import { ASSISTANT_PROMPT_VERSION, buildSystemBlocks } from "./prompt";
 import {
@@ -40,6 +45,8 @@ import {
 } from "./protocol";
 import { type AssistantProvider, ProviderFailure } from "./provider";
 import { buildProviderRequest, type ProviderMessagesRequest } from "./providerRequest";
+import { admitCall, type QuotaLimits, quotaExceededMessage } from "./quota";
+import { costMicroUsd, spendDay, usdToMicro } from "./spend";
 import { NO_USAGE, type ProviderUsage, StreamReader } from "./streamEvents";
 import { type AssistantTurnLog, toTurnLog } from "./telemetry";
 
@@ -50,8 +57,15 @@ export interface AssistantCaller {
   readonly signInProvider: string | null;
 }
 
+/** The quota and spend figures the gateway enforces. */
+export interface AssistantGuardLimits extends QuotaLimits {
+  readonly dailySpendCeilingUsd: number;
+}
+
 export interface AssistantGatewayDeps {
   readonly provider: AssistantProvider;
+  /** The kill switch, the per-account quota and the day's spend. */
+  readonly guards: AssistantGuardStores;
   readonly log: (record: AssistantTurnLog) => void;
   /** Milliseconds since the epoch. */
   readonly now: () => number;
@@ -59,6 +73,7 @@ export interface AssistantGatewayDeps {
   readonly sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
   readonly model?: AssistantModelProfile;
   readonly limits?: AssistantCallLimits;
+  readonly guardLimits?: AssistantGuardLimits;
 }
 
 export interface AssistantTurnOptions {
@@ -277,6 +292,43 @@ function errorForFailure(failure: ProviderFailure): AssistantGatewayError {
   }
 }
 
+const DISABLED_MESSAGE =
+  "The assistant is switched off for now. Everything else in Groove works as usual.";
+const CEILING_MESSAGE =
+  "The assistant has paused for the rest of the day. Everything else in Groove works as usual.";
+
+/** Stops the turn if the day's spend has reached the ceiling. */
+async function checkSpend(
+  guards: AssistantGuardStores,
+  now: number,
+  limits: AssistantGuardLimits,
+): Promise<void> {
+  const spent = await guards.spentMicroUsd(spendDay(now));
+  if (spent >= usdToMicro(limits.dailySpendCeilingUsd)) {
+    throw new AssistantGatewayError("spend_ceiling_reached", CEILING_MESSAGE);
+  }
+}
+
+/** Takes one of the account's requests, or stops the turn naming when one frees up. */
+async function reserveCall(
+  guards: AssistantGuardStores,
+  uid: string,
+  now: number,
+  limits: AssistantGuardLimits,
+): Promise<number> {
+  const decision = await guards.reserveCall(uid, (record) =>
+    admitCall(record, now, limits),
+  );
+  if (!decision.allowed) {
+    throw new AssistantGatewayError(
+      "quota_exceeded",
+      quotaExceededMessage(decision.resetsAt, limits.requestsPerWindow),
+      decision.resetsAt,
+    );
+  }
+  return decision.remaining;
+}
+
 /**
  * Runs one assistant turn. Resolves with the validated reply, or rejects with
  * an {@link AssistantGatewayError}; either way it logs exactly one
@@ -291,6 +343,7 @@ export async function runAssistantTurn(
   const model = deps.model ?? ASSISTANT_MODELS[ASSISTANT_MODEL_ID];
   const limits = deps.limits ?? ASSISTANT_CALL_LIMITS;
   const sleep = deps.sleep ?? defaultSleep;
+  const guardLimits = deps.guardLimits ?? ASSISTANT_LIMITS;
   const startedAt = deps.now();
   const failures: { kind: ProviderFailure["kind"]; status: number | null }[] = [];
   let attempts = 0;
@@ -319,10 +372,20 @@ export async function runAssistantTurn(
   try {
     const uid = authenticate(caller);
     const turn = parseRequest(rawRequest);
+    if (!(await deps.guards.isEnabled())) {
+      throw new AssistantGatewayError("assistant_disabled", DISABLED_MESSAGE);
+    }
     const prepared = await prepare(model, uid, turn);
     history = prepared.history;
 
     while (true) {
+      await checkSpend(deps.guards, deps.now(), guardLimits);
+      const requestsRemaining = await reserveCall(
+        deps.guards,
+        uid,
+        deps.now(),
+        guardLimits,
+      );
       attempts += 1;
       const attempt = await attemptCall(
         deps,
@@ -331,6 +394,8 @@ export async function runAssistantTurn(
         limits.inactivityTimeoutMs,
       );
       usage = addUsage(usage, attempt.usage);
+      const cost = costMicroUsd(model, attempt.usage);
+      if (cost > 0) await deps.guards.addSpend(spendDay(deps.now()), cost);
       const { outcome } = attempt;
       if (outcome.kind === "completed") {
         finish("completed", outcome.stopReason);
@@ -339,6 +404,7 @@ export async function runAssistantTurn(
           stopReason: outcome.stopReason,
           model: model.id,
           promptVersion: ASSISTANT_PROMPT_VERSION,
+          requestsRemaining,
         };
       }
       if (outcome.kind === "cancelled") {

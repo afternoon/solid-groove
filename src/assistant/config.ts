@@ -36,6 +36,17 @@ export interface AssistantModelProfile {
   /** The most the gateway lets one reply run to, thinking included. */
   readonly maxOutputTokens: number;
   readonly thinking: ThinkingShape;
+  /**
+   * What the provider charges, in US dollars per million tokens, for the
+   * spend ceiling's running total. Cache writes and reads are billed apart
+   * from plain input.
+   */
+  readonly priceUsdPerMillionTokens: {
+    readonly input: number;
+    readonly output: number;
+    readonly cacheWrite: number;
+    readonly cacheRead: number;
+  };
 }
 
 /**
@@ -48,12 +59,14 @@ export const ASSISTANT_MODELS = {
     contextWindowTokens: 1_000_000,
     maxOutputTokens: 16_000,
     thinking: { kind: "adaptive", effort: "medium" },
+    priceUsdPerMillionTokens: { input: 2, output: 10, cacheWrite: 2.5, cacheRead: 0.2 },
   },
   "claude-haiku-4-5": {
     id: "claude-haiku-4-5",
     contextWindowTokens: 200_000,
     maxOutputTokens: 16_000,
     thinking: { kind: "budget", budgetTokens: 4_096 },
+    priceUsdPerMillionTokens: { input: 1, output: 5, cacheWrite: 1.25, cacheRead: 0.1 },
   },
 } as const satisfies Record<string, AssistantModelProfile>;
 
@@ -142,3 +155,24 @@ export const ASSISTANT_HISTORY_TOKEN_BUDGET = 32_000;
 
 /** Headroom left unused in the window, for the estimate being off. */
 export const CONTEXT_WINDOW_MARGIN_TOKENS = 4_000;
+
+/**
+ * The assistant's limits (ADR 0006 decisions 4 to 7), all in one place with
+ * the transcript retention window, so the gateway, the quota check and the
+ * copy that tells a producer the limit can never disagree.
+ *
+ * - `requestsPerWindow` over `windowMs`: provider calls per account in a
+ *   rolling 24 hours. Every provider call counts, retries included, because
+ *   the cap tracks spend rather than intent; so the copy says "requests",
+ *   never "messages".
+ * - `dailySpendCeilingUsd`: the automatic, organisation-wide cut-off, per UTC
+ *   day, about eight times the expected cohort load.
+ * - `transcriptRetentionDays`: how long Groove keeps a conversation
+ *   (ADR 0007 decision 5). Held here for the transcript store (#95) to read.
+ */
+export const ASSISTANT_LIMITS = {
+  requestsPerWindow: 100,
+  windowMs: 24 * 60 * 60 * 1000,
+  dailySpendCeilingUsd: 25,
+  transcriptRetentionDays: 30,
+} as const;

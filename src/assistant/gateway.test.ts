@@ -17,6 +17,10 @@ import {
   pseudonymousUserId,
   runAssistantTurn,
 } from "./gateway";
+import {
+  createInMemoryGuardStores,
+  type InMemoryGuardStores,
+} from "./inMemoryGuardStores";
 import { assistantContextPayload } from "./payload";
 import { ASSISTANT_PROMPT_VERSION } from "./prompt";
 import {
@@ -45,6 +49,7 @@ interface Harness {
   logs: AssistantTurnLog[];
   chunks: AssistantStreamChunk[];
   sleeps: number[];
+  guards: InMemoryGuardStores;
   provider: ReturnType<typeof createScriptedAssistantProvider>;
 }
 
@@ -55,14 +60,17 @@ function harness(
   const provider = createScriptedAssistantProvider(scripts);
   const logs: AssistantTurnLog[] = [];
   const sleeps: number[] = [];
+  const guards = createInMemoryGuardStores();
   let clock = 1_000;
   return {
     provider,
+    guards,
     logs,
     chunks: [],
     sleeps,
     deps: {
       provider,
+      guards,
       log: (record) => logs.push(record),
       now: () => {
         clock += 5;
@@ -116,6 +124,7 @@ describe("runAssistantTurn: a completed turn", () => {
       stopReason: "end_turn",
       model: ASSISTANT_MODELS["claude-sonnet-5"].id,
       promptVersion: ASSISTANT_PROMPT_VERSION,
+      requestsRemaining: 99,
     });
   });
 

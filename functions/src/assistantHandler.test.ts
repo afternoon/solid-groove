@@ -2,6 +2,7 @@ import { logger } from "firebase-functions";
 import type { CallableRequest, CallableResponse } from "firebase-functions/v2/https";
 import { HttpsError } from "firebase-functions/v2/https";
 import { describe, expect, it, vi } from "vitest";
+import { createInMemoryGuardStores } from "../../src/assistant/inMemoryGuardStores";
 import type {
   AssistantStreamChunk,
   AssistantTurnRequest,
@@ -59,11 +60,14 @@ function streamingResponse(signal = new AbortController().signal) {
 function handler(scripts: readonly CallScript[]) {
   const logs: AssistantTurnLog[] = [];
   const provider = createScriptedAssistantProvider(scripts);
+  const guards = createInMemoryGuardStores();
   return {
     logs,
+    guards,
     provider,
     handle: createAssistantHandler(() => ({
       provider,
+      guards,
       log: (record) => logs.push(record),
       sleep: async () => {},
     })),
@@ -150,6 +154,41 @@ describe("createAssistantHandler", () => {
     } finally {
       errorLog.mockRestore();
     }
+  });
+
+  it("maps a spent quota onto resource-exhausted, naming when it resets", async () => {
+    const { handle, guards } = handler([replyEvents(["x"])]);
+    const now = Date.now();
+    await guards.reserveCall("u", () => ({
+      allowed: true,
+      remaining: 0,
+      next: { schemaVersion: 1, calls: Array(100).fill(now) },
+    }));
+    const error = await httpsErrorOf(
+      handle(
+        callable({ uid: "u", provider: "google.com" }),
+        streamingResponse().response,
+      ),
+    );
+    expect(error.code).toBe("resource-exhausted");
+    expect(error.details).toEqual({
+      code: "quota_exceeded",
+      retryable: false,
+      resetsAt: now + 24 * 60 * 60 * 1000,
+    });
+  });
+
+  it("maps the kill switch onto unavailable", async () => {
+    const { handle, guards } = handler([replyEvents(["x"])]);
+    guards.setEnabled(false);
+    const error = await httpsErrorOf(
+      handle(
+        callable({ uid: "u", provider: "google.com" }),
+        streamingResponse().response,
+      ),
+    );
+    expect(error.code).toBe("unavailable");
+    expect((error.details as { code: string }).code).toBe("assistant_disabled");
   });
 
   it("maps a refused request onto invalid-argument", async () => {

@@ -72,6 +72,7 @@ import {
 } from "../../src/userData/userData";
 import { createAnthropicProvider } from "./anthropicProvider";
 import { createAssistantHandler } from "./assistantHandler";
+import { firestoreGuardStores } from "./assistantStores";
 
 /**
  * Where the functions run. A Storage trigger has to run in the default
@@ -269,7 +270,8 @@ const anthropicApiKey = defineSecret(ASSISTANT_API_KEY_SECRET);
  * The assistant's gateway (#69, ADR 0006): one authenticated turn, its reply
  * streamed back as it is written. A callable, so Firebase verifies the
  * caller's ID token before the handler runs; the gateway then refuses a
- * guest. Nothing it logs carries the conversation, the project or the
+ * guest, and holds every account to its request quota and the organisation
+ * to its daily spend ceiling, with a kill switch in `assistantControl/settings`. Nothing it logs carries the conversation, the project or the
  * account (`src/assistant/telemetry.ts`).
  */
 export const assistantTurn = onCall(
@@ -279,5 +281,6 @@ export const assistantTurn = onCall(
   },
   createAssistantHandler(() => ({
     provider: createAnthropicProvider({ apiKey: anthropicApiKey.value() }),
+    guards: firestoreGuardStores(getFirestore()),
   })),
 );
