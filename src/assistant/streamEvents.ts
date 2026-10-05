@@ -148,7 +148,8 @@ export class StreamReader {
       case "message_delta": {
         const reason = event.delta.stop_reason;
         if (reason !== null) {
-          if (!ACCEPTED_STOP_REASONS.has(reason)) throw malformed();
+          if (!ACCEPTED_STOP_REASONS.has(reason))
+            throw new ProviderFailure("unsupported_stop");
           this.stopReason = reason as AssistantStopReason;
         }
         this.currentUsage = mergeUsage(this.currentUsage, event.usage);

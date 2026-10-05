@@ -105,11 +105,12 @@ export interface AssistantTurnResult {
  *
  * - `unauthenticated`: no signed-in account, or a guest (ADR 0006 decision 4).
  * - `invalid_request`: the request did not parse, or its context cannot fit.
- * - `timeout`: the provider took longer than one attempt may.
+ * - `timeout`: the provider went quiet for longer than an attempt may.
  * - `cancelled`: the browser went away; the provider call was abandoned.
  * - `provider_unavailable`: rate limited, overloaded or down, after retries.
- * - `provider_error`: the provider refused the request itself (a 4xx), which
- *   retrying cannot fix.
+ * - `provider_error`: the provider refused the request itself (a 4xx), or
+ *   ended the reply for a reason a text turn never has; retrying fixes
+ *   neither.
  * - `malformed_response`: the provider's stream broke, or its reply failed
  *   validation.
  */

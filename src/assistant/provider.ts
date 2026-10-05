@@ -31,6 +31,10 @@ export interface AssistantProvider {
  *   event of the wrong shape, events out of order). Retried the same way.
  * - `rejected`: the provider refused the request itself (a 4xx other than
  *   429), including a bad or missing API key. Never retried.
+ * - `unsupported_stop`: a well-formed stream that ended for a reason a
+ *   text-only turn never has (`tool_use`, `pause_turn`, a reason newer than
+ *   this code). Asking again asks the same model the same thing, so it is
+ *   never retried and never spends another call's quota.
  */
 export type ProviderFailureKind =
   | "rate_limited"
@@ -38,7 +42,8 @@ export type ProviderFailureKind =
   | "server_error"
   | "network"
   | "malformed"
-  | "rejected";
+  | "rejected"
+  | "unsupported_stop";
 
 const TRANSIENT: ReadonlySet<ProviderFailureKind> = new Set([
   "rate_limited",

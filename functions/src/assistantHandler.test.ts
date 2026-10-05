@@ -1,6 +1,7 @@
+import { logger } from "firebase-functions";
 import type { CallableRequest, CallableResponse } from "firebase-functions/v2/https";
 import { HttpsError } from "firebase-functions/v2/https";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type {
   AssistantStreamChunk,
   AssistantTurnRequest,
@@ -127,6 +128,29 @@ describe("createAssistantHandler", () => {
       expect((error.details as { code: string }).code).toBe(code);
     },
   );
+
+  it("logs an unexpected error's name and code, never its message, as internal", async () => {
+    const errorLog = vi.spyOn(logger, "error").mockImplementation(() => {});
+    try {
+      const handle = createAssistantHandler(() => {
+        throw Object.assign(new TypeError("leaked prompt: make the bass hit harder"), {
+          code: "ERR_SOMETHING",
+        });
+      });
+      const error = await httpsErrorOf(
+        handle(callable({ uid: "u", provider: "google.com" }), undefined),
+      );
+      expect(error.code).toBe("internal");
+      expect(errorLog).toHaveBeenCalledTimes(1);
+      expect(errorLog.mock.calls[0]?.[1]).toEqual({
+        name: "TypeError",
+        code: "ERR_SOMETHING",
+      });
+      expect(JSON.stringify(errorLog.mock.calls)).not.toContain("bass");
+    } finally {
+      errorLog.mockRestore();
+    }
+  });
 
   it("maps a refused request onto invalid-argument", async () => {
     const { handle } = handler([replyEvents(["x"])]);

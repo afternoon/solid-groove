@@ -10,7 +10,8 @@
  *
  * Like `src/domain`, this module imports nothing from Firebase, Tone or Solid,
  * and nothing from the provider's SDK: the Cloud Function
- * (`functions/src/assistant.ts`) is the only place that touches either.
+ * (`functions/src/index.ts`, over `functions/src/assistantHandler.ts` and
+ * `functions/src/anthropicProvider.ts`) is the only place that touches either.
  */
 
 /**
@@ -84,28 +85,31 @@ export const ASSISTANT_CALLABLE_NAME = "assistantTurn";
 /**
  * Limits on one turn's provider calls.
  *
- * - `attemptTimeoutMs`: one provider call, first byte to last, before it is
- *   abandoned as a `timeout`. Not retried: a slow provider retried is a
- *   slower one.
+ * - `inactivityTimeoutMs`: how long one provider call may go without sending
+ *   anything (an event, a ping) before it is abandoned as a `timeout`. An
+ *   inactivity limit, not a total one, so a long reply that keeps streaming
+ *   (up to `maxOutputTokens`, thinking included) is never cut off for being
+ *   long. Not retried: a stalled provider retried is a slower one.
  * - `maxAttempts`: provider calls per turn, the first included. Only a
  *   transient failure (rate limited, overloaded, a 5xx, the network, a broken
  *   stream) that has not yet streamed any text is retried.
  * - `retryBackoffMs`: the wait before the second attempt, doubled each time.
- * - `functionTimeoutSeconds`: the Cloud Function's own ceiling, which has to
- *   cover every attempt and its backoff.
+ * - `functionTimeoutSeconds`: the Cloud Function's own ceiling, and so the
+ *   hard cap on a whole turn. Sized for the longest reply: 16,000 output
+ *   tokens streams in a few minutes, well inside it.
  */
 export interface AssistantCallLimits {
-  readonly attemptTimeoutMs: number;
+  readonly inactivityTimeoutMs: number;
   readonly maxAttempts: number;
   readonly retryBackoffMs: number;
   readonly functionTimeoutSeconds: number;
 }
 
 export const ASSISTANT_CALL_LIMITS: AssistantCallLimits = {
-  attemptTimeoutMs: 90_000,
+  inactivityTimeoutMs: 60_000,
   maxAttempts: 3,
   retryBackoffMs: 1_000,
-  functionTimeoutSeconds: 300,
+  functionTimeoutSeconds: 540,
 };
 
 /**

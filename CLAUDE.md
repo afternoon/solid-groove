@@ -41,6 +41,7 @@ src/
 ├── access/         # Who may sign in during the alpha: allowlist, sign-in gate, admin repository (#854), QA account pool (#1055)
 ├── analytics/      # The typed event catalog and its transports
 ├── arrangement/    # The arrangement view, its canvas renderer, gestures and clipboard
+├── assistant/      # The assistant gateway (#69, ADR 0006): protocol, provider boundary, history, telemetry; Firebase- and SDK-free
 ├── audio/          # Tone/Web Audio: runtime, project graph, instruments, transport, offline render
 ├── auth/           # AuthProvider and the Firebase auth wrapper
 ├── browser/        # Browser capability detection and messages
@@ -68,7 +69,7 @@ tests/
 ├── e2e/hosted/     # Post-deploy smoke test against the real Hosting URL
 ├── e2e/support/    # walkthrough.ts, the screenshot capture
 └── emulator/       # Firebase Emulator suite (rules, etc.)
-functions/          # Cloud Functions: Storage triggers that keep the usage total (#282)
+functions/          # Cloud Functions: usage triggers (#282), sign-in gate (#854), `assistantTurn` (#69); every package the bundle imports is in functions/package.json
 scripts/            # Build, verify, library pipeline, access admin and walkthrough scripts
 public/             # Static files: fixtures, robots.txt
 site.config.mjs     # Public origin, titles and description: one place to change the domain

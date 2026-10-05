@@ -71,7 +71,7 @@ function harness(
       sleep: async (ms) => {
         sleeps.push(ms);
       },
-      limits: { ...ASSISTANT_CALL_LIMITS, attemptTimeoutMs: 200, ...limits },
+      limits: { ...ASSISTANT_CALL_LIMITS, inactivityTimeoutMs: 200, ...limits },
     },
   };
 }
@@ -204,12 +204,33 @@ describe("runAssistantTurn: the request", () => {
 describe("runAssistantTurn: timeout", () => {
   it("abandons a provider call that takes too long, without retrying", async () => {
     const h = harness([[...replyEvents(["Partly"]).slice(0, 2), { hang: true }]], {
-      attemptTimeoutMs: 20,
+      inactivityTimeoutMs: 20,
     });
     await expectCode(run(h), "timeout");
     expect(h.provider.requests).toHaveLength(1);
     expect(h.provider.aborted).toBe(1);
     expect(h.logs[0]).toMatchObject({ outcome: "timeout", attempts: 1 });
+  });
+
+  it("lets a reply that keeps streaming run past the timeout", async () => {
+    // Every gap is under the 40 ms limit, the whole reply well over it.
+    const [start, block, ...rest] = replyEvents(["a", "b", "c", "d", "e", "f"]);
+    const paced = rest.flatMap((step) => [{ wait: 15 }, step]);
+    const h = harness([[start, block, ...paced]], { inactivityTimeoutMs: 40 });
+    const started = Date.now();
+    expect((await run(h)).text).toBe("abcdef");
+    expect(Date.now() - started).toBeGreaterThan(40);
+    expect(h.logs[0]).toMatchObject({ outcome: "completed", attempts: 1 });
+  });
+
+  it("times out a call that goes quiet after streaming for a while", async () => {
+    const [start, block, first, second] = replyEvents(["a", "b"]);
+    const h = harness(
+      [[start, block, { wait: 15 }, first, { wait: 15 }, second, { hang: true }]],
+      { inactivityTimeoutMs: 40 },
+    );
+    await expectCode(run(h), "timeout");
+    expect(h.provider.aborted).toBe(1);
   });
 });
 
@@ -278,19 +299,29 @@ describe("runAssistantTurn: malformed stream", () => {
       RETRIED,
     ],
     ["an empty reply", replyEvents([]), RETRIED],
-    // These two have already streamed text, so they are not retried.
+    // This one has already streamed text, so it is not retried.
     ["a stream that ends without message_stop", replyEvents(["cut"]).slice(0, 4), 1],
-    [
-      "a stop reason a text turn never has",
-      replyEvents(["a"], { stopReason: "tool_use" }),
-      1,
-    ],
   ] satisfies [string, CallScript, number][])("fails on %s", async (_, script, calls) => {
     const h = harness([script]);
     await expectCode(run(h), "malformed_response");
     expect(h.provider.requests).toHaveLength(calls);
     expect(h.logs[0].failures).toEqual(Array(calls).fill("malformed"));
   });
+
+  it.each(["tool_use", "pause_turn", "a_reason_from_the_future"])(
+    "does not retry a reply that stops for %s, which a text turn never has",
+    async (stopReason) => {
+      // No text has streamed, so only the stop reason keeps this from a retry.
+      const h = harness([replyEvents([], { stopReason }), replyEvents(["unused"])]);
+      await expectCode(run(h), "provider_error");
+      expect(h.provider.requests).toHaveLength(1);
+      expect(h.logs[0]).toMatchObject({
+        outcome: "provider_error",
+        attempts: 1,
+        failures: ["unsupported_stop"],
+      });
+    },
+  );
 
   it("skips an event type it does not know, as the API asks", async () => {
     const events = replyEvents(["fine"]);

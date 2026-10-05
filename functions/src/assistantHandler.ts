@@ -30,6 +30,23 @@ const HTTPS_CODES: Record<AssistantErrorCode, FunctionsErrorCode> = {
   malformed_response: "internal",
 };
 
+/**
+ * What may be logged about an error the gateway did not expect: its class
+ * name and its code, if it has one. Never its message, which could quote the
+ * request or the provider.
+ */
+export function describeUnexpectedError(error: unknown): {
+  name: string;
+  code: string | null;
+} {
+  if (!(error instanceof Error)) return { name: typeof error, code: null };
+  const code = (error as { code?: unknown }).code;
+  return {
+    name: error.name,
+    code: typeof code === "string" || typeof code === "number" ? String(code) : null,
+  };
+}
+
 export function toHttpsError(error: AssistantGatewayError): HttpsError {
   return new HttpsError(HTTPS_CODES[error.code], error.message, error.details);
 }
@@ -68,6 +85,7 @@ export function createAssistantHandler(
       );
     } catch (error) {
       if (error instanceof AssistantGatewayError) throw toHttpsError(error);
+      logger.error("assistant turn failed unexpectedly", describeUnexpectedError(error));
       throw new HttpsError("internal", "The assistant failed.");
     }
   };

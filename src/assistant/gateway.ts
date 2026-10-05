@@ -3,7 +3,7 @@
  * browser's request to a validated, streamed reply.
  *
  * Firebase-free and SDK-free, like `src/access/signInGate.ts`: the Cloud
- * Function (`functions/src/assistant.ts`) supplies the caller, the provider
+ * Function (`functions/src/assistantHandler.ts`) supplies the caller, the provider
  * and a logger, and maps the result onto a callable response. Everything that
  * decides anything is here, and is tested here against a scripted provider.
  *
@@ -14,7 +14,7 @@
  *    (`invalid_request`);
  * 3. builds the per-model provider request with a bounded history;
  * 4. calls the provider, streaming the reply's text as it arrives, under a
- *    per-attempt timeout, retrying a transient failure that has not streamed
+ *    per-attempt inactivity timeout, retrying a transient failure that has not streamed
  *    anything yet, and abandoning the call if the browser goes away;
  * 5. validates the reply and logs one redacted record of how it went.
  */
@@ -179,9 +179,11 @@ interface Attempt {
 }
 
 /**
- * One provider call under a timeout and the browser's cancellation. Each
- * `next()` races the abort, so a provider that ignores its signal still
- * cannot hold the turn past the timeout.
+ * One provider call under an inactivity timeout and the browser's
+ * cancellation. The timer restarts on every event the provider sends, so only
+ * a call that goes quiet times out, however long its reply. Each `next()`
+ * races the abort, so a provider that ignores its signal still cannot hold
+ * the turn past the timeout.
  */
 async function attemptCall(
   deps: AssistantGatewayDeps,
@@ -193,10 +195,15 @@ async function attemptCall(
   let timedOut = false;
   const onCancel = () => controller.abort();
   options.signal.addEventListener("abort", onCancel, { once: true });
-  const timer = setTimeout(() => {
-    timedOut = true;
-    controller.abort();
-  }, timeoutMs);
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const restartTimer = () => {
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeoutMs);
+  };
+  restartTimer();
   const aborted = new Promise<"aborted">((resolve) => {
     if (controller.signal.aborted) resolve("aborted");
     controller.signal.addEventListener("abort", () => resolve("aborted"), { once: true });
@@ -214,6 +221,7 @@ async function attemptCall(
       const next = await Promise.race([iterator.next(), aborted]);
       if (next === "aborted") return { outcome: stopped(), usage: reader.usage };
       if (next.done) break;
+      restartTimer();
       const text = reader.accept(next.value);
       if (text) await options.onChunk({ type: "text", text });
     }
@@ -250,6 +258,11 @@ function errorForFailure(failure: ProviderFailure): AssistantGatewayError {
       return new AssistantGatewayError(
         "provider_error",
         "The assistant could not take that request.",
+      );
+    case "unsupported_stop":
+      return new AssistantGatewayError(
+        "provider_error",
+        "The assistant stopped before it finished its reply. Try asking another way.",
       );
     case "malformed":
       return new AssistantGatewayError(
@@ -315,7 +328,7 @@ export async function runAssistantTurn(
         deps,
         prepared.request,
         options,
-        limits.attemptTimeoutMs,
+        limits.inactivityTimeoutMs,
       );
       usage = addUsage(usage, attempt.usage);
       const { outcome } = attempt;

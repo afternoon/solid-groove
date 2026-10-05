@@ -13,6 +13,8 @@ export type ScriptStep =
   | { readonly fail: ProviderFailureKind; readonly status?: number }
   /** Never yields again until the call is aborted. */
   | { readonly hang: true }
+  /** Pauses this long (real milliseconds) before the next step. */
+  | { readonly wait: number }
   /** Ends the stream here, complete or not. */
   | { readonly end: true };
 
@@ -117,6 +119,8 @@ export function createScriptedAssistantProvider(
             yield step.event;
           } else if ("fail" in step) {
             throw new ProviderFailure(step.fail, step.status ?? null);
+          } else if ("wait" in step) {
+            await new Promise<void>((resolve) => setTimeout(resolve, step.wait));
           } else if ("hang" in step) {
             await new Promise<void>((resolve) =>
               signal.addEventListener("abort", () => resolve(), { once: true }),
