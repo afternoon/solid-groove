@@ -10,6 +10,8 @@ name: Restack
 #  - main moves              -> every open PR on main that now conflicts with
 #                              it is rebased onto it (one that still merges
 #                              cleanly is left alone)
+#  - run by hand with `all`  -> every open PR on main, and every stack on them,
+#                              is rebased onto main, conflicting or not
 #
 # It rebases and force-pushes with a lease, because GitHub's native stacks
 # (stack-link.yml) only merge with a linear history. It moves only each PR's
@@ -25,8 +27,15 @@ on:
     types: [closed, synchronize, edited]
   push:
     branches: [main]
-  # Rebase whatever on main conflicts, without waiting for main to move.
+  # Rebase whatever on main conflicts, without waiting for main to move. With
+  # `all`, rebase every open PR and stack, so a fix on main reaches every PR's
+  # CI (a stacked PR's CI never sees main until its stack is rebased).
   workflow_dispatch:
+    inputs:
+      all:
+        description: Rebase every open PR and stack onto main, not just the ones that conflict
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -64,7 +73,7 @@ jobs:
 
       - name: Restack
         env:
-          ACTION: ${{ (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 'push' || github.event.action }}
+          ACTION: ${{ inputs.all && 'all' || (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && 'push' || github.event.action }}
           PR: ${{ github.event.pull_request.number || github.ref_name }}
           BEFORE: ${{ github.event.before }}
           OLD_BASE: ${{ github.event.changes.base.ref.from }}
@@ -74,6 +83,7 @@ jobs:
             synchronize) mode=pushed; extra="$BEFORE" ;;
             edited) mode=rebased; extra="$OLD_BASE" ;;
             push) mode=base; extra="" ;;
+            all) mode=all; extra="" ;;
           esac
           # Run a copy: the script checks out other branches as it goes, and bash
           # reads a script lazily, so it must not change underneath itself.
