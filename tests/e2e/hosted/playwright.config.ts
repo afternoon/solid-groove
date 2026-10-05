@@ -2,7 +2,10 @@ import { defineConfig, devices } from "@playwright/test";
 
 // PRD `OPS-01` post-deploy smoke test: "the app loads, an anonymous session
 // starts, a project opens, and audio starts after a user gesture ... a failed
-// smoke test is treated as a failed deploy." This runs against the real
+// smoke test is treated as a failed deploy." Since the invite-only alpha
+// (#854) the session is the allowlisted QA account `testuser0` rather than an
+// anonymous one (#1055): the `QA_SIGN_IN_SERVICE_ACCOUNT` key signs it in,
+// and without it the signed-in test skips (see `qaSession.ts`). This runs against the real
 // hosted Hosting URL with real Firebase Authentication/Firestore, never the
 // in-memory mock backend `playwright.config.ts`'s suite uses -- see
 // docs/testing.md "Deploy" for how the `deploy` CI job wires this in.

@@ -435,10 +435,16 @@ jobs:
       # point: if a visitor cannot reach the site, the deploy did not succeed.
       # The `.web.app` origin keeps serving, and is still how you isolate
       # Hosting from DNS when diagnosing one.
+      #
+      # The signed-in test runs as the QA account testuser0 (#1055): the
+      # service account key below signs a custom token for it, and it is this
+      # step's env alone (see docs/runbooks/alpha-allowlist.md).
       - name: Post-deploy smoke test against the hosted URL
         run: bun run smoke:hosted
         env:
           SMOKE_URL: ${{ steps.site.outputs.origin }}
+          QA_SIGN_IN_SERVICE_ACCOUNT: ${{ secrets.QA_SIGN_IN_SERVICE_ACCOUNT }}
+          VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
         with:

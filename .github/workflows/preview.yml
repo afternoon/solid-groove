@@ -163,13 +163,17 @@ jobs:
       - name: Install Playwright browser (chromium) for the preview smoke test
         run: bunx playwright install --with-deps chromium
       # The same PRD OPS-01 smoke test the `deploy` job runs, pointed at the
-      # channel URL. Since #854 retired guest start it cannot sign in, so it
-      # checks the landing page, that a visitor with no session is kept out of
-      # the app, and the not-on-the-alpha-list page; it writes nothing.
+      # channel URL: the signed-out checks, then one signed-in test as the QA
+      # account testuser0 (#1055) that creates a project, plays it, and
+      # deletes only that project, since the deploy's smoke test and other
+      # previews may be using the account at the same time. Without the
+      # secret (a fork's pull request) the signed-in test skips.
       - name: Smoke test the preview URL
         run: bun run smoke:hosted
         env:
           SMOKE_URL: ${{ steps.channel.outputs.url }}
+          QA_SIGN_IN_SERVICE_ACCOUNT: ${{ secrets.QA_SIGN_IN_SERVICE_ACCOUNT }}
+          VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
         with:
