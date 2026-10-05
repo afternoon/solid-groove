@@ -22,6 +22,7 @@ import {
   reverse as reverseBuffer,
   SAMPLE_RATE,
   seedFromString,
+  spectralSketch,
 } from "./dsp.mjs";
 import { partitionByIntake } from "./intake.mjs";
 import { analyzeSeam, renderLoop, verifyGrid } from "./loops.mjs";
@@ -541,8 +542,9 @@ export function buildAllPacks(
  * loudness the section 10 audit compares within a role (`audio.loudnessLufs`,
  * ITU-R BS.1770-4, rounded to 0.1 LU), and, for a sound whose root names its
  * pitch, the measured `audio.tuningCents` with the `audio.tuningStatus` that
- * says whether a pitch was found at all. Measured, never applied: nothing here
- * changes a sample of the audio.
+ * says whether a pitch was found at all, and the `audio.spectralSketch` that,
+ * with `peaks`, fingerprints the sound for the near-duplicate audit. Measured,
+ * never applied: nothing here changes a sample of the audio.
  */
 export function measureDelivered(asset, bytes) {
   const { channels, sampleRate } = decodeWav(bytes);
@@ -561,6 +563,7 @@ export function measureDelivered(asset, bytes) {
       ...(tuning
         ? { tuningCents: tuning.cents, tuningStatus: tuning.status }
         : { tuningStatus: null }),
+      spectralSketch: spectralSketch(channels, sampleRate),
     },
     peaks: peaksFromWav(bytes),
   };

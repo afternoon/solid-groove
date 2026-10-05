@@ -885,3 +885,117 @@ export function measureTuning(samples, rootHz, sampleRate = SAMPLE_RATE) {
   // `+ 0` turns a rounded -0 into 0, so the manifest never records "-0".
   return { status: "detected", cents: Math.round(cents) + 0 };
 }
+
+// ---------------------------------------------------------------------------
+// Spectral sketch (near-duplicate audit)
+// ---------------------------------------------------------------------------
+
+/** Bands in a spectral sketch: log-spaced, about 0.3 octave each. */
+export const SKETCH_BANDS = 32;
+const SKETCH_LOW_HZ = 20;
+const SKETCH_HIGH_HZ = 16000;
+const SKETCH_FFT_SIZE = 8192;
+/** A sketch cell is half-dB steps below the loudest band. */
+export const SKETCH_STEPS_PER_DB = 2;
+/**
+ * Bands more than 40 dB under the loudest are floored. Below that a band holds
+ * so little of the sound that its level in dB is noise: cutting 1% off a tail
+ * moved such bands by several dB while leaving everything audible unchanged.
+ */
+const SKETCH_FLOOR_DB = 40;
+/** The largest value a sketch cell holds: a band at or under the floor. */
+export const SKETCH_MAX = SKETCH_FLOOR_DB * SKETCH_STEPS_PER_DB;
+
+/** In-place iterative radix-2 FFT. `real.length` must be a power of two. */
+function fftInPlace(real, imaginary) {
+  const n = real.length;
+  for (let i = 1, j = 0; i < n; i++) {
+    let bit = n >> 1;
+    for (; j & bit; bit >>= 1) j ^= bit;
+    j ^= bit;
+    if (i < j) {
+      [real[i], real[j]] = [real[j], real[i]];
+      [imaginary[i], imaginary[j]] = [imaginary[j], imaginary[i]];
+    }
+  }
+  for (let size = 2; size <= n; size <<= 1) {
+    const angle = (-2 * Math.PI) / size;
+    const stepReal = Math.cos(angle);
+    const stepImaginary = Math.sin(angle);
+    const half = size / 2;
+    for (let start = 0; start < n; start += size) {
+      let twiddleReal = 1;
+      let twiddleImaginary = 0;
+      for (let k = 0; k < half; k++) {
+        const a = start + k;
+        const b = a + half;
+        const productReal = real[b] * twiddleReal - imaginary[b] * twiddleImaginary;
+        const productImaginary = real[b] * twiddleImaginary + imaginary[b] * twiddleReal;
+        real[b] = real[a] - productReal;
+        imaginary[b] = imaginary[a] - productImaginary;
+        real[a] += productReal;
+        imaginary[a] += productImaginary;
+        const next = twiddleReal * stepReal - twiddleImaginary * stepImaginary;
+        twiddleImaginary = twiddleReal * stepImaginary + twiddleImaginary * stepReal;
+        twiddleReal = next;
+      }
+    }
+  }
+}
+
+/**
+ * A coarse, gain-independent picture of where a sound's energy sits in
+ * frequency: its long-term power spectrum (Hann-windowed 8192-point frames,
+ * summed over the whole sound) in 32 log-spaced bands from 20 Hz to 16 kHz,
+ * each recorded as whole half-dB steps below the loudest band (0 is the
+ * loudest; 80 is 40 dB down or quieter).
+ *
+ * Together with the 48-bin `peaks` envelope it is the near-duplicate
+ * fingerprint: the envelope says how a sound moves in time, the sketch what it
+ * is made of. Neither changes with level, so a copy that was only re-gained
+ * matches its original exactly.
+ *
+ * @param {Float32Array | Float32Array[]} samples  Mono, or one array per channel (summed).
+ * @returns {number[]}  `SKETCH_BANDS` integers, 0..`SKETCH_MAX`.
+ */
+export function spectralSketch(samples, sampleRate = SAMPLE_RATE) {
+  const channels = ArrayBuffer.isView(samples) ? [samples] : samples;
+  const frames = channels[0]?.length ?? 0;
+  const size = SKETCH_FFT_SIZE;
+  const window = new Float64Array(size);
+  for (let i = 0; i < size; i++)
+    window[i] = 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (size - 1));
+
+  const power = new Float64Array(size / 2);
+  const real = new Float64Array(size);
+  const imaginary = new Float64Array(size);
+  for (let start = 0; start < Math.max(frames, 1); start += size) {
+    real.fill(0);
+    imaginary.fill(0);
+    for (let i = 0; i < size && start + i < frames; i++) {
+      let sum = 0;
+      for (const channel of channels) sum += channel[start + i];
+      real[i] = sum * window[i];
+    }
+    fftInPlace(real, imaginary);
+    for (let k = 0; k < size / 2; k++) {
+      power[k] += real[k] * real[k] + imaginary[k] * imaginary[k];
+    }
+  }
+
+  const bands = new Float64Array(SKETCH_BANDS);
+  const octaves = Math.log2(SKETCH_HIGH_HZ / SKETCH_LOW_HZ);
+  for (let k = 1; k < size / 2; k++) {
+    const hz = (k * sampleRate) / size;
+    if (hz < SKETCH_LOW_HZ || hz >= SKETCH_HIGH_HZ) continue;
+    bands[Math.floor((SKETCH_BANDS * Math.log2(hz / SKETCH_LOW_HZ)) / octaves)] +=
+      power[k];
+  }
+  const loudest = Math.max(...bands);
+  if (!(loudest > 0)) return new Array(SKETCH_BANDS).fill(SKETCH_MAX);
+  return [...bands].map((value) => {
+    const below = value > 0 ? -10 * Math.log10(value / loudest) : SKETCH_FLOOR_DB;
+    // `+ 0` keeps the loudest band at 0 rather than -0.
+    return Math.round(Math.min(SKETCH_FLOOR_DB, below) * SKETCH_STEPS_PER_DB) + 0;
+  });
+}

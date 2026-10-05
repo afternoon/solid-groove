@@ -191,6 +191,7 @@ function validAsset(pack, overrides = {}, index = 0) {
       peakDbfs: -1.5,
       rmsDbfs: -14,
       loudnessLufs: -14,
+      spectralSketch: Array.from({ length: 32 }, (_unused, band) => band),
       rootNote: null,
       tuningCents: null,
       bpm: null,
@@ -369,6 +370,20 @@ describe("validatePackManifest", () => {
         m.assets[0].audio.loudnessLufs = null;
       },
       /no measurable loudness/,
+    ],
+    [
+      "an audio asset with no near-duplicate fingerprint",
+      (m) => {
+        delete m.assets[0].audio.spectralSketch;
+      },
+      /spectralSketch must be 32 integers/,
+    ],
+    [
+      "a malformed spectral sketch",
+      (m) => {
+        m.assets[0].audio.spectralSketch = [0, 1, 2];
+      },
+      /spectralSketch must be 32 integers/,
     ],
     [
       "a detected pitch past the tuning tolerance",

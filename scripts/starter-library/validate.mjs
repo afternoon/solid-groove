@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 import { licenseRejectionReason, PRIVATE_ALPHA_LICENSE } from "./acquire/sources.mjs";
 import { TUNING_STATUSES, TUNING_TOLERANCE_CENTS } from "./audits.mjs";
+import { SKETCH_BANDS, SKETCH_MAX } from "./dsp.mjs";
 import { isDeliverable, isKnownIntakeState } from "./intake.mjs";
 import { SEAM_CYCLES } from "./loops.mjs";
 import { noteToMidi } from "./music.mjs";
@@ -367,6 +368,20 @@ function validateAsset(
       errors.push(`${where}: has no measurable loudness (under the -70 LUFS gate)`);
     } else if (!Number.isFinite(audio.loudnessLufs)) {
       errors.push(`${where}: loudnessLufs must be a number`);
+    }
+    // Half of the near-duplicate fingerprint (`audits.mjs`); `peaks` is the
+    // other half. Without it the asset cannot be compared with anything.
+    const sketch = audio.spectralSketch;
+    if (
+      !Array.isArray(sketch) ||
+      sketch.length !== SKETCH_BANDS ||
+      !sketch.every(
+        (value) => Number.isInteger(value) && value >= 0 && value <= SKETCH_MAX,
+      )
+    ) {
+      errors.push(
+        `${where}: spectralSketch must be ${SKETCH_BANDS} integers from 0 to ${SKETCH_MAX} (the near-duplicate fingerprint)`,
+      );
     }
     if (audio.rootNote !== null && asset.type !== "loop") {
       validateTuning(audio, where, errors);
