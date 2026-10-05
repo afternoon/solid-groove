@@ -38,7 +38,7 @@ One line per directory. Each file says what it is for in a comment at its top; r
 
 ```
 src/
-├── access/         # Who may sign in during the alpha: allowlist, sign-in gate, admin repository (#854)
+├── access/         # Who may sign in during the alpha: allowlist, sign-in gate, admin repository (#854), QA account pool (#1055)
 ├── analytics/      # The typed event catalog and its transports
 ├── arrangement/    # The arrangement view, its canvas renderer, gestures and clipboard
 ├── audio/          # Tone/Web Audio: runtime, project graph, instruments, transport, offline render

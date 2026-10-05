@@ -1,0 +1,56 @@
+/**
+ * `bun run qa:accounts` (#1055): create the QA accounts CI signs in as.
+ *
+ * Creates or corrects `testuser0`…`testuser10@qa.trygroove.app` (UIDs
+ * `qa-testuser-<n>`, address verified, display name `QA testuser<n>`) and puts
+ * every address on the allowlist, through `provisionQaAccounts`
+ * (`src/access/qaAccounts.ts`). Running it again changes nothing. It never
+ * grants `admin`, and it leaves a disabled account disabled.
+ *
+ * Same credentials as the other access scripts (`adminApp.ts`): application
+ * default credentials for an owner, or the emulators.
+ */
+import type { UserRecord } from "firebase-admin/auth";
+import {
+  provisionQaAccounts,
+  type QaUserRecord,
+  type QaUserStore,
+} from "../../src/access/qaAccounts";
+import { adminAllowlistWriter, adminServices } from "./adminApp";
+import { printReport } from "./report";
+
+const { auth, db } = adminServices();
+
+const toRecord = (user: UserRecord): QaUserRecord => ({
+  uid: user.uid,
+  email: user.email,
+  emailVerified: user.emailVerified,
+  displayName: user.displayName,
+});
+
+const users: QaUserStore = {
+  async get(uid) {
+    try {
+      return toRecord(await auth.getUser(uid));
+    } catch (error) {
+      if ((error as { code?: string }).code === "auth/user-not-found") return null;
+      throw error;
+    }
+  },
+  async create(user) {
+    await auth.createUser(user);
+  },
+  async update(uid, changes) {
+    await auth.updateUser(uid, changes);
+  },
+};
+
+const report = await provisionQaAccounts(users, adminAllowlistWriter(db), Date.now());
+
+console.log(`Accounts created: ${report.created.length}`);
+for (const email of report.created) console.log(`  + ${email}`);
+console.log(`Accounts updated: ${report.updated.length}`);
+for (const email of report.updated) console.log(`  ~ ${email}`);
+console.log(`Accounts unchanged: ${report.unchanged.length}`);
+console.log("Allowlist:");
+printReport(report.allowlist);
