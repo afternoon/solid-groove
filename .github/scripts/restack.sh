@@ -14,6 +14,12 @@
 #                        conflicts with it is brought up to date. A PR that
 #                        still merges cleanly is left alone, so a merge to main
 #                        does not rebuild every open PR's CI and preview.
+#   all <branch>         Every open PR on <branch>, and everything stacked on
+#                        them, is brought up to date, whether it conflicts or
+#                        not. Run by hand (workflow_dispatch) when a fix on
+#                        <branch> has to reach every open PR's CI: a stacked
+#                        PR's CI runs against its parent's branch, so it never
+#                        sees a fix on main until its stack is rebased.
 #
 # "Brought up to date" means rebasing the PR's own commits onto the tip of its
 # base and pushing with --force-with-lease. GitHub's native stacks (which
@@ -189,8 +195,14 @@ base)
 		fi
 	done
 	;;
+all)
+	branch="$pr"
+	for candidate in $(children_of "$branch"); do
+		restack_tree "$candidate" ""
+	done
+	;;
 *)
-	echo "usage: restack.sh merged <pr> | pushed <pr> <before-sha> | rebased <pr> <old-base> | base <branch>" >&2
+	echo "usage: restack.sh merged <pr> | pushed <pr> <before-sha> | rebased <pr> <old-base> | base <branch> | all <branch>" >&2
 	exit 2
 	;;
 esac
