@@ -1,0 +1,3 @@
+{ "id": "dock-shadow", "title": "View dock shadow", "steps": [
+  { "file": "01-editor.png", "caption": "The editor with the view dock" },
+  { "file": "02-dock.png", "caption": "The dock close up" } ] }
