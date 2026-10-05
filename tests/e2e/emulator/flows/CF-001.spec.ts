@@ -1,9 +1,10 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 import { walkthrough } from "../../support/walkthrough";
+import { allowlist, signInWithGoogle, uniqueEmail } from "../support/access";
 import { backToArrangement, expectView, sequenceView } from "../support/views";
 
 /**
- * `CF-001` — a visitor with no account reaches a playing loop.
+ * `CF-001` — an invited producer signs in and reaches a playing loop.
  *
  * This is the worked example for the core-flow convention: read
  * `docs/core-flows.md` for the flow this reproduces, and copy this file's shape
@@ -20,38 +21,20 @@ import { backToArrangement, expectView, sequenceView } from "../support/views";
  *    behavior is covered at the lowest useful layer, not bolted on here — a
  *    flow spec that grows assertions becomes a flow nobody can read.
  *
- * **Rewritten for the three-view shell (#304), and parked at `test.fixme`
- * until that stack landed.** This flow shipped live and passing; what changed
- * under it is where the pattern is edited. A project used to open with the step
- * editor mounted below the arrangement, so steps 5 and 6 could assert the grid
- * on arrival. #304 makes the arrangement the whole page and moves sequencing
- * into an editor opened from the clip, so the old assertions describe a surface
- * that is being deleted and the new ones describe one that does not exist yet.
+ * **Rewritten for the alpha allowlist (#854).** The journey used to start with
+ * no account at all: "Start in your browser" made the visitor a guest. Guest
+ * start is retired, and only an invited (allowlisted) Google address can sign
+ * in, so steps 2 and 3 are now signing in with Google from the landing page and
+ * arriving signed in. Everything from creating a project onwards is unchanged.
+ * The precondition, an address on the list, is set up the way an admin would
+ * (`../support/access`), and the sign-in goes through the Auth emulator's own
+ * account chooser, so the blocking `beforeSignIn` function decides it exactly
+ * as it does in production. Parked at `test.fixme` until #854's stack lands;
+ * the PR that closes #854 removes the marker.
  *
- * `test.fixme` is the only honest state in between: the rewrite cannot be true
- * before the shell exists, and leaving the old wording in place would have made
- * the register contradict CF-008 — which asserts, at the same moment in the same
- * journey, that no step editor is on the page. The PR that closes #304 removes
- * this marker in the same diff that makes the flow pass, exactly as it does for
- * CF-008. Until then the register had no live flow, which is a real cost and a
- * deliberate one: a wrong live flow is worse than a parked correct one.
- *
- * **Revised for #496 (a sampler is a tonal instrument; the drum machine is the
- * one-shot player).** The starter project is now a drum-machine track, so step
- * 6 reads the kick off the "BD" pad lane ("BD, step 1, on") instead of a
- * sampler's single "Notes" lane. The journey is unchanged.
- *
- * **Revised for #817.** The sequence editor is a view on `2`, not a dialog over
- * the arrangement: step 6 lands on it (`/sequence`) and step 7 leaves it with
- * `1` instead of Escape. Parked at `test.fixme` (on the describe, so the body
- * keeps its indentation) until #817's stack lands; the PR that closes #817
- * removes the marker.
- *
- * Runs against the Firestore/Auth emulator, like every core flow (`TEST-001`):
- * a flow's outcome includes surviving a reload, and the in-memory mock backend
- * this spec used to live over is a fresh, empty store on every page load. The
- * journey itself is unchanged — CF-001's register entry still claims nothing
- * about persistence, and this spec still asserts nothing about it.
+ * Runs against the Firestore/Auth emulator, like every core flow (`TEST-001`).
+ * CF-001's register entry claims nothing about persistence, and this spec
+ * asserts nothing about it.
  */
 
 /** One bar of the alpha's fixed 4/4 at 192 PPQ (`src/domain/time.ts`). */
@@ -80,15 +63,24 @@ const rowCentreY = async (page: Page, rowIndex: number): Promise<number> => {
 const timeline = (page: Page): Locator => page.locator(".arrangement-layer-interactive");
 
 // Part of the per-PR `@sanity` subset (.github/workflows/ci.yml).
-test.describe("CF-001", { tag: "@sanity" }, () => {
-  test("a visitor with no account reaches a playing loop", async ({
+//
+// `test.fixme` (on the describe, so the body keeps its indentation) until
+// #854's stack lands: the PR that closes it removes this marker in the same
+// diff that makes the flow pass.
+test.describe.fixme("CF-001", { tag: "@sanity" }, () => {
+  test("an invited producer signs in and reaches a playing loop", async ({
     page,
     browserName,
   }) => {
     const step = walkthrough(page, {
       id: "CF-001",
-      title: "A visitor with no account reaches a playing loop",
+      title: "An invited producer signs in and reaches a playing loop",
     });
+
+    // Precondition: the producer has been invited — their address is on the
+    // alpha list.
+    const email = uniqueEmail(`cf-001-${browserName}`);
+    await allowlist(email);
 
     // 1. Open the landing page.
     await page.goto("/");
@@ -97,15 +89,18 @@ test.describe("CF-001", { tag: "@sanity" }, () => {
     ).toBeVisible();
     await step("Open the landing page");
 
-    // 2. Choose to start in your browser.
-    await page.getByRole("link", { name: "Start in your browser" }).click();
+    // 2. Choose Sign in, and sign in with Google as the invited address.
+    await signInWithGoogle(page, email, () =>
+      page.getByRole("button", { name: "Sign in", exact: true }).first().click(),
+    );
 
-    // 3. You arrive at the dashboard, signed in as a guest, with no projects.
+    // 3. You arrive at the dashboard, signed in, with no projects yet.
     await expect(page).toHaveURL(/\/projects$/);
     await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
-    await expect(page.getByText(/You're working as a guest/)).toBeVisible();
+    await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
+    await expect(page.getByText(/You're working as a guest/)).toHaveCount(0);
     await expect(page.getByText("No projects yet")).toBeVisible();
-    await step("You arrive at the dashboard as a guest, with no projects yet");
+    await step("You arrive at the dashboard signed in, with no projects yet");
 
     // 4. Create a new project.
     await page.getByRole("button", { name: "New Project" }).click();
