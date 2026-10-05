@@ -11,8 +11,8 @@ import { installWebAudioGlobals } from "../testAudioContext";
  * the declaration and never measures, so a wrong figure here would quietly
  * misalign every mix and every stem; this is where it fails instead.
  *
- * The same check runs in Chromium, Firefox and WebKit against the browsers'
- * declaration in `tests/e2e/mock/deviceLatency.spec.ts`.
+ * The same check runs in Chromium, Chrome, Edge and Firefox against the
+ * browsers' declaration in `tests/e2e/emulator/deviceLatency.spec.ts`.
  */
 
 // Must run before Tone is imported — see AudioRuntime.test.ts for why.

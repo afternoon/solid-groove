@@ -18,23 +18,25 @@ const authEmulatorHost = process.env.FIREBASE_AUTH_EMULATOR_HOST ?? "127.0.0.1:9
 const storageEmulatorHost =
   process.env.FIREBASE_STORAGE_EMULATOR_HOST ?? "127.0.0.1:9199";
 
-// `FND-009`'s emulator-backed browser E2E suite (`tests/e2e/emulator/`).
+// `FND-009`'s emulator-backed browser E2E suite (`tests/e2e/emulator/`), the
+// repo's one browser suite.
 //
-// Distinct from `playwright.config.ts`: that suite drives the in-memory mock
-// backend, which is a fresh, empty store on every page load and so cannot
-// prove the foundation slice's "save it, reload it, reproduce playback" step
-// — a real `page.reload()` cannot be answered by state that lives only in a
-// JS module the reload just discarded. This config points the *real*
-// Firebase SDK at a local Firestore + Auth emulator instead (see
-// `src/firebaseConfig.ts`'s emulator wiring), so a reload here answers from
-// the emulator the way it would from production.
+// Not the in-memory mock backend (`VITE_DEV_BACKEND=mock`): that is a fresh,
+// empty store on every page load and so cannot prove the foundation slice's
+// "save it, reload it, reproduce playback" step — a real `page.reload()`
+// cannot be answered by state that lives only in a JS module the reload just
+// discarded. This config points the *real* Firebase SDK at a local Firestore +
+// Auth emulator instead (see `src/firebaseConfig.ts`'s emulator wiring), so a
+// reload here answers from the emulator the way it would from production. The
+// mock-backend browser suite that used to sit beside this one was retired;
+// its per-surface specs live here now.
 //
 // Every core flow (docs/core-flows.md) lives here, so this is the suite that
 // proves "every core journey" in each PRD section 10 P0-gating browser:
 // Firefox, and branded Chrome and Edge through Playwright's `chrome`/`msedge`
 // channels (#75), plus Playwright's own Chromium, the pre-flight an
-// environment that can install nothing else runs. WebKit is not run here; the
-// mock suite carries the best-effort Safari signal.
+// environment that can install nothing else runs. WebKit is not run here;
+// Safari is the manual pass in docs/runbooks/cross-browser.md.
 export default defineConfig({
   testDir: ".",
   // Test artifacts stay at the repo root even though this config now lives in
@@ -61,9 +63,13 @@ export default defineConfig({
     trace: "on-first-retry",
   },
   webServer: {
-    // `--host 127.0.0.1` pins the dev server to IPv4 — see the identical
-    // comment in `playwright.config.ts`. A different port than that suite's
-    // so both can run concurrently without colliding.
+    // `--host 127.0.0.1` pins the dev server to IPv4. Without it Vite binds
+    // whatever `localhost` resolves to, and on a dual-stack host (GitHub
+    // runners resolve localhost to both 127.0.0.1 and ::1) that can be the
+    // IPv6 address while the `port` probe below polls IPv4 — the server comes
+    // up, nothing ever answers on 127.0.0.1, and the run dies on the webServer
+    // timeout. Port 3100 rather than `bun run dev`'s 3000, so a dev server you
+    // already have open is never reused by mistake.
     //
     // `library:build` first: the flows browse the delivered library (CF-005,
     // CF-007, CF-012), and same-origin delivery serves the pack index and
@@ -163,6 +169,19 @@ export default defineConfig({
       testIgnore: /warmDevServer\.setup\.ts/,
       use: { ...devices["Desktop Firefox"] },
       dependencies: ["warmup:firefox"],
+    },
+    // WebKit is a signal, not a gate (PRD section 10): CI runs it daily with
+    // `continue-on-error`.
+    {
+      name: "warmup:webkit",
+      testMatch: /warmDevServer\.setup\.ts/,
+      use: { ...devices["Desktop Safari"] },
+    },
+    {
+      name: "webkit",
+      testIgnore: /warmDevServer\.setup\.ts/,
+      use: { ...devices["Desktop Safari"] },
+      dependencies: ["warmup:webkit"],
     },
   ],
 });

@@ -8,7 +8,7 @@ import { expect, test } from "@playwright/test";
  * master limiter each state how many frames they hold the signal back, and
  * every other path is delayed to match. The unit suite pins the figure for its
  * own engine (`src/audio/devices/compressor.latency.test.ts`); this pins the
- * one production uses, in Chromium, Firefox and WebKit, so a browser that
+ * one production uses, in Chromium, Chrome, Edge and Firefox, so a browser that
  * holds a different figure fails here instead of misaligning a mix.
  *
  * Then the export alignment matrix, on the same engines: with Compressors on
@@ -16,7 +16,7 @@ import { expect, test } from "@playwright/test";
  * every stem start on the same frame as the song exported with none.
  */
 
-const HARNESS = "/tests/e2e/mock/support/deviceLatencyHarness.ts";
+const HARNESS = "/tests/e2e/emulator/support/deviceLatencyHarness.ts";
 
 test("lookahead nodes delay by exactly their declared latency", async ({ page }) => {
   test.setTimeout(60_000);

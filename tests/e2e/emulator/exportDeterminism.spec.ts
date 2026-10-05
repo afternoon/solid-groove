@@ -12,7 +12,7 @@ import { expect, test } from "@playwright/test";
  * a different file.
  */
 
-const HARNESS = "/tests/e2e/mock/support/exportDeterminismHarness.ts";
+const HARNESS = "/tests/e2e/emulator/support/exportDeterminismHarness.ts";
 const EXPORTS = 4;
 
 test("exporting an unchanged song gives the same file every time", async ({ page }) => {

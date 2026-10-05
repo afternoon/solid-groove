@@ -11,7 +11,7 @@ async function openedProjectName(page: Page): Promise<string> {
 /**
  * `LOOP-001` — the anonymous-start dashboard's access control and destructive
  * confirmation, exercised against a real (emulated) backend so Firestore
- * security rules are actually enforced (the mock backend in `e2e/` has no
+ * security rules are actually enforced (the in-memory mock dev backend has no
  * server-side security boundary to prove).
  */
 test.describe("dashboard access control", () => {
@@ -87,5 +87,67 @@ test.describe("destructive confirmation", () => {
     // state — a reload still shows it gone.
     await page.reload();
     await expect(page.getByText("No projects yet")).toBeVisible();
+  });
+});
+
+// `LOOP-001`: the dashboard's project-management surface — rename, duplicate,
+// and a confirmed delete that acts only on the row it was invoked on. Moved
+// here from the retired mock-backend suite's `smoke.spec.ts`; the persisted
+// delete above is the same surface's reload half.
+test.describe("dashboard project management", () => {
+  test("renames, duplicates, and deletes a project from the dashboard", async ({
+    page,
+  }) => {
+    await page.goto("/projects");
+    await page.getByRole("button", { name: "New Project" }).click();
+    await expect(page).toHaveURL(/\/projects\/prj_/);
+    const name = await openedProjectName(page);
+
+    // Return to the dashboard via the editor's client-side "Projects" link, the
+    // way a producer leaves the editor.
+    await page.getByRole("link", { name: /projects/i }).click();
+    await expect(page).toHaveURL(/\/projects$/);
+    await expect(page.getByText(name)).toBeVisible();
+
+    // Rename.
+    await page.getByRole("button", { name: /rename/i }).click();
+    await page.getByRole("textbox", { name: `Rename ${name}` }).fill("My First Groove");
+    await page.getByRole("button", { name: /^save$/i }).click();
+    await expect(page.getByText("My First Groove")).toBeVisible();
+    await expect(page.getByText(name, { exact: true })).not.toBeVisible();
+
+    // Duplicate: an independent second project appears alongside it.
+    await page.getByRole("button", { name: /duplicate/i }).click();
+    await expect(page.getByText("My First Groove copy")).toBeVisible();
+    await expect(page.getByText("My First Groove", { exact: true })).toBeVisible();
+
+    // Delete requires confirmation. Only the duplicate's card is targeted
+    // (its text is a superset of the original's, so filtering on the full
+    // "... copy" text is what tells the two cards apart).
+    const duplicateCard = page
+      .getByRole("row")
+      .filter({ hasText: "My First Groove copy" });
+    await duplicateCard.getByRole("button", { name: /^delete /i }).click();
+    const dialog = page.getByRole("alertdialog", {
+      name: /delete this project/i,
+    });
+    await expect(dialog).toBeVisible();
+
+    // Cancelling keeps it.
+    await dialog.getByRole("button", { name: /^cancel$/i }).click();
+    await expect(page.getByText("My First Groove copy")).toBeVisible();
+
+    // Confirming removes only that one.
+    await duplicateCard.getByRole("button", { name: /^delete /i }).click();
+    await page
+      .getByRole("alertdialog", { name: /delete this project/i })
+      .getByRole("button", { name: /^delete$/i })
+      .click();
+    // Against a real backend the confirmation stays up, naming the project,
+    // until the delete is written; wait for it to close so the check below
+    // reads the list, not the dialog's message.
+    await expect(dialog).toBeHidden();
+    await expect(page.getByText("My First Groove copy")).not.toBeVisible();
+    await expect(page.getByText("My First Groove", { exact: true })).toBeVisible();
   });
 });

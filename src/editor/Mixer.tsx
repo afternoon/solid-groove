@@ -505,7 +505,7 @@ function TrackStrip(props: TrackStripProps): JSX.Element {
 				    rather than a click anywhere on the strip: a container handler has
 				    to fire on `pointerdown` to beat a fader drag, and WebKit then
 				    swallowed the delete button's own click
-				    (`tests/e2e/mock/mixer.spec.ts`). "Edit", not "Select": the
+				    (`tests/e2e/emulator/mixer.spec.ts`). "Edit", not "Select": the
 				    arrangement's accessible track list owns `Select <track>` for a bar
 				    range, and `CF-002` clicks this one by name. */}
         <button

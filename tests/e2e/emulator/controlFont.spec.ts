@@ -18,7 +18,7 @@ async function openRename(page: Page): Promise<{ button: Locator; input: Locator
   await page.goto("/projects");
   await page.getByRole("button", { name: "New Project" }).click();
   await expect(page).toHaveURL(/\/projects\/prj_/);
-  // A client-side return keeps the in-memory project (see smoke.spec.ts).
+  // Back to the dashboard client-side, the way a producer leaves the editor.
   await page.getByRole("link", { name: /projects/i }).click();
   await page.getByRole("button", { name: /rename/i }).click();
   return {

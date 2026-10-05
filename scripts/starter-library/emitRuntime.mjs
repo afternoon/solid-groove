@@ -11,7 +11,7 @@
 // assertion runs in the unit suite via `runtime.test.mjs`.
 //
 // Audio is written only when missing, so this is cheap enough to run from
-// `predev`, `prebuild`, and `pretest:browser` the way `generate-samples.mjs`
+// `predev`, `prebuild`, and `pretest:browser:emulator` the way `generate-samples.mjs`
 // already is.
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";

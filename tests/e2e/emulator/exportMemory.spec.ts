@@ -7,14 +7,17 @@ import type { ExportMemoryResult } from "./support/exportMemoryHarness";
  * stereo WAV within a browser tab's memory (PRD section 10's reference: every
  * track processed, at least 64 active devices).
  *
- * It renders ten minutes of audio, so it is opt-in: `EXPORT_MEMORY=1 bun run
- * test:browser:chromium -- exportMemory` (about 20 minutes in a 4-core
- * container). Peak memory is the resident set of Chromium's processes,
- * sampled from outside the page every 200 ms, which only Linux exposes this
- * way. The result is recorded on #65.
+ * It renders ten minutes of audio, so it is opt-in: `EXPORT_MEMORY=1 bunx
+ * firebase emulators:exec --only firestore,auth,storage --project
+ * demo-solid-groove "bunx playwright test
+ * --config=tests/e2e/emulator/playwright.config.ts --project=chromium
+ * exportMemory"` (about 20 minutes in a 4-core container). Peak memory is
+ * the resident set of Chromium's processes, sampled from outside the page
+ * every 200 ms, which only Linux exposes this way. The result is recorded on
+ * #65.
  */
 
-const HARNESS = "/tests/e2e/mock/support/exportMemoryHarness.ts";
+const HARNESS = "/tests/e2e/emulator/support/exportMemoryHarness.ts";
 /** A tab with room to spare on an 8 GB laptop. */
 const RENDERER_BUDGET_MB = 1_536;
 /** The song's length; a shorter one only for probing the harness itself. */

@@ -175,7 +175,7 @@ test.describe("CF-001", { tag: "@sanity" }, () => {
     // scope" for this flow, docs/testing.md, and issue #43.
     //
     // Asserted in Chromium only — the known, tracked gap this flow's own "Out
-    // of scope" already names, and the same guard `tests/e2e/mock/smoke.spec.ts` and
+    // of scope" already names, and the same guard `tests/e2e/emulator/shortcuts.spec.ts` and
     // `tests/e2e/emulator/slice.spec.ts` carry. In Firefox here `AudioContext`
     // constructs but its `resume()` never settles, so `play()` times out into
     // `audio_start_failed` and the button never becomes "Stop playback".

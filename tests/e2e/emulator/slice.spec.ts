@@ -74,7 +74,7 @@ async function savedPackDependencies(page: Page): Promise<string[]> {
  * it, save it, reload it, and reproduce playback.
  *
  * Runs against the Firestore + Auth emulator (see `tests/e2e/emulator/playwright.config.ts`),
- * not the in-memory mock backend `tests/e2e/mock/smoke.spec.ts` uses — the mock
+ * not the in-memory mock dev backend (`VITE_DEV_BACKEND=mock`) — the mock
  * repository is a fresh, empty store on every page load, so it cannot prove
  * anything survives a real `page.reload()`.
  */

@@ -160,13 +160,13 @@ src/
 └── projectRepositoryClient.ts  # ProjectRepository composition root: in-memory (mock) vs Firestore
 
 tests/                  # Every suite that is not a src/ unit or component test
-├── playwright.chromium.ts   # Shared Chromium launch options for all three Playwright configs
+├── playwright.chromium.ts   # Shared Chromium launch options for the Playwright configs that run Chromium
 ├── e2e/
 │   ├── support/        # walkthrough.ts — the screenshot capture a flow spec drives
-│   ├── mock/           # Playwright browser E2E suite (in-memory mock backend)
-│   │   └── playwright.config.ts   # Fast per-surface browser tests. No core flows live here
-│   ├── emulator/       # Playwright browser E2E suite against the Firestore/Auth emulator (FND-009)
+│   ├── emulator/       # THE Playwright browser E2E suite, against the Firestore/Auth emulator (FND-009)
 │   │   ├── playwright.config.ts
+│   │   ├── *.spec.ts   # Per-surface browser tests (layout, focus, shortcuts, export harnesses, ...)
+│   │   ├── support/    # Shared helpers and the in-page harnesses the export/audio specs import
 │   │   └── flows/      # EVERY core flow (docs/core-flows.md), one spec named for its CF- id
 │   └── hosted/         # Post-deploy smoke test against the real Hosting URL
 │       └── playwright.config.ts
@@ -236,7 +236,7 @@ A **core flow** is one user journey that must work end to end, written in plain 
 - **Body:** `Closes #<n>` on the PR that completes the issue, `Refs #<n>` on earlier ones; what changed; the commands run and their results. Follow `.github/pull_request_template.md`.
 - **One purpose per PR.** Split into a stack only when a change does more than one thing a reviewer would want to read separately (for example a refactor and the feature built on it). Around 400 changed lines is a sign to consider splitting, not a hard cap. Tests ship in the same PR as the code they cover. Never mix a behaviour change into a pure move.
 - **Stacks:** each PR branches off the previous PR's branch and sets it as its base: `gh pr create --base <prev-branch>`, or the GitHub MCP `create_pull_request` with `base` set. That is all an agent does; never use `gh stack` or another `gh` extension (they are not installed, and some need GraphQL that agent sessions cannot reach). `.github/workflows/stack-link.yml` links the chain into a native GitHub stack (the stack shows on the PR page and merges bottom-up from there), and `.github/workflows/restack.yml` keeps it current and linear: when a PR merges or its branch moves, the PRs on it are rebased onto it and force-pushed with a lease, and when `main` moves, every open PR on `main` that now conflicts with it is rebased the same way (one that still merges cleanly is left alone). So a push to a stacked branch can be rejected because restack moved it: run `git pull --rebase` and push again. An agent never force-pushes a stacked branch itself, except to resolve a `restack-conflict` as that label's comment says.
-- **Screenshots: required whenever any UI changes** (markup, CSS, copy). Show the changed state, and the before state when that helps; usually one to five images, never a dump of every step, never none. Capture them with the helper in `tests/e2e/support/walkthrough.ts` from any Playwright run (a flow spec or a scratch spec) under `CAPTURE_WALKTHROUGH=1`, then `bun run walkthrough:publish -- --issue <n>` pushes them to the `claude/walkthroughs` branch and prints the Markdown for the PR body. Images cannot be attached through the GitHub API, which is why they live on a branch. Keep each image URL under 150 characters (the agent environment wraps longer ones in backticks and they render broken), and after updating a body check every image returns `200`. A PR with no UI change says so.
+- **Screenshots: required whenever any UI changes** (markup, CSS, copy). Show the changed state, and the before state when that helps; usually one to five images, never a dump of every step, never none. Capture them with the helper in `tests/e2e/support/walkthrough.ts` from any emulator-suite spec (a flow spec, or a scratch `tests/e2e/emulator/<slug>.screens.spec.ts` run with `bun run screenshots -- <spec>`), then `bun run walkthrough:publish -- --issue <n>` pushes them to the `claude/walkthroughs` branch and prints the Markdown for the PR body. Images cannot be attached through the GitHub API, which is why they live on a branch. Keep each image URL under 150 characters (the agent environment wraps longer ones in backticks and they render broken), and after updating a body check every image returns `200`. A PR with no UI change says so.
 - **Preview + QA:** the PR that completes the issue gets the `deploy-preview` label once CI is green. A preview runs against the **live production** backend with production's rules, so never label a PR that changes `firestore.rules` or `storage.rules`.
 - **Contracts:** domain schema, command registry, parameter definitions, persistence layout, selection, audio projection and rendering projection are contracts. Changing one is fine when the task needs it, but update every contract test and consumer in the same change and say so in the PR body.
 - Git history is the completion record; do not put a commit hash into a commit. Do not preserve compatibility with prototype project data (schema v1 is the first production schema).
@@ -277,26 +277,24 @@ bun run test:ui           # Unit + component tests, Vitest UI
 bunx vitest run --project=audio   # One layer — see vitest.config.ts for the six projects
 bun run verify:test-projects      # Every test file is owned by exactly one project
 bun run test:emulator     # Firebase Emulator suite (Firestore rules, etc.)
-bun run test:browser      # Browser E2E suite (Playwright: Chromium/Firefox/WebKit; in-memory mock backend)
-bun run test:browser:emulator  # Browser E2E suite against a local Firestore/Auth emulator (chromium/firefox)
-bun run test:browser:chromium           # Chromium-only pre-flight for the two suites above
-bun run test:browser:emulator:chromium  # (see "Which browsers run where" in docs/testing.md)
+bun run test:browser:emulator  # Browser E2E suite against a local Firestore/Auth emulator (Chromium, Chrome, Edge, Firefox)
+bun run test:browser:emulator:chromium  # Chromium-only pre-flight for it (see "Which browsers run where" in docs/testing.md)
 bun run test:browser:install  # One-time: download Playwright's browser binaries
 
 # Core flows and PR screenshots
 bun run verify:landing-static                # `/` is statically generated, and no other path carries its markup
 bun run verify:core-flows                    # Every flow in docs/core-flows.md has exactly one spec, and vice versa
-bun run screenshots -- <spec>                # Capture step() screenshots from any mock-backend spec (e.g. a scratch *.screens.spec.ts)
+bun run screenshots -- <spec>                # Capture step() screenshots from any emulator-suite spec (e.g. a scratch *.screens.spec.ts)
 bun run walkthrough:capture                  # Capture step() screenshots from the core-flow specs (emulator backend)
 bun run walkthrough:publish -- --issue <n>   # Push the images and print the Markdown for the PR body
 ```
 
 An environment that cannot reach `cdn.playwright.dev` — Claude Code on the web
-included — can only install Chromium. Run the `:chromium` pre-flights there for
+included — can only install Chromium. Run the `:chromium` pre-flight there for
 any change that touches the browser. Per push, CI runs only the emulator suite's
 `@sanity` subset in Chromium (one pass through each major surface; tag a spec's
 `test.describe` with `{ tag: "@sanity" }` to add it, sparingly). The full
-browser suites, in every browser, run once a day on `main` and on demand from the
+emulator browser suite, in every browser, run once a day on `main` and on demand from the
 Actions tab ("Run workflow" on CI); a failed daily pass opens a bug, and tests
 that only passed on a retry open a flaky-tests bug. A green Chromium-only run is
 not the PRD section 10 gating evidence and must not be reported as one.
@@ -474,7 +472,7 @@ See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for local setup, the three backends t
 - Vitest configured with jsdom for DOM testing
 - Use `@solidjs/testing-library` for component tests
 - Use `@testing-library/jest-dom` for DOM assertions
-- Beyond unit/component tests, the project has a Firebase Emulator suite (`tests/emulator/`, `bun run test:emulator`), a Playwright browser E2E suite against the in-memory mock backend (`e2e/`, `bun run test:browser`), and a Playwright browser E2E suite against a local Firestore/Auth emulator (`tests/e2e/emulator/`, `bun run test:browser:emulator`) — see [`docs/testing.md`](./docs/testing.md) for what each covers and how CI gates on them
+- Beyond unit/component tests, the project has a Firebase Emulator suite (`tests/emulator/`, `bun run test:emulator`) and a Playwright browser E2E suite against a local Firestore/Auth emulator (`tests/e2e/emulator/`, `bun run test:browser:emulator`) — see [`docs/testing.md`](./docs/testing.md) for what each covers and how CI gates on them. The in-memory mock backend (`bun run dev:mock`) is a development backend only; no browser suite runs against it
 - Use `src/shared/id.ts`'s `createId`/`createSeededIdFactory` for entity IDs and `src/shared/clock.ts`'s `Clock` for anything that needs the current time, rather than calling `nanoid()`/`Date.now()` directly, so tests can be deterministic
 - Use `src/testing/fixtures.ts`'s builders (`buildProject`, `buildTrack`, ...) instead of hand-writing fixture literals in new tests
 

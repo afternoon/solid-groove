@@ -18,15 +18,15 @@ table at the end.
 
 ## What automation already covers, and what it cannot
 
-| Browser | Version | Automated (CI on every push) | Manual (this runbook) | Gates the release |
+| Browser | Version | Automated (CI daily pass) | Manual (this runbook) | Gates the release |
 | --- | --- | --- | --- | --- |
-| Chrome | current | `chrome` channel: mock suite and every core flow | Baseline-device pass | Yes |
+| Chrome | current | `chrome` channel: the emulator browser suite, every core flow included | Baseline-device pass | Yes |
 | Chrome | previous major | No: Playwright cannot pin an older channel | Full pass | Yes |
-| Edge | current | `msedge` channel: mock suite and every core flow | Baseline-device pass on Windows | Yes |
+| Edge | current | `msedge` channel: the emulator browser suite, every core flow included | Baseline-device pass on Windows | Yes |
 | Edge | previous major | No | Full pass | Yes |
-| Firefox | current | `firefox` (Playwright's pinned build): mock suite and every core flow | Baseline-device pass | Yes |
+| Firefox | current | `firefox` (Playwright's pinned build): the emulator browser suite, every core flow included | Baseline-device pass | Yes |
 | Firefox | previous major | No | Full pass | Yes |
-| Safari | current | `webkit` mock suite, as a signal only | Full pass, findings logged | **No** (best-effort) |
+| Safari | current | `webkit`: the emulator browser suite, as a signal only | Full pass, findings logged | **No** (best-effort) |
 
 Two things only a real browser on real hardware can show, which is why the
 current versions get a pass here too even though CI runs them:

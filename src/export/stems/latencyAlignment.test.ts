@@ -19,8 +19,8 @@ import { planStems } from "./stemPlan";
  * file and `Reference mix.wav` one lookahead late, and a track's Compressor
  * put its stem one lookahead behind the others.
  *
- * The same matrix runs in Chromium, Firefox and WebKit, against the browsers'
- * declared latency, in `tests/e2e/mock/deviceLatency.spec.ts`.
+ * The same matrix runs in Chromium, Chrome, Edge and Firefox, against the
+ * browsers' declared latency, in `tests/e2e/emulator/deviceLatency.spec.ts`.
  */
 
 // Must run before Tone is imported — see AudioRuntime.test.ts for why.

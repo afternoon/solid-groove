@@ -77,7 +77,7 @@ knows one knows them all.
   (uppercase title and a hairline) over both.
 - **Fixed rows line up across repeats.** Every mixer strip has the same rows,
   and every track header is the same 84px row in the arrangement and the rail.
-  Switching views moves nothing: `tests/e2e/mock/trackHeader.spec.ts` asserts
+  Switching views moves nothing: `tests/e2e/emulator/trackHeader.spec.ts` asserts
   it to the pixel.
 
 ## 4. One design language: shared parts

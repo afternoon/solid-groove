@@ -4,7 +4,7 @@ import { expect, type Page, test } from "@playwright/test";
  * Firebase's failure states, in every gating browser (#75, PRD section 10:
  * "Network loss is visible").
  *
- * The mock suite cannot fail a save — its repository is in memory — so this
+ * The in-memory mock backend cannot fail a save — its repository is in memory — so this
  * runs against the emulator, where taking the browser offline makes the real
  * Firestore SDK's revision-checked write fail the way it does for a producer
  * whose connection drops.

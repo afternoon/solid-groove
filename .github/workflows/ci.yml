@@ -12,7 +12,7 @@ on:
     # first PR run. Building CI on push makes that checkable when it matters.
     branches: [main, "claude/**"]
   pull_request:
-  # The browser suites (`browser`, `browser-emulator`) are too heavy to run on
+  # The full browser suite (`browser-emulator`) is too heavy to run on
   # every push: a stack of ten PRs queued over a hundred browser jobs. They run
   # once a day on `main` instead, and on demand from the Actions tab. A failed
   # daily pass opens (or updates) a bug issue, so it lands on the board.
@@ -104,17 +104,15 @@ jobs:
         # representative sample it renders. Needs no credentials or network.
         run: bun run library:validate
 
-  # Browser end-to-end suite. Chrome, Edge and Firefox are the P0 gating
-  # browsers (PRD section 10) and fail the workflow; Chrome and Edge run as
-  # Playwright's `chrome`/`msedge` channels, the current stable release of
-  # each (#75), and Playwright's own Chromium runs too, as the build every
-  # other environment's pre-flight uses. WebKit runs alongside
-  # them as a signal only — `continue-on-error` means a WebKit-only failure
-  # is reported but never blocks the required checks, per the PRD's
+  # The browser E2E suite, against a real (local, emulated) backend. Every
+  # core flow lives here, so it runs in each PRD section 10 P0-gating browser
+  # (Chrome, Edge, Firefox; #75, see tests/e2e/emulator/playwright.config.ts).
+  # WebKit runs alongside them as a signal only — `continue-on-error` means a
+  # WebKit-only failure is reported but never fails the pass, per the PRD's
   # supported-environment policy: "WebKit passing is not the same as Safari
   # passing," and the alpha does not gate release on it.
-  browser:
-    name: browser e2e (${{ matrix.browser }})
+  browser-emulator:
+    name: browser e2e against the emulator (${{ matrix.browser }})
     needs: checks
     # Daily and on demand only; see `on.schedule`.
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
@@ -123,47 +121,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        browser: [chromium, chrome, msedge, firefox, webkit]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-      - name: Install Playwright browser (${{ matrix.browser }})
-        # For `chrome` and `msedge` this installs (or updates to) the current
-        # stable branded build, which is what makes the job a "current
-        # version" check rather than whatever the runner image last shipped.
-        run: bunx playwright install --with-deps ${{ matrix.browser }}
-      - name: Run browser suite
-        run: bunx playwright test --config=tests/e2e/mock/playwright.config.ts --project=${{ matrix.browser }}
-      - uses: actions/upload-artifact@v4
-        if: ${{ !cancelled() }}
-        with:
-          name: playwright-report-${{ matrix.browser }}
-          path: playwright-report/
-          retention-days: 7
-
-  # FND-009's browser E2E suite against a real (local, emulated) backend:
-  # proves the foundation vertical slice's "save it, reload it, reproduce
-  # playback" step, which the in-memory-backed `browser` job above cannot —
-  # that repository is a fresh, empty store on every page load. Every core
-  # flow lives here, so it runs in each PRD section 10 P0-gating browser
-  # (Chrome, Edge, Firefox) plus Playwright's Chromium (#75; see
-  # tests/e2e/emulator/playwright.config.ts).
-  browser-emulator:
-    name: browser e2e against the emulator (${{ matrix.browser }})
-    needs: checks
-    # Daily and on demand only; see `on.schedule`.
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
         # Branded Chrome stands in for Playwright's own Chromium here: same
         # engine, and the per-PR `browser-sanity` job already runs Chromium.
-        browser: [chrome, msedge, firefox]
+        browser: [chrome, msedge, firefox, webkit]
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -485,7 +445,7 @@ jobs:
   # retry open (or comment on) one flaky-tests issue.
   browser-pass-report:
     name: report the daily browser pass
-    needs: [browser, browser-emulator]
+    needs: [browser-emulator]
     if: ${{ always() && github.event_name == 'schedule' }}
     runs-on: ubuntu-latest
     permissions:

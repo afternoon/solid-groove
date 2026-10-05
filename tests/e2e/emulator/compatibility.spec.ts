@@ -5,18 +5,17 @@ import type * as DecodeHarness from "./support/decodeHarness";
  * The cross-browser compatibility suite (#75, PRD section 10).
  *
  * Runs in every project of this config: Playwright's Chromium, branded Chrome
- * and Edge, Firefox (all gating) and WebKit (a signal). Each block is one of
+ * and Edge, and Firefox, all gating. Each block is one of
  * the issue's areas: capability fallbacks, audio unlock, decoding, shortcuts,
  * downloads, and Canvas at device pixel ratio 1 and 2. Firebase's failure
- * states need a real (emulated) backend and live in
- * `tests/e2e/emulator/firebaseFailure.spec.ts`.
+ * states live in `tests/e2e/emulator/firebaseFailure.spec.ts`.
  *
  * A fallback is forced by taking an API away (or making it refuse) in an init
  * script, before any app code runs: the browser then looks exactly like one
  * that never had it, which is the only honest way to test feature detection.
  */
 
-const DECODE_HARNESS = "/tests/e2e/mock/support/decodeHarness.ts";
+const DECODE_HARNESS = "/tests/e2e/emulator/support/decodeHarness.ts";
 
 /** The editor's notice of what this browser can't do (#75). */
 const notice = (page: Page) => page.getByRole("region", { name: "Browser support" });
