@@ -8,7 +8,7 @@
 | Archive | https://github.com/freepats/sweep-pad.git@ed3e294fcec8c3ea3ec84471f8c7a75bc09eba04 |
 | Commit | ed3e294fcec8c3ea3ec84471f8c7a75bc09eba04 |
 | Licence statement | https://github.com/freepats/sweep-pad/blob/master/README.txt |
-| Retrieved | 2026-09-29 |
+| Retrieved | 2026-10-01 |
 
 Rights position: The bank's own README or LICENSE states CC0 for the whole bank; it is one archive under one licence (section 4.1).
 

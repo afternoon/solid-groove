@@ -8,7 +8,7 @@
 | Archive | https://github.com/freepats/synthesizer-percussion.git@39bbabce8e0e10aa259d5d94fca329f668733185 |
 | Commit | 39bbabce8e0e10aa259d5d94fca329f668733185 |
 | Licence statement | https://github.com/freepats/synthesizer-percussion/blob/master/README.md |
-| Retrieved | 2026-09-29 |
+| Retrieved | 2026-10-01 |
 
 Rights position: This specific FreePats bank states CC0 on its own page; the whole bank archive shares that one licence (section 4.1).
 

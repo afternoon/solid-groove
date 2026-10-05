@@ -8,7 +8,7 @@
 | Archive | https://github.com/freepats/synth-bass-lead.git@426f32da700c42a4071b5061ee3bb2fc92de0680 |
 | Commit | 426f32da700c42a4071b5061ee3bb2fc92de0680 |
 | Licence statement | https://github.com/freepats/synth-bass-lead/blob/master/README.txt |
-| Retrieved | 2026-09-29 |
+| Retrieved | 2026-10-01 |
 
 Rights position: The bank's own README or LICENSE states CC0 for the whole bank; it is one archive under one licence (section 4.1).
 

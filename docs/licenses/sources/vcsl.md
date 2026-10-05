@@ -6,7 +6,7 @@
 | Licence | CC0-1.0 |
 | Repository | https://github.com/sgossner/VCSL.git |
 | Pinned commit | `c1ea7bcc3c7309650ab0da9d15c9cd1fbc4a4c7e` |
-| Retrieved | 2026-09-29 |
+| Retrieved | 2026-10-01 |
 | Capture | captured |
 | LICENSE SHA-256 | a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499 |
 

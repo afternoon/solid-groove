@@ -8,7 +8,7 @@
 | Archive | https://github.com/freepats/synth-square.git@6d204b085af42f023770a3add2eeea9f9dbc5f14 |
 | Commit | 6d204b085af42f023770a3add2eeea9f9dbc5f14 |
 | Licence statement | https://github.com/freepats/synth-square/blob/master/README.txt |
-| Retrieved | 2026-09-29 |
+| Retrieved | 2026-10-01 |
 
 Rights position: The bank's own README or LICENSE states CC0 for the whole bank; it is one archive under one licence (section 4.1).
 

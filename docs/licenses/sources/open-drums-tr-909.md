@@ -8,7 +8,7 @@
 | Archive | https://github.com/fluid-music/open-drums.git@475cc3314fe06f6d1af02e9790ad9707c1f2b26b |
 | Commit | 475cc3314fe06f6d1af02e9790ad9707c1f2b26b |
 | Licence statement | https://github.com/fluid-music/open-drums/blob/main/tr-909/TR909all/TR909SET.TXT |
-| Retrieved | 2026-09-29 |
+| Retrieved | 2026-10-01 |
 
 Rights position: Recorded from a real TR-909 by Jason Baker (Rob Roy Recordings, 1995). Free, not-for-profit copying is permitted; modification and subsetting are not. Admitted for the private alpha only.
 

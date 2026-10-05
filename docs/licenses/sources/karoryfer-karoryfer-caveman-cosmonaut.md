@@ -8,7 +8,7 @@
 | Archive | https://github.com/sfzinstruments/karoryfer.caveman-cosmonaut.git@9de9bcfcbc6d2b20bea5c1116cd07a310febc339 |
 | Commit | 9de9bcfcbc6d2b20bea5c1116cd07a310febc339 |
 | Licence statement | https://github.com/sfzinstruments/karoryfer.caveman-cosmonaut/blob/master/LICENSE |
-| Retrieved | 2026-09-29 |
+| Retrieved | 2026-10-01 |
 
 Rights position: The bank's own README or LICENSE states CC0 for the whole bank; it is one archive under one licence (section 4.1).
 

@@ -8,7 +8,7 @@
 | Archive | https://github.com/freepats/synth-scifi.git@b630598bd2832bcf69a8d8ff7cc61f90f2b51421 |
 | Commit | b630598bd2832bcf69a8d8ff7cc61f90f2b51421 |
 | Licence statement | https://github.com/freepats/synth-scifi/blob/master/README.txt |
-| Retrieved | 2026-09-29 |
+| Retrieved | 2026-10-01 |
 
 Rights position: The bank's own README or LICENSE states CC0 for the whole bank; it is one archive under one licence (section 4.1).
 

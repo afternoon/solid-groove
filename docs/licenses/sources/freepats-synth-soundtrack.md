@@ -8,7 +8,7 @@
 | Archive | https://github.com/freepats/synth-soundtrack.git@ecfc6372bf5ece4183b81ced3380758d60bcb4d9 |
 | Commit | ecfc6372bf5ece4183b81ced3380758d60bcb4d9 |
 | Licence statement | https://github.com/freepats/synth-soundtrack/blob/master/README.txt |
-| Retrieved | 2026-09-29 |
+| Retrieved | 2026-10-01 |
 
 Rights position: The bank's own README or LICENSE states CC0 for the whole bank; it is one archive under one licence (section 4.1).
 

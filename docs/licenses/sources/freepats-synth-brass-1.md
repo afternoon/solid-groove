@@ -8,7 +8,7 @@
 | Archive | https://github.com/freepats/synth-brass-1.git@a2d2111daae3e45761c5cabd480f4c60258bd645 |
 | Commit | a2d2111daae3e45761c5cabd480f4c60258bd645 |
 | Licence statement | https://github.com/freepats/synth-brass-1/blob/master/README.txt |
-| Retrieved | 2026-09-29 |
+| Retrieved | 2026-10-01 |
 
 Rights position: The bank's own README or LICENSE states CC0 for the whole bank; it is one archive under one licence (section 4.1).
 
