@@ -1,0 +1,14 @@
+{
+  "id": "pkfocus",
+  "title": "Library pack focus (#1011)",
+  "steps": [
+    {
+      "file": "01-opening-a-pack-from-browse-packs-puts-fo.png",
+      "caption": "Opening a pack from Browse packs puts focus on the pack's banner"
+    },
+    {
+      "file": "02-back-to-all-sounds-puts-focus-on-all-sou.png",
+      "caption": "Back to all sounds puts focus on All sounds in the rail"
+    }
+  ]
+}
