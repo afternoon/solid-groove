@@ -111,3 +111,92 @@ test.describe("editor layout", () => {
     await expect(page.getByRole("region", { name: "Step editor" })).toHaveCount(0);
   });
 });
+
+interface Box {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** Two boxes share some area (touching edges do not count). */
+function overlaps(a: Box, b: Box): boolean {
+  return (
+    a.x < b.x + b.width &&
+    b.x < a.x + a.width &&
+    a.y < b.y + b.height &&
+    b.y < a.y + a.height
+  );
+}
+
+// #1031: the editor header's right-hand controls (undo/redo, Assistant,
+// Export, `?` and the account control) stay whole, on screen, and clear of
+// each other and of the transport at the narrow widths producers use. At
+// ~800px the right-hand zone was held to half the spare width, so its buttons
+// were squeezed to a bare cell and their labels ran over each other and off
+// the right edge ("Assista", "Expor", "Sign ou").
+test.describe("editor header at narrow widths", () => {
+  for (const width of [768, 800, 1024]) {
+    test(`keeps every header control whole and on screen at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto("/projects");
+      await page.getByRole("button", { name: "New Project" }).click();
+      await page.getByTestId("arrangement-view-ready").waitFor();
+
+      const header = page.locator(".editor-header");
+      const account = header.getByRole("button", { name: "Sign out" });
+      await expect(account).toBeVisible();
+      const controls = {
+        transport: header.locator(".editor-header-center"),
+        history: header.locator(".editor-header-end .header-cell-group"),
+        assistant: header.getByRole("button", { name: "Assistant" }),
+        export: header.getByRole("button", { name: "Export", exact: true }),
+        guide: header.getByRole("button", { name: "Keyboard shortcuts" }),
+        account,
+      };
+      // A worded button holds its whole label: nothing spills past its edge.
+      const spilled = await header
+        .locator(".editor-header-end button")
+        .evaluateAll((buttons) =>
+          buttons
+            .filter((button) => button.scrollWidth > button.clientWidth)
+            .map((button) => button.textContent?.trim() || button.className),
+        );
+      expect(spilled, "header buttons whose label overflows them").toEqual([]);
+      const boxes: Record<string, Box> = {};
+      for (const [name, locator] of Object.entries(controls)) {
+        const box = await locator.boundingBox();
+        expect(box, `${name} has a box`).not.toBeNull();
+        boxes[name] = box as Box;
+      }
+      for (const [name, box] of Object.entries(boxes)) {
+        expect(box.x, `${name} starts on screen`).toBeGreaterThanOrEqual(0);
+        expect(box.x + box.width, `${name} ends on screen`).toBeLessThanOrEqual(width);
+      }
+      const names = Object.keys(boxes);
+      for (let i = 0; i < names.length; i += 1) {
+        for (let j = i + 1; j < names.length; j += 1) {
+          expect(
+            overlaps(boxes[names[i]], boxes[names[j]]),
+            `${names[i]} clear of ${names[j]}`,
+          ).toBe(false);
+        }
+      }
+      // The project's side gives way, but keeps room for some of the name.
+      // Its zone is measured rather than the name, which is as long as the
+      // random starter name is.
+      const start = await header.locator(".editor-header-start").boundingBox();
+      expect(start?.width ?? 0, "project zone width").toBeGreaterThanOrEqual(110);
+      // Still a real click target: the button is the topmost thing at its centre.
+      const a = boxes.account;
+      const hit = await page.evaluate(
+        ([x, y]) =>
+          document.elementFromPoint(x, y)?.closest("button")?.textContent ?? null,
+        [a.x + a.width / 2, a.y + a.height / 2],
+      );
+      expect(hit).toBe("Sign out");
+    });
+  }
+});

@@ -279,7 +279,8 @@ export default function EditorHeader(props: EditorHeaderProps) {
               onClick={(event) => assistant().toggle(event.currentTarget)}
             >
               <SparkIcon size={12} />
-              Assistant
+              {/* Only an icon at narrow widths (#1031), and still the name. */}
+              <span class="assistant-button-label">Assistant</span>
             </button>
           )}
         </Show>
