@@ -90,7 +90,9 @@ const gh = (args, input) => {
       if (stderr) process.stderr.write(stderr);
       const delay = RETRY_DELAYS_MS[attempt];
       if (delay === undefined || !TRANSIENT.test(stderr)) throw error;
-      console.warn(`gh ${args[0]} ${args[1] ?? ""}: transient failure, retrying in ${delay / 1000}s`);
+      console.warn(
+        `gh ${args[0]} ${args[1] ?? ""}: transient failure, retrying in ${delay / 1000}s`,
+      );
       sleep(delay);
     }
   }
