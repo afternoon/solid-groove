@@ -1,0 +1,18 @@
+{
+  "id": "grid-before",
+  "title": "Arrangement grid (before)",
+  "steps": [
+    {
+      "file": "01-default-zoom-110-px-per-bar-a-line-every.png",
+      "caption": "Default zoom (110 px per bar): a line every bar"
+    },
+    {
+      "file": "02-zoomed-out-29-px-per-bar.png",
+      "caption": "Zoomed out (29 px per bar)"
+    },
+    {
+      "file": "03-fully-zoomed-out-8-px-per-bar.png",
+      "caption": "Fully zoomed out (8 px per bar)"
+    }
+  ]
+}
