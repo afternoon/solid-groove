@@ -136,6 +136,8 @@ export interface AudioMasterProjection {
   readonly volume: MasterSettings["volume"];
   /** Ordered by chain position (the `order` field), not array insertion order. */
   readonly devices: readonly Device[];
+  /** Whether the hidden safety limiter runs after the volume (#937). */
+  readonly safetyLimiter: boolean;
   /** Changes for any audio-relevant edit to the master bus. */
   readonly fingerprint: string;
   /** Changes only when the master device chain's composition or order changes. */
@@ -326,6 +328,7 @@ function buildAudioMaster(
   const topologyFingerprint = fingerprintOf(returnTopologyShape(devices));
   const fingerprint = fingerprintOf({
     volume: master.volume,
+    safetyLimiter: master.safetyLimiter,
     devices: devices.map((device) => ({
       id: device.id,
       bypassed: device.bypassed,
@@ -343,6 +346,7 @@ function buildAudioMaster(
     {
       volume: master.volume,
       devices,
+      safetyLimiter: master.safetyLimiter,
       fingerprint,
       topologyFingerprint,
     },

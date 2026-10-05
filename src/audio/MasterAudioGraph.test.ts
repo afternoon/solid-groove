@@ -1,4 +1,5 @@
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { createDevice } from "../domain/devices";
 import type { Device } from "../domain/entities";
 import { createSeededIdFactory } from "../domain/ids";
 import type { AudioMasterProjection } from "../projection/audioProjection";
@@ -9,11 +10,13 @@ installWebAudioGlobals();
 let Tone: typeof import("tone");
 let AudioRuntimeModule: typeof import("./AudioRuntime");
 let MasterAudioGraphModule: typeof import("./MasterAudioGraph");
+let devicesModule: typeof import("./devices");
 
 beforeAll(async () => {
   Tone = await import("tone");
   AudioRuntimeModule = await import("./AudioRuntime");
   MasterAudioGraphModule = await import("./MasterAudioGraph");
+  devicesModule = await import("./devices");
 });
 
 afterEach(async () => {
@@ -33,6 +36,7 @@ function masterProjection(
   return {
     volume: 0,
     devices: [],
+    safetyLimiter: true,
     fingerprint: "f",
     topologyFingerprint: "t",
     ...overrides,
@@ -127,6 +131,38 @@ describe("MasterAudioGraph (PRD AUD-04/AUD-08)", () => {
     expect(peakWindow(limited, 0.5, 0.9)).toBeLessThan(
       peakWindow(unlimited, 0.5, 0.9) * 0.75,
     );
+  });
+
+  it("leaves the safety limiter out, and a Limiter device in charge, on a new project's master (#937)", async () => {
+    /** A +12 dB sine through the master, with or without its devices' DSP. */
+    async function render(devices: Device[]): Promise<Float32Array> {
+      const buffer = await Tone.Offline(
+        ({ destination }) => {
+          const runtime = new AudioRuntimeModule.AudioRuntime();
+          const scope = runtime.openProjectScope("p");
+          const master = new MasterAudioGraphModule.MasterAudioGraph(
+            scope,
+            destination,
+            devicesModule.createDeviceNodeFactory({ scope, tempo: () => 120 }),
+          );
+          master.reconcile(masterProjection({ devices, safetyLimiter: false }));
+          expect(master.safetyLimited).toBe(false);
+          const osc = new Tone.Oscillator({ frequency: 110, volume: 12 });
+          osc.connect(master.input);
+          osc.start(0).stop(0.4);
+        },
+        0.4,
+        1,
+      );
+      return Float32Array.from(buffer.getChannelData(0));
+    }
+
+    // Nothing on the chain and no hidden limiter: the overload goes straight
+    // through, which is what bypassing or removing the Limiter means.
+    expect(peakWindow(await render([]), 0.5, 0.9)).toBeGreaterThan(2);
+    // The Limiter holds it at its ceiling.
+    const limiter = createDevice(ids("device"), "limiter", 0);
+    expect(peak(await render([limiter]))).toBeLessThanOrEqual(10 ** (-0.3 / 20) + 1e-6);
   });
 
   it("renders silence when nothing is connected, and the meter reads no signal", async () => {

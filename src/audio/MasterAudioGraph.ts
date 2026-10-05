@@ -8,7 +8,9 @@ import { type DeclaredLatency, dynamicsLookaheadFrames } from "./latency";
 import { SummingBus } from "./summingBus";
 
 /**
- * The transparent safety limiter's threshold, in dBFS (PRD AUD-04). It sits
+ * The transparent safety limiter's threshold, in dBFS (PRD AUD-04). Only a
+ * project made before the Limiter device (#937) runs it: a new project has a
+ * visible Limiter on its master chain instead (`master.safetyLimiter`). It sits
  * just under 0 dBFS so ordinary, already-safe material passes through
  * unaffected while genuinely dangerous or clipped peaks are caught before they
  * reach the output device. It is deliberately *not* a creative or
@@ -30,8 +32,9 @@ export const masterLimiterLatencyFrames: DeclaredLatency = dynamicsLookaheadFram
 
 /**
  * The master bus's audio subgraph (PRD AUD-08, section 9.7): an ordered
- * device chain feeding a volume stage, a metering tap, and a transparent
- * safety limiter (PRD AUD-04) connected to the runtime's shared destination.
+ * device chain feeding a volume stage, a metering tap, and — for a project
+ * whose master keeps it (#937) — a transparent safety limiter (PRD AUD-04),
+ * connected to the runtime's shared destination.
  * There is exactly one of these per {@link ProjectAudioGraph} and it is never
  * rebuilt for a routine edit — only its device chain and volume are reconciled
  * in place, so a parameter edit never restarts the transport or reconstructs
@@ -53,6 +56,9 @@ export class MasterAudioGraph {
   private readonly meterHandle: ReturnType<AudioProjectScope["register"]>;
   private readonly limiterHandle: ReturnType<AudioProjectScope["register"]>;
   private lastProjection: AudioMasterProjection | null = null;
+  /** Whether the volume stage feeds the safety limiter or the output directly. */
+  private limited = true;
+  private readonly destination: Tone.ToneAudioNode;
   private disposed = false;
 
   constructor(
@@ -60,6 +66,7 @@ export class MasterAudioGraph {
     destination: Tone.ToneAudioNode,
     createDeviceNode?: DeviceNodeFactory,
   ) {
+    this.destination = destination;
     this.mix = new SummingBus();
     this.mixHandle = scope.register("node", () => {
       this.mix.dispose();
@@ -89,13 +96,36 @@ export class MasterAudioGraph {
 
     // mix -> deviceChain -> volume -> limiter -> destination, with the meter
     // tapping the limited signal (a fan-out, not an insert, so it cannot
-    // colour it).
+    // colour it). Without the safety limiter, the volume stage is what the
+    // meter taps and the destination hears (`routeLimiter`).
     this.mix.output.connect(this.deviceChain.input);
     this.auxAlign.node.connect(this.deviceChain.input);
     this.deviceChain.output.connect(this.volume);
     this.volume.connect(this.limiter);
     this.limiter.connect(this.meter);
     this.limiter.connect(destination);
+  }
+
+  /**
+   * Puts the safety limiter in the path or takes it out (#937). The limiter
+   * node lives either way, so this is a reconnection, never a rebuild; in
+   * practice a project's choice never changes while it is open.
+   */
+  private routeLimiter(limited: boolean): void {
+    if (limited === this.limited) return;
+    this.limited = limited;
+    this.volume.disconnect();
+    if (limited) {
+      this.volume.connect(this.limiter);
+    } else {
+      this.volume.connect(this.meter);
+      this.volume.connect(this.destination);
+    }
+  }
+
+  /** Whether the safety limiter is in the master path. For tests and diagnostics. */
+  get safetyLimited(): boolean {
+    return this.limited;
   }
 
   /** Where an auxiliary source (the metronome) connects, beside {@link mix}
@@ -136,6 +166,7 @@ export class MasterAudioGraph {
     }
     this.deviceChain.reconcile(next.devices, reapplyDevices);
     this.volume.volume.rampTo(next.volume, 0.02);
+    this.routeLimiter(next.safetyLimiter);
     this.lastProjection = next;
   }
 

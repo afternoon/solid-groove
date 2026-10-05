@@ -538,7 +538,7 @@ const GRAPHS = [
   {
     id: "master", group: "Strips & buses", title: "Master",
     files: ["src/audio/MasterAudioGraph.ts"],
-    summary: "Tracks and returns sum on the mix bus, then device chain → volume → a transparent −0.5 dB safety limiter → the destination. The metronome joins after the mix, at the chain input. The meter taps the limited signal.",
+    summary: "Tracks and returns sum on the mix bus, then device chain → volume → a transparent −0.5 dB safety limiter → the destination. The metronome joins after the mix, at the chain input. The meter taps the limited signal. Only a project made before #937 (master.safetyLimiter) runs the safety limiter: a new project starts with a Limiter device on its chain instead, and its volume feeds the meter and the destination directly (the edges labelled "no safety limiter").",
     nodes: [
       { id: "tracks", label: "Tracks", type: "TrackAudioGraph × n", kind: "io" },
       { id: "returns", label: "Returns", type: "ReturnAudioGraph × n", kind: "io" },
@@ -546,13 +546,15 @@ const GRAPHS = [
       { id: "mix", label: "mix", type: "SummingBus", kind: "bus" },
       { id: "chain", label: "device chain", type: "DeviceChain", kind: "node", note: "MasterAudioGraph.input is this chain's input." },
       { id: "vol", label: "volume", type: "Tone.Volume", kind: "node" },
-      { id: "lim", label: "limiter", type: "Tone.Limiter(−0.5 dB)", kind: "node", params: ["MASTER_LIMITER_THRESHOLD_DB"] },
+      { id: "lim", label: "limiter", type: "Tone.Limiter(−0.5 dB)", kind: "node", params: ["MASTER_LIMITER_THRESHOLD_DB"], note: "In the path only while master.safetyLimiter is true (#937); otherwise left unconnected." },
       { id: "meter", label: "meter", type: "Tone.Meter", kind: "tap" },
       { id: "dest", label: "Destination", type: "context destination / offline", kind: "io" },
     ],
     edges: [
       ["tracks", "mix"], ["returns", "mix"], ["mix", "chain"], ["metro", "chain"],
       ["chain", "vol"], ["vol", "lim"], ["lim", "dest"], ["lim", "meter"],
+      ["vol", "dest", { label: "no safety limiter" }],
+      ["vol", "meter", { label: "no safety limiter" }],
     ],
   },
   {

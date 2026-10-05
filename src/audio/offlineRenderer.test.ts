@@ -219,6 +219,34 @@ describe("renderProjectOffline with a shaper on the master (#962)", () => {
   });
 });
 
+describe("renderProjectOffline with a new project's master Limiter (#937)", () => {
+  it("holds the export under the ceiling however hard it is driven, and still ends on time", async () => {
+    const project = createSliceFixtureProject();
+    const limiter = createDevice("dev_limiter" as DeviceId, "limiter", 0);
+    const pushed: Project = {
+      ...project,
+      song: {
+        ...project.song,
+        master: {
+          ...project.song.master,
+          devices: [{ ...limiter, parameters: { ...limiter.parameters, drive: 24 } }],
+          safetyLimiter: false,
+        },
+      },
+    };
+    const result = await (await render(pushed, { maxTailSeconds: 2 })).outcome;
+
+    const ceiling = 10 ** (-0.3 / 20);
+    let peak = 0;
+    for (const channel of result.channels) {
+      for (const sample of channel) peak = Math.max(peak, Math.abs(sample));
+    }
+    expect(peak).toBeGreaterThan(ceiling * 0.9);
+    expect(peak).toBeLessThanOrEqual(ceiling + 1e-6);
+    expect(result.tailTruncated).toBe(false);
+  });
+});
+
 describe("renderProjectOffline with tracksSendOnly (a return's stem)", () => {
   it("silences every track's direct output, so only what reaches a return sounds", async () => {
     const dry = await (await render(withReturn(false), { tracksSendOnly: true })).outcome;

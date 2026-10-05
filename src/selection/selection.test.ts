@@ -100,7 +100,7 @@ function buildProjectWithDeviceAndAutomation(seed: string): {
       key: { root: 0, scale: "chromatic" },
       tracks: [track],
       returns: [],
-      master: { volume: 0, devices: [] },
+      master: { volume: 0, devices: [], safetyLimiter: true },
       sections: [section],
       placements: [placement],
       automation: [

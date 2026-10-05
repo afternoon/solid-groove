@@ -101,6 +101,36 @@ describe("planLatencyCompensation", () => {
     expect(twice.totalFrames).toBe(2 * lookahead() + limiter());
   });
 
+  it("counts a new project's master Limiter instead of the hidden safety limiter (#937)", () => {
+    const project = createAlignmentProject("none");
+    const limited: Project = {
+      ...project,
+      song: {
+        ...project.song,
+        master: {
+          ...project.song.master,
+          devices: [createDevice("dev_limiter" as DeviceId, "limiter", 0)],
+          safetyLimiter: false,
+        },
+      },
+    };
+    const result = plan(limited);
+    expect(result.masterFrames).toBe(devices.deviceLatencyFrames("limiter", RATE));
+    expect(result.totalFrames).toBe(result.masterFrames);
+    // Bypassed it still counts, so a bypass never moves the song in time.
+    const bypassed = plan({
+      ...limited,
+      song: {
+        ...limited.song,
+        master: {
+          ...limited.song.master,
+          devices: [{ ...limited.song.master.devices[0], bypassed: true }],
+        },
+      },
+    });
+    expect(bypassed.masterFrames).toBe(result.masterFrames);
+  });
+
   it("sums a chain, counts a bypassed Compressor, and aligns two stages at once", () => {
     const project = createAlignmentProject("none");
     const { kick, bass, verb } = trackIds(project);

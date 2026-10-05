@@ -280,7 +280,7 @@ describe("Dashboard", () => {
             key: { root: 0, scale: "chromatic" },
             tracks: [],
             returns: [],
-            master: { volume: 0, devices: [] },
+            master: { volume: 0, devices: [], safetyLimiter: true },
             sections: [],
             placements: [],
             automation: [],
