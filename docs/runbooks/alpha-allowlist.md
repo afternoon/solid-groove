@@ -34,7 +34,19 @@ the list is run.
    FIREBASE_PROJECT_ID=<project> bun run allowlist:seed
    ```
    It adds the address of every account that has a sign-in provider, and
-   leaves guests alone. Running it twice is harmless.
+   leaves guests alone. Run it **before** the gate deploys; until then,
+   running it twice is harmless.
+
+   Once the gate is live it is not: a refused sign-in still creates its
+   Firebase Auth account, so "every account" then includes everyone the gate
+   turned away. The script never seeds an address with a refused sign-in on
+   record, and once `signInAttempts` holds anything it stops unless you pass
+   the time the gate deployed, after which only older accounts are added:
+   ```sh
+   FIREBASE_PROJECT_ID=<project> bun run allowlist:seed -- --before 2026-10-01T12:00:00Z
+   ```
+   Even then it re-adds anyone created before the cutoff whom you have since
+   removed, so after enforcement prefer approving people by name.
 3. **Grant the first admin** (the account must have signed in once; the
    command allowlists the address either way):
    ```sh
@@ -57,6 +69,11 @@ The scripts use application default credentials
   column from the Tally export) and press Approve. It reports added, already
   listed and invalid. Below it are blocked sign-in attempts, each with one-click
   Approve, and the current list, each with Remove.
+- **Remove does not sign anyone out.** It stops the address's next sign-in,
+  but `beforeSignIn` does not run when a session refreshes its ID token, so a
+  person who is signed in stays signed in. To end their session now, revoke
+  their refresh tokens (`auth.revokeRefreshTokens(uid)` with the Admin SDK) or
+  disable the user in Authentication, Users.
 - **Terminal:**
   ```sh
   FIREBASE_PROJECT_ID=<project> bun run allowlist:add -- export.csv more@example.com

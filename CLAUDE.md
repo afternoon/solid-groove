@@ -66,6 +66,7 @@ src/
 │   └── scheduling.ts        # Placement/clip -> absolute-tick event expansion (musical time, not wall clock)
 ├── access/             # Who may sign in during the alpha (#854)
 │   ├── allowlist.ts         # The allowlist contract: normaliser, batch parser, paths, approval
+│   ├── grandfather.ts       # Who `allowlist:seed` may add: never a refused address, a cutoff once the gate has refused anyone
 │   └── signInGate.ts        # The blocking beforeSignIn function's decision, Firebase-free
 ├── auth/               # Authentication logic
 │   ├── AuthProvider.tsx     # Context provider for auth state
