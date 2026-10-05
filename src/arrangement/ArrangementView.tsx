@@ -44,12 +44,14 @@ import {
   suppressModifierDefault,
 } from "../shortcuts/pointerGestures";
 import { type ArrangementShell, createArrangementShell } from "./arrangementShell";
+import { ClipList } from "./ClipList";
 import {
   createArrangementWaveformCache,
   type InteractionState,
   RULER_HEIGHT_PX,
 } from "./canvasRenderer";
 import { clipClickGesture } from "./clipClickGesture";
+import { clipListEntries, revealScroll, stepClip } from "./clipListModel";
 import { type RowMetrics, ticksToPixels, type Viewport } from "./geometry";
 import { LoopBraceFocus } from "./LoopBraceFocus";
 import {
@@ -63,7 +65,11 @@ import {
   type EditingGesture,
   type PlacementEditing,
 } from "./placementEditingController";
-import { type ArrangementProjection, buildArrangementProjection } from "./projection";
+import {
+  type ArrangementProjection,
+  buildArrangementProjection,
+  type PlacementGeometry,
+} from "./projection";
 import { describeArrangementSelection } from "./selectionAnnouncement";
 import { useArrangementCanvas, visibleViewportSize } from "./useArrangementCanvas";
 import { ZoomControls } from "./ZoomControls";
@@ -73,6 +79,8 @@ import "./ArrangementView.css";
  * registry, mirroring `PianoRollActions`, plus the zoom actions: zoom to
  * selection for `Z` (`view.zoom_to_selection`), to arrangement, in and out. */
 export type PlacementEditingActions = PlacementEditing & {
+  /** Select the clip one step either way in the clip list (#76). */
+  stepClip(by: -1 | 1): void;
   zoomToSelection(): void;
   canZoomToSelection(): boolean;
   zoomToArrangement(): void;
@@ -243,6 +251,12 @@ export interface ArrangementViewProps {
    * turn their context on. Without it the brace has no keyboard twin.
    */
   readonly onLoopBraceFocusChange?: (focused: boolean) => void;
+  /**
+   * Reports whether the clip list has keyboard focus (#76), so the editor can
+   * turn on the `clip_list` context its arrows live in. Without it the list is
+   * still read out, but the arrows do not step through it.
+   */
+  readonly onClipListFocusChange?: (focused: boolean) => void;
 }
 
 export default function ArrangementView(props: ArrangementViewProps) {
@@ -423,6 +437,11 @@ export default function ArrangementView(props: ArrangementViewProps) {
     firstUseLogged = analytics().logFeatureFirstUse("arrangement");
   }
 
+  /** The clip the clip list's arrows last moved to (#76). Plain, not a
+   * signal: it only ever changes with the selection, whose own bump is what
+   * redraws the list. */
+  let activeClipId: PlacementId | null = null;
+
   function bumpState(): void {
     setStateVersion((value) => value + 1);
   }
@@ -507,6 +526,7 @@ export default function ArrangementView(props: ArrangementViewProps) {
     if (props.dispatch) {
       props.onEditingActionsReady?.({
         ...editing,
+        stepClip: stepClipFromList,
         zoomToSelection,
         canZoomToSelection: () => canZoomToSelection(),
         zoomToArrangement,
@@ -974,6 +994,60 @@ export default function ArrangementView(props: ArrangementViewProps) {
   }
 
   /**
+   * The clip list's arrows (#76): select the next or previous clip in reading
+   * order, exactly as a click on it would, and scroll it into view so the
+   * canvas shows a sighted keyboard user where they are.
+   */
+  function stepClipFromList(by: -1 | 1): void {
+    if (!editing) return;
+    const next = stepClip(
+      clipEntries().map((entry) => entry.id),
+      clipListActive(),
+      by,
+    );
+    if (!next) return;
+    activeClipId = next;
+    editing.select(next);
+    const placement = projection().placementsById.get(next);
+    if (placement) {
+      selectTrack(placement.trackId, "follow");
+      revealPlacement(placement);
+    }
+    analytics().logFeatureFirstUse("arrangement_clip_list");
+  }
+
+  /** Scroll the timeline as little as it takes to show a clip. */
+  function revealPlacement(placement: PlacementGeometry): void {
+    if (!shell) return;
+    const viewport = shell.getViewport();
+    const rowTop = projection().rowOffsets[placement.rowIndex] ?? 0;
+    const next = revealScroll(
+      {
+        scrollLeft: viewport.scrollLeft,
+        scrollTop: viewport.scrollTop,
+        width: viewport.width,
+        // The ruler covers the top of the view; the rows scroll under it.
+        height: Math.max(0, viewport.height - RULER_HEIGHT_PX),
+      },
+      {
+        left: placement.startTicks * viewport.pixelsPerTick,
+        right: placement.endTicks * viewport.pixelsPerTick,
+        top: rowTop,
+        bottom: rowTop + ROW_METRICS.trackHeightPx,
+      },
+    );
+    if (
+      next.scrollLeft === viewport.scrollLeft &&
+      next.scrollTop === viewport.scrollTop
+    ) {
+      return;
+    }
+    shell.setScroll(next.scrollLeft, next.scrollTop);
+    syncScrollElToShell();
+    bumpState();
+  }
+
+  /**
    * Select a track's first bar from the accessible list, for a keyboard-only
    * user who never touches the canvas (PRD 9.3: "Keyboard navigation updates
    * selection through the same model as pointer hit testing"). It selects the
@@ -1065,6 +1139,22 @@ export default function ArrangementView(props: ArrangementViewProps) {
   const placementSelection = createMemo(() => {
     stateVersion();
     return editing?.getSelection() ?? [];
+  });
+
+  /** Every clip, in the clip list's reading order (#76). */
+  const clipEntries = createMemo(() => clipListEntries(projection()));
+  /** The clip the list's arrows stand on: the last one they moved to while it
+   * is still selected, else the first selected clip. Read from the controller,
+   * not a memo, so two steps in one tick each start where the last one ended. */
+  const clipListActive = (): PlacementId | null => {
+    const selected = editing?.getSelection() ?? [];
+    return activeClipId !== null && selected.includes(activeClipId)
+      ? activeClipId
+      : (selected[0] ?? null);
+  };
+  const shownClipListActive = createMemo(() => {
+    stateVersion();
+    return clipListActive();
   });
 
   return (
@@ -1252,9 +1342,17 @@ export default function ArrangementView(props: ArrangementViewProps) {
             )}
           </For>
         </ul>
-        {/* The placement-editing selection (ARR-002), as real DOM rather than
-				    canvas pixels — see the module doc comment on why. */}
-        <ul aria-label="Selected placements" data-testid="placement-selection">
+        {/* Every clip, as the keyboard's way to pick one (#76). */}
+        <ClipList
+          entries={clipEntries()}
+          selected={placementSelection()}
+          active={shownClipListActive()}
+          onFocusChange={(focused) => props.onClipListFocusChange?.(focused)}
+        />
+        {/* The placement-editing selection (ARR-002) as bare ids, for tests and
+				    tooling to read. Hidden from assistive technology: the clip list
+				    above says the same thing in words. */}
+        <ul aria-hidden="true" data-testid="placement-selection">
           <For each={placementSelection()}>
             {(placementId) => <li data-selected-placement={placementId} />}
           </For>

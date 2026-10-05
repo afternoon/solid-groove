@@ -335,6 +335,7 @@ describe("context resolution", () => {
         library: { key: "s", id: "library.similar" },
         gesture: { key: "escape", id: "view.close_surface" },
         loop_brace: { key: "arrowleft", id: "arrangement.loop_move_earlier" },
+        clip_list: { key: "arrowdown", id: "arrangement.clip_next" },
         value_field: { key: "arrowup", id: "value.nudge_up" },
         export_tracks: { key: "arrowup", id: "export.focus_previous" },
         resize_edge: { key: "arrowup", id: "assistant.grow" },
@@ -392,6 +393,38 @@ describe("guide sections", () => {
   it("puts every shortcut into exactly one section", () => {
     const grouped = shortcutSections().flatMap((section) => section.shortcuts);
     expect(grouped).toHaveLength(SHORTCUTS.length);
+  });
+
+  describe("the focused clip list's keys (#76)", () => {
+    const arrow = (key: string) =>
+      ({
+        key,
+        shiftKey: false,
+        ctrlKey: false,
+        metaKey: false,
+        altKey: false,
+      }) as ChordEvent;
+
+    it("step through the clips in place of the track the arrows select elsewhere", () => {
+      expect(matchShortcut(arrow("ArrowDown"), "other", ["editor"])?.id).toBe(
+        "track.select_next",
+      );
+      const active: readonly ShortcutContext[] = ["editor", "arrangement", "clip_list"];
+      expect(matchShortcut(arrow("ArrowDown"), "other", active)?.id).toBe(
+        "arrangement.clip_next",
+      );
+      expect(matchShortcut(arrow("ArrowUp"), "mac", active)?.id).toBe(
+        "arrangement.clip_previous",
+      );
+    });
+
+    it("leave Enter to open the clip and Space to play", () => {
+      const active: readonly ShortcutContext[] = ["editor", "arrangement", "clip_list"];
+      expect(matchShortcut(arrow("Enter"), "other", active)?.id).toBe(
+        "arrangement.open_clip",
+      );
+      expect(matchShortcut(arrow(" "), "other", active)?.id).toBe("transport.play_stop");
+    });
   });
 
   describe("the focused loop brace's keys", () => {

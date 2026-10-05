@@ -49,6 +49,44 @@ export const ARRANGEMENT_SHORTCUTS: readonly ShortcutDefinition[] = [
   }),
 ];
 
+/**
+ * The focused clip list's keys (#76), live only in `clip_list`: the keyboard's
+ * way to pick a clip, which a pointer does by clicking where it is drawn.
+ */
+export const CLIP_LIST_SHORTCUT_IDS = [
+  "arrangement.clip_previous",
+  "arrangement.clip_next",
+] as const;
+
+const CLIP_LIST_PARITY = {
+  kind: "solid_groove",
+  reason:
+    "Live picks a clip by clicking it; this is the keyboard way to do what the click does on the canvas.",
+} as const;
+
+export const CLIP_LIST_SHORTCUTS: readonly ShortcutDefinition[] = [
+  define({
+    id: "arrangement.clip_previous",
+    label: "Select previous clip",
+    description:
+      "Selects the clip before the selected one, reading the arrangement track by track.",
+    group: "arrangement",
+    contexts: ["clip_list"],
+    keys: "ArrowUp",
+    ableton: CLIP_LIST_PARITY,
+  }),
+  define({
+    id: "arrangement.clip_next",
+    label: "Select next clip",
+    description:
+      "Selects the clip after the selected one, reading the arrangement track by track.",
+    group: "arrangement",
+    contexts: ["clip_list"],
+    keys: "ArrowDown",
+    ableton: CLIP_LIST_PARITY,
+  }),
+];
+
 /** The focused loop brace's keys (`LOOP-018`), live only in `loop_brace`. */
 export const LOOP_BRACE_SHORTCUT_IDS = [
   "arrangement.loop_move_earlier",

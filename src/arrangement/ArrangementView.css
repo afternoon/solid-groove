@@ -193,3 +193,10 @@
 .arrangement-below-tracks > * {
   pointer-events: auto;
 }
+
+/* The clip list (#76) is the canvas's keyboard twin and visually hidden, so
+   while it has focus the timeline it speaks for wears the focus ring. */
+.arrangement-view:has(.arrangement-clip-list:focus-visible) .arrangement-viewport {
+  outline: 2px solid var(--color-accent);
+  outline-offset: -2px;
+}

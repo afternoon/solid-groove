@@ -26,6 +26,9 @@ export interface EditingSurfaces {
   /** Whether the ruler's loop brace has keyboard focus (`LOOP-018`). */
   readonly loopBraceFocused: Accessor<boolean>;
   readonly setLoopBraceFocused: Setter<boolean>;
+  /** Whether the arrangement's clip list has keyboard focus (#76). */
+  readonly clipListFocused: Accessor<boolean>;
+  readonly setClipListFocused: Setter<boolean>;
   /** The step editor's note selection (CLP-02). */
   readonly selectedNoteIds: Accessor<readonly EventId[]>;
   readonly setSelectedNoteIds: Setter<readonly EventId[]>;
@@ -67,6 +70,9 @@ export function useEditingSurfaces(options: UseEditingSurfacesOptions): EditingS
   // Whether the ruler's loop brace has keyboard focus, lifted so the registry's
   // `loop_brace` context can follow it (`LOOP-018`).
   const [loopBraceFocused, setLoopBraceFocused] = createSignal(false);
+  // Whether the arrangement's clip list has keyboard focus, so the registry's
+  // `clip_list` context can follow it (#76).
+  const [clipListFocused, setClipListFocused] = createSignal(false);
   // The step editor's note selection, lifted here so the `edit.delete` shortcut
   // can remove the same notes the grid shows highlighted (PRD KEY-01/CLP-02).
   const [selectedNoteIds, setSelectedNoteIds] = createSignal<readonly EventId[]>([]);
@@ -122,6 +128,8 @@ export function useEditingSurfaces(options: UseEditingSurfacesOptions): EditingS
     setArrangementEditingActions,
     loopBraceFocused,
     setLoopBraceFocused,
+    clipListFocused,
+    setClipListFocused,
     selectedNoteIds,
     setSelectedNoteIds,
     clip,

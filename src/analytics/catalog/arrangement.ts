@@ -16,6 +16,7 @@ export const ARRANGEMENT_FEATURE_KEYS = [
   "arrangement_extend_select",
   "arrangement_drag_copy",
   "arrangement_create_clip",
+  "arrangement_clip_list",
   "sections",
   "automation",
 ] as const;
@@ -29,6 +30,8 @@ export const ARRANGEMENT_SHORTCUT_ACTION_IDS = [
   "arrangement.loop_move_later",
   "arrangement.loop_shorten",
   "arrangement.loop_lengthen",
+  "arrangement.clip_previous",
+  "arrangement.clip_next",
 ] as const;
 
 export const ARRANGEMENT_EVENTS = {

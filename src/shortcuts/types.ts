@@ -36,6 +36,7 @@ export const SHORTCUT_CONTEXTS = [
   "library",
   "gesture",
   "loop_brace",
+  "clip_list",
   "value_field",
   "export_tracks",
   "resize_edge",
@@ -56,6 +57,7 @@ export type ShortcutContext = (typeof SHORTCUT_CONTEXTS)[number];
  */
 export const FOCUS_CONTEXTS: readonly ShortcutContext[] = [
   "loop_brace",
+  "clip_list",
   "value_field",
   "resize_edge",
 ];

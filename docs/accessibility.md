@@ -49,6 +49,24 @@ axe sees one state of a page. It cannot tell whether a focus order makes
 sense, whether an announcement is said at the right moment, or whether a
 keyboard path exists for a pointer gesture. Those are the scripts below.
 
+### The arrangement's canvas, and its keyboard twins
+
+The timeline is drawn on a canvas, which assistive technology cannot read and a
+keyboard cannot reach. Every action that matters on it has a DOM equivalent:
+
+| On the canvas | From the keyboard |
+| --- | --- |
+| Click a clip to select it | The "Clips" listbox: Up and Down, selection follows |
+| Double-click a clip to open it | Enter on the selected clip |
+| Drag a clip to copy it | Cmd/Ctrl+D duplicates it after itself, or copy and paste |
+| Drag a clip along its track | Cut, set the playhead where it goes (the playhead field in the header), Escape, paste |
+| Double-click an empty bar to create a clip | A new track opens with an empty one-bar clip; duplicate or paste it from there |
+| Drag the loop brace | The "Loop brace" slider: arrows move it, Shift+arrows resize it |
+| Click a track's row | The track header's "Edit *track*" button, or Up and Down on it |
+
+The selection, the loop range and the tracks are mirrored as live regions and
+lists, so what the canvas draws is always also said.
+
 ## The manual scripts
 
 Run them before a release, and on any PR that changes how a surface is reached
@@ -92,9 +110,13 @@ means a visible focus ring.
    the volume slider ("Volume for *track*", with its value in dB), and
    Delete *track*. Up and Down, with focus on a header button, select the
    previous and next track.
-5. **Clips.** With focus in the arrangement, press Cmd/Ctrl+A. Hear the
-   selection ("Selected 2 clips on BD, bars 1–2"). Cmd/Ctrl+D duplicates it,
-   Delete removes it, Cmd/Ctrl+Z puts it back; each change is announced.
+5. **Clips.** Tab to the "Clips" list, the canvas's keyboard twin; the
+   timeline gets a focus ring. Down and Up select the next and previous clip
+   in reading order (track by track, left to right), and hear each one
+   ("Selected clip on BD, bar 1"); the timeline scrolls to it. Enter opens it
+   in the sequence view, Cmd/Ctrl+D duplicates it, Cmd/Ctrl+C, X and V copy,
+   cut and paste, Delete removes it, Cmd/Ctrl+A selects every clip, and
+   Cmd/Ctrl+Z puts any of it back; each change is announced.
 6. **Loop.** Tab to the loop brace (a slider named "Loop brace"). Left and
    Right move it a bar, Shift+Left and Shift+Right resize it; hear the new
    range each time ("Loop over bars 1–4, looping on").

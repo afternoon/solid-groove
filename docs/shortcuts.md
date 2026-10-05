@@ -56,6 +56,8 @@ than also meaning `track.move_left`. It suppresses nothing else.
 | `arrangement.loop_move_later` | Move loop later | `Right` | `Right` | Arrangement | loop_brace | Groove addition — Live sets its loop by dragging or `Cmd/Ctrl+L` on a selection |
 | `arrangement.loop_shorten` | Shorten loop | `Shift+Left` | `Shift+Left` | Arrangement | loop_brace | Groove addition — Live sets its loop by dragging or `Cmd/Ctrl+L` on a selection |
 | `arrangement.loop_lengthen` | Lengthen loop | `Shift+Right` | `Shift+Right` | Arrangement | loop_brace | Groove addition — Live sets its loop by dragging or `Cmd/Ctrl+L` on a selection |
+| `arrangement.clip_previous` | Select previous clip | `Up` | `Up` | Arrangement | clip_list | Groove addition — Live picks a clip by clicking it; this is the keyboard way to do what the click does on the canvas |
+| `arrangement.clip_next` | Select next clip | `Down` | `Down` | Arrangement | clip_list | Groove addition — Live picks a clip by clicking it; this is the keyboard way to do what the click does on the canvas |
 | `view.zoom_to_arrangement` | Zoom to arrangement | `Shift+Z` | `Shift+Z` | Navigation | editor | Groove addition — Live has no single key that frames the whole set |
 | `view.scroll_to_playhead` | Scroll to playhead | `P` | `P` | Navigation | editor | Groove addition — Live's Follow switch (`Cmd/Ctrl+Shift+F`) is a mode, this is a one-shot jump |
 | `view.show_arrangement` | Show the arrangement | `1` | `1` | Navigation | editor, sequence_editor, library | Groove addition — Live shows everything at once and has no view to switch to |
