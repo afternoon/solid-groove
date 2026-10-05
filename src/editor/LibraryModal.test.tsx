@@ -624,6 +624,101 @@ describe("LibraryModal packs", () => {
     expect(screen.getByRole("region", { name: "Library" })).toBeVisible();
   });
 
+  // #1011: the surface a focused control sits on unmounts when a pack opens or
+  // closes, so focus has to land somewhere in the new place, not on <body>.
+  describe("keeps focus when a pack opens or closes (#1011)", () => {
+    const banner = (pack: { name: string }) =>
+      screen.findByRole("region", { name: `About ${pack.name}` });
+
+    async function openFromGrid(pack: { name: string }): Promise<void> {
+      const open = await screen.findByRole("button", { name: `Open ${pack.name}` });
+      open.focus();
+      clickAndFlush(open);
+    }
+
+    it("moves focus to the pack's banner when Browse packs opens it", async () => {
+      const { browsePacks } = renderPacks();
+      browsePacks();
+
+      await openFromGrid(drums);
+
+      const opened = await banner(drums);
+      await waitFor(() => expect(document.activeElement).toBe(opened));
+    });
+
+    it("moves focus to All sounds when the banner's Back to all sounds leaves the pack", async () => {
+      const { browsePacks } = renderPacks();
+      browsePacks();
+      await openFromGrid(drums);
+      const close = within(await banner(drums)).getByRole("button", {
+        name: "Back to all sounds",
+      });
+      close.focus();
+
+      clickAndFlush(close);
+
+      await waitFor(() => expect(document.activeElement).toBe(allSounds()));
+    });
+
+    it("moves focus to Browse packs when Back leaves a pack for the grid", async () => {
+      const { browsePacks, actions } = renderPacks();
+      browsePacks();
+      await openFromGrid(drums);
+      within(await banner(drums))
+        .getByRole("button", { name: "Back to all sounds" })
+        .focus();
+
+      actions().back();
+      flush();
+
+      await screen.findByRole("region", { name: "Packs" });
+      await waitFor(() => expect(document.activeElement).toBe(browse()));
+    });
+
+    it("moves focus to All sounds when Back leaves the grid of packs", async () => {
+      const { browsePacks, actions } = renderPacks();
+      browsePacks();
+      (await screen.findByRole("button", { name: `Open ${drums.name}` })).focus();
+
+      actions().back();
+      flush();
+
+      await screen.findByRole("region", { name: "Browse sounds" });
+      await waitFor(() => expect(document.activeElement).toBe(allSounds()));
+    });
+
+    it("moves focus to the pack's banner when similar sounds' way back returns to it", async () => {
+      const { browsePacks } = renderPacks();
+      browsePacks();
+      await openFromGrid(drums);
+      await banner(drums);
+      clickAndFlush((await screen.findAllByRole("button", { name: /^Sounds like / }))[0]);
+      const view = await screen.findByRole("region", { name: "Similar sounds view" });
+      const way = within(view).getByRole("button", { name: /^Back/ });
+      way.focus();
+
+      clickAndFlush(way);
+
+      const back = await banner(drums);
+      await waitFor(() => expect(document.activeElement).toBe(back));
+    });
+
+    it("leaves focus on a rail pack it opened from, which stays put", async () => {
+      renderPacks([bass.id]);
+      const project = within(screen.getByRole("group", { name: "In this project" }));
+      const railPack = await project.findByRole("button", {
+        name: new RegExp(bass.name),
+      });
+      railPack.focus();
+
+      clickAndFlush(railPack);
+      await banner(bass);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(document.activeElement).toBe(railPack);
+    });
+  });
+
   it("leaves All sounds' filters and the heard sound as they were (#875)", async () => {
     renderPacks([drums.id]);
     await screen.findAllByRole("listitem");

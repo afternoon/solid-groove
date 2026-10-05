@@ -47,4 +47,46 @@ test.describe("pack banner", () => {
 
     await backToAllSounds(page);
   });
+
+  // #1011: opening a pack from the grid, or leaving it from the banner, took
+  // the focused control away and left focus on <body>.
+  test("keeps focus when a pack opens from the grid and when it is left", async ({
+    page,
+  }) => {
+    await newProjectOnInstrumentView(page);
+    await openPadSlot(page, "BD");
+    await railButton(page, "Browse packs").click();
+    await library(page)
+      .getByRole("button", { name: /^Open / })
+      .first()
+      .click();
+
+    const banner = library(page).getByRole("region", { name: /^About / });
+    await expect(banner).toBeFocused();
+
+    await banner.getByRole("button", { name: "Back to all sounds" }).click();
+    await expect(banner).toHaveCount(0);
+    await expect(railButton(page, "All sounds")).toBeFocused();
+  });
+
+  test("keeps focus when the keyboard opens a pack and leaves it with Enter", async ({
+    page,
+  }) => {
+    await newProjectOnInstrumentView(page);
+    await openPadSlot(page, "BD");
+    await railButton(page, "Browse packs").click();
+    await library(page)
+      .getByRole("button", { name: /^Open / })
+      .first()
+      .focus();
+    await page.keyboard.press("Enter");
+
+    const banner = library(page).getByRole("region", { name: /^About / });
+    await expect(banner).toBeFocused();
+
+    await banner.getByRole("button", { name: "Back to all sounds" }).focus();
+    await page.keyboard.press("Enter");
+    await expect(banner).toHaveCount(0);
+    await expect(railButton(page, "All sounds")).toBeFocused();
+  });
 });

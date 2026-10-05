@@ -10,13 +10,17 @@ import "./PackBanner.css";
  * The banner above an opened pack's sounds (LIB-010): name, publisher, version,
  * counts, description, and whether the pack is already in the project or joins
  * it when a sound is inserted. Renders nothing for a slug the index lacks.
- * With `onClose`, a close button leaves the pack for all sounds.
+ * With `onClose`, a close button leaves the pack for all sounds. The banner
+ * takes focus (`onBanner`), so a pack opened from a control that goes away is where
+ * the keyboard lands (#1011).
  */
 export default function PackBanner(props: {
   readonly client: LibraryClient;
   readonly slug: string;
   readonly projectPackIds: readonly string[];
   onClose?(): void;
+  /** Handed the banner once it renders: it is focusable but not a tab stop. */
+  onBanner?(banner: HTMLElement): void;
 }): JSX.Element {
   const [entries, setEntries] = createSignal<readonly PackCatalogEntry[]>([]);
   onSettled(() => watchPackCatalog(props.client, setEntries));
@@ -29,7 +33,12 @@ export default function PackBanner(props: {
   return (
     <Show when={entry()}>
       {(found) => (
-        <section class="pack-banner" aria-label={`About ${found().pack.name}`}>
+        <section
+          ref={(banner) => props.onBanner?.(banner)}
+          class="pack-banner"
+          aria-label={`About ${found().pack.name}`}
+          tabindex="-1"
+        >
           <PackCover small name={found().pack.name} assets={found().assets} />
           <div class="pack-banner-text">
             <h3 class="pack-banner-name">{found().pack.name}</h3>
