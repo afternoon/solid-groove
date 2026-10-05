@@ -139,6 +139,11 @@ export interface LibraryModalProps {
 
 /** How long a committed insert stays marked on the slot's readout. */
 const INSERTED_MARK_MS = 1600;
+/** How soon after a change of place a second click counts as a double-click's (#1011). */
+const DOUBLE_CLICK_MS = 600;
+/** What a press focuses itself, so holding focus elsewhere would be wrong. */
+const PRESS_FOCUSES =
+  "a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]";
 
 /** A boxed key badge. `hidden` when its control already names its key. */
 function Key(props: { label?: string; hidden?: boolean }): JSX.Element {
@@ -314,26 +319,58 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   const railButtons = new Map<LibraryView, HTMLButtonElement>();
   // Set when the banner the focus belongs on has not rendered yet.
   let bannerAwaitsFocus = false;
+  // When the place last changed, so the second click of a double-click that
+  // lands on the new place's bare surface does not blur focus to <body>.
+  let placeChangedAt = Number.NEGATIVE_INFINITY;
+
+  const adrift = (element: Element | null) =>
+    element === null || element === document.body;
 
   /**
    * Runs a change of place. The grid of packs, a pack's banner, similar sounds
    * and the sounds list each go (or hide) with the place they belong to, and
    * focus on a control there would fall to <body>; it lands on what names the
-   * new place instead. Focus anywhere else, a rail item say, stays put.
+   * new place instead. So does focus on the rail item naming the place Back
+   * leaves, and focus already adrift on <body>. Focus on any other rail item
+   * stays put.
    */
   function keepFocus(change: () => void): void {
     const active = document.activeElement;
     const inMain = active instanceof HTMLElement && main?.contains(active) === true;
+    const leftView = view();
+    const onLeftRail = active !== null && railButtons.get(leftView) === active;
+    const wasAdrift = adrift(active);
     change();
-    if (!inMain) return;
+    placeChangedAt = performance.now();
+    if (!inMain && !onLeftRail && !wasAdrift) return;
     queueMicrotask(() => {
-      const lost =
-        !active.isConnected ||
-        active.closest("[hidden]") !== null ||
-        document.activeElement === null ||
-        document.activeElement === document.body;
+      const lost = inMain
+        ? !active?.isConnected ||
+          active.closest("[hidden]") !== null ||
+          adrift(document.activeElement)
+        : onLeftRail
+          ? view() !== leftView && document.activeElement === active
+          : adrift(document.activeElement);
       if (lost) focusPlace();
     });
+  }
+
+  function mainRendered(element: HTMLDivElement): void {
+    main = element;
+    // A guard on focus, not an interaction, so it is a listener and not a handler.
+    element.addEventListener("mousedown", holdFocusOnDoubleClick);
+  }
+
+  /**
+   * The second press of a double-click on the control that changed the place
+   * lands on whatever the new place put under the pointer. On bare surface that
+   * would blur focus to <body>, so it is held where the change put it.
+   */
+  function holdFocusOnDoubleClick(event: MouseEvent): void {
+    if (event.detail < 2 || performance.now() - placeChangedAt > DOUBLE_CLICK_MS) return;
+    const target = event.target;
+    if (target instanceof Element && target.closest(PRESS_FOCUSES) !== null) return;
+    event.preventDefault();
   }
 
   function focusPlace(): void {
@@ -709,7 +746,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
           </fieldset>
           <RailButton item={RECENT} />
         </nav>
-        <div class="library-modal-main" ref={main}>
+        <div class="library-modal-main" ref={mainRendered}>
           <Show when={similarOf()}>
             {(reference) => (
               <SimilarSoundsView

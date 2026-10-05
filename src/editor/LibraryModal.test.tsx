@@ -687,6 +687,67 @@ describe("LibraryModal packs", () => {
       await waitFor(() => expect(document.activeElement).toBe(allSounds()));
     });
 
+    it("moves focus from Browse packs to All sounds when Back leaves the grid", async () => {
+      const { browsePacks, actions } = renderPacks();
+      browsePacks();
+      await screen.findByRole("button", { name: `Open ${drums.name}` });
+      browse().focus();
+
+      actions().back();
+      flush();
+
+      await screen.findByRole("region", { name: "Browse sounds" });
+      await waitFor(() => expect(document.activeElement).toBe(allSounds()));
+    });
+
+    it("brings focus adrift on <body> back to the new place", async () => {
+      const { browsePacks, actions } = renderPacks();
+      browsePacks();
+      await openFromGrid(drums);
+      await banner(drums);
+      (document.activeElement as HTMLElement | null)?.blur();
+      expect(document.activeElement).toBe(document.body);
+
+      actions().back();
+      flush();
+
+      await screen.findByRole("region", { name: "Packs" });
+      await waitFor(() => expect(document.activeElement).toBe(browse()));
+    });
+
+    it("holds focus when a double-click's second press lands on the opened pack", async () => {
+      const { browsePacks } = renderPacks();
+      browsePacks();
+      await openFromGrid(drums);
+      const opened = await banner(drums);
+      const surface = opened.closest(".library-modal-main") as HTMLElement;
+
+      const second = new MouseEvent("mousedown", {
+        bubbles: true,
+        cancelable: true,
+        detail: 2,
+      });
+      surface.dispatchEvent(second);
+      const onControl = new MouseEvent("mousedown", {
+        bubbles: true,
+        cancelable: true,
+        detail: 2,
+      });
+      within(opened)
+        .getByRole("button", { name: "Back to all sounds" })
+        .dispatchEvent(onControl);
+      const single = new MouseEvent("mousedown", {
+        bubbles: true,
+        cancelable: true,
+        detail: 1,
+      });
+      surface.dispatchEvent(single);
+
+      expect(second.defaultPrevented).toBe(true);
+      expect(onControl.defaultPrevented).toBe(false);
+      expect(single.defaultPrevented).toBe(false);
+    });
+
     it("moves focus to the pack's banner when similar sounds' way back returns to it", async () => {
       const { browsePacks } = renderPacks();
       browsePacks();

@@ -89,4 +89,38 @@ test.describe("pack banner", () => {
     await expect(banner).toHaveCount(0);
     await expect(railButton(page, "All sounds")).toBeFocused();
   });
+
+  test("keeps focus on the place Backspace goes back to, out of a pack and the grid", async ({
+    page,
+  }) => {
+    await newProjectOnInstrumentView(page);
+    await openPadSlot(page, "BD");
+    await railButton(page, "Browse packs").click();
+    await library(page)
+      .getByRole("button", { name: /^Open / })
+      .first()
+      .click();
+    const banner = library(page).getByRole("region", { name: /^About / });
+    await expect(banner).toBeFocused();
+
+    await page.keyboard.press("Backspace");
+    await expect(banner).toHaveCount(0);
+    await expect(railButton(page, "Browse packs")).toBeFocused();
+
+    await page.keyboard.press("Backspace");
+    await expect(railButton(page, "All sounds")).toHaveAttribute("aria-current", "true");
+    await expect(railButton(page, "All sounds")).toBeFocused();
+  });
+
+  test("keeps focus on the banner when Open is double-clicked", async ({ page }) => {
+    await newProjectOnInstrumentView(page);
+    await openPadSlot(page, "BD");
+    await railButton(page, "Browse packs").click();
+    await library(page)
+      .getByRole("button", { name: /^Open / })
+      .first()
+      .dblclick();
+
+    await expect(library(page).getByRole("region", { name: /^About / })).toBeFocused();
+  });
 });
