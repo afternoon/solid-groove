@@ -24,7 +24,9 @@ import type { Project } from "../domain/entities";
 import { createFactoryContext } from "../domain/factories";
 import type { PlacementId } from "../domain/ids";
 import type { PreviewEngine } from "../library/audition";
+import { withdrawnFactoryPacks } from "../library/factoryAvailability";
 import { type LibraryClient, sharedLibraryClient } from "../library/libraryClient";
+import type { LibraryPackSummary } from "../library/manifest";
 import { useFavourites } from "../library/useFavourites";
 import type { FavouritesRepository } from "../persistence/favouritesRepository";
 import { getProjectRepository } from "../projectRepositoryClient";
@@ -47,7 +49,10 @@ import { type EditorViewName, editorViewSpec } from "./editorViews";
 import InstrumentPane from "./InstrumentPane";
 import LibraryPane from "./LibraryPane";
 import LoadRecoveryNotice from "./LoadRecoveryNotice";
-import MissingSounds from "./MissingSounds";
+import MissingSounds, {
+  type MissingSoundsReport,
+  missingSoundCount,
+} from "./MissingSounds";
 import Mixer from "./Mixer";
 import ProjectLoadStates from "./ProjectLoadStates";
 import SequencePane from "./SequencePane";
@@ -206,16 +211,48 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
       (await loadUserLibrary()).readAudio(storageRef),
     ),
   );
-  // The personal sounds this project uses that are gone from the producer's
-  // packs (#282), named with the tracks and clips they leave silent. Judged
-  // only once the packs have loaded, so nothing reads as missing while they
-  // are on their way, and again whenever the project or the packs change.
-  const missingSounds = createMemo(() => {
+  // The published library's pack index, for judging which factory packs the
+  // project uses have been withdrawn (#78). Read once, through the shared
+  // client's cache; an index that will not load leaves it unknown, and an
+  // unknown index reports nothing rather than everything.
+  const [libraryIndex, setLibraryIndex] = createSignal<
+    readonly LibraryPackSummary[] | null
+  >(null);
+  createEffect(
+    () => undefined,
+    () => {
+      let open = true;
+      libraryClient.loadIndex().then(
+        (index) => {
+          if (open) setLibraryIndex(index);
+        },
+        () => {},
+      );
+      return () => {
+        open = false;
+      };
+    },
+  );
+  // The sounds this project uses that are gone: personal sounds gone from the
+  // producer's packs (#282) and factory packs the library has withdrawn (#78),
+  // named with the tracks and clips they leave silent. Each half is judged
+  // only once what it reads has loaded, so nothing reads as missing while it
+  // is on its way, and again whenever the project, the packs or the index
+  // change.
+  const missingSounds = createMemo((): MissingSoundsReport | null => {
     const current = project();
+    if (!current) return null;
     const owner = props.libraryAccount?.uid;
-    if (!current || !owner || userLibrary.status() !== "ready") return null;
-    const report = userPackAvailability(current, userLibrary.packs(), owner);
-    return report.missingAssets.length + report.missingPacks.length > 0 ? report : null;
+    const personal =
+      owner && userLibrary.status() === "ready"
+        ? userPackAvailability(current, userLibrary.packs(), owner)
+        : { missingAssets: [], missingPacks: [] };
+    const index = libraryIndex();
+    const report = {
+      ...personal,
+      withdrawnPacks: index ? withdrawnFactoryPacks(current, index) : [],
+    };
+    return missingSoundCount(report) > 0 ? report : null;
   });
   const userPackName = (packId: string): string | null =>
     userLibrary.packs().find((pack) => pack.id === packId)?.name ?? null;

@@ -1,18 +1,35 @@
 import { For, type JSX, Show } from "@solidjs/web";
-import type { NamedEntity } from "../domain/packs";
+import type { MissingPack, NamedEntity } from "../domain/packs";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import type { UserSoundAvailability } from "../userLibrary/userPacks";
 import "./MissingSounds.css";
 
 /**
- * The project's personal sounds that are gone from the producer's library
- * (#282): a sound deleted from its pack, or a whole pack deleted. Each one is
- * named with the tracks and clips it leaves silent, so the producer knows what
- * to fix. The project itself is never changed: nothing is removed or
+ * The project's sounds that are gone from the producer's library: a personal
+ * sound deleted from its pack, or a whole personal pack deleted (#282), and a
+ * factory pack the published library has withdrawn (#78). Each one is named
+ * with the tracks and clips it leaves silent, so the producer knows what to
+ * fix. The project itself is never changed: nothing is removed or
  * substituted, and the sound comes back if it is restored.
  */
+export interface MissingSoundsReport extends UserSoundAvailability {
+  /** Factory packs the published library no longer lists (`withdrawnFactoryPacks`). */
+  readonly withdrawnPacks: readonly MissingPack[];
+}
+
+/** How many sounds a report names: what the title counts. */
+export function missingSoundCount(report: MissingSoundsReport): number {
+  return (
+    report.missingAssets.length +
+    [...report.missingPacks, ...report.withdrawnPacks].reduce(
+      (total, entry) => total + entry.assets.length,
+      0,
+    )
+  );
+}
+
 export interface MissingSoundsProps {
-  readonly report: UserSoundAvailability;
+  readonly report: MissingSoundsReport;
   /** The name of one of the producer's packs, or `null` when it is gone. */
   packName(packId: string): string | null;
 }
@@ -42,7 +59,16 @@ function lines(props: MissingSoundsProps): MissingLine[] {
       clips: entry.clips,
     })),
   );
-  return [...deleted, ...packGone];
+  const withdrawn = props.report.withdrawnPacks.flatMap((entry) =>
+    entry.assets.map((asset) => ({
+      key: asset.id,
+      sound: asset.name,
+      where: "was in a library pack that is no longer available",
+      tracks: entry.tracks,
+      clips: entry.clips,
+    })),
+  );
+  return [...deleted, ...packGone, ...withdrawn];
 }
 
 const names = (entities: readonly NamedEntity<string>[]) =>

@@ -128,44 +128,46 @@ export default function PacksView(props: PacksViewProps): JSX.Element {
         }
       >
         <ul class="packs-grid">
-          <For each={visible()}>
+          {/* Keyed by pack, so a cover is the same element while its manifest
+              arrives: a click as it loads still lands (#78). */}
+          <For each={visible()} keyed={(entry) => entry.pack.id}>
             {(entry) => (
               <li class="pack-card">
                 <button
                   type="button"
                   class="pack-open"
-                  aria-label={`Open ${entry.pack.name}`}
-                  onClick={() => props.onOpenPack(entry.pack.slug)}
+                  aria-label={`Open ${entry().pack.name}`}
+                  onClick={() => props.onOpenPack(entry().pack.slug)}
                 >
-                  <PackCover name={entry.pack.name} assets={entry.assets}>
-                    <Show when={isProject(entry.pack.id)}>
+                  <PackCover name={entry().pack.name} assets={entry().assets}>
+                    <Show when={isProject(entry().pack.id)}>
                       {/* Spaced so the cover reads as words, not "CEIn project1". */}
                       <span class="pack-tag">{" In project "}</span>
                     </Show>
                   </PackCover>
-                  <b class="pack-name">{entry.pack.name}</b>
+                  <b class="pack-name">{entry().pack.name}</b>
                   <span class="pack-meta">
-                    {entry.pack.publisher} · {entry.pack.assetCount} sounds
-                    <Show when={entry.assets}>
+                    {entry().pack.publisher} · {entry().pack.assetCount} sounds
+                    <Show when={entry().assets}>
                       {(assets) => <> · {packCategories(assets()).length} categories</>}
                     </Show>
                   </span>
-                  <span class="pack-mix">{coverCategoryLine(entry.assets ?? [])}</span>
+                  <span class="pack-mix">{coverCategoryLine(entry().assets ?? [])}</span>
                 </button>
                 <button
                   type="button"
                   class="pack-hear"
                   aria-label={
-                    hearing() === entry.pack.slug
-                      ? `Stop ${entry.pack.name}`
-                      : `Hear ${entry.pack.name}`
+                    hearing() === entry().pack.slug
+                      ? `Stop ${entry().pack.name}`
+                      : `Hear ${entry().pack.name}`
                   }
-                  aria-pressed={ariaBool(hearing() === entry.pack.slug)}
-                  disabled={entry.assets === null}
-                  onClick={() => hear(entry)}
+                  aria-pressed={ariaBool(hearing() === entry().pack.slug)}
+                  disabled={entry().assets === null}
+                  onClick={() => hear(entry())}
                 >
                   <Show
-                    when={hearing() === entry.pack.slug}
+                    when={hearing() === entry().pack.slug}
                     fallback={<PlayIcon size={10} />}
                   >
                     <StopIcon size={10} />
