@@ -37,6 +37,7 @@ import AssistantPanel from "./assistant/AssistantPanel";
 import { useAssistantPanel } from "./assistant/useAssistantPanel";
 import CompatibilityNotice from "./CompatibilityNotice";
 import { compatibilityNoticeItems } from "./compatibilityNoticeItems";
+import { DeviceMeterContext } from "./deviceMeters";
 import { DeviceSpectrumContext, type DeviceSpectrumSource } from "./deviceSpectrum";
 import EditorHeader from "./EditorHeader";
 import { type EditorControls, EditorControlsContext } from "./editorControls";
@@ -383,89 +384,92 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                       <MissingSounds report={report()} packName={userPackName} />
                     )}
                   </Show>
-                  {/* The views' device panels draw live spectra from playback (LOOP-022). */}
+                  {/* The views' device panels draw live spectra from playback (LOOP-022),
+                      and the Limiter its meters (#937). */}
                   <DeviceSpectrumContext value={spectrumSource}>
-                    <div class="editor-body">
-                      {/*
-                       * One view at a time (`UI-001`). A view you are not on is not
-                       * on the page at all rather than hidden behind the one you
-                       * are — the bet this change exists to test.
-                       */}
-                      <Switch>
-                        <Match when={props.view === "arrangement"}>
-                          <ArrangementPane
-                            project={currentProject()}
-                            audio={audio}
-                            session={session}
-                            selection={trackSelection}
-                            surfaces={surfaces}
-                            onOpenPlacement={openPlacement}
-                            initialSelection={arrangementSelection}
-                            onSelectionChange={(selected) => {
-                              arrangementSelection = selected;
-                            }}
-                            onAddTrack={(spec) => addTrack(currentProject(), spec)}
-                            onAddLoop={() => library.aim("arrangement", "new-track")}
-                          />
-                        </Match>
-                        <Match when={props.view === "sequence"}>
-                          <SequencePane
-                            project={currentProject()}
-                            audio={audio}
-                            session={session}
-                            selection={trackSelection}
-                            surfaces={surfaces}
-                            songTempo={song.tempo()}
-                            onAddPad={() => library.aim("slot", "new-pad")}
-                            fix={viewFix}
-                            onFix={(view) => selectView(view, "empty_screen")}
-                          />
-                        </Match>
-                        <Match when={props.view === "instrument"}>
-                          <InstrumentPane
-                            project={currentProject()}
-                            audio={audio}
-                            session={session}
-                            selection={trackSelection}
-                            library={library}
-                            keyHint={keyHint}
-                            onAddTrack={(spec) =>
-                              addTrack(currentProject(), spec, "instrument_add_track")
-                            }
-                          />
-                        </Match>
-                        <Match when={props.view === "library"}>
-                          <LibraryPane
-                            project={currentProject()}
-                            library={library}
-                            selection={trackSelection}
-                            client={libraryClient}
-                            createAuditionEngine={props.createAuditionEngine}
-                            analytics={props.analytics}
-                            keyHint={keyHint}
-                            songBpm={song.tempo()}
-                            fix={viewFix}
-                            onFix={(view) => selectView(view, "empty_screen")}
-                            userLibrary={userLibrary}
-                          />
-                        </Match>
-                        <Match when={props.view === "mixer"}>
-                          <div class="mixer-view">
-                            <Mixer
+                    <DeviceMeterContext value={audio.deviceMeter}>
+                      <div class="editor-body">
+                        {/*
+                         * One view at a time (`UI-001`). A view you are not on is not
+                         * on the page at all rather than hidden behind the one you
+                         * are — the bet this change exists to test.
+                         */}
+                        <Switch>
+                          <Match when={props.view === "arrangement"}>
+                            <ArrangementPane
                               project={currentProject()}
-                              analytics={props.analytics}
-                              dispatch={session.dispatch}
-                              beginGesture={session.beginGesture}
-                              trackLevel={audio.trackLevel}
-                              selectedTrackId={track()?.id ?? null}
-                              onSelectTrack={selectTrackFrom}
-                              selectedReturnId={selectedReturn()?.id ?? null}
-                              onSelectReturn={selectReturn}
+                              audio={audio}
+                              session={session}
+                              selection={trackSelection}
+                              surfaces={surfaces}
+                              onOpenPlacement={openPlacement}
+                              initialSelection={arrangementSelection}
+                              onSelectionChange={(selected) => {
+                                arrangementSelection = selected;
+                              }}
+                              onAddTrack={(spec) => addTrack(currentProject(), spec)}
+                              onAddLoop={() => library.aim("arrangement", "new-track")}
                             />
-                          </div>
-                        </Match>
-                      </Switch>
-                    </div>
+                          </Match>
+                          <Match when={props.view === "sequence"}>
+                            <SequencePane
+                              project={currentProject()}
+                              audio={audio}
+                              session={session}
+                              selection={trackSelection}
+                              surfaces={surfaces}
+                              songTempo={song.tempo()}
+                              onAddPad={() => library.aim("slot", "new-pad")}
+                              fix={viewFix}
+                              onFix={(view) => selectView(view, "empty_screen")}
+                            />
+                          </Match>
+                          <Match when={props.view === "instrument"}>
+                            <InstrumentPane
+                              project={currentProject()}
+                              audio={audio}
+                              session={session}
+                              selection={trackSelection}
+                              library={library}
+                              keyHint={keyHint}
+                              onAddTrack={(spec) =>
+                                addTrack(currentProject(), spec, "instrument_add_track")
+                              }
+                            />
+                          </Match>
+                          <Match when={props.view === "library"}>
+                            <LibraryPane
+                              project={currentProject()}
+                              library={library}
+                              selection={trackSelection}
+                              client={libraryClient}
+                              createAuditionEngine={props.createAuditionEngine}
+                              analytics={props.analytics}
+                              keyHint={keyHint}
+                              songBpm={song.tempo()}
+                              fix={viewFix}
+                              onFix={(view) => selectView(view, "empty_screen")}
+                              userLibrary={userLibrary}
+                            />
+                          </Match>
+                          <Match when={props.view === "mixer"}>
+                            <div class="mixer-view">
+                              <Mixer
+                                project={currentProject()}
+                                analytics={props.analytics}
+                                dispatch={session.dispatch}
+                                beginGesture={session.beginGesture}
+                                trackLevel={audio.trackLevel}
+                                selectedTrackId={track()?.id ?? null}
+                                onSelectTrack={selectTrackFrom}
+                                selectedReturnId={selectedReturn()?.id ?? null}
+                                onSelectReturn={selectReturn}
+                              />
+                            </div>
+                          </Match>
+                        </Switch>
+                      </div>
+                    </DeviceMeterContext>
                   </DeviceSpectrumContext>
                   <ViewDock
                     view={props.view}

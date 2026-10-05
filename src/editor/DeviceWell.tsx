@@ -35,6 +35,7 @@ import {
   saturatorTransfer,
   transferPath,
 } from "./deviceDrawings";
+import LimiterWell from "./LimiterWell";
 
 export interface DeviceWellProps {
   readonly chain: DeviceChainTarget;
@@ -144,6 +145,7 @@ const WELL_TYPES = new Set([
   "compressor",
   "delay",
   "reverb",
+  "limiter",
 ]);
 
 /** Whether `device` has a well yet; one without gives its banks the card. */
@@ -200,6 +202,8 @@ export default function DeviceWell(props: DeviceWellProps): JSX.Element {
       </PointWell>
     );
   }
+
+  if (type === "limiter") return <LimiterWell device={props.device} />;
 
   if (type === "compressor") {
     const threshold = p("threshold");

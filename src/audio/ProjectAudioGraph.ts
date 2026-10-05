@@ -1,5 +1,5 @@
 import * as Tone from "tone";
-import type { NoteTrigger } from "../domain/entities";
+import type { Device, NoteTrigger } from "../domain/entities";
 import type {
   AssetId,
   DeviceId,
@@ -25,7 +25,12 @@ import {
 } from "./AudioBufferCache";
 import type { AudioHost, AudioProjectScope } from "./AudioRuntime";
 import { playAudioLoop } from "./audioLoopPlayer";
-import type { DeviceNodeFactory, SpectrumReading } from "./DeviceChain";
+import type {
+  DeviceMeterReading,
+  DeviceNode,
+  DeviceNodeFactory,
+  SpectrumReading,
+} from "./DeviceChain";
 import { createDeviceNodeFactory } from "./devices";
 import type { InstrumentNodeFactory } from "./InstrumentGraph";
 import {
@@ -290,6 +295,50 @@ export class ProjectAudioGraph {
     for (const track of this.tracks.values()) node ??= track.deviceNode(deviceId);
     for (const bus of this.returns.values()) node ??= bus.deviceNode(deviceId);
     return node?.readSpectrum?.() ?? null;
+  }
+
+  /**
+   * One frame of every metering device's readouts — the Limiter's gain
+   * reduction and loudness (#937) — wherever it sits, keyed by device id.
+   * The editor calls it from its frame loop while the transport plays, and
+   * that is what feeds the loudness meters, so it is read in place.
+   */
+  sampleDeviceMeters(): Map<DeviceId, DeviceMeterReading> {
+    const readings = new Map<DeviceId, DeviceMeterReading>();
+    this.forEachDeviceNode((device, node) => {
+      if (!node.sampleLoudness) return;
+      readings.set(device.id, {
+        ...node.sampleLoudness(),
+        gainReductionDb: device.bypassed ? 0 : (node.gainReductionDb?.() ?? 0),
+      });
+    });
+    return readings;
+  }
+
+  /** Starts every loudness meter's programme over, for a play from the top. */
+  resetLoudness(): void {
+    this.forEachDeviceNode((_device, node) => node.resetLoudness?.());
+  }
+
+  private forEachDeviceNode(visit: (device: Device, node: DeviceNode) => void): void {
+    const projection = this.lastProjection;
+    if (!projection) return;
+    const walk = (
+      devices: readonly Device[],
+      find: (id: DeviceId) => DeviceNode | undefined,
+    ) => {
+      for (const device of devices) {
+        const node = find(device.id);
+        if (node) visit(device, node);
+      }
+    };
+    walk(projection.master.devices, (id) => this.master.deviceNode(id));
+    for (const track of projection.tracks) {
+      walk(track.devices, (id) => this.tracks.get(track.id)?.deviceNode(id));
+    }
+    for (const bus of projection.returns) {
+      walk(bus.devices, (id) => this.returns.get(bus.id)?.deviceNode(id));
+    }
   }
 
   /** Every track's level now, for one frame of the editor's meters (#447). */

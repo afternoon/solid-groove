@@ -4,6 +4,7 @@ import type { DeviceId } from "../domain/ids";
 import type { CancelScheduled, Scheduler } from "../shared/scheduler";
 import { timeoutScheduler } from "../shared/scheduler";
 import type { AudioProjectScope } from "./AudioRuntime";
+import type { LoudnessReading } from "./loudness";
 
 /**
  * One node (or small internal subgraph) in an ordered insert chain, keyed by
@@ -42,6 +43,21 @@ export interface DeviceNode {
    * offline render, which never reads it, never builds one.
    */
   readSpectrum?(): SpectrumReading;
+  /**
+   * Takes in what left the device since the last call and returns its
+   * loudness. Only a device that shows one implements it — the Limiter's
+   * LUFS readout (#937) — and, like {@link readSpectrum}, it builds its meter
+   * on the first call, so an offline render never builds one.
+   */
+  sampleLoudness?(): LoudnessReading;
+  /** Starts the loudness programme over, for a play from the top (#937). */
+  resetLoudness?(): void;
+}
+
+/** One frame of a metering device's readouts (#937). */
+export interface DeviceMeterReading extends LoudnessReading {
+  /** How much gain it is removing now, as a positive dB; 0 when bypassed. */
+  readonly gainReductionDb: number;
 }
 
 /** One reading of a device's output spectrum. */

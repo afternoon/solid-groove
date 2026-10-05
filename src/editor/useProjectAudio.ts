@@ -3,7 +3,7 @@ import { type Analytics, analytics as defaultAnalytics } from "../analytics/anal
 import type { ErrorCode } from "../analytics/errorCodes";
 import type { BufferSubscription } from "../audio/AudioBufferCache";
 import { type AudioHost, getAudioRuntime } from "../audio/AudioRuntime";
-import type { SpectrumReading } from "../audio/DeviceChain";
+import type { DeviceMeterReading, SpectrumReading } from "../audio/DeviceChain";
 import { ProjectAudioGraph } from "../audio/ProjectAudioGraph";
 import {
   type LoopRange,
@@ -30,6 +30,7 @@ import {
   type PreviewSlot,
   previewAssetId,
 } from "../projection/previewOverride";
+import { createDeviceMeters } from "./deviceMeters";
 import { createTrackLevels, type TrackLevel } from "./trackLevels";
 
 /**
@@ -136,6 +137,11 @@ export interface ProjectAudioControls {
    * while it is on screen and the transport plays.
    */
   readDeviceSpectrum(deviceId: DeviceId): SpectrumReading | null;
+  /**
+   * A metering device's readouts (the Limiter's gain reduction and loudness,
+   * #937), reactively, or `null` for a device with none or before any play.
+   */
+  deviceMeter(deviceId: DeviceId): DeviceMeterReading | null;
 }
 
 export interface UseProjectAudioOptions {
@@ -235,6 +241,7 @@ export function useProjectAudio(
   const [loop, setLoop] = createSignal<LoopRange | null>(null);
   const [metronomeEnabled, setMetronomeEnabled] = createSignal(false);
   const levels = createTrackLevels();
+  const meters = createDeviceMeters();
 
   let graph: ProjectAudioGraph | null = null;
   let transport: TransportController | null = null;
@@ -447,11 +454,13 @@ export function useProjectAudio(
       if (!transport) return;
       setPositionTicks(transport.positionTicks);
       levels.sample(graph?.readTrackLevels() ?? new Map());
+      meters.sample(graph?.sampleDeviceMeters() ?? new Map());
       if (transport.isPlaying) {
         frameHandle = requestFrame(tick);
       } else {
         frameHandle = null;
         levels.clear();
+        meters.rest();
       }
     };
     frameHandle = requestFrame(tick);
@@ -463,6 +472,7 @@ export function useProjectAudio(
       frameHandle = null;
     }
     levels.clear();
+    meters.rest();
   }
 
   /**
@@ -562,7 +572,14 @@ export function useProjectAudio(
   }
 
   function play(): Promise<void> {
-    return startPlayback((controller) => controller.play());
+    return startPlayback((controller) => {
+      // A play from the top starts the loudness programme over (#937).
+      if (controller.atStart) {
+        graph?.resetLoudness();
+        meters.reset();
+      }
+      controller.play();
+    });
   }
 
   function continueFromStop(): Promise<void> {
@@ -653,5 +670,6 @@ export function useProjectAudio(
     watchTriggers,
     readDeviceSpectrum: (deviceId) =>
       transport?.isPlaying ? (graph?.readDeviceSpectrum(deviceId) ?? null) : null,
+    deviceMeter: meters.meter,
   };
 }

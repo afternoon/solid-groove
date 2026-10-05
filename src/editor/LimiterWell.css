@@ -1,0 +1,50 @@
+/* The Limiter's well (#937): two loudness figures, and a gain-reduction bar
+   hanging from the top of the right edge, as the faceplate system draws one. */
+
+.limiter-loudness {
+  position: absolute;
+  inset: 0 20px 0 0;
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  margin: 0;
+}
+
+.limiter-loudness > div {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.limiter-loudness dt {
+  font-size: var(--font-size-tiny);
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-foreground-muted);
+}
+
+.limiter-loudness dd {
+  margin: 0;
+  font-size: var(--font-size-title);
+  font-weight: 500;
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.limiter-gr {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 6px;
+  background-color: var(--color-background-tertiary);
+}
+
+.limiter-gr > i {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  background-color: var(--color-accent);
+}

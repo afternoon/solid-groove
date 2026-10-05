@@ -147,6 +147,30 @@ describe("TransportController (PRD AUD-01/AUD-02)", () => {
     expect(transport.positionTicks).toBe(2 * TICKS_PER_BAR);
   });
 
+  it("knows when the next play starts from the top (#937)", () => {
+    const engine = fakeEngine();
+    const transport = new TransportModule.TransportController({ engine });
+    expect(transport.atStart).toBe(true);
+    transport.play();
+    expect(transport.atStart).toBe(false);
+    engine.ticks = 3 * TICKS_PER_QUARTER;
+    transport.pause();
+    expect(transport.atStart).toBe(false);
+    transport.stop();
+    expect(transport.atStart).toBe(true);
+    transport.seekTicks(TICKS_PER_BAR);
+    expect(transport.atStart).toBe(false);
+
+    // Looping, the top is the loop start, which is where stop rewinds to.
+    transport.mirrorLoop({
+      startTicks: 2 * TICKS_PER_BAR,
+      endTicks: 4 * TICKS_PER_BAR,
+      enabled: true,
+    });
+    transport.stop();
+    expect(transport.atStart).toBe(true);
+  });
+
   it("reports a position just past the loop end as back at the loop start while looping", () => {
     const engine = fakeEngine();
     const transport = new TransportModule.TransportController({ engine });

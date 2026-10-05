@@ -331,6 +331,41 @@ describe("useProjectAudio", () => {
     expect(result.readDeviceSpectrum(eqId)).toBeNull();
   });
 
+  it("starts the loudness programme over only on a play from the top (#937)", async () => {
+    const { ProjectAudioGraph } = await import("../audio/ProjectAudioGraph");
+    const project = createSliceFixtureProject();
+    const real = AudioRuntimeModule.getAudioRuntime();
+    const runtime: AudioHost = {
+      getDestination: () => real.getDestination(),
+      getSampleRate: () => real.getSampleRate(),
+      resume: () => Promise.resolve(),
+      openProjectScope: (owner) => real.openProjectScope(owner),
+    };
+    const reset = vi.spyOn(ProjectAudioGraph.prototype, "resetLoudness");
+    try {
+      const { result } = renderHook(
+        () => useProjectAudioModule.useProjectAudio(() => project, { runtime }),
+        {},
+      );
+      void result.isPlaying();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      await result.play();
+      expect(reset).toHaveBeenCalledTimes(1);
+      result.pause();
+      // Resuming from a pause carries on with the same programme.
+      await result.play();
+      expect(reset).toHaveBeenCalledTimes(1);
+      result.stop();
+      await result.play();
+      expect(reset).toHaveBeenCalledTimes(2);
+      result.stop();
+    } finally {
+      reset.mockRestore();
+    }
+  });
+
   it("previews a library sound in a slot without touching the project, and clears back (LIB-010)", async () => {
     const runtime = AudioRuntimeModule.getAudioRuntime();
     const project = createSliceFixtureProject();

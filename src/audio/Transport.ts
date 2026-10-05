@@ -293,6 +293,17 @@ export class TransportController {
     return this.metronome?.enabled ?? false;
   }
 
+  /**
+   * Whether the playhead stands where `stop()` puts it — the loop start when
+   * looping, the arrangement start otherwise — and is not running, so the
+   * next `play()` plays from the top (#937: a loudness meter's integrated
+   * figure starts over then).
+   */
+  get atStart(): boolean {
+    const start = this.engine.loop ? (this.loopRange?.startTicks ?? 0) : 0;
+    return !this.isPlaying && Math.round(this.engine.ticks) === start;
+  }
+
   /** Start (or resume) playback from the current position. */
   play(): void {
     this.engine.start();

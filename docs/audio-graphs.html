@@ -461,8 +461,8 @@ const GRAPHS = [
     coreIn: "rin", coreOut: "damp", coreEdges: [["rin", "conv"], ["conv", "damp"]], wet: true, trim: true,
   }),
   deviceGraph({
-    id: "limiter", title: "Limiter", files: ["src/audio/devices/limiter.ts", "src/audio/devices/compressorMakeup.ts"],
-    summary: "Drive into a 20:1, no-knee, zero-attack DynamicsCompressorNode with its threshold at the ceiling, then a hard clip at the ceiling so no sample leaves above it (#937). The clip is a fixed [−1, 1] shaper between two gains that scale the ceiling to full scale and back. The dry leg (used only when bypassed) runs through a never-compressing node so a bypass never moves the song in time. No Dry/Wet, no output trim.",
+    id: "limiter", title: "Limiter", files: ["src/audio/devices/limiter.ts", "src/audio/devices/compressorMakeup.ts", "src/audio/loudnessMeter.ts"],
+    summary: "Drive into a 20:1, no-knee, zero-attack DynamicsCompressorNode with its threshold at the ceiling, then a hard clip at the ceiling so no sample leaves above it (#937). The clip is a fixed [−1, 1] shaper between two gains that scale the ceiling to full scale and back. The dry leg (used only when bypassed) runs through a never-compressing node so a bypass never moves the song in time. No Dry/Wet, no output trim. The node also taps its output with a loudness meter for the panel's LUFS readout: two K-weighting IIRFilterNodes into a two-channel waveform Tone.Analyser, built on the editor's first read, so an offline render never has one (loudnessMeter.ts).",
     core: [
       { id: "drive", label: "drive", type: "Tone.Gain", kind: "node", params: ["gain = 10^(drive/20)"] },
       { id: "lim", label: "limit", type: "Tone.Compressor", kind: "node", params: ["threshold = ceiling, release", "20:1, knee 0, attack 0 (fixed)"], note: "gainReductionDb() reads its reduction for the panel meter." },
