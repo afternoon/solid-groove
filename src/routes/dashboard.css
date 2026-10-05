@@ -37,6 +37,12 @@
   opacity: 0.85;
 }
 
+/* The Request access link a refused upgrade offers (#854): monochrome, not the browser's blue. */
+.upgrade-prompt a {
+  color: var(--color-foreground-bright);
+  text-decoration: underline;
+}
+
 .upgrade-prompt .upgrade-actions,
 .dashboard-actions .action-row {
   display: flex;
