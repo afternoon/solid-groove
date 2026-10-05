@@ -2,6 +2,7 @@ import { For, type JSX, Show } from "@solidjs/web";
 import { HiSolidChevronLeft, HiSolidChevronRight } from "solid-icons/hi";
 import { createEffect, createSignal, onSettled } from "solid-js";
 import { ariaBool } from "../shared/aria";
+import { scrollBehavior } from "../shared/motion";
 import type { ShortcutActionId } from "../shortcuts";
 import { familyLabel, type ShelfEntry, type ShelfFamily } from "./shelf";
 import "./SoundsView.css";
@@ -59,7 +60,7 @@ export default function Shelf(props: {
     if (chips) setOverflows(chips.scrollWidth > chips.clientWidth);
   };
   const scroll = (direction: 1 | -1) =>
-    chips?.scrollBy?.({ left: direction * 240, behavior: "smooth" });
+    chips?.scrollBy?.({ left: direction * 240, behavior: scrollBehavior() });
   const badge = (index: number) => {
     const action = pickAction(index);
     return action ? props.keyLabel?.(action) : undefined;

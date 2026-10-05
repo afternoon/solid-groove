@@ -25,6 +25,18 @@ landmarks, keyboard-scrollable regions). In particular:
   arrangement's selection, the loop range, the assistant's replies) are spoken
   through a live region.
 
+- **Zoom and small windows.** The editor lays out down to **960x600** CSS
+  pixels, which is a 1920x1200 screen at 200% zoom. Below that it stops
+  shrinking and the document scrolls, in both directions, rather than letting
+  controls run into each other or the dock cover a view. The editor is a
+  two-dimensional instrument panel, the kind of content WCAG 1.4.10 lets
+  scroll rather than reflow; the dashboard and dialogs reflow.
+- **Reduced motion.** With the system's reduce-motion setting on, nothing
+  slides, fades, spins or blinks: one rule in `src/app.css` stops every CSS
+  animation and transition, and script that animates asks
+  `src/shared/motion.ts` first. The playhead and the meters still move; they
+  are the music's position and level, not decoration.
+
 ### What is not in the bar, and why
 
 **WCAG 2.2's 24px minimum target size (2.5.8).** The editor is an instrument
@@ -43,6 +55,8 @@ check leaves the rule out rather than waiving it control by control.
 | Palette contrast | [`src/theme.test.ts`](../src/theme.test.ts) | Every text alias against the ground, a panel, a well and a raised card |
 | Modal focus | [`tests/e2e/emulator/dialogFocus.spec.ts`](../tests/e2e/emulator/dialogFocus.spec.ts) | Tab never leaves the Export dialog, and the editor behind it is `inert` |
 | Library focus | [`tests/e2e/emulator/libraryFocus.spec.ts`](../tests/e2e/emulator/libraryFocus.spec.ts) | Where focus goes as the library opens, filters and inserts |
+| Zoom, minimum size, reduced motion | [`tests/e2e/emulator/resilientLayout.spec.ts`](../tests/e2e/emulator/resilientLayout.spec.ts) | The editor at 640x360 (200% of 1280x720) keeps its minimum and scrolls, with no header controls overlapping in any view; at 960x600 it fits exactly; with reduced motion nothing transitions |
+| The canvas's keyboard twins | [`tests/e2e/emulator/clipList.spec.ts`](../tests/e2e/emulator/clipList.spec.ts), [`tests/e2e/emulator/focusRescue.spec.ts`](../tests/e2e/emulator/focusRescue.spec.ts) | Picking, opening, duplicating and deleting a clip from the keyboard alone; focus kept in the editor when its element goes |
 | Component tests | `*.test.tsx` beside each component | Names, roles and pressed/selected state, queried by role the way assistive technology reads them |
 
 axe sees one state of a page. It cannot tell whether a focus order makes
@@ -181,3 +195,15 @@ means a visible focus ring.
    **Back** on the finished screen and the files are links named for what
    they download.
 5. Press Escape. The dialog closes and focus is back on the Export button.
+
+### Zoom, small windows and motion
+
+1. Set the browser to 200% zoom on a 1280x720 window. The editor keeps its
+   layout: the header's controls do not overlap, and the page scrolls to reach
+   the rest. Every view key still works and the dock stays on screen.
+2. Zoom back to 100% and shrink the window to 960x600. Nothing scrolls and
+   nothing overlaps.
+3. Turn on the system's reduce-motion setting (macOS: Accessibility, Display,
+   Reduce motion; Windows: Settings, Accessibility, Visual effects, Animation
+   effects off). Load a project, open the assistant, drag a track: nothing
+   slides or fades, and the loading label does not blink.

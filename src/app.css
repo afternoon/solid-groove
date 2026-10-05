@@ -161,3 +161,25 @@ p.error {
   white-space: nowrap;
   border: 0;
 }
+
+/* Reduced motion (#76): when the system asks for less, nothing in the
+   interface slides, fades, spins or blinks. One rule here rather than one per
+   stylesheet, so a new animation is covered the day it is written. Durations
+   go to a hair above zero, not none, so a script waiting on an
+   `animationend` or `transitionend` still hears it. Motion that carries
+   information (the playhead, the meters) is not CSS animation and is
+   unaffected; script that animates asks `src/shared/motion.ts`. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    /* biome-ignore-start lint/complexity/noImportantStyles: a user's preference outranks every component's own motion */
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0s !important;
+    transition-duration: 0.01ms !important;
+    transition-delay: 0s !important;
+    scroll-behavior: auto !important;
+    /* biome-ignore-end lint/complexity/noImportantStyles: a user's preference outranks every component's own motion */
+  }
+}
