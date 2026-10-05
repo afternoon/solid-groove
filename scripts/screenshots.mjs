@@ -27,7 +27,7 @@ const result = spawnSync(
   [
     "emulators:exec",
     "--only",
-    "firestore,auth,storage",
+    "firestore,auth,storage,functions",
     "--project",
     "demo-solid-groove",
     playwright,
