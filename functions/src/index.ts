@@ -45,10 +45,10 @@ import {
 
 /**
  * Where the functions run. A Storage trigger has to run in the default
- * bucket's location; this is the location new Firebase projects default to.
- * A bucket elsewhere means changing this one value before deploying.
+ * bucket's location, and production's bucket is in `us-east1`; the deploy
+ * refuses any other region. A bucket elsewhere means changing this one value.
  */
-setGlobalOptions({ region: "us-central1", maxInstances: 10 });
+setGlobalOptions({ region: "us-east1", maxInstances: 10 });
 
 initializeApp();
 
