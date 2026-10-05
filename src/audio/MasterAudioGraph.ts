@@ -32,9 +32,17 @@ export const masterLimiterLatencyFrames: DeclaredLatency = dynamicsLookaheadFram
 
 /**
  * The master bus's audio subgraph (PRD AUD-08, section 9.7): an ordered
- * device chain feeding a volume stage, a metering tap, and — for a project
- * whose master keeps it (#937) — a transparent safety limiter (PRD AUD-04),
+ * device chain, a volume stage, a metering tap, and — for a project whose
+ * master keeps it (#937) — a transparent safety limiter (PRD AUD-04),
  * connected to the runtime's shared destination.
+ *
+ * The order depends on that choice. With the safety limiter, it is
+ * `mix -> chain -> volume -> limiter`, exactly as every project made before
+ * #937 has always sounded. Without it, the volume comes first,
+ * `mix -> volume -> chain`: the chain's trailing Limiter is then the last
+ * thing the signal meets, so raising the master fader (up to +6 dB) drives
+ * into the Limiter rather than past it, and the Limiter's own loudness
+ * readout is of what plays and exports.
  * There is exactly one of these per {@link ProjectAudioGraph} and it is never
  * rebuilt for a routine edit — only its device chain and volume are reconciled
  * in place, so a parameter edit never restarts the transport or reconstructs
@@ -96,8 +104,7 @@ export class MasterAudioGraph {
 
     // mix -> deviceChain -> volume -> limiter -> destination, with the meter
     // tapping the limited signal (a fan-out, not an insert, so it cannot
-    // colour it). Without the safety limiter, the volume stage is what the
-    // meter taps and the destination hears (`routeLimiter`).
+    // colour it). Without the safety limiter, see `routeLimiter`.
     this.mix.output.connect(this.deviceChain.input);
     this.auxAlign.node.connect(this.deviceChain.input);
     this.deviceChain.output.connect(this.volume);
@@ -107,19 +114,35 @@ export class MasterAudioGraph {
   }
 
   /**
-   * Puts the safety limiter in the path or takes it out (#937). The limiter
-   * node lives either way, so this is a reconnection, never a rebuild; in
-   * practice a project's choice never changes while it is open.
+   * Puts the safety limiter in the path or takes it out (#937). The nodes
+   * live either way, so this is a reconnection, never a rebuild; in practice
+   * a project's choice never changes while it is open.
+   *
+   * Without it the volume moves ahead of the device chain
+   * (`mix -> volume -> chain -> meter/destination`), so nothing after the
+   * chain's last device can lift a peak past that device's ceiling. Neither
+   * stage adds latency, so the order changes nothing about compensation.
    */
   private routeLimiter(limited: boolean): void {
     if (limited === this.limited) return;
     this.limited = limited;
-    this.volume.disconnect();
+    const sources = [this.mix.output, this.auxAlign.node];
     if (limited) {
+      for (const source of sources) source.disconnect(this.volume);
+      this.volume.disconnect(this.deviceChain.input);
+      this.deviceChain.output.disconnect(this.meter);
+      this.deviceChain.output.disconnect(this.destination);
+      for (const source of sources) source.connect(this.deviceChain.input);
+      this.deviceChain.output.connect(this.volume);
       this.volume.connect(this.limiter);
     } else {
-      this.volume.connect(this.meter);
-      this.volume.connect(this.destination);
+      for (const source of sources) source.disconnect(this.deviceChain.input);
+      this.deviceChain.output.disconnect(this.volume);
+      this.volume.disconnect(this.limiter);
+      for (const source of sources) source.connect(this.volume);
+      this.volume.connect(this.deviceChain.input);
+      this.deviceChain.output.connect(this.meter);
+      this.deviceChain.output.connect(this.destination);
     }
   }
 

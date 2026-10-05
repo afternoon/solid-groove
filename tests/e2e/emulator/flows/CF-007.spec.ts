@@ -27,7 +27,8 @@ import { expectView } from "../support/views";
  * **Revised for #937.** A new project's master starts with a visible Limiter
  * in place of the hidden safety limiter (a product-owner decision), so step 4
  * finds the Limiter alone on the chain rather than an empty one, and every
- * count below is one higher. The overdrive is added after it and is still what
+ * count below is one higher. The overdrive is added before it (a new master
+ * device never goes after a Limiter at the end) and is still what
  * the flow undoes, redoes, drives and reloads; its Drive is found on its own
  * card, since the Limiter has a Drive too.
  *

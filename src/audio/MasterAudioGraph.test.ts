@@ -135,7 +135,10 @@ describe("MasterAudioGraph (PRD AUD-04/AUD-08)", () => {
 
   it("leaves the safety limiter out, and a Limiter device in charge, on a new project's master (#937)", async () => {
     /** A +12 dB sine through the master, with or without its devices' DSP. */
-    async function render(devices: Device[]): Promise<Float32Array> {
+    async function render(
+      devices: Device[],
+      { volume = 0, restore = false }: { volume?: number; restore?: boolean } = {},
+    ): Promise<Float32Array> {
       const buffer = await Tone.Offline(
         ({ destination }) => {
           const runtime = new AudioRuntimeModule.AudioRuntime();
@@ -145,8 +148,12 @@ describe("MasterAudioGraph (PRD AUD-04/AUD-08)", () => {
             destination,
             devicesModule.createDeviceNodeFactory({ scope, tempo: () => 120 }),
           );
-          master.reconcile(masterProjection({ devices, safetyLimiter: false }));
+          master.reconcile(masterProjection({ devices, volume, safetyLimiter: false }));
           expect(master.safetyLimited).toBe(false);
+          if (restore) {
+            master.reconcile(masterProjection({ devices, volume, safetyLimiter: true }));
+            expect(master.safetyLimited).toBe(true);
+          }
           const osc = new Tone.Oscillator({ frequency: 110, volume: 12 });
           osc.connect(master.input);
           osc.start(0).stop(0.4);
@@ -157,12 +164,21 @@ describe("MasterAudioGraph (PRD AUD-04/AUD-08)", () => {
       return Float32Array.from(buffer.getChannelData(0));
     }
 
+    const ceiling = 10 ** (-0.3 / 20) + 1e-6;
     // Nothing on the chain and no hidden limiter: the overload goes straight
     // through, which is what bypassing or removing the Limiter means.
     expect(peakWindow(await render([]), 0.5, 0.9)).toBeGreaterThan(2);
     // The Limiter holds it at its ceiling.
     const limiter = createDevice(ids("device"), "limiter", 0);
-    expect(peak(await render([limiter]))).toBeLessThanOrEqual(10 ** (-0.3 / 20) + 1e-6);
+    expect(peak(await render([limiter]))).toBeLessThanOrEqual(ceiling);
+    // The master fader comes before the chain here, so even at its +6 dB top
+    // it drives into the Limiter rather than lifting its output past the
+    // ceiling (the #837 clipping a new project's Limiter exists to prevent).
+    expect(peak(await render([limiter], { volume: 6 }))).toBeLessThanOrEqual(ceiling);
+
+    // Turning the safety limiter back on restores the original order:
+    // chain -> volume -> safety limiter, which catches the overload again.
+    expect(peakWindow(await render([], { restore: true }), 0.5, 0.9)).toBeLessThan(2);
   });
 
   it("renders silence when nothing is connected, and the meter reads no signal", async () => {

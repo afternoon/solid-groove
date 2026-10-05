@@ -388,7 +388,8 @@ read the same. Parked at `test.fixme` until #817's stack lands.
 
 **Revised for #937.** A new project's master starts with a visible Limiter in place
 of the hidden safety limiter (a product-owner decision), so step 4 finds the Limiter
-alone on the master chain rather than an empty chain. The overdrive goes on after it;
+alone on the master chain rather than an empty chain. The overdrive goes on before it,
+since a new master device never goes after a Limiter at the end;
 what the flow proves is unchanged.
 
 **Preconditions:** signed in with no projects.
@@ -965,7 +966,8 @@ the project dashboard
    on step 9, so the sample plays at four pitches and three at a time.
 5. Add a reverb to the Piano track's effects.
 6. Switch to the mixer and select the master strip. Add a saturator, then a compressor,
-   to the master's effects, after the Limiter a new project starts with (#937).
+   to the master's effects. Both land before the Limiter a new project starts with,
+   which stays last (#937).
 7. There are now five tracks, each with a clip in bar 1. Play the song, then stop.
 8. Press Export in the editor header. A dialog opens with two choices, Stereo WAV and
    Stems (ZIP). Stereo WAV is chosen.
@@ -1004,7 +1006,8 @@ project dashboard
    on step 9, so the sample plays at four pitches and three at a time.
 5. Add a reverb to the Piano track's effects.
 6. Switch to the mixer and select the master strip. Add a saturator, then a compressor,
-   to the master's effects, after the Limiter a new project starts with (#937).
+   to the master's effects. Both land before the Limiter a new project starts with,
+   which stays last (#937).
 7. There are now five tracks, each with a clip in bar 1. Play the song, then stop.
 8. Press Export in the editor header and choose Stems (ZIP). No bit-depth choice
    appears: stems are always 24-bit.
