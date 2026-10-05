@@ -10,6 +10,7 @@ import {
 import { PlayIcon, StopIcon } from "../components/icons";
 import { ariaBool } from "../shared/aria";
 import { AuditionController, type PreviewEngine } from "./audition";
+import type { FavouriteMarks } from "./favourites";
 import MiniWaveform from "./MiniWaveform";
 import type { LibraryAsset } from "./manifest";
 import SoundRow, { lengthLabel, SimilarIcon } from "./SoundRow";
@@ -54,6 +55,8 @@ export interface SimilarSoundsViewProps {
   /** What the list is called, for the back button ("Kicks", "All drums", a pack). */
   readonly backLabel?: string;
   /** Auditions results and the reference. Without one the view is silent. */
+  /** The hearts' state and toggle (#815). Unset leaves them disabled. */
+  readonly favourites?: FavouriteMarks;
   readonly previewEngine?: PreviewEngine;
   /** The selected row's waveform colour. */
   readonly trackColor?: string;
@@ -261,6 +264,20 @@ export default function SimilarSoundsView(props: SimilarSoundsViewProps): JSX.El
                 error={null}
                 color={props.trackColor}
                 match={result.percent}
+                favourite={
+                  props.favourites?.isFavourite({
+                    packId: result.asset.packId,
+                    assetId: result.asset.id,
+                  }) ?? false
+                }
+                onFavourite={
+                  props.favourites &&
+                  (() =>
+                    props.favourites?.toggle({
+                      packId: result.asset.packId,
+                      assetId: result.asset.id,
+                    }))
+                }
                 onSelect={() => select(result.asset)}
                 onSimilar={() => hop(result.asset)}
               />

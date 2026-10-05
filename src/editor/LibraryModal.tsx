@@ -3,6 +3,7 @@ import { createMemo, createSignal, onSettled } from "solid-js";
 import type { Analytics } from "../analytics/analytics";
 import { loadEveryAsset } from "../library/allAssets";
 import type { PreviewEngine } from "../library/audition";
+import type { FavouriteMarks } from "../library/favourites";
 import { type LibraryClient, sharedLibraryClient } from "../library/libraryClient";
 import MyPacks from "../library/MyPacks";
 import type {
@@ -13,9 +14,10 @@ import type {
 import PackBanner from "../library/PackBanner";
 import PacksView from "../library/PacksView";
 import SimilarSoundsView from "../library/SimilarSoundsView";
-import SoundsView from "../library/SoundsView";
+import SoundsView, { type SoundsPlace } from "../library/SoundsView";
 import { type SlotAudition, slotPreviewEngine } from "../library/slotAudition";
 import type { SoundsKeyAction } from "../library/soundKeys";
+import type { Favourites } from "../library/useFavourites";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import { ariaBool } from "../shared/aria";
 import type { ShortcutActionId } from "../shortcuts";
@@ -27,7 +29,7 @@ import type { LibraryInsertOptions, LibraryInsertOutcome } from "./libraryInsert
 import ViewFrame from "./ViewFrame";
 import "./LibraryModal.css";
 
-/** What the rail can show. Only `all` is built; the rest are placeholders for later parts. */
+/** What the rail can show. */
 export type LibraryView = "packs" | "all" | "favourites" | "recent";
 
 interface RailItem {
@@ -65,6 +67,8 @@ export interface LibraryActions {
   press(action: ShortcutActionId): void;
   /** Open similar sounds for the selected sound; false when none is selected. */
   similar(): boolean;
+  /** `L`: favourite the selected sound, or take it out; false when it cannot. */
+  like(): boolean;
   /**
    * Back out of the innermost sub-view: similar sounds, then an opened pack,
    * then Browse packs. False when there was none to leave.
@@ -135,6 +139,11 @@ export interface LibraryModalProps {
   readonly userLibrary?: UserLibrary;
   /** Whether the open project uses a sound, so deleting one warns first. */
   isInUse?(asset: LibraryAsset): boolean;
+  /**
+   * The producer's favourite sounds (#815): the hearts, `L`, and the
+   * Favourites place. Unset (nobody signed in) leaves the hearts disabled.
+   */
+  readonly favourites?: Favourites;
 }
 
 /** How long a committed insert stays marked on the slot's readout. */
@@ -292,7 +301,9 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
     () => similarOf() === null && view() === "packs" && packScope() === null,
   );
   const showsSounds = createMemo(
-    () => similarOf() === null && (view() === "all" || packScope() !== null),
+    () =>
+      similarOf() === null &&
+      (view() === "all" || view() === "favourites" || packScope() !== null),
   );
   // The rail's *In this project*: the project's pack dependencies and shelf.
   const [indexed, setIndexed] = createSignal<readonly LibraryPackSummary[]>([]);
@@ -414,6 +425,47 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
     setSimilarOf(asset);
     void loadEveryAsset(client).then(setEveryAsset, () => setEveryAsset([]));
   }
+
+  // The hearts, as every list of sounds reads and toggles them.
+  const marks = (): FavouriteMarks | undefined => {
+    const favourites = props.favourites;
+    if (!favourites) return undefined;
+    return {
+      isFavourite: (sound) => favourites.isFavourite(sound),
+      toggle: (sound) => void favourites.toggle(sound),
+    };
+  };
+
+  function like(): boolean {
+    const asset = selected();
+    if (!asset || !props.favourites) return false;
+    void props.favourites.toggle({ packId: asset.packId, assetId: asset.id });
+    return true;
+  }
+
+  // The place the sounds view lists, when it is not every sound.
+  const soundsPlace = (): SoundsPlace | null => {
+    if (packScope() !== null || view() !== "favourites") return null;
+    const favourites = props.favourites;
+    const loading =
+      favourites !== undefined && !favourites.loaded() && !favourites.failed();
+    return {
+      key: "favourites",
+      label: "Favourites",
+      sounds: favourites?.list() ?? [],
+      showsMissing: favourites?.loaded() ?? false,
+      empty: loading
+        ? { title: "Loading your favourites…", hint: "" }
+        : {
+            title: "No favourites yet.",
+            hint: `Press the heart on a sound${
+              keyOf("library.like")
+                ? `, or ${keyOf("library.like")} on the one you're hearing,`
+                : ""
+            } to keep it here. Your favourites follow you to every project.`,
+          },
+    };
+  };
 
   function similar(): boolean {
     const asset = selected();
@@ -561,6 +613,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
       insertSelected,
       press,
       similar,
+      like,
       back,
       toggleKeys,
       closeKeys,
@@ -580,7 +633,11 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   const place = (): LibraryPlace =>
     similarOf() ? "similar" : showsPacks() ? "packs" : showsSounds() ? "sounds" : "other";
 
-  function RailButton(railProps: { item: RailItem; browse?: boolean }): JSX.Element {
+  function RailButton(railProps: {
+    item: RailItem;
+    browse?: boolean;
+    count?: number;
+  }): JSX.Element {
     return (
       <button
         type="button"
@@ -593,6 +650,10 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
           <GridIcon />
         </Show>
         <span>{railProps.item.label}</span>
+        <Show when={railProps.count !== undefined}>
+          {/* The space keeps the count a word of its own beside the key. */}
+          <small>{railProps.count}</small>{" "}
+        </Show>
         <Key label={keyOf(railProps.item.action)} />
       </button>
     );
@@ -711,7 +772,23 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
       <div class="library-modal-body">
         <nav class="library-modal-rail" aria-label="Places">
           <RailButton item={BROWSE} browse />
-          <For each={PLACES}>{(item) => <RailButton item={item} />}</For>
+          <For each={PLACES}>
+            {(item) => (
+              <RailButton
+                item={item}
+                count={
+                  item.id === "favourites" && props.favourites?.loaded()
+                    ? props.favourites.list().length
+                    : undefined
+                }
+              />
+            )}
+          </For>
+          <Show when={props.favourites?.failed()}>
+            <output class="library-modal-rail-note">
+              Favourites couldn't be saved or loaded. Try again.
+            </output>
+          </Show>
           <Show when={props.userLibrary}>
             {(userLibrary) => (
               <MyPacks
@@ -755,6 +832,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
                 previewEngine={previewEngine}
                 trackColor={props.trackColor}
                 onSelect={setSelected}
+                favourites={marks()}
                 onBack={back}
                 backLabel={listLabel()}
                 onKeys={(handler) => {
@@ -815,16 +893,12 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
               onAuditioner={(handler) => {
                 auditionSound = handler;
               }}
+              place={soundsPlace()}
+              favourites={marks()}
             />
           </div>
-          <Show
-            when={
-              similarOf() === null && (view() === "favourites" || view() === "recent")
-            }
-          >
-            <p class="library-modal-empty">
-              {(view() === "recent" ? RECENT : PLACES[1]).label} will appear here.
-            </p>
+          <Show when={similarOf() === null && view() === "recent"}>
+            <p class="library-modal-empty">{RECENT.label} will appear here.</p>
           </Show>
         </div>
       </div>

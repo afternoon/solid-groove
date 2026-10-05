@@ -7,6 +7,7 @@ import type { PreviewEngine } from "../library/audition";
 import type { LibraryClient } from "../library/libraryClient";
 import type { LibraryAsset } from "../library/manifest";
 import { ToneAuditionEngine } from "../library/toneAuditionEngine";
+import type { Favourites } from "../library/useFavourites";
 import type { ShortcutActionId } from "../shortcuts";
 import type { UserLibrary } from "../userLibrary/useUserLibrary";
 import type { EmptyViewFix } from "./EmptyView";
@@ -41,6 +42,8 @@ export interface LibraryPaneProps {
   /** The producer's own packs (#282), held by the editor so an import keeps
    * going after you leave the Library view. */
   readonly userLibrary: UserLibrary;
+  /** The producer's favourite sounds (#815), held by the editor. */
+  readonly favourites?: Favourites;
 }
 
 /** What the sounds view opens on, for each Library target (LIB-010). */
@@ -111,6 +114,7 @@ export default function LibraryPane(props: LibraryPaneProps): JSX.Element {
           onInsertAndReturn={() => library.returnFromInsert("library_insert")}
           userLibrary={props.userLibrary}
           isInUse={projectUses}
+          favourites={props.favourites}
         />
       )}
     </Show>

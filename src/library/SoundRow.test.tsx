@@ -83,7 +83,7 @@ describe("SoundRow", () => {
     expect(screen.getByRole("listitem")).toHaveTextContent("124 BPM · 4 bars");
   });
 
-  it("selects on click, opens similar sounds from its icon, and has an inert heart", async () => {
+  it("selects on click, opens similar sounds from its icon, and has an inert heart without favourites", async () => {
     const [asset] = await fixtureAssets();
     const { onSelect, onSimilar } = renderRow(asset);
 
@@ -95,6 +95,28 @@ describe("SoundRow", () => {
     expect(
       screen.getByRole("button", { name: `Favourite ${asset.name}` }),
     ).toBeDisabled();
+  });
+
+  it("toggles a favourite from its heart, pressed and filled while it is one (#815)", async () => {
+    const [asset] = await fixtureAssets();
+    const onFavourite = vi.fn();
+    renderRow(asset, { favourite: true, onFavourite });
+
+    const heart = screen.getByRole("button", { name: `Favourite ${asset.name}` });
+    expect(heart).toBeEnabled();
+    expect(heart).toHaveAttribute("aria-pressed", "true");
+    expect(heart).toHaveClass("sound-row-favourite");
+    fireEvent.click(heart);
+    expect(onFavourite).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves a heart unpressed for a sound that is not a favourite", async () => {
+    const [asset] = await fixtureAssets();
+    renderRow(asset, { favourite: false, onFavourite: vi.fn() });
+
+    const heart = screen.getByRole("button", { name: `Favourite ${asset.name}` });
+    expect(heart).toHaveAttribute("aria-pressed", "false");
+    expect(heart).not.toHaveClass("sound-row-favourite");
   });
 
   it("marks the selected row, draws its waveform in the track colour, and reports errors", async () => {

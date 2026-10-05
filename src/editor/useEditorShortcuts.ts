@@ -364,6 +364,8 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     "library.all_sounds": inLibrary((a) => a.showView("all")),
     "library.favourites": inLibrary((a) => a.showView("favourites")),
     "library.browse_packs": inLibrary((a) => a.showView("packs")),
+    // `L` favourites the selected sound, or takes it out (#815).
+    "library.like": inLibrary((a) => a.like()),
     // Enter inserts and goes back to the instrument, as the Insert button
     // does; Shift+Enter inserts and stays, so another sound can be tried
     // (UI-002). Each insert is one history entry.

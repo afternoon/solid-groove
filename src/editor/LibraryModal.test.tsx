@@ -8,6 +8,9 @@ import {
 } from "@solidjs/testing-library";
 import { flush } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { Analytics } from "../analytics/analytics";
+import { ConsentStore } from "../analytics/consent";
+import { createRecordingTransport } from "../analytics/transport";
 import type { PackId } from "../domain/ids";
 import { fakePreviewEngine } from "../library/__fixtures__/fakePreviewEngine";
 import {
@@ -17,7 +20,11 @@ import {
 } from "../library/__fixtures__/fixtures";
 import { LibraryClient } from "../library/libraryClient";
 import { packAssets, parsePackManifest } from "../library/manifest";
+import { useFavourites } from "../library/useFavourites";
+import { InMemoryFavouritesRepository } from "../persistence/inMemoryFavouritesRepository";
+import { createManualClock } from "../shared/clock";
 import { clickAndFlush } from "../testing/events";
+import { memoryStorage } from "../testing/storage";
 import { createInMemoryUserLibraryRepository } from "../userLibrary/inMemoryUserLibraryRepository";
 import { addSound, newUserPack, type UserPackAsset } from "../userLibrary/userPacks";
 import { useUserLibrary } from "../userLibrary/useUserLibrary";
@@ -198,7 +205,7 @@ describe("LibraryModal shell", () => {
     expect(screen.queryByText("Couldn't insert it: no sampler.")).toBeNull();
   });
 
-  it("badges the rail and footer from the registry, and swaps in placeholders", () => {
+  it("badges the rail and footer from the registry, and says how to fill a place", async () => {
     renderShell({ keyLabel: (action) => `<${action}>` });
     const rail = within(screen.getByRole("navigation", { name: "Places" }));
     const place = (name: string) => rail.getByRole("button", { name: new RegExp(name) });
@@ -210,10 +217,20 @@ describe("LibraryModal shell", () => {
       "<help.shortcut_guide>",
     );
 
+    // Favourites is a list of sounds like All sounds (#815): empty, it says
+    // how to fill it, naming the registry's key for Like.
     clickAndFlush(place("Favourites"));
+    expect(place("Favourites")).toHaveAttribute("aria-current", "true");
+    expect(screen.getByRole("region", { name: "Browse sounds" })).toBeVisible();
+    expect(await screen.findByText("No favourites yet.")).toBeVisible();
+    expect(
+      screen.getByText(/Press the heart on a sound, or <library.like>/),
+    ).toBeVisible();
+
+    clickAndFlush(place("Recently viewed"));
     expect(screen.queryByRole("region", { name: "Browse sounds" })).toBeNull();
-    expect(screen.getByText("Favourites will appear here.")).toBeVisible();
-    // Shuffle picks from a list of sounds, which only All sounds has for now.
+    expect(screen.getByText("Recently viewed will appear here.")).toBeVisible();
+    // Shuffle picks from a list of sounds, which a placeholder does not have.
     expect(screen.getByRole("button", { name: /Shuffle/ })).toBeDisabled();
   });
 
@@ -1001,5 +1018,131 @@ describe("LibraryModal with the producer's own packs (#282)", () => {
     expect(
       within(myPacks).getByRole("button", { name: "Audition tape kick" }),
     ).toHaveAttribute("aria-pressed", "true");
+  });
+});
+
+describe("LibraryModal favourites (#815)", () => {
+  const UID = "user_fav";
+  const pack = FIXTURE_PACK_INDEX_DOC.packs[0];
+  const packId = pack.id as PackId;
+
+  function renderWithFavourites(repository: InMemoryFavouritesRepository) {
+    const onActions = vi.fn();
+    const transport = createRecordingTransport();
+    const analytics = new Analytics({
+      transport,
+      consent: new ConsentStore(memoryStorage()),
+      storage: memoryStorage(),
+    });
+    render(() => {
+      const favourites = useFavourites({
+        uid: () => UID,
+        repository: async () => repository,
+        analytics,
+      });
+      return (
+        <LibraryModal
+          client={new LibraryClient(fixtureFetcher())}
+          previewEngine={fakePreviewEngine()}
+          onInsert={() => undefined}
+          addedPackIds={[pack.id]}
+          keyLabel={(action) => (action === "library.like" ? "L" : "")}
+          onActions={onActions}
+          favourites={favourites}
+        />
+      );
+    });
+    const rail = within(screen.getByRole("navigation", { name: "Places" }));
+    return {
+      transport,
+      actions: () => onActions.mock.calls[0][0] as LibraryActions,
+      favouritesPlace: () => rail.getByRole("button", { name: /^Favourites/ }),
+      allSounds: () => rail.getByRole("button", { name: /^All sounds/ }),
+    };
+  }
+
+  const rows = () =>
+    within(screen.getByRole("list", { name: "Sounds" }))
+      .getAllByRole("button", { name: /^Audition / })
+      .map((button) => button.getAttribute("aria-label")?.replace(/^Audition /, ""));
+  const heart = (name: string) =>
+    screen.getByRole("button", { name: `Favourite ${name}` });
+
+  it("toggles a favourite with its heart, counting it in the rail", async () => {
+    const repository = new InMemoryFavouritesRepository();
+    const { favouritesPlace, transport } = renderWithFavourites(repository);
+    await screen.findAllByRole("listitem");
+    const [first] = rows() as string[];
+    await waitFor(() => expect(favouritesPlace()).toHaveTextContent(/^Favourites0/));
+    expect(heart(first)).toHaveAttribute("aria-pressed", "false");
+
+    clickAndFlush(heart(first));
+
+    await waitFor(() => expect(heart(first)).toHaveAttribute("aria-pressed", "true"));
+    await waitFor(() => expect(favouritesPlace()).toHaveTextContent(/^Favourites1/));
+    const stored = await repository.listFavourites(UID);
+    expect(stored.ok && stored.favourites.map((f) => f.packId)).toEqual([packId]);
+    const changes = transport.events.filter(
+      (e) => e.name === "library_favourite_changed",
+    );
+    expect(changes.map((e) => e.params.favourited)).toEqual([true]);
+    expect(JSON.stringify(changes[0].params)).not.toContain(first);
+
+    clickAndFlush(heart(first));
+    await waitFor(() => expect(heart(first)).toHaveAttribute("aria-pressed", "false"));
+    await waitFor(() => expect(favouritesPlace()).toHaveTextContent(/^Favourites0/));
+  });
+
+  it("favourites the selected sound on L, and does nothing with none selected", async () => {
+    const repository = new InMemoryFavouritesRepository();
+    const { actions } = renderWithFavourites(repository);
+    const [row] = await screen.findAllByRole("listitem");
+    expect(actions().like()).toBe(false);
+
+    fireEvent.click(row.querySelector(".sound-row-main") as HTMLElement);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /^Insert ./ })).toBeVisible(),
+    );
+    const [first] = rows() as string[];
+    expect(actions().like()).toBe(true);
+
+    await waitFor(() => expect(heart(first)).toHaveAttribute("aria-pressed", "true"));
+  });
+
+  it("lists only the favourites, newest first, and a missing one as missing", async () => {
+    const repository = new InMemoryFavouritesRepository({ clock: createManualClock(1) });
+    const { favouritesPlace, allSounds } = renderWithFavourites(repository);
+    await screen.findAllByRole("listitem");
+    const kicks = rows() as string[];
+    expect(kicks.length).toBeGreaterThan(2);
+    // Favourite the second kick, then the first: the first is the newest.
+    clickAndFlush(heart(kicks[1]));
+    await waitFor(() => expect(heart(kicks[1])).toHaveAttribute("aria-pressed", "true"));
+    clickAndFlush(heart(kicks[0]));
+    await waitFor(() => expect(heart(kicks[0])).toHaveAttribute("aria-pressed", "true"));
+    await repository.addFavourite(UID, { packId, assetId: "a-sound-since-removed" });
+    await repository.addFavourite(UID, {
+      packId: "pak_nopacknopacknopacknop" as PackId,
+      assetId: "from-a-pack-gone",
+    });
+    await waitFor(() => expect(favouritesPlace()).toHaveTextContent(/^Favourites4/));
+
+    clickAndFlush(favouritesPlace());
+
+    await waitFor(() => expect(rows()).toEqual([kicks[0], kicks[1]]));
+    const missing = within(screen.getByRole("list", { name: "Missing favourites" }));
+    expect(missing.getAllByText("Missing sound")).toHaveLength(2);
+    expect(missing.getByText("It's no longer in its pack.")).toBeVisible();
+    expect(missing.getByText("Its pack isn't available.")).toBeVisible();
+
+    // Its heart is how a producer takes a missing favourite out.
+    clickAndFlush(
+      missing.getAllByRole("button", { name: "Remove missing sound from favourites" })[0],
+    );
+    await waitFor(() => expect(favouritesPlace()).toHaveTextContent(/^Favourites3/));
+
+    // All sounds is still every sound.
+    clickAndFlush(allSounds());
+    await waitFor(() => expect(rows()).toEqual(kicks));
   });
 });

@@ -1157,8 +1157,8 @@ tests cover.
 **Revised for #817 (five views on `1`–`5`).** The library is a view on `4`,
 so leaving it without inserting is pressing 3, not closing a window.
 
-**Preconditions:** signed in with no projects and no favourites. Depends on
-#691: until per-user favourites exist, this flow cannot be walked.
+**Preconditions:** signed in with no projects and no favourites. Favourites
+are stored per user by #691; #815 built the hearts and the Favourites place.
 
 1. Create a new project, go to the instrument view and press the "BD" pad's
    sample slot. The editor goes to the Library view.

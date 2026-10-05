@@ -1,11 +1,17 @@
 import { For, type JSX, Show } from "@solidjs/web";
-import { HiSolidExclamationTriangle } from "solid-icons/hi";
+import { HiSolidExclamationTriangle, HiSolidHeart } from "solid-icons/hi";
 import { createEffect, createMemo, createSignal, onSettled } from "solid-js";
 import type { Analytics } from "../analytics/analytics";
 import TapeLoader from "../components/TapeLoader";
 import type { ShortcutActionId } from "../shortcuts";
 import type { PreviewEngine } from "./audition";
 import FilterRow from "./FilterRow";
+import {
+  type FavouriteMarks,
+  type MissingFavouriteReason,
+  resolveFavourites,
+  type SoundKey,
+} from "./favourites";
 import { filterSounds, genreCounts, roleJumps } from "./filters";
 import type { LibraryClient } from "./libraryClient";
 import { LOAD_REASON_LABELS } from "./loadReasons";
@@ -20,6 +26,32 @@ import { useLibraryBrowser } from "./useLibraryBrowser";
 import { type ShelfSlot, useShelf } from "./useShelf";
 import { useSoundFilters } from "./useSoundFilters";
 import "./SoundsView.css";
+
+/**
+ * A place in the rail that lists its own sounds (#815): Favourites or Recently
+ * heard. Its sounds are pack-qualified references, in the order the place
+ * keeps them, and show under the same shelf, filters and rows as All sounds.
+ */
+export interface SoundsPlace {
+  readonly key: "favourites" | "recent";
+  /** What the list is called, for similar sounds' way back to it. */
+  readonly label: string;
+  readonly sounds: readonly SoundKey[];
+  /** Whether a sound that no longer resolves is listed as missing. */
+  readonly showsMissing: boolean;
+  /** What the place says while it holds nothing, and how to fill it. */
+  readonly empty: { readonly title: string; readonly hint: string };
+}
+
+const MISSING_REASONS: Record<MissingFavouriteReason, string> = {
+  pack_unavailable: "Its pack isn't available.",
+  asset_unavailable: "It's no longer in its pack.",
+};
+
+const keyOf = (asset: LibraryAsset): SoundKey => ({
+  packId: asset.packId,
+  assetId: asset.id,
+});
 
 export interface SoundsViewProps {
   readonly client?: LibraryClient;
@@ -69,6 +101,10 @@ export interface SoundsViewProps {
    * view (a personal pack in the rail) is heard through the same one voice.
    */
   onAuditioner?(handler: ((asset: LibraryAsset) => void) | null): void;
+  /** Lists only this place's sounds, in its order. Unset is every sound. */
+  readonly place?: SoundsPlace | null;
+  /** The hearts' state and toggle. Unset leaves every heart disabled. */
+  readonly favourites?: FavouriteMarks;
 }
 
 /**
@@ -116,8 +152,40 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
     genreButton?.focus();
     return true;
   }
+  const everySound = createMemo(() => [
+    ...browser.assets(),
+    ...(props.extraAssets ?? []),
+  ]);
+  // A place's sounds against what the library holds: a pack that failed to
+  // load is not held, so its sounds read as missing rather than gone.
+  const resolved = createMemo(() => {
+    const place = props.place;
+    if (!place) return null;
+    const failed = new Set(browser.packErrors().map((error) => error.packSlug));
+    const packIds = [
+      ...browser
+        .packs()
+        .filter((pack) => !failed.has(pack.slug))
+        .map((pack) => pack.id),
+      ...(props.extraPacks ?? []).map((pack) => pack.id),
+    ];
+    return resolveFavourites(place.sounds, { packIds, assets: everySound() });
+  });
+  const missing = createMemo(() =>
+    props.place?.showsMissing
+      ? (resolved() ?? []).flatMap((entry) => (entry.status === "missing" ? [entry] : []))
+      : [],
+  );
+  const placeEmpty = () => props.place?.sounds.length === 0;
+  const inScope = createMemo(() => {
+    const entries = resolved();
+    if (!entries) return everySound();
+    return entries.flatMap((entry) =>
+      entry.status === "available" ? [entry.asset] : [],
+    );
+  });
   const typed = createMemo(() =>
-    [...browser.assets(), ...(props.extraAssets ?? [])]
+    inScope()
       .filter((asset) => !props.assetTypes || props.assetTypes.includes(asset.type))
       .filter((asset) => !props.packSlug || asset.packSlug === props.packSlug),
   );
@@ -155,12 +223,13 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
     shelf: ReturnType<typeof shelf.picked>;
     filters: ReturnType<typeof filters.snapshot>;
   } | null = null;
+  // A place in the rail (Favourites, Recently heard) is kept the same way.
   createEffect(
-    () => props.packSlug ?? null,
-    (slug) => {
-      if (slug !== null && outsidePack === null) {
+    () => props.packSlug ?? props.place?.key ?? null,
+    (scope) => {
+      if (scope !== null && outsidePack === null) {
         outsidePack = { shelf: shelf.picked(), filters: filters.snapshot() };
-      } else if (slug === null && outsidePack !== null) {
+      } else if (scope === null && outsidePack !== null) {
         shelf.restore(outsidePack.shelf);
         filters.restore(outsidePack.filters);
         outsidePack = null;
@@ -234,6 +303,7 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
   // The list's name, as similar sounds' back button reads it.
   const listLabel = (): string => {
     if (props.packSlug) return typed()[0]?.packName ?? "Pack";
+    if (props.place) return props.place.label;
     const { family: shelfFamily, role } = shelf.selection();
     return role ? groupLabel(shelfFamily, role, false) : allLabel(shelfFamily);
   };
@@ -297,87 +367,137 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
               </button>
             </div>
           </Show>
-          <Show when={shelf.families().length > 0}>
-            <Shelf
-              families={shelf.families()}
-              family={family()}
-              roles={shelf.roles()}
-              role={shelf.selection().role}
-              keyLabel={props.keyLabel}
-              onFamily={shelf.setFamily}
-              onRole={shelf.setRole}
-            />
-          </Show>
-          <Show when={jumps().length > 0}>
-            <div class="role-jumps">
-              <span class="filter-label">Categories</span>
-              <For each={jumps()}>
-                {(jump) => (
-                  <button
-                    type="button"
-                    class="shelf-chip"
-                    onClick={() => {
-                      shelf.select(jump.family, jump.role);
-                      props.onQueryChange?.("");
-                    }}
-                  >
-                    {jump.label} →
-                  </button>
-                )}
-              </For>
+          <Show when={placeEmpty()}>
+            <div class="sounds-empty">
+              <p>
+                <b>{props.place?.empty.title}</b>
+              </p>
+              <p>{props.place?.empty.hint}</p>
             </div>
           </Show>
-          <FilterRow
-            genres={genres()}
-            selectedGenres={filters.genres()}
-            menuOpen={genreMenuOpen()}
-            loops={family() === "loops"}
-            tempo={filters.tempo()}
-            songBpm={props.songBpm ?? 120}
-            bars={filters.bars()}
-            count={sounds().length}
-            keyLabel={props.keyLabel}
-            onMenuOpen={setGenreMenuOpen}
-            genreButtonRef={(button) => {
-              genreButton = button;
-            }}
-            onGenre={filters.toggleGenre}
-            onClearGenres={() => {
-              filters.clearGenres();
-              setGenreMenuOpen(false);
-            }}
-            onTempo={filters.setTempo}
-            onBars={filters.setBars}
-          />
-          <Show
-            when={sounds().length > 0}
-            fallback={
-              <div class="sounds-empty">
-                <p>No sounds match these filters.</p>
-                <Show when={narrowed()}>
-                  <button type="button" onClick={() => clearFilters()}>
-                    Clear the filters
-                  </button>
-                </Show>
+          <Show when={!placeEmpty()}>
+            <Show when={shelf.families().length > 0}>
+              <Shelf
+                families={shelf.families()}
+                family={family()}
+                roles={shelf.roles()}
+                role={shelf.selection().role}
+                keyLabel={props.keyLabel}
+                onFamily={shelf.setFamily}
+                onRole={shelf.setRole}
+              />
+            </Show>
+            <Show when={jumps().length > 0}>
+              <div class="role-jumps">
+                <span class="filter-label">Categories</span>
+                <For each={jumps()}>
+                  {(jump) => (
+                    <button
+                      type="button"
+                      class="shelf-chip"
+                      onClick={() => {
+                        shelf.select(jump.family, jump.role);
+                        props.onQueryChange?.("");
+                      }}
+                    >
+                      {jump.label} →
+                    </button>
+                  )}
+                </For>
               </div>
-            }
-          >
-            <ul class="sounds-list" aria-label="Sounds" ref={list}>
-              <For each={sounds()}>
-                {(asset) => (
-                  <SoundRow
-                    asset={asset}
-                    selected={selectedId() === asset.id}
-                    tabbable={tabStop() === asset.id}
-                    playing={browser.auditioningId() === asset.id}
-                    error={browser.assetErrors().get(asset.id) ?? null}
-                    color={props.trackColor}
-                    onSelect={() => void browser.audition(asset)}
-                    onSimilar={() => props.onSimilar(asset)}
-                  />
-                )}
-              </For>
-            </ul>
+            </Show>
+            <FilterRow
+              genres={genres()}
+              selectedGenres={filters.genres()}
+              menuOpen={genreMenuOpen()}
+              loops={family() === "loops"}
+              tempo={filters.tempo()}
+              songBpm={props.songBpm ?? 120}
+              bars={filters.bars()}
+              count={sounds().length}
+              keyLabel={props.keyLabel}
+              onMenuOpen={setGenreMenuOpen}
+              genreButtonRef={(button) => {
+                genreButton = button;
+              }}
+              onGenre={filters.toggleGenre}
+              onClearGenres={() => {
+                filters.clearGenres();
+                setGenreMenuOpen(false);
+              }}
+              onTempo={filters.setTempo}
+              onBars={filters.setBars}
+            />
+            <Show
+              when={sounds().length > 0}
+              fallback={
+                <Show when={!props.place || typed().length > 0 || missing().length === 0}>
+                  <div class="sounds-empty">
+                    <p>
+                      {props.place && typed().length === 0
+                        ? "None of these sounds can go in this slot."
+                        : "No sounds match these filters."}
+                    </p>
+                    <Show when={narrowed()}>
+                      <button type="button" onClick={() => clearFilters()}>
+                        Clear the filters
+                      </button>
+                    </Show>
+                  </div>
+                </Show>
+              }
+            >
+              <ul class="sounds-list" aria-label="Sounds" ref={list}>
+                <For each={sounds()}>
+                  {(asset) => (
+                    <SoundRow
+                      asset={asset}
+                      selected={selectedId() === asset.id}
+                      tabbable={tabStop() === asset.id}
+                      playing={browser.auditioningId() === asset.id}
+                      error={browser.assetErrors().get(asset.id) ?? null}
+                      color={props.trackColor}
+                      favourite={props.favourites?.isFavourite(keyOf(asset)) ?? false}
+                      onFavourite={
+                        props.favourites && (() => props.favourites?.toggle(keyOf(asset)))
+                      }
+                      onSelect={() => void browser.audition(asset)}
+                      onSimilar={() => props.onSimilar(asset)}
+                    />
+                  )}
+                </For>
+              </ul>
+            </Show>
+            <Show when={missing().length > 0}>
+              <ul class="sounds-list" aria-label="Missing favourites">
+                <For each={missing()}>
+                  {(entry) => (
+                    <li class="sound-row sound-row-missing">
+                      <span class="sound-row-main">
+                        <HiSolidExclamationTriangle size={12} aria-hidden="true" />
+                        <span class="sound-row-text">
+                          <b class="sound-row-name">Missing sound</b>
+                          <span class="sound-row-meta">
+                            {MISSING_REASONS[entry.reason]}
+                          </span>
+                        </span>
+                      </span>
+                      <button
+                        type="button"
+                        class="sound-row-icon sound-row-favourite"
+                        tabindex={-1}
+                        aria-label="Remove missing sound from favourites"
+                        aria-pressed="true"
+                        disabled={!props.favourites}
+                        onClick={() => props.favourites?.toggle(entry.favourite)}
+                      >
+                        <HiSolidHeart size={15} />
+                      </button>
+                    </li>
+                  )}
+                </For>
+              </ul>
+            </Show>
           </Show>
         </Show>
       </Show>

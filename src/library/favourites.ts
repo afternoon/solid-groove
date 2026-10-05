@@ -31,11 +31,26 @@ export interface FavouriteCandidate {
   readonly packId: string;
 }
 
-export type ResolvedFavourite<A extends FavouriteCandidate> =
-  | { readonly status: "available"; readonly favourite: Favourite; readonly asset: A }
+/** A pack-qualified reference to a library sound, as stored or remembered. */
+export interface SoundKey {
+  readonly packId: string;
+  readonly assetId: string;
+}
+
+/** A producer's favourites as a row's heart reads and toggles them (#815). */
+export interface FavouriteMarks {
+  isFavourite(sound: SoundKey): boolean;
+  toggle(sound: SoundKey): void;
+}
+
+export type ResolvedFavourite<
+  A extends FavouriteCandidate,
+  F extends SoundKey = Favourite,
+> =
+  | { readonly status: "available"; readonly favourite: F; readonly asset: A }
   | {
       readonly status: "missing";
-      readonly favourite: Favourite;
+      readonly favourite: F;
       readonly reason: MissingFavouriteReason;
     };
 
@@ -47,12 +62,14 @@ export interface FavouriteLibrary<A extends FavouriteCandidate> {
 
 /**
  * Resolves each favourite against the library, in the favourites' own order.
- * Every favourite yields exactly one entry, available or missing.
+ * Every favourite yields exactly one entry, available or missing. Any
+ * pack-qualified reference resolves the same way, so the library's recently
+ * heard sounds (#815) use it too.
  */
-export function resolveFavourites<A extends FavouriteCandidate>(
-  favourites: readonly Favourite[],
-  library: FavouriteLibrary<A>,
-): ResolvedFavourite<A>[] {
+export function resolveFavourites<
+  A extends FavouriteCandidate,
+  F extends SoundKey = Favourite,
+>(favourites: readonly F[], library: FavouriteLibrary<A>): ResolvedFavourite<A, F>[] {
   const packs = new Set(library.packIds);
   const assets = new Map<string, A>();
   for (const asset of library.assets) {
@@ -60,7 +77,7 @@ export function resolveFavourites<A extends FavouriteCandidate>(
     assets.set(soundKey(asset.packId, asset.id), asset);
   }
 
-  return favourites.map((favourite) => {
+  return favourites.map((favourite): ResolvedFavourite<A, F> => {
     const asset = assets.get(soundKey(favourite.packId, favourite.assetId));
     if (asset) return { status: "available", favourite, asset };
     return {
@@ -71,7 +88,8 @@ export function resolveFavourites<A extends FavouriteCandidate>(
   });
 }
 
-function soundKey(packId: string, assetId: string): string {
+/** One string per pack-qualified sound, for a set or map of them. */
+export function soundKey(packId: string, assetId: string): string {
   return `${packId}\u0000${assetId}`;
 }
 
