@@ -1,6 +1,10 @@
 # secrets
 .env
 .firebaserc
+# Cloud Functions params and secrets for the emulator. It writes
+# `functions/.env.local` itself when a param has no value (#1112).
+.env.local
+.secret.local
 
 # build dirs
 node_modules/

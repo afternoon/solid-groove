@@ -84,6 +84,40 @@ People who are refused see a page saying they are not on the alpha list yet,
 with a Request access button to the form (`requestAccessUrl` in
 `site.config.mjs`).
 
+## Email alerts for blocked sign-ins
+
+A Firestore trigger (`allowlistBlockedSignInAlert` in `functions/src/index.ts`,
+deciding through `src/access/blockedSignInAlert.ts`) emails the admin when an
+address is refused: on its first refusal, and again when it comes back 24
+hours or more after its last attempt. Retries in between send nothing. The
+email names the address, the attempt count, the first and last attempt times
+(UTC) and links to `/admin`. It is separate from the gate, so a broken mail
+server never slows or fails a sign-in; a failed send is logged as a warning and
+dropped (the attempt is still listed in `/admin`). The logs never name the
+address.
+
+1. **Store the SMTP URL as a secret.** For Gmail, create an app password and
+   use `smtps://you%40gmail.com:<app-password>@smtp.gmail.com` (the `@` in the
+   user name written as `%40`). Mail is sent from that account.
+   ```sh
+   firebase functions:secrets:set ALLOWLIST_ALERT_SMTP_URL --project <project>
+   ```
+   The secret must exist before the next deploy: the deploy refuses a function
+   whose secret is missing. To deploy without alerts, set it to any value (for
+   example `none`) and leave the recipient empty.
+2. **Set the recipient**, `ALLOWLIST_ALERT_TO`, in `functions/.env.<project>`
+   (for example `ALLOWLIST_ALERT_TO=you@example.com`), or answer the prompt an
+   interactive `firebase deploy` shows. It defaults to empty. CI deploys
+   non-interactively, so for alerts to survive its deploys the file has to be
+   committed, and this repository is public: use an address you are happy to
+   publish, such as an alias.
+3. Deploy (`bun run deploy`). The deploy credential needs to be able to grant
+   the function access to the secret (Secret Manager Admin, or Owner).
+
+**Turning alerts off:** clear the recipient (`ALLOWLIST_ALERT_TO=`) and deploy.
+With either the recipient or the secret empty the function logs
+`allowlist alert skipped: not configured` and sends nothing.
+
 ## Locally, against the emulator
 
 `bun run firebase:emulator` builds and runs the functions too, so the emulator

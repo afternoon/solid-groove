@@ -10,7 +10,9 @@
  * Firestore transaction.
  *
  * A blocking `beforeSignIn` function (#854) keeps the alpha to its allowlist:
- * it is the enforcement, and `src/access/signInGate.ts` is its decision.
+ * it is the enforcement, and `src/access/signInGate.ts` is its decision. A
+ * Firestore trigger on the attempts it records emails the admin (#1112), as
+ * `src/access/blockedSignInAlert.ts` decides.
  *
  * Every kind of user data (packs today, recordings and presets later) is a
  * folder under `users/{uid}/`, so a new kind is counted as soon as it is added
@@ -24,19 +26,24 @@ import { initializeApp } from "firebase-admin/app";
 import { type Firestore, getFirestore, type Transaction } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { logger } from "firebase-functions";
+import { defineSecret, defineString } from "firebase-functions/params";
 import { setGlobalOptions } from "firebase-functions/v2";
+import { onDocumentWritten } from "firebase-functions/v2/firestore";
 import { beforeUserSignedIn, HttpsError } from "firebase-functions/v2/identity";
 import {
   onObjectDeleted,
   onObjectFinalized,
   type StorageEvent,
 } from "firebase-functions/v2/storage";
+import { createTransport } from "nodemailer";
+import { SITE_ORIGIN } from "../../site.config.mjs";
 import {
   allowlistDocPath,
   NOT_ON_ALLOWLIST,
   type SignInAttempt,
   signInAttemptDocPath,
 } from "../../src/access/allowlist";
+import { alertBlockedSignIn } from "../../src/access/blockedSignInAlert";
 import { gateSignIn, type SignInGateStore } from "../../src/access/signInGate";
 import type { VersionedPack } from "../../src/userData/packVersions";
 import { withdrawRefusedSound } from "../../src/userData/refusedSound";
@@ -200,3 +207,45 @@ export const alphaAllowlistGate = beforeUserSignedIn(async (event) => {
   logger.info("a sign-in was refused", { reason: decision.reason });
   throw new HttpsError("permission-denied", NOT_ON_ALLOWLIST);
 });
+
+/** A `signInAttempts` snapshot's document, or `null` when there is none. */
+function attemptOf(snapshot?: {
+  exists: boolean;
+  data(): unknown;
+}): SignInAttempt | null {
+  return snapshot?.exists ? (snapshot.data() as SignInAttempt) : null;
+}
+
+/** Who gets the blocked sign-in email. Empty turns the alerts off. */
+const alertTo = defineString("ALLOWLIST_ALERT_TO", {
+  default: "",
+  description:
+    "Address emailed when the alpha allowlist blocks a sign-in (empty: no alerts)",
+});
+
+/** The SMTP server alerts go through, e.g. `smtps://user:pass@smtp.gmail.com`. */
+const alertSmtpUrl = defineSecret("ALLOWLIST_ALERT_SMTP_URL");
+
+/**
+ * Emails the admin when the allowlist refuses a sign-in (#1112): on an
+ * address's first refusal, and again when it comes back after a quiet day. A
+ * trigger of its own rather than part of {@link alphaAllowlistGate}, so a slow
+ * or broken mail server never delays or fails a sign-in. No retries: a missed
+ * alert is acceptable, since the attempt is still listed in `/admin`. Nothing
+ * logged here names the address.
+ */
+export const allowlistBlockedSignInAlert = onDocumentWritten(
+  { document: "signInAttempts/{email}", secrets: [alertSmtpUrl], retry: false },
+  async (event) => {
+    await alertBlockedSignIn({
+      before: attemptOf(event.data?.before),
+      after: attemptOf(event.data?.after),
+      config: { to: alertTo.value(), smtpUrl: alertSmtpUrl.value() },
+      siteOrigin: SITE_ORIGIN,
+      async send(smtpUrl, message) {
+        await createTransport(smtpUrl).sendMail(message);
+      },
+      logger,
+    });
+  },
+);
