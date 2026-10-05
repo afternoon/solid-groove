@@ -52,6 +52,7 @@
     "library:emit-fixtures": "node --env-file-if-exists=.env scripts/starter-library/emitBrowserFixtures.mjs",
     "library:audition": "node --env-file-if-exists=.env scripts/starter-library/audition.mjs",
     "library:validate": "node --env-file-if-exists=.env scripts/starter-library/build.mjs --dry-run",
+    "library:audit": "node --env-file-if-exists=.env scripts/starter-library/audit.mjs",
     "library:upload": "node --env-file-if-exists=.env scripts/starter-library/upload.mjs",
     "library:test": "vitest run --project=library-pipeline",
     "predev": "bun run samples && node --env-file-if-exists=.env scripts/starter-library/checkLocal.mjs",
