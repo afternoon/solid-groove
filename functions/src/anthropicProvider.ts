@@ -62,6 +62,17 @@ export function classifySdkError(error: unknown): ProviderFailure {
 export function createAnthropicProvider(
   options: AnthropicProviderOptions,
 ): AssistantProvider {
+  // No key (a secret that was never set, as in the emulator) is a
+  // misconfiguration the provider would refuse: fail the call the same way,
+  // rather than letting the SDK go looking for credentials elsewhere.
+  if (!options.apiKey) {
+    return {
+      // biome-ignore lint/correctness/useYield: fails before any event
+      async *stream() {
+        throw new ProviderFailure("rejected");
+      },
+    };
+  }
   const client = new Anthropic({
     apiKey: options.apiKey,
     maxRetries: 0,

@@ -181,6 +181,16 @@ describe("createAnthropicProvider", () => {
     expect(failure.kind).toBe("malformed");
   });
 
+  it("refuses every call, without the network, when the secret has no value", async () => {
+    const { sent, fetchImpl } = scriptedFetch(() => streamResponse(sse(REPLY)));
+    const provider = createAnthropicProvider({ apiKey: "", fetch: fetchImpl });
+    const failure = await failureOf(
+      drain(provider.stream(request, new AbortController().signal)),
+    );
+    expect(failure.kind).toBe("rejected");
+    expect(sent).toHaveLength(0);
+  });
+
   it("maps a refused connection to network", async () => {
     const fetchImpl = (async () => {
       throw new TypeError("fetch failed");

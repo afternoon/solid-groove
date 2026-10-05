@@ -65,3 +65,6 @@ public/samples
 # Vite/start-mode build output.
 dist
 tests/e2e/**/*.screens.spec.ts
+
+# The assistant's provider key for the local Functions emulator (docs/runbooks/assistant-gateway.md).
+functions/.secret.local
