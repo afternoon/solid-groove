@@ -1,3 +1,6 @@
+// Tempo-labelled audio-loop panel: tells a loop from a pitched one-shot and
+// describes the pitch-preserving stretch honestly (LOOP-006/INS-02).
+
 import { type JSX, Show } from "@solidjs/web";
 import { HiSolidArrowsRightLeft, HiSolidMusicalNote } from "solid-icons/hi";
 import type { Asset, Clip } from "../domain/entities";

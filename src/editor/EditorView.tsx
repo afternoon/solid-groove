@@ -1,3 +1,5 @@
+// The project route's top-level editor component.
+
 import { Title } from "@solidjs/meta";
 import type { JSX } from "@solidjs/web";
 import {

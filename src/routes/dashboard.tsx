@@ -1,3 +1,5 @@
+// The dashboard page module that `router.tsx` points at.
+
 import { Title } from "@solidjs/meta";
 import { pageTitle } from "../../site.config.mjs";
 import { AuthProvider } from "../auth/AuthProvider";

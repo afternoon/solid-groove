@@ -1,3 +1,6 @@
+// Accessible confirmation modal for destructive actions. It closes on Escape
+// through the shortcut registry's `view.close_surface`, not its own listener.
+
 import type { JSX } from "@solidjs/web";
 import { onSettled } from "solid-js";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";

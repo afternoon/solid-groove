@@ -1,3 +1,7 @@
+// The single application-scoped owner of the real-time Tone/Web Audio context,
+// its transport, buffer cache and resource registry. Obtain it via
+// `getAudioRuntime()`; nothing else creates, resumes or closes the context.
+
 import * as Tone from "tone";
 import {
   type ResourceHandle,

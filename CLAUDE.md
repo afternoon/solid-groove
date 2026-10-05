@@ -34,157 +34,45 @@ Groove is a browser-based music production tool designed to make music creation 
 
 ## Project Structure
 
+One line per directory. Each file says what it is for in a comment at its top; read that rather than a list here. The rules about what may import or own what are in "Architecture Patterns" below.
+
 ```
 src/
-├── audio/              # Audio playback and synthesis
-│   ├── AudioRuntime.ts      # Single application-scoped Tone/Web Audio context
-│   ├── resourceRegistry.ts  # Owner/type tracked audio resource registry
-│   ├── ProjectAudioGraph.ts # Stable ID-keyed project graph reconciled from the audio projection
-│   ├── TrackAudioGraph.ts   # One track's instrument, device chain, sends, and channel strip
-│   ├── ReturnAudioGraph.ts  # One return bus's device chain and channel strip
-│   ├── MasterAudioGraph.ts  # The master bus's device chain and volume stage
-│   ├── DeviceChain.ts       # Ordered, ID-keyed insert-chain reconciliation shared by tracks/returns/master
-│   ├── summingBus.ts        # Sums any number of sources two at a time in a fixed order, so renders are bit-identical (#867)
-│   ├── InstrumentGraph.ts   # Sampler/synth/drum-machine instrument node factory and reconciliation
-│   ├── instruments/         # The per-instrument implementations behind `InstrumentGraph.ts`
-│   │   ├── types.ts             # `InstrumentNode`/`InstrumentGraphContext`/`InstrumentNodeFactory`, smoothing window, kind aliases
-│   │   ├── assetVoice.ts        # Reattachable per-asset buffer subscription, `playOneShot`, shared gain/pitch helpers
-│   │   ├── sampler.ts           # The sampler node: pitched, windowed voices under a per-trigger amp envelope
-│   │   ├── synth.ts             # The polyphonic subtractive synth node: PolySynth into one smoothed low-pass filter
-│   │   └── drumMachine.ts       # The drum-machine node: per-pad strips, mute/solo, choke groups, short-lived hits
-│   ├── AudioBufferCache.ts  # Asset buffer cache keyed by ID/revision with stale-load cancellation
-│   ├── toneBufferLoader.ts  # The only Tone-touching asset decode path `AudioBufferCache` uses in production
-│   ├── storedAudio.ts       # The installed source a URL-less asset's bytes are read from (a user's own sound, #282)
-│   ├── Transport.ts         # Play/pause/stop/seek, playhead, tempo mirror, bar loop, metronome
-│   ├── underrun.ts          # Sampled late-dispatch counter behind `audio_underrun`
-│   ├── audioLoopPlayer.ts   # Pitch-preserving time-stretch for a tempo-labelled loop event
-│   ├── orderedGrainPlayer.ts # `Tone.GrainPlayer` whose overlapping grains sum through a `SummingBus`
-│   ├── offlineRenderer.ts   # `renderProjectOffline`: the shared, cancellable offline renderer behind export (EXP-001)
-│   ├── offlineSession.ts    # One render's `OfflineContext` with the live `ProjectAudioGraph` built on it; coded `OfflineRenderError`
-│   ├── offlineClock.ts      # Runs Tone's offline clock in chunks, the offline context installed only while each chunk runs
-│   ├── renderLength.ts      # Where a render ends: the last clip, plus a tail trimmed to the last audible sample
-│   └── scheduling.ts        # Placement/clip -> absolute-tick event expansion (musical time, not wall clock)
-├── access/             # Who may sign in during the alpha (#854)
-│   ├── allowlist.ts         # The allowlist contract: normaliser, batch parser, paths, approval
-│   ├── grandfather.ts       # Who `allowlist:seed` may add: never a refused address, a cutoff once the gate has refused anyone
-│   ├── signInGate.ts        # The blocking beforeSignIn function's decision, Firebase-free
-│   ├── accessRepository.ts  # The admin page's boundary onto the allowlist (contract in accessRepositoryContract.ts)
-│   ├── inMemoryAccessRepository.ts  # Mock/test store
-│   └── firestoreAccessRepository.ts # Firestore store, as an `admin: true` claim account
-├── auth/               # Authentication logic
-│   ├── AuthProvider.tsx     # Context provider for auth state
-│   └── authService.ts       # Firebase auth service wrapper
-├── components/         # Reusable UI components
-│   ├── Dashboard.tsx
-│   ├── LandingPage.tsx     # Public marketing landing page: Request access, and Google sign-in for invited producers (#854)
-│   ├── ProjectList.tsx
-│   └── ConfirmDialog.tsx   # Accessible confirmation modal for destructive actions
-├── editor/             # The FND-009 foundation vertical slice: editor state, audio wiring, and its 16-step UI
-│   ├── EditorSession.ts     # Framework-free CommandHistory + ProjectAutosave + repository-watch wiring for one open project
-│   ├── useEditorSession.ts  # Solid adapter: loads a project, exposes EditorSession as reactive state
-│   ├── useProjectAudio.ts   # Wires one project onto ProjectAudioGraph/AudioRuntime; play/stop and audio_start_failed
-│   ├── starterProject.ts    # Builds the "New Project" starter (one sampler track, pack-qualified asset, one note clip)
-│   ├── StepGrid.tsx         # The slice's 16-step grid; dispatches note.add/note.remove through the command layer
-│   ├── LoopInfo.tsx         # Tempo-labelled audio-loop panel: distinguishes a loop from a pitched one-shot and documents the pitch-preserving stretch honestly (LOOP-006/INS-02)
-│   ├── deviceProjectRecord.ts # Device-local "opened before" bookkeeping for project_opened's is_first_open (LOOP-001)
-│   └── EditorView.tsx       # The project route's top-level component
-├── domain/             # Canonical schema-v1 domain model (authoritative)
-│   ├── entities.ts          # Entity shapes and their Zod schemas
-│   ├── ids.ts               # Prefixed stable IDs and ID factories
-│   ├── time.ts              # Integer musical time at 192 PPQ
-│   ├── parameters.ts        # Shared parameter definitions
-│   ├── packs.ts             # Pack dependency derivation and missing-pack state (LIB-05)
-│   ├── parse.ts             # Validation and domain invariants
-│   ├── serialize.ts         # Deterministic JSON serialization
-│   ├── factories.ts         # Blank/entity factories
-│   ├── duplicateProject.ts  # Independent deep duplication with fresh IDs for every mutable entity (PRJ-02)
-│   └── fixtures.ts          # Deterministic reference projects
-├── persistence/        # Schema-v1 Firestore layout and repository boundary
-│   ├── documents.ts         # Collection paths, document shapes, chunk overflow
-│   ├── documentSize.ts      # Firestore size accounting and the size budgets
-│   ├── projectRepository.ts # The repository contract both stores satisfy
-│   ├── inMemoryProjectRepository.ts   # Local/test store
-│   ├── firestoreProjectRepository.ts  # Production store (only Firebase import)
-│   ├── autosave.ts          # Coalescing, revision-checked optimistic saves
-│   └── migrations.ts        # Forward-migration harness (PRJ-04)
-├── commands/           # Shared command, transaction, and history kernel
-│   ├── types.ts             # Actors, envelopes, issues, command definitions
-│   ├── registry.ts          # The one typed command registry
-│   ├── execute.ts           # Validation, atomic transactions, revisions
-│   ├── history.ts           # Local bounded undo/redo and gestures
-│   ├── projectEdits.ts      # Immutable edit helpers with structural sharing
-│   └── definitions/         # Registered commands, grouped by entity
-├── library/            # The app's read side of the generated factory asset manifest
-│   ├── factoryLibrary.ts           # Typed accessors; the only place src/ learns an asset's facts
-│   └── factoryLibrary.generated.ts # GENERATED by `bun run library:emit-runtime` (CNT-001)
-├── selection/          # Selection/focus state (UI-only, never persisted)
-│   ├── types.ts             # SelectionScope union and SelectionState
-│   ├── selection.ts         # Pure selection ops + project-driven reconciliation
-│   └── arrangement.ts       # The arrangement's one selection: a point or whole clips, plus the transient drag band (ARR-006)
-├── shortcuts/          # The one typed keyboard-shortcut registry (see docs/shortcuts.md)
-│   ├── types.ts             # Contexts, guide groups, Ableton parity, browser conflicts
-│   ├── keys.ts              # Chord parsing, layout-aware matching, platform labels
-│   ├── registry.ts          # The mapping table itself, plus lookups and reserved chords
-│   ├── ShortcutController.ts # Framework-free dispatch: context, text entry, analytics
-│   ├── useShortcuts.ts      # Solid adapter that installs a controller on the window
-│   ├── ShortcutGuide.tsx    # The searchable `?` mapping guide, generated from the registry
-│   └── textEntry.ts         # What counts as a typing target
-├── projection/         # Read-only consumer projections built from a Project
-│   ├── fingerprint.ts       # Deterministic content fingerprint for change detection
-│   ├── audioProjection.ts        # Audio engine's song projection
-│   ├── arrangementProjection.ts  # Arrangement renderer's projection
-│   ├── projectSummaryProjection.ts # Dashboard/persistence summary
-│   └── assistantContextProjection.ts # Compact assistant context
-├── routes/             # The page modules `router.tsx` points at (NOT file-based routing)
-│   ├── index.tsx            # Home/landing page
-│   ├── dashboard.tsx        # User dashboard
-│   ├── CatchAll.tsx         # The `*404` page
-│   └── projects/Project.tsx # Project editor route
-├── shared/             # Helpers production code AND tests depend on
-│   ├── id.ts                # Prefixed-ID factory (+ seeded test variant)
-│   ├── clock.ts              # Injectable Clock abstraction
-│   ├── scheduler.ts          # Injectable Scheduler for coalescing/deferred work
-│   └── schema.ts             # Shared Zod parse helper
-├── testing/            # Helpers only tests use
-│   └── fixtures.ts          # Browser-safe fixture loading (public/fixtures/*)
-├── userLibrary/        # A producer's own packs (#282): pack model and versions, import, analysis, repository
-│   ├── userPacks.ts         # The pack document schema, version bumps, library read model, missing-sound report
-│   ├── importSound.ts       # Refuse, analyse, upload, then list: never a partial sound
-│   ├── soundAnalysis.ts     # Duration, sample rate, BPM and peaks from a dropped file
-│   ├── userLibraryRepository.ts        # The boundary both stores satisfy (contract in userLibraryRepositoryContract.ts)
-│   ├── inMemoryUserLibraryRepository.ts # Mock/test store
-│   ├── firebaseUserLibraryRepository.ts # Firestore + Cloud Storage store
-│   └── userLibraryClient.ts # Composition root: in-memory (mock) vs Firebase
-├── userData/           # What a user stores outside projects, under users/{uid}/ (#282)
-│   ├── userData.ts          # The layout, the kinds, the 1 GB per-account cap, the per-file limit, accepted audio types
-│   └── usageLedger.ts       # How the usage total moves on Storage events: idempotent, order-tolerant, refuses over-cap writes
-├── theme.css           # The palette: every colour named once, shared with the static pages
-├── app.css             # The base layer over the theme: typography, document shell, element defaults
-├── app.tsx             # Root application component; the plugin generates the entries from it
-├── Document.tsx        # The prerendered document shell: the statically generated landing page + its meta (ADR 0008)
-├── router.tsx          # The explicit route table (see "Routing" below)
-├── firebaseConfig.ts   # Firebase configuration (+ local emulator wiring)
-├── projectRepositoryClient.ts  # ProjectRepository composition root: in-memory (mock) vs Firestore
-└── accessRepositoryClient.ts   # AccessRepository composition root: in-memory (mock) vs Firestore (#854)
-
-tests/                  # Every suite that is not a src/ unit or component test
-├── playwright.chromium.ts   # Shared Chromium launch options for the Playwright configs that run Chromium
-├── e2e/
-│   ├── support/        # walkthrough.ts — the screenshot capture a flow spec drives
-│   ├── emulator/       # THE Playwright browser E2E suite, against the Firestore/Auth emulator (FND-009)
-│   │   ├── playwright.config.ts
-│   │   ├── *.spec.ts   # Per-surface browser tests (layout, focus, shortcuts, export harnesses, ...)
-│   │   ├── support/    # Shared helpers and the in-page harnesses the export/audio specs import
-│   │   └── flows/      # EVERY core flow (docs/core-flows.md), one spec named for its CF- id
-│   └── hosted/         # Post-deploy smoke test against the real Hosting URL
-│       └── playwright.config.ts
-└── emulator/           # Firebase Emulator suite (Firestore rules, etc.)
-    └── vitest.config.ts
-functions/              # Cloud Functions (#282): Storage triggers that keep users/{uid}/usage/current through src/userData/usageLedger.ts
-public/fixtures/        # Fixture data loaded by src/testing/fixtures.ts
-public/robots.txt       # Allows `/`, disallows the app's own routes (ADR 0008)
-site.config.mjs         # The public origin, titles, and description. One place to change the domain
-release.config.mjs      # Release stage and for-profit flag. Leaving the private alpha is one deliberate edit here; the library build then rejects alpha-only packs
+├── access/         # Who may sign in during the alpha: allowlist, sign-in gate, admin repository (#854)
+├── analytics/      # The typed event catalog and its transports
+├── arrangement/    # The arrangement view, its canvas renderer, gestures and clipboard
+├── audio/          # Tone/Web Audio: runtime, project graph, instruments, transport, offline render
+├── auth/           # AuthProvider and the Firebase auth wrapper
+├── browser/        # Browser capability detection and messages
+├── commands/       # Shared command, transaction and history kernel
+├── components/     # App-level UI: landing page, dashboard, dialogs
+├── controls/       # The shared control registry and marks
+├── domain/         # Canonical schema-v1 domain model (authoritative)
+├── editor/         # The project editor: session, audio wiring, panes and panels
+├── export/         # Stem export: rendering, batching and archives
+├── instrument/     # Instrument faceplate parts
+├── library/        # Read side of the generated factory asset manifest
+├── monitoring/     # Error reporting, scrubbing and replay privacy
+├── persistence/    # Schema-v1 Firestore layout and repository boundary
+├── projection/     # Read-only projections of a Project for audio, arrangement, summary, assistant
+├── routes/         # Page modules `router.tsx` points at (not file-based routing)
+├── selection/      # UI-only selection and focus state, never persisted
+├── shared/         # Helpers production code and tests both use: ids, clock, scheduler, schema
+├── shortcuts/      # The one keyboard-shortcut registry and its dispatch (see docs/shortcuts.md)
+├── testing/        # Helpers only tests use
+├── userData/       # What a user stores outside projects, and the usage cap (#282)
+├── userLibrary/    # A producer's own packs: model, import, analysis, repository (#282)
+└── *.ts, *.tsx, *.css  # App root, router, document shell, theme, composition roots, telemetry wiring
+tests/
+├── e2e/emulator/   # THE Playwright browser suite against the emulators; flows/ holds one spec per core flow
+├── e2e/hosted/     # Post-deploy smoke test against the real Hosting URL
+├── e2e/support/    # walkthrough.ts, the screenshot capture
+└── emulator/       # Firebase Emulator suite (rules, etc.)
+functions/          # Cloud Functions: Storage triggers that keep the usage total (#282)
+scripts/            # Build, verify, library pipeline, access admin and walkthrough scripts
+public/             # Static files: fixtures, robots.txt
+site.config.mjs     # Public origin, titles and description: one place to change the domain
+release.config.mjs  # Release stage and for-profit flag
 ```
 
 ## Task tracking and landing work

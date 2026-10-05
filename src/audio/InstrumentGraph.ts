@@ -1,3 +1,7 @@
+// Builds and reconciles a track's instrument node by `kind`. The public surface
+// for instruments: each implementation lives under `./instruments/`, and
+// consumers import this module only.
+
 import type { Instrument } from "../domain/entities";
 import { createDrumMachineInstrumentNode } from "./instruments/drumMachine";
 import { createSamplerInstrumentNode } from "./instruments/sampler";

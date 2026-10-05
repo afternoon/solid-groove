@@ -1,3 +1,6 @@
+// Framework-free wiring for one open project: CommandHistory, ProjectAutosave
+// and the repository watch. `useEditorSession` is its Solid adapter.
+
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import { bucketOf, projectAgeBucket } from "../analytics/buckets";
 import { COMMAND_IDS, type CommandId } from "../analytics/catalog";
