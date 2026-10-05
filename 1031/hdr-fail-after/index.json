@@ -1,0 +1,18 @@
+{
+  "id": "hdr-fail-after",
+  "title": "Save failed",
+  "steps": [
+    {
+      "file": "01-save-failed-at-768px.png",
+      "caption": "Save failed at 768px"
+    },
+    {
+      "file": "02-save-failed-at-800px.png",
+      "caption": "Save failed at 800px"
+    },
+    {
+      "file": "03-save-failed-at-1024px.png",
+      "caption": "Save failed at 1024px"
+    }
+  ]
+}
