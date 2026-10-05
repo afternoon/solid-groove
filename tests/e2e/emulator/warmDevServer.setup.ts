@@ -65,6 +65,10 @@ import { test } from "@playwright/test";
  * as does each test.
  */
 test("warm the dev server's dependency graph", async ({ page }, testInfo) => {
+  // The waits below allow a cold editor minutes, not the config's 30s. Without
+  // this, the test timeout fires first, the catch cannot absorb it, and a slow
+  // warm-up (WebKit's, measured over 30s in CI) fails and skips every test.
+  test.setTimeout(240_000);
   const browserName = testInfo.project.use.defaultBrowserType ?? "unknown";
 
   try {
