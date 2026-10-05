@@ -1,0 +1,128 @@
+/* The admin page (#854): three sections down one column, each under the
+   shared group rule (uppercase title over a hairline). */
+.allowlist-admin {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+  max-width: 1000px;
+}
+
+.allowlist-section-title {
+  margin: 0 0 16px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--color-divider);
+  font-size: var(--font-size-small);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.allowlist-approve {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.allowlist-label {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.allowlist-hint {
+  margin: 0;
+  font-size: var(--font-size-small);
+  color: var(--color-text-secondary);
+}
+
+.allowlist-textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 160px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 0;
+  background-color: var(--color-background-well);
+  color: var(--color-text);
+  font-size: var(--font-size-base);
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.allowlist-textarea:focus-visible {
+  outline: 1px solid var(--color-accent);
+  outline-offset: 0;
+}
+
+.allowlist-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* The page's one bold action: white with black on it. */
+.allowlist-primary {
+  background-color: var(--color-accent);
+  color: var(--color-on-accent);
+  font-weight: 700;
+
+  &:hover {
+    background-color: var(--color-accent-dim);
+  }
+}
+
+.allowlist-admin button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.allowlist-report {
+  display: block;
+  margin-top: 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--color-border);
+  background-color: var(--color-background-secondary);
+}
+
+.allowlist-counts {
+  display: flex;
+  gap: 24px;
+  margin: 0;
+  font-weight: 600;
+}
+
+.allowlist-invalid {
+  margin: 8px 0 0;
+  font-size: var(--font-size-small);
+  color: var(--color-text-secondary);
+}
+
+.allowlist-error {
+  margin-top: 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--color-danger-edge);
+  background-color: var(--color-danger-wash);
+  font-weight: 600;
+}
+
+.allowlist-error p {
+  margin: 0 0 8px;
+}
+
+.allowlist-empty {
+  margin: 0;
+  color: var(--color-text-secondary);
+}
+
+.allowlist-table td {
+  height: 48px;
+}
+
+.allowlist-table button {
+  padding: 6px 14px;
+}
+
+.allowlist-email {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

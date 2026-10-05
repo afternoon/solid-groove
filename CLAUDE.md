@@ -67,7 +67,10 @@ src/
 ├── access/             # Who may sign in during the alpha (#854)
 │   ├── allowlist.ts         # The allowlist contract: normaliser, batch parser, paths, approval
 │   ├── grandfather.ts       # Who `allowlist:seed` may add: never a refused address, a cutoff once the gate has refused anyone
-│   └── signInGate.ts        # The blocking beforeSignIn function's decision, Firebase-free
+│   ├── signInGate.ts        # The blocking beforeSignIn function's decision, Firebase-free
+│   ├── accessRepository.ts  # The admin page's boundary onto the allowlist (contract in accessRepositoryContract.ts)
+│   ├── inMemoryAccessRepository.ts  # Mock/test store
+│   └── firestoreAccessRepository.ts # Firestore store, as an `admin: true` claim account
 ├── auth/               # Authentication logic
 │   ├── AuthProvider.tsx     # Context provider for auth state
 │   └── authService.ts       # Firebase auth service wrapper
@@ -161,7 +164,8 @@ src/
 ├── Document.tsx        # The prerendered document shell: the statically generated landing page + its meta (ADR 0008)
 ├── router.tsx          # The explicit route table (see "Routing" below)
 ├── firebaseConfig.ts   # Firebase configuration (+ local emulator wiring)
-└── projectRepositoryClient.ts  # ProjectRepository composition root: in-memory (mock) vs Firestore
+├── projectRepositoryClient.ts  # ProjectRepository composition root: in-memory (mock) vs Firestore
+└── accessRepositoryClient.ts   # AccessRepository composition root: in-memory (mock) vs Firestore (#854)
 
 tests/                  # Every suite that is not a src/ unit or component test
 ├── playwright.chromium.ts   # Shared Chromium launch options for the Playwright configs that run Chromium
@@ -370,6 +374,7 @@ See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for local setup, the three backends t
 2. **Firestore Data Access**
    - All Firestore operations go through the schema-v1 `ProjectRepository` boundary (`src/persistence`), obtained via `getProjectRepository()` (`src/projectRepositoryClient.ts`) — never call `firebase/firestore` directly outside `src/persistence/firestoreProjectRepository.ts`
    - The one other module allowed to import `firebase/firestore`, and the only one allowed to import `firebase/storage`, is `src/userLibrary/firebaseUserLibraryRepository.ts`: the personal library's packs and audio (#282), behind `UserLibraryRepository` and obtained via `getUserLibraryRepository()`. It never hands out a download URL; audio is read back as the signed-in user with `readAudio`
+   - `src/access/firestoreAccessRepository.ts` may import `firebase/firestore` too: the alpha allowlist and its refused sign-ins (#854), behind `AccessRepository` and obtained via `getAccessRepository()` (`src/accessRepositoryClient.ts`). Only an `admin: true` claim gets past `firestore.rules` there
    - Use `ProjectRepository.watchProject` for the metadata tier's live revision; `EditorSession` wires it into `ProjectAutosave`
    - Security rules enforce owner-based access (see firestore.rules)
 

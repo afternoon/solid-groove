@@ -6,6 +6,7 @@ import {
   ALLOWLIST_ENTRY_FIELDS,
   type AllowlistEntry,
   type AllowlistWriter,
+  ApprovalIncompleteError,
   allowlistDocPath,
   approvalChunks,
   approveEmails,
@@ -147,6 +148,50 @@ describe("approveEmails", () => {
         clearAttempts: ["a@example.com", "b@example.com", "c@example.com"],
       },
     ]);
+  });
+
+  it("writes a paste longer than one batch in several commits", async () => {
+    const { writer, commits } = memoryWriter();
+    const emails = Array.from({ length: 300 }, (_, i) => `p${i}@example.com`);
+    const report = await approveEmails(writer, parseEmailBatch(emails.join("\n")), 1);
+    expect(report.added).toEqual(emails);
+    expect(commits.map((commit) => commit.clearAttempts.length)).toEqual([250, 50]);
+  });
+
+  it("rethrows a failure that wrote nothing as it is", async () => {
+    const { writer } = memoryWriter();
+    const offline = new Error("offline");
+    writer.commit = async () => {
+      throw offline;
+    };
+    await expect(approveEmails(writer, parseEmailBatch("a@example.com"), 1)).rejects.toBe(
+      offline,
+    );
+  });
+
+  it("says what was written when a later batch fails", async () => {
+    const { writer, entries } = memoryWriter(["p1@example.com"]);
+    const commit = writer.commit;
+    let calls = 0;
+    writer.commit = async (added, clearAttempts) => {
+      calls += 1;
+      if (calls === 2) throw new Error("offline");
+      await commit(added, clearAttempts);
+    };
+    const emails = Array.from({ length: 300 }, (_, i) => `p${i}@example.com`);
+    const failure = await approveEmails(
+      writer,
+      parseEmailBatch([...emails, "nope"].join("\n")),
+      1,
+    ).catch((error: unknown) => error);
+
+    expect(failure).toBeInstanceOf(ApprovalIncompleteError);
+    const { written, unwritten } = failure as ApprovalIncompleteError;
+    expect(written.added).toHaveLength(249);
+    expect(written.alreadyListed).toEqual(["p1@example.com"]);
+    expect(written.invalid).toEqual(["nope"]);
+    expect(unwritten).toEqual(emails.slice(250));
+    expect(entries.size).toBe(250);
   });
 
   it("writes nothing for a paste with no addresses", async () => {

@@ -42,6 +42,9 @@ export const Router = createRouter({
     { path: "/", component: IndexPage },
     { path: "/projects", component: lazy(() => import("./routes/dashboard")) },
     { path: "/dashboard", component: lazy(() => import("./routes/LegacyDashboard")) },
+    // The alpha allowlist (#854). Only an `admin`-claim account sees it; the
+    // page answers everyone else with the 404 page.
+    { path: "/admin", component: lazy(() => import("./routes/admin")) },
     // One route, three addresses. A view *is* an address (`UI-001`), so the
     // back button, a deep link and a reload all land where they should without
     // the editor keeping a second copy of "which view" in a signal.
