@@ -19,7 +19,12 @@ test("inserting a loop from Add loop selects its new track", async ({ page }) =>
     .getByRole("link", { name: "Instrument" })
     .click();
 
-  await rail(page).getByRole("button", { name: "Add loop from library" }).click();
+  // The add-track unit follows the rail's list rather than sitting in it (#76).
+  await page
+    .getByRole("main")
+    .getByRole("group", { name: "Add track", exact: true })
+    .getByRole("button", { name: "Add loop from library" })
+    .click();
   await expect(library(page)).toBeVisible();
   await expect(library(page).getByRole("heading", { name: "Loops" })).toBeVisible();
 
