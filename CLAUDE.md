@@ -292,11 +292,14 @@ bun run walkthrough:publish -- --issue <n>   # Push the images and print the Mar
 ```
 
 An environment that cannot reach `cdn.playwright.dev` — Claude Code on the web
-included — can only install Chromium. Run the `:chromium` pre-flights there and
-let CI gate Firefox and WebKit: it runs the full matrix on every push to
-`main` and `claude/**`, so pushing your branch *is* the cross-browser check. A
-green Chromium-only run is not the PRD section 10 gating evidence and must not
-be reported as one.
+included — can only install Chromium. Run the `:chromium` pre-flights there for
+any change that touches the browser. Per push, CI runs only the emulator suite's
+`@sanity` subset in Chromium (one pass through each major surface; tag a spec's
+`test.describe` with `{ tag: "@sanity" }` to add it, sparingly). The full
+browser suites, in every browser, run once a day on `main` and on demand from the
+Actions tab ("Run workflow" on CI); a failed daily pass opens a bug, and tests
+that only passed on a retry open a flaky-tests bug. A green Chromium-only run is
+not the PRD section 10 gating evidence and must not be reported as one.
 
 See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for local setup, the three backends the app can run against (mock, Firebase Emulator, real project), and the day-to-day loop; [`docs/testing.md`](./docs/testing.md) for what each suite covers, how CI gates on them, and the shared test helpers (`src/shared/id.ts`, `src/shared/clock.ts`, `src/testing/fixtures.ts`).
 

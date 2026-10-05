@@ -60,7 +60,7 @@
     "prebuild": "bun run samples",
     "build": "vite build",
     "start": "vite preview",
-    "clean": "rm -rf .output dist node_modules/.vite test-results playwright-report blob-report vitest-report",
+    "clean": "rm -rf .output dist node_modules/.vite test-results playwright-report playwright-results.json blob-report vitest-report",
     "firebase:emulator": "firebase emulators:start --only firestore,auth,storage --project demo-solid-groove",
     "test": "vitest run --project=domain --project=audio --project=ui --project=data --project=platform",
     "test:all": "vitest run",

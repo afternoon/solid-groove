@@ -49,6 +49,8 @@ export default defineConfig({
     ? [
         ["github"],
         ["html", { open: "never", outputFolder: "../../../playwright-report" }],
+        // Read by CI to list tests that only passed on a retry (flaky).
+        ["json", { outputFile: "../../../playwright-results.json" }],
       ]
     : "list",
   expect: {

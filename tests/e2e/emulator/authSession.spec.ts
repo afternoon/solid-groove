@@ -17,7 +17,8 @@ import { seedRegisteredSession } from "./support/authSession";
 /** What a guest is told, and a signed-in account is not (`UpgradeAccountPrompt`). */
 const GUEST_NOTICE = /You're working as a guest/;
 
-test.describe("a seeded registered session", () => {
+// Part of the per-PR `@sanity` subset (.github/workflows/ci.yml).
+test.describe("a seeded registered session", { tag: "@sanity" }, () => {
   test("arrives on the dashboard signed in to an account, not as a guest", async ({
     page,
   }, testInfo) => {

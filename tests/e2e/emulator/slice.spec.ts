@@ -78,7 +78,8 @@ async function savedPackDependencies(page: Page): Promise<string[]> {
  * repository is a fresh, empty store on every page load, so it cannot prove
  * anything survives a real `page.reload()`.
  */
-test.describe("foundation vertical slice", () => {
+// Part of the per-PR `@sanity` subset (.github/workflows/ci.yml).
+test.describe("foundation vertical slice", { tag: "@sanity" }, () => {
   test("add a note, play it, undo it, save it, and reload it", async ({
     page,
     browserName,

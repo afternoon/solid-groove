@@ -9,6 +9,7 @@ package-lock.json
 # test/tool output
 test-results/
 playwright-report/
+playwright-results.json
 blob-report/
 # Vitest's JSON run reports (`vitest-report/unit.json`,
 # `vitest-report/emulator.json`). Written on every run, uploaded by CI as
