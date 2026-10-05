@@ -1,0 +1,22 @@
+{
+  "id": "mrc",
+  "title": "Return chains in the mixer",
+  "steps": [
+    {
+      "file": "01-the-master-s-chain-with-the-master-strip.png",
+      "caption": "The master's chain, with the Master strip pressed"
+    },
+    {
+      "file": "02-selecting-a-return-shows-its-own-chain.png",
+      "caption": "Selecting a return shows its own chain"
+    },
+    {
+      "file": "03-a-reverb-added-to-the-return.png",
+      "caption": "A reverb added to the return"
+    },
+    {
+      "file": "04-selecting-master-brings-the-master-s-cha.png",
+      "caption": "Selecting Master brings the master's chain back"
+    }
+  ]
+}
