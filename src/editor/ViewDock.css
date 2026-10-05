@@ -24,7 +24,7 @@
   padding: 4px;
   list-style: none;
   background: var(--color-background);
-  box-shadow: 0 10px 32px var(--shade-medium);
+  box-shadow: 0 18px 50px var(--scrim);
 }
 
 .view-dock-item {
