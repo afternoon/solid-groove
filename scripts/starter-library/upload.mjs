@@ -17,6 +17,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { validateLibraryAudio } from "./audits.mjs";
 import {
   buildAllPacks,
   buildPackIndex,
@@ -159,6 +160,10 @@ export function planUpload() {
   const references = validateLibraryReferences(packManifests);
   errors.push(...references.errors);
   warnings.push(...references.warnings);
+
+  const audio = validateLibraryAudio(packManifests);
+  errors.push(...audio.errors);
+  warnings.push(...audio.warnings);
 
   const index = buildPackIndex(packManifests);
   const serializedIndex = serialize(index);

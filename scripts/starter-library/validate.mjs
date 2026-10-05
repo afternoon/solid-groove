@@ -357,6 +357,16 @@ function validateAsset(
     } else if (audio.peakDbfs > -0.1) {
       errors.push(`${where}: peakDbfs ${audio.peakDbfs} leaves no headroom`);
     }
+    // Section 10 audits loudness against the asset's role band
+    // (`audits.mjs`), which needs every audio asset measured. `null` is a
+    // measurement: every 400 ms block fell under BS.1770's -70 LUFS gate.
+    if (audio.loudnessLufs === undefined) {
+      errors.push(`${where}: loudnessLufs was not measured`);
+    } else if (audio.loudnessLufs === null) {
+      errors.push(`${where}: has no measurable loudness (under the -70 LUFS gate)`);
+    } else if (!Number.isFinite(audio.loudnessLufs)) {
+      errors.push(`${where}: loudnessLufs must be a number`);
+    }
     if (audio.rootNote !== null && typeof audio.tuningCents !== "number") {
       errors.push(`${where}: tonal asset is missing tuningCents`);
     }

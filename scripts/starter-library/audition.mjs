@@ -11,6 +11,7 @@
 
 import { createServer } from "node:http";
 import { renderAuditionPage } from "./auditionPage.mjs";
+import { validateLibraryAudio } from "./audits.mjs";
 import { buildAllPacks, RELEASED_AT, SCHEMA_VERSION, serialize } from "./manifest.mjs";
 import {
   formatPackSummary,
@@ -67,6 +68,10 @@ export function prepareAudition() {
   const balance = validateLibraryBalance(allAssets);
   errors.push(...balance.errors);
   warnings.push(...balance.warnings);
+
+  const audioAudit = validateLibraryAudio(packManifests);
+  errors.push(...audioAudit.errors);
+  warnings.push(...audioAudit.warnings);
 
   // A merged, browsable view across every pack — never uploaded itself, just
   // what the local audition page reads. Real clients fetch the pack index and

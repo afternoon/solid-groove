@@ -13,6 +13,7 @@ import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readLockfile, validateLockfile } from "./acquire/lockfile.mjs";
+import { validateLibraryAudio } from "./audits.mjs";
 import { formatWithheldReport } from "./intake.mjs";
 import {
   buildAllPacks,
@@ -99,6 +100,11 @@ export function buildToDisk({
   errors.push(...references.errors);
   warnings.push(...references.warnings);
 
+  // Section 10 audits that compare an asset with the rest of the library.
+  const audio = validateLibraryAudio(packManifests);
+  errors.push(...audio.errors);
+  warnings.push(...audio.warnings);
+
   const index = buildPackIndex(packManifests);
   const serializedIndex = serialize(index);
   const indexResult = validatePackIndex(index, packManifests, {
@@ -115,6 +121,8 @@ export function buildToDisk({
 
   if (dryRun) {
     log(formatPackSummary(packManifests));
+    log("");
+    log(audio.summary.join("\n"));
     log("");
     log(formatReport(balance.stats, warnings));
     log("");
@@ -151,6 +159,8 @@ export function buildToDisk({
   writeFileSync(indexPath, serializedIndex);
 
   log(formatPackSummary(packManifests));
+  log("");
+  log(audio.summary.join("\n"));
   log("");
   log(formatReport(balance.stats, warnings));
   log("");

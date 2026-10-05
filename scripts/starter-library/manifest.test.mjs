@@ -182,6 +182,7 @@ function validAsset(pack, overrides = {}, index = 0) {
       durationSeconds: 0.5,
       peakDbfs: -1.5,
       rmsDbfs: -14,
+      loudnessLufs: -14,
       rootNote: null,
       tuningCents: null,
       bpm: null,
@@ -346,6 +347,20 @@ describe("validatePackManifest", () => {
         m.assets[0].audio.peakDbfs = 0;
       },
       /leaves no headroom/,
+    ],
+    [
+      "an audio asset whose loudness was never measured",
+      (m) => {
+        delete m.assets[0].audio.loudnessLufs;
+      },
+      /loudnessLufs was not measured/,
+    ],
+    [
+      "an audio asset under the BS.1770 absolute gate",
+      (m) => {
+        m.assets[0].audio.loudnessLufs = null;
+      },
+      /no measurable loudness/,
     ],
     [
       "a tonal asset with no tuning",

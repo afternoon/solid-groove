@@ -91,24 +91,100 @@ export const PEAK_BINS = 48;
  * and acquired audio take the same path.
  */
 export function peaksFromWav(bytes) {
-  const channels = bytes.readUInt16LE(22);
-  const bitDepth = bytes.readUInt16LE(34);
-  if (bitDepth !== BIT_DEPTH) throw new Error(`peaks: expected ${BIT_DEPTH}-bit WAV`);
-  const dataSize = bytes.readUInt32LE(40);
-  const frames = Math.floor(dataSize / (channels * 3));
+  const { channelCount: channels, dataOffset, frames } = readPcmLayout(bytes, "peaks");
   const maxima = new Array(PEAK_BINS).fill(0);
   for (let bin = 0; bin < PEAK_BINS; bin++) {
     const start = Math.floor((bin * frames) / PEAK_BINS);
     const end = Math.floor(((bin + 1) * frames) / PEAK_BINS);
     for (let frame = start; frame < end; frame++) {
       for (let channel = 0; channel < channels; channel++) {
-        const at = 44 + (frame * channels + channel) * 3;
+        const at = dataOffset + (frame * channels + channel) * 3;
         maxima[bin] = Math.max(maxima[bin], Math.abs(bytes.readIntLE(at, 3)));
       }
     }
   }
   const loudest = Math.max(...maxima);
   return maxima.map((value) => (loudest === 0 ? 0 : Math.round((value / loudest) * 255)));
+}
+
+/**
+ * Find the PCM samples in a WAV by walking its RIFF chunks, rather than
+ * trusting the canonical 44-byte layout `encodeWav` writes: a master with a
+ * `LIST`, `bext` or `fact` chunk before its `data` would otherwise be read from
+ * the wrong offset and measured as noise. Anything this pipeline cannot read —
+ * not RIFF/WAVE, not integer PCM, not 24-bit, no `fmt `/`data`, a `data` chunk
+ * that runs past the file — throws a clear error naming `what` was decoding.
+ *
+ * @returns {{ channelCount: number, sampleRate: number, dataOffset: number, frames: number }}
+ */
+export function readPcmLayout(bytes, what = "decode") {
+  const fail = (reason) => {
+    throw new Error(`${what}: ${reason}`);
+  };
+  if (
+    bytes.length < 12 ||
+    bytes.toString("ascii", 0, 4) !== "RIFF" ||
+    bytes.toString("ascii", 8, 12) !== "WAVE"
+  ) {
+    fail("not a RIFF/WAVE file");
+  }
+  let format = null;
+  let data = null;
+  let offset = 12;
+  while (offset + 8 <= bytes.length && data === null) {
+    const id = bytes.toString("ascii", offset, offset + 4);
+    const size = bytes.readUInt32LE(offset + 4);
+    const body = offset + 8;
+    if (id === "fmt ") {
+      if (size < 16 || body + size > bytes.length) fail("truncated fmt chunk");
+      format = {
+        tag: bytes.readUInt16LE(body),
+        channelCount: bytes.readUInt16LE(body + 2),
+        sampleRate: bytes.readUInt32LE(body + 4),
+        bitDepth: bytes.readUInt16LE(body + 14),
+      };
+    } else if (id === "data") {
+      if (body + size > bytes.length) fail("data chunk runs past the end of the file");
+      data = { offset: body, size };
+    }
+    // Chunks are word-aligned: an odd-sized chunk is followed by a pad byte.
+    offset = body + size + (size % 2);
+  }
+  if (format === null) fail("no fmt chunk before the data");
+  if (data === null) fail("no data chunk");
+  // 0xFFFE is WAVE_FORMAT_EXTENSIBLE, which still carries integer PCM here.
+  if (format.tag !== 1 && format.tag !== 0xfffe) {
+    fail(`expected integer PCM, found format tag ${format.tag}`);
+  }
+  if (format.bitDepth !== BIT_DEPTH) {
+    fail(`expected ${BIT_DEPTH}-bit WAV, found ${format.bitDepth}-bit`);
+  }
+  if (format.channelCount < 1) fail("no channels");
+  const bytesPerFrame = format.channelCount * (BIT_DEPTH / 8);
+  return {
+    channelCount: format.channelCount,
+    sampleRate: format.sampleRate,
+    dataOffset: data.offset,
+    frames: Math.floor(data.size / bytesPerFrame),
+  };
+}
+
+/**
+ * Decode a 24-bit PCM master back into one `Float32Array` per channel. The
+ * audits measure the bytes that are delivered, not the render that produced
+ * them, so rendered and acquired audio are judged by exactly the same path.
+ */
+export function decodeWav(bytes) {
+  const { channelCount, sampleRate, dataOffset, frames } = readPcmLayout(bytes);
+  const scale = 2 ** (BIT_DEPTH - 1) - 1;
+  const channels = Array.from({ length: channelCount }, () => new Float32Array(frames));
+  for (let frame = 0; frame < frames; frame++) {
+    for (let channel = 0; channel < channelCount; channel++) {
+      const at = dataOffset + (frame * channelCount + channel) * 3;
+      channels[channel][frame] = bytes.readIntLE(at, 3) / scale;
+    }
+  }
+  return { sampleRate, channels };
 }
 
 export function sha256(buffer) {
