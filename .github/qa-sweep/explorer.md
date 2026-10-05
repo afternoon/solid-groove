@@ -33,10 +33,12 @@ You drive it with Playwright specs you write and run yourself.
 - Run them with
   `bunx playwright test --config=tests/e2e/hosted/qa-sweep/playwright.config.ts --project=explore [file]`.
   The base URL is already the live app; navigate with relative paths
-  (`page.goto("/dashboard")`).
-- Every spec runs signed in as **this run's guest**, a fresh anonymous account
-  made for the sweep (`tests/e2e/hosted/qa-sweep/session.sweep.ts`). That
-  guest is your test account.
+  (`page.goto("/projects")`).
+- Every spec runs signed in as **your QA account**, an invited test account
+  that belongs to your agent slot alone
+  (`tests/e2e/hosted/qa-sweep/session.sweep.ts`). It starts the run with no
+  projects. Never write its address or user ID into a spec's output or the
+  report.
 - To see what happened, `console.log` from a spec, and save screenshots under
   `tmp/qa-sweep/out/shots/` and look at them with the Read tool. Listen for
   `page.on("pageerror")` and `page.on("console")` errors; an uncaught
@@ -52,9 +54,9 @@ that the run cannot delete.
 - Use only the `page` (and `context`) fixtures. Never call
   `browser.newContext()`, `chromium.launch()` or anything else that makes a
   browser of your own: it would sign in as a stranger.
-- Never sign out, never choose "Sign up with Google", never clear cookies,
+- Never sign out, never choose "Sign in" or "Sign up with Google", never clear cookies,
   localStorage or IndexedDB, and never touch `tmp/qa-sweep/session.json` or
-  `tmp/qa-sweep/guest-uid.txt`.
+  `tmp/qa-sweep/account-uid.txt`.
 - Only open projects you created in this run. Never guess or edit another
   project's URL or ID, and never visit any other site.
 - Do not upload your own audio files or create packs: deleting a project does
@@ -62,7 +64,7 @@ that the run cannot delete.
 - Do not edit, commit or push anything in the repository outside
   `tmp/qa-sweep/`. Do not run `gh` commands that write.
 
-The workflow deletes every project the guest owns after you finish, so you do
+The workflow deletes every project your account owns after you finish, so you do
 not need to clean up yourself, and you may create as many projects as you need.
 
 ## What to do
@@ -121,7 +123,7 @@ Write `tmp/qa-sweep/out/findings.json`:
       "title": "Bug: Tempo field accepts letters and shows NaN",
       "symptom": "What you saw, concretely.",
       "expected": "What should have happened instead.",
-      "steps": ["Open the landing page.", "Choose Start in your browser.", "..."],
+      "steps": ["Sign in and open Projects.", "Choose New Project.", "..."],
       "severity": "medium",
       "screenshot": "shots/tempo-nan.png",
       "duplicateOf": null
@@ -132,7 +134,7 @@ Write `tmp/qa-sweep/out/findings.json`:
 
 - `title` starts with `Bug: ` and says what is wrong in the user's words, not
   the code's. Under 100 characters.
-- `steps` start from the landing page or the dashboard, as a person would
+- `steps` start from the landing page or the Projects page, as a person would
   arrive, and name controls by what they say on screen, never by selector.
 - `severity` is `high` (loses work, crashes, or blocks the flow), `medium`
   (wrong, but there is a way round) or `low` (cosmetic).

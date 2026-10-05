@@ -9,7 +9,8 @@
  *   QA_SWEEP_ISSUES_INPUT, QA_SWEEP_ISSUES_VAR   the new-issue cap, the same way
  *   QA_SWEEP_FLOWS                                optional flow IDs to walk instead of the rotation
  *
- * Writes `flows` (a JSON array, one matrix entry per agent), `agents` and
+ * Writes `flows` (a JSON array, one matrix entry per agent, each with the
+ * agent's QA account `slot`), `agents` and
  * `issues` to $GITHUB_OUTPUT when it is set, and prints the plan either way.
  */
 
@@ -52,12 +53,16 @@ export function plan(env, { root = ".", date = new Date() } = {}) {
     ceiling: MAX_ISSUES,
     name: "issues",
   });
+  // Each agent gets its own QA account, `testuser<slot>` (#1055): slots 1 to
+  // MAX_AGENTS, which is why the pool (`src/access/qaAccounts.ts`) has ten
+  // sweep accounts. Separate accounts keep agents out of each other's
+  // projects, so each one's cleanup deletes only its own.
   const flows = pickFlows({
     flows: loadFlows(root),
     count: agents,
     date,
     requested: parseFlowList(env.QA_SWEEP_FLOWS),
-  });
+  }).map((flow, index) => ({ ...flow, slot: index + 1 }));
   return { agents, issues, flows };
 }
 

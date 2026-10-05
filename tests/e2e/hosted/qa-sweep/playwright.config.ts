@@ -8,10 +8,12 @@ import { SESSION_FILE, SPECS_DIR, SWEEP_URL } from "./paths";
 // the real deployed build on real Firebase, so it touches production; the
 // three projects below are what keep that to the sweep's own data:
 //
-//   session  creates one fresh guest session for the run (only if none exists)
-//            and records it, with its IndexedDB, in `SESSION_FILE`;
-//   explore  the agent's specs, every one of them signed in as that guest;
-//   cleanup  deletes every project that guest owns. The workflow runs it
+//   session  signs the agent in as its QA account, `testuser<QA_SWEEP_SLOT>`
+//            (#1055, only if no session exists yet), and records the session,
+//            with its IndexedDB, in `SESSION_FILE`. It needs the
+//            `QA_SIGN_IN_SERVICE_ACCOUNT` secret (`../qaSession.ts`);
+//   explore  the agent's specs, every one of them signed in as that account;
+//   cleanup  deletes every project that account owns. The workflow runs it
 //            after the agent finishes, whatever the agent did.
 //
 // Run it as `bunx playwright test --config=tests/e2e/hosted/qa-sweep/playwright.config.ts
