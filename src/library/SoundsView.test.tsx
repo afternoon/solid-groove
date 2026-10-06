@@ -518,6 +518,50 @@ describe("SoundsView family tabs during a search (#878)", () => {
   });
 });
 
+describe("SoundsView entering a pack (#994)", () => {
+  it("settles the family onto the pack's own when the search matches nothing", async () => {
+    const assets = await libraryAssets();
+    const familiesOf = (slug: string) =>
+      new Set(
+        assets
+          .filter((a) => a.packSlug === slug && a.type === "one-shot")
+          .map(shelfFamilyOf),
+      );
+    const drumsOnly = FIXTURE_PACK_INDEX_DOC.packs
+      .map((p) => p.slug)
+      .find((s) => familiesOf(s).size === 1 && familiesOf(s).has("drums"));
+    if (!drumsOnly) throw new Error("No fixture pack holds drum one-shots only");
+
+    const [packSlug, setPackSlug] = createSignal<string | null>(null);
+    render(() => (
+      <SoundsView
+        client={new LibraryClient(fixtureFetcher())}
+        previewEngine={fakePreviewEngine()}
+        assetTypes={["one-shot"]}
+        query="zzzzzzzz"
+        packSlug={packSlug()}
+        slot={{ kind: "drum-pad", ref: null }}
+        keyLabel={(action) => `<${action}>`}
+        selected={null}
+        onSelect={() => {}}
+        onSimilar={() => {}}
+        onListLabel={() => {}}
+        onKeys={() => {}}
+      />
+    ));
+    await screen.findByText("No sounds match these filters.");
+    fireEvent.click(screen.getByRole("tab", { name: /^Bass/ }));
+    await waitFor(() => expect(selectedTab()).toHaveTextContent(/^Bass/));
+
+    setPackSlug(drumsOnly);
+
+    await waitFor(() => expect(tabs()).toHaveLength(1));
+    expect(selectedTab()).toHaveTextContent(/^Drums/);
+    expect(pressedChip()).toHaveAccessibleName(/^All drums 0$/);
+    expect(screen.queryByText(/All bass/)).toBeNull();
+  });
+});
+
 describe("SoundsView filters", () => {
   it("shows the live count, which follows the shelf", async () => {
     renderView();

@@ -99,7 +99,8 @@ describe("settle", () => {
     });
   });
   it("holds a just-chosen family with no sounds, on all its roles (#878)", () => {
-    expect(settle(sounds, { family: "bass", role: "sub" }, true)).toEqual({
+    const scope = [...sounds, sound({ family: "bass", role: "sub" })];
+    expect(settle(sounds, { family: "bass", role: "sub" }, true, scope)).toEqual({
       family: "bass",
       role: null,
     });
@@ -113,6 +114,32 @@ describe("settle", () => {
   it("leaves the selection alone when nothing is in view", () => {
     const selection = { family: "bass", role: "sub" } as const;
     expect(settle([], selection)).toBe(selection);
+  });
+  it("settles onto a family the scope holds when nothing matches (#994)", () => {
+    const drumsOnly = [sound({ role: "kick" }), sound({ role: "snare" })];
+    expect(settle([], { family: "bass", role: "sub" }, false, drumsOnly)).toEqual({
+      family: "drums",
+      role: null,
+    });
+    expect(settle([], { family: "bass", role: "sub" }, true, drumsOnly)).toEqual({
+      family: "drums",
+      role: null,
+    });
+  });
+  it("keeps a family the scope holds through a search that empties it (#994)", () => {
+    const selection = { family: "fx", role: null } as const;
+    expect(settle([], selection, false, sounds)).toEqual(selection);
+  });
+  it("prefers a family with matches over one the scope merely holds (#994)", () => {
+    const scope = [
+      sound({ family: "bass", role: "sub" }),
+      sound({ role: "kick" }),
+      sound({ family: "fx", role: "riser" }),
+    ];
+    expect(settle([scope[2]], { family: "loops", role: null }, false, scope)).toEqual({
+      family: "fx",
+      role: null,
+    });
   });
 });
 

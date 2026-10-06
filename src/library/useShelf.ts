@@ -63,6 +63,7 @@ export function useShelf(
       current,
       choice?.selection ?? opening(),
       choice !== null && choice.against === current,
+      scope(),
     );
   });
   const families = createMemo(() => shelfFamilies(sounds(), scope()));
