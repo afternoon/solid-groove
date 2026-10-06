@@ -228,16 +228,22 @@ next deploy's smoke test creates and plays a project as `testuser0`.
   To end sessions already open, revoke the QA users' refresh tokens
   (`auth.revokeRefreshTokens(uid)`) or disable them in Authentication → Users.
 
-## What no longer signs in by itself
+## What signs in without a person
 
-Guest start was what let automation into the live app without an account. With
-it gone:
+Guest start was what let automation into the live app without an account.
+With it gone, CI signs in as the QA accounts instead (see "Signing CI in as a
+QA account" above):
 
 - **The post-deploy smoke test** (`tests/e2e/hosted/smoke.spec.ts`, run by the
   `deploy` job and on previews) checks the landing page, that `/projects` keeps
-  a visitor with no session out, and the not-on-the-list page. It no longer
-  creates a project or starts audio, because it has no account to sign in with.
+  a visitor with no session out, and the not-on-the-list page, then signs in
+  as `testuser0`, creates a project, plays it, and deletes that one project.
+  It deletes only the project it made, by its ID, because the deploy and
+  several previews can be signed in as `testuser0` at once. Without the
+  `QA_SIGN_IN_SERVICE_ACCOUNT` secret (a fork's pull request) the signed-in
+  test skips and says so.
 - **The scheduled QA sweep** (`tests/e2e/hosted/qa-sweep/`) signs each agent
-  in as its own QA account, `testuser1`…`testuser10` (see "Signing CI in as a
-  QA account" above), and deletes that account's projects when the agent is
-  done.
+  in as its own QA account, `testuser1`…`testuser10`, and deletes that
+  account's projects when the agent is done.
+- **Every page load either makes carries `?internal=1`**, so the QA accounts
+  never count in the product's measures (`src/shared/internalTraffic.ts`).
