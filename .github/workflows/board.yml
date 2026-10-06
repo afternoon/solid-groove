@@ -6,7 +6,9 @@ name: Board
 #
 #  - Adding a `status:*` label removes the issue's other status labels.
 #  - A new issue starts in Backlog; a closed one is Done.
-#  - A PR that closes an issue moves it to QA.
+#  - A PR that closes an issue moves it to QA (its preview is QA'd). The PR that
+#    completes an issue (`Completes #n`) moves it to QA when it merges (production
+#    is QA'd, and a pass closes the issue).
 #  - Moving an issue to Ready moves it to In progress and runs /ship on it.
 #  - Moving an issue back to In progress while its PRs are open (sent back
 #    from QA, review or blocked) runs an agent that reworks those PRs.
@@ -137,10 +139,12 @@ jobs:
           if echo "$labels" | grep -qx 'status:blocked'; then
             echo "Issue was moved to Blocked by the run; nothing to check."; exit 0
           fi
-          prs=$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --search "$ISSUE in:body" --json number,body \
-            --jq "[.[] | select(.body | test(\"(?i)(close[sd]?|fix(e[sd])?|resolve[sd]?) #$ISSUE\\\\b\"))] | length")
-          if [ "$prs" -gt 0 ]; then echo "Found $prs open PR(s) closing #$ISSUE."; exit 0; fi
-          echo "No open PR closes #$ISSUE."; exit 1
+          # Open, or merged in the last six hours: a safe PR can merge on its own
+          # before this check runs.
+          prs=$(gh pr list --repo "$GITHUB_REPOSITORY" --state all --search "$ISSUE in:body" --json number,body,state,mergedAt \
+            --jq "[.[] | select(.state == \"OPEN\" or (.mergedAt != null and (now - (.mergedAt | fromdate)) < 21600)) | select(.body | test(\"(?i)(close[sd]?|fix(e[sd])?|resolve[sd]?|completes?) #$ISSUE\\\\b\"))] | length")
+          if [ "$prs" -gt 0 ]; then echo "Found $prs PR(s) closing or completing #$ISSUE."; exit 0; fi
+          echo "No open or just-merged PR closes or completes #$ISSUE."; exit 1
       - name: Move the card to Blocked if the run failed
         if: failure() || cancelled()
         env:
@@ -195,13 +199,13 @@ jobs:
           github_token: ${{ secrets.RESTACK_TOKEN || github.token }}
           show_full_output: true
           prompt: |
-            GitHub issue #${{ needs.status.outputs.rework }} was sent back to In progress on the board while its PRs were open: ${{ needs.status.outputs.rework_prs }} (the PR that closes it; in a stack, the earlier PRs say `Refs #${{ needs.status.outputs.rework }}`, so find those too). Find out why and do the work. This is a headless run: nobody will answer questions, and it ends when your turn ends, so do not use the Workflow tool or background agents.
+            GitHub issue #${{ needs.status.outputs.rework }} was sent back to In progress on the board while its PRs were open: ${{ needs.status.outputs.rework_prs }} (the PR that closes or completes it; in a stack, the earlier PRs say `Refs #${{ needs.status.outputs.rework }}`, so find those too). Find out why and do the work. This is a headless run: nobody will answer questions, and it ends when your turn ends, so do not use the Workflow tool or background agents.
 
             1. If a Claude run is already handling this (an `@claude` comment on one of those PRs in the last 20 minutes, or an in-progress run of the "Claude Code" workflow on one of them: `gh run list --workflow claude.yml --status in_progress`), stop and do nothing.
             2. Read the issue body and every comment on the issue, and on each PR its comments, reviews and review threads. The feedback is whatever the product owner (afternoon) or the QA report said after the PRs were last pushed. If it changes the spec, the issue body and comments are the authority.
             3. Fix it on the existing PR branches, following CLAUDE.md ("Landing work", "Definition of done") and `.claude/agents/solid-groove-implementer.md`. This is not a fresh build: do not open new PRs unless the feedback asks for more work than the stack covers. In a stack, commit to the branch the change belongs on; restack.yml rebases the PRs above it. Never force-push; if a push is rejected because restack moved the branch, `git pull --rebase` and push again. Run `bun run typecheck`, `bun run check`, `bun run test` and any browser suite you touched before pushing. A UI change needs updated screenshots in the PR body.
             4. Reply on each piece of feedback (the review thread, or one comment on the PR) saying what changed, and resolve threads you fixed.
-            5. Move the card: `status:qa` if the closing PR has the `deploy-preview` label (the push redeploys it for QA), otherwise `status:review`.
+            5. Move the card: `status:qa` if the closing PR has the `deploy-preview` label (the push redeploys it for QA); `status:review` if any of the PRs is labelled `needs-approval`; otherwise leave it in In progress, because merge.yml queues the pushed PRs and the card moves to QA when the PR that completes the issue merges.
 
             Stop only if two reasonable readings of the feedback would build materially different things: then comment the one question on the issue and add `status:blocked`. Use the `gh` CLI for GitHub (GH_TOKEN is set). Never report a push you have not seen land.
 

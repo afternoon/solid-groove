@@ -26,10 +26,10 @@ footer=$'\n---\n_Posted by the CI-failure workflow (`.github/workflows/ci-failur
 
 log() { echo "ci-failure: $*" >&2; }
 
-# The issue a PR body closes or refers to, if any.
+# The issue a PR body closes, completes or refers to, if any.
 issue_of() {
 	gh api "repos/$repo/pulls/$1" --jq .body |
-		grep -oiE '\b(close[sd]?|fix(e[sd])?|resolve[sd]?|refs?) #[0-9]+' | grep -oE '[0-9]+' | head -1 || true
+		grep -oiE '\b(close[sd]?|fix(e[sd])?|resolve[sd]?|refs?|completes?) #[0-9]+' | grep -oE '[0-9]+' | head -1 || true
 }
 
 failed_gates() {

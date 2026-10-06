@@ -64,6 +64,11 @@ tried, instead of shipping a speculative fix.
   `bun run test`, plus `bun run test:browser:emulator:chromium` when you
   touched browser behaviour. Push every branch. Do **not** open PRs; the
   next stage does.
+- Each PR merges on its own as soon as CI passes (no human reviews it first),
+  so every branch must leave `main` working: the app may be unfinished, but
+  nothing that worked before breaks. A branch that touches a gated path (see
+  CLAUDE.md, "Merging") waits for the product owner instead, so keep such
+  changes in their own branch where you can, at the bottom of the stack.
 - Never merge one stack branch into another: keep the stack linear (a native GitHub stack only merges that way). Do not force-push a branch that has an open PR. Do not commit `package-lock.json`.
 
 ## Screenshots: required whenever any UI changed
