@@ -141,7 +141,12 @@ There is no new sign-in method. A dedicated service account signs a Firebase
 custom token for one of the accounts; the hosted suites exchange it for a
 session in Node with the Firebase client SDK and write that session into the
 page's IndexedDB, the way the emulator suite installs its sessions. Nothing in
-the app's bundle knows about any of it.
+the app's bundle knows about any of it. The session is stored under the
+build's web API key: the deploy and preview jobs pass the
+`VITE_FIREBASE_API_KEY` variable the build used, and the QA sweep, which does
+not run in the `prod` environment that variable lives in, reads the key from
+the site's own `/__/firebase/init.json` (checked to match the live bundle's
+when this was built).
 
 **The allowlist gate does not run for these sign-ins.** Firebase never runs a
 blocking function for a custom-token sign-in ("Anonymous and custom
@@ -232,7 +237,7 @@ it gone:
   `deploy` job and on previews) checks the landing page, that `/projects` keeps
   a visitor with no session out, and the not-on-the-list page. It no longer
   creates a project or starts audio, because it has no account to sign in with.
-- **The scheduled QA sweep** (`tests/e2e/hosted/qa-sweep/`) still starts by
-  creating a guest, which the live app no longer offers, so its weekly schedule
-  is turned off in `.github/workflows/qa-sweep.yml`. It needs an allowlisted
-  test account and a way to sign it in from CI before it can run again (#1055).
+- **The scheduled QA sweep** (`tests/e2e/hosted/qa-sweep/`) signs each agent
+  in as its own QA account, `testuser1`…`testuser10` (see "Signing CI in as a
+  QA account" above), and deletes that account's projects when the agent is
+  done.

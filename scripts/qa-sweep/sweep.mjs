@@ -26,6 +26,10 @@ export const DEFAULT_ISSUES = 15;
  * Hard ceilings a configured limit is clamped to. A typo in a repository
  * variable (`50` agents, `500` issues) must not become a run that floods the
  * tracker or burns a week of agent budget.
+ *
+ * Each agent signs in as its own QA account, and the pool has one per agent up
+ * to this ceiling (`MAX_QA_SLOT` in `src/access/qaAccounts.ts`, #1055): raising
+ * it means adding accounts there and running `bun run qa:accounts` first.
  */
 export const MAX_AGENTS = 10;
 export const MAX_ISSUES = 50;
@@ -341,7 +345,7 @@ const flowLabel = (flow, flows) => {
 };
 
 const environmentLine = ({ siteUrl, build }) =>
-  `${siteUrl}, build \`${build || "unknown"}\`, Chromium (Playwright, headless, 1280×720), a fresh guest session made for the sweep.`;
+  `${siteUrl}, build \`${build || "unknown"}\`, Chromium (Playwright, headless, 1280×720), signed in as one of the sweep's QA accounts.`;
 
 /** The body of a new `Bug: …` issue. */
 export function issueBody(finding, ctx) {
@@ -400,7 +404,7 @@ export function logIssueBody() {
   return [
     "The scheduled QA sweep (`.github/workflows/qa-sweep.yml`, #859) posts a summary of every run here: the flows it walked, the bugs it filed, and the open bugs it saw again.",
     "",
-    'Agents walk core flows from `docs/core-flows.md` in the live app as a fresh guest session, file each new bug as a `Bug: …` issue, and delete the projects they made before the run ends. See `docs/testing.md`, "Scheduled QA sweep".',
+    'Agents walk core flows from `docs/core-flows.md` in the live app, each signed in as its own QA account, file each new bug as a `Bug: …` issue, and delete the projects they made before the run ends. See `docs/testing.md`, "Scheduled QA sweep".',
     "",
     "Keep this issue open and pinned: the sweep finds it by its `qa-sweep` label, and makes a new one if it is closed.",
     "",

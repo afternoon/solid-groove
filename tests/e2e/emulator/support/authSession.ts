@@ -7,6 +7,7 @@ import {
   signInWithCredential,
   signOut,
 } from "firebase/auth";
+import { installFirebaseUser } from "../../support/firebaseSession";
 import { allowlist, uniqueEmail } from "./access";
 
 /**
@@ -26,13 +27,12 @@ import { allowlist, uniqueEmail } from "./access";
  *
  * ## Why it is not a pile of guesses
  *
- * The SDK persists the signed-in user in IndexedDB under a key built from the
- * app's API key, and the record it stores is `user.toJSON()`. So the record is
- * not hand-written: this process signs the account in with the same Firebase
- * SDK the app runs, through the Auth emulator, and stores *that user's own*
- * `toJSON()`. The SDK restores it because it is the SDK's own format, whatever
- * version is installed. (This used to copy the record a guest session wrote;
- * there are no guest sessions to copy any more.)
+ * This process signs the account in with the same Firebase SDK the app runs,
+ * through the Auth emulator, and `installFirebaseUser`
+ * (`tests/e2e/support/firebaseSession.ts`, shared with the hosted suites'
+ * QA-account sign-in) stores *that user's own* `toJSON()` where the SDK looks
+ * for it. (This used to copy the record a guest session wrote; there are no
+ * guest sessions to copy any more.)
  *
  * The sign-in goes through the emulator, so the blocking `beforeSignIn`
  * function decides it exactly as production would: the address is put on the
@@ -54,10 +54,6 @@ const authEmulatorHost = process.env.FIREBASE_AUTH_EMULATOR_HOST ?? "127.0.0.1:9
 const PROJECT_ID = "demo-solid-groove";
 const API_KEY = `${PROJECT_ID}-api-key`;
 const APP_NAME = "[DEFAULT]";
-
-const DB_NAME = "firebaseLocalStorageDb";
-const STORE_NAME = "firebaseLocalStorage";
-const PERSISTENCE_KEY = `firebase:authUser:${API_KEY}:${APP_NAME}`;
 
 export interface RegisteredSession {
   uid: string;
@@ -92,12 +88,7 @@ export async function seedRegisteredSession(
   await allowlist(email);
   const record = await signInInThisProcess(email, displayName);
 
-  // Any same-origin document that does not boot the app, so nothing reads or
-  // writes the store while the record goes in. The landing page would load
-  // the auth SDK only on a click, but a static file is plainly inert.
-  await page.goto("/robots.txt");
-  await page.evaluate(putRow, [DB_NAME, STORE_NAME, PERSISTENCE_KEY, record] as const);
-  await page.goto("about:blank");
+  await installFirebaseUser(page, API_KEY, record);
 
   return { uid: String(record.uid), email, displayName };
 }
@@ -138,32 +129,4 @@ async function signInInThisProcess(
   const record = user.toJSON() as Record<string, unknown>;
   await signOut(auth);
   return record;
-}
-
-/** Runs in the page: write one row into the SDK's persistence store. */
-function putRow([dbName, storeName, fbaseKey, record]: readonly [
-  string,
-  string,
-  string,
-  unknown,
-]) {
-  return new Promise<void>((resolve, reject) => {
-    // Version 1 with a `fbase_key`-keyed store is what the SDK itself opens
-    // and creates; on a fresh origin this creates it the same way.
-    const request = indexedDB.open(dbName, 1);
-    request.onupgradeneeded = () => {
-      request.result.createObjectStore(storeName, { keyPath: "fbase_key" });
-    };
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => {
-      const db = request.result;
-      const tx = db.transaction(storeName, "readwrite");
-      tx.objectStore(storeName).put({ fbase_key: fbaseKey, value: record });
-      tx.oncomplete = () => {
-        db.close();
-        resolve();
-      };
-      tx.onerror = () => reject(tx.error);
-    };
-  });
 }

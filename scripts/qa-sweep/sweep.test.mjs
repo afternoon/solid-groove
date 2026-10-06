@@ -168,7 +168,7 @@ describe("plan", () => {
     expect(result).toEqual({
       agents: 2,
       issues: 4,
-      flows: [{ id: "CF-003", title: "Three", parked: false }],
+      flows: [{ id: "CF-003", title: "Three", parked: false, slot: 1 }],
     });
   });
 
@@ -185,6 +185,19 @@ describe("plan", () => {
     expect(result.agents).toBe(5);
     expect(result.issues).toBe(15);
     expect(result.flows).toHaveLength(5);
+  });
+
+  it("gives each agent its own QA account slot, 1 up to the agent ceiling", () => {
+    root = mkdtempSync(join(tmpdir(), "qa-sweep-plan-"));
+    mkdirSync(join(root, "docs"));
+    writeFileSync(
+      join(root, "docs/core-flows.md"),
+      flowsOf(30)
+        .map((f) => `### ${f.id} — ${f.title}`)
+        .join("\n\n"),
+    );
+    const result = plan({ QA_SWEEP_AGENTS_INPUT: "99" }, { root });
+    expect(result.flows.map((f) => f.slot)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
   });
 });
 

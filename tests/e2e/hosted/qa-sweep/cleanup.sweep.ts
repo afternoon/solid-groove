@@ -1,8 +1,8 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { expect, test } from "@playwright/test";
-import { guestUid } from "./guest";
-import { CLEANUP_FILE, GUEST_FILE, SESSION_FILE, SWEEP_URL } from "./paths";
+import { persistedUid } from "../../support/firebaseSession";
+import { ACCOUNT_FILE, CLEANUP_FILE, SESSION_FILE, SWEEP_URL } from "./paths";
 
 /** Far more than a run makes; only there so a stuck list cannot loop forever. */
 const MAX_DELETES = 200;
@@ -14,10 +14,12 @@ const record = (result: Result) => {
   writeFileSync(CLEANUP_FILE, `${JSON.stringify(result)}\n`);
 };
 
-// Deletes every project the run's guest owns, through the dashboard a person
-// would use (#859). It writes `cleanup.json` whatever happens, so the run
-// summary can say whether anything was left behind.
-test("delete every project the sweep's guest made", async ({ browser }) => {
+// Deletes every project the agent's QA account owns, through the project list
+// a person would use (#859, #1055), so the slot starts the next run empty. The
+// account is this agent's alone, so everything it owns is the sweep's. It
+// writes `cleanup.json` whatever happens, so the run summary can say whether
+// anything was left behind.
+test("delete every project the agent's QA account owns", async ({ browser }) => {
   if (!existsSync(SESSION_FILE)) {
     record({ ok: true, deleted: 0, remaining: 0 });
     return;
@@ -30,13 +32,13 @@ test("delete every project the sweep's guest made", async ({ browser }) => {
       baseURL: SWEEP_URL,
     });
     const page = await context.newPage();
-    await page.goto("/dashboard");
+    await page.goto("/projects?internal=1");
     await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
-    // A session that no longer restores signs in as a brand-new guest, whose
-    // empty dashboard would read as "nothing left behind". Only the run's own
-    // guest can say that.
-    expect(await guestUid(page), "signed in as the run's guest").toBe(
-      readFileSync(GUEST_FILE, "utf8").trim(),
+    // A session that no longer restores is not signed in as the slot's
+    // account, and whatever list it reached would say nothing about what that
+    // account left behind. Only the account itself can say "nothing left".
+    expect(await persistedUid(page), "signed in as the agent's QA account").toBe(
+      readFileSync(ACCOUNT_FILE, "utf8").trim(),
     );
 
     const deletes = page.getByRole("button", { name: /^Delete / });
