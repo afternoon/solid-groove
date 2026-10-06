@@ -23,7 +23,7 @@ Try it at **[trygroove.app](https://trygroove.app)**.
 | [`CLAUDE.md`](./CLAUDE.md) | Stack, project structure, commands, and code style |
 | [`docs/prd.md`](./docs/prd.md) | Product principles — vision, target user, goals and non-goals, sample licensing, and privacy. Not a feature specification |
 | [`docs/core-flows.md`](./docs/core-flows.md) | The user journeys that must work end to end, each with a Playwright spec |
-| [GitHub issues](https://github.com/afternoon/solid-groove/issues) | What to build: scope and acceptance criteria, one issue per task. `CLAUDE.md` describes how work is tracked and landed |
+| [GitHub issues](https://github.com/trygroove/groove/issues) | What to build: scope and acceptance criteria, one issue per task. `CLAUDE.md` describes how work is tracked and landed |
 | [`docs/sample-library.md`](./docs/sample-library.md) | Sound library plan, licensing policy, and the shipped starter library |
 | [`docs/testing.md`](./docs/testing.md) | Which test suite to run, and how |
 
@@ -43,7 +43,7 @@ The private alpha has exactly one hosted environment — the **production** Fire
 
 A pull request labelled `deploy-preview` is also published to its own Firebase Hosting **preview channel** (`.github/workflows/preview.yml`) — an expiring URL inside the same production project, so it runs against the live Firestore, Auth, and Storage. It is opt-in per PR, it never deploys security rules, and it reports no analytics or errors; see [`docs/testing.md`](./docs/testing.md#per-pr-preview-deploys) for what that shares with production and what it does not.
 
-The `deploy` job runs on merges to `main` and reads its credentials from the `prod` GitHub environment. `OPS-001` ([issue #68](https://github.com/afternoon/solid-groove/issues/68)) verified deploy, rollback, analytics, and error monitoring against the hosted environment on 2026-08-05 and 2026-08-06, and gate `G4.5: Hosted environment verified` is open. Two console-inspection checks are deferred to post-alpha by decision (`DEC-012`). See [`docs/testing.md`](./docs/testing.md#what-has-been-verified-against-the-hosted-environment) for what was actually observed and what was deferred.
+The `deploy` job runs on merges to `main` and reads its credentials from the `prod` GitHub environment. `OPS-001` ([issue #68](https://github.com/trygroove/groove/issues/68)) verified deploy, rollback, analytics, and error monitoring against the hosted environment on 2026-08-05 and 2026-08-06, and gate `G4.5: Hosted environment verified` is open. Two console-inspection checks are deferred to post-alpha by decision (`DEC-012`). See [`docs/testing.md`](./docs/testing.md#what-has-been-verified-against-the-hosted-environment) for what was actually observed and what was deferred.
 
 ## Sounds
 

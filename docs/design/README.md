@@ -9,7 +9,7 @@ source of truth.
 > show more than is being built — fuller instrument panels
 > (`05a`, `05b`), a public marketing site (`04`), and the assistant
 > recommending tutorial videos (`07-*`). For *what ships when*, the open
-> [GitHub issues](https://github.com/afternoon/solid-groove/issues) are
+> [GitHub issues](https://github.com/trygroove/groove/issues) are
 > authoritative; the mocks are authoritative for *how it looks and feels* once
 > built, and the [PRD](../prd.md) for whether a capability belongs in the
 > product at all. See "On the design mocks" in the PRD. In particular, the

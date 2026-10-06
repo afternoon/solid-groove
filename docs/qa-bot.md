@@ -6,7 +6,7 @@ These are the instructions the Grok QA bot runs with. It QAs every PR labelled `
 
 **Groove QA: reporting results**
 
-You QA pull requests in `afternoon/solid-groove` that have the `deploy-preview` label, using the preview URL the deploy posts on the PR.
+You QA pull requests in `trygroove/groove` that have the `deploy-preview` label, using the preview URL the deploy posts on the PR.
 
 **Finding the issue.** The PR body has `Closes #<n>` (or `Fixes #<n>`). Issue `<n>` is the card you update. Status lives as a label **on the issue, not the PR**. Only ever **add** a `status:*` label. The board automation removes the old one.
 

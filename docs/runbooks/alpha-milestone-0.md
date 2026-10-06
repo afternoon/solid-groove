@@ -6,9 +6,9 @@ credential — deliberately — so the pipeline ships, verifies nothing, and no-
 This runbook is the manual half: it takes you from no accounts to a deployed,
 observable alpha with the deferred acceptance criteria actually closed.
 
-Run it once. Record the outcome on [issue #68 (`OPS-001`)](https://github.com/afternoon/solid-groove/issues/68) as you go.
+Run it once. Record the outcome on [issue #68 (`OPS-001`)](https://github.com/trygroove/groove/issues/68) as you go.
 
-**When to run this.** This runbook is the body of task `OPS-001` ([issue #68](https://github.com/afternoon/solid-groove/issues/68)), scheduled immediately **after Alpha Milestone 2** (PRD section 12, "After Alpha Milestone 2"). It was originally expected to run during Alpha Milestone 0, alongside `FND-001b` and `FND-001c`; that was rescheduled so one operator pass verifies deploy, rollback, analytics, and monitoring against the whole Alpha Milestone 0-2 feature set at once, rather than re-verifying after every milestone. The file is named for Alpha Milestone 0 because that is where the code it verifies was built, not when it runs.
+**When to run this.** This runbook is the body of task `OPS-001` ([issue #68](https://github.com/trygroove/groove/issues/68)), scheduled immediately **after Alpha Milestone 2** (PRD section 12, "After Alpha Milestone 2"). It was originally expected to run during Alpha Milestone 0, alongside `FND-001b` and `FND-001c`; that was rescheduled so one operator pass verifies deploy, rollback, analytics, and monitoring against the whole Alpha Milestone 0-2 feature set at once, rather than re-verifying after every milestone. The file is named for Alpha Milestone 0 because that is where the code it verifies was built, not when it runs.
 
 Nothing here is optional or downgraded by the move — the acceptance criteria are unchanged, and the `HARD-005` cohort cannot be invited until this runbook has been executed. What changed is only when.
 
@@ -28,7 +28,7 @@ Nothing here is optional or downgraded by the move — the acceptance criteria a
       `bun run deploy`, and `scripts/verify-no-secrets-in-bundle.mjs` are not on
       `main` and nothing below has anything to run.
 - [ ] You have owner-level access to create a Google Cloud / Firebase project and
-      a Sentry organization, and admin access to `afternoon/solid-groove`'s
+      a Sentry organization, and admin access to `trygroove/groove`'s
       Actions settings.
 - [ ] `firebase-tools` is available locally (`bunx firebase --version`) for parts
       1 and 6. Parts 3–5 need only a browser.
@@ -167,7 +167,7 @@ reopens the self-hosting option the ADR rejected, and this part changes.
 
 ## Part 3 — GitHub Actions configuration
 
-- [ ] **Create the `prod` environment.** `afternoon/solid-groove` → Settings →
+- [ ] **Create the `prod` environment.** `trygroove/groove` → Settings →
       Environments → New environment, named exactly `prod`. The `deploy` job
       declares `environment: prod`, and that name is how it finds the six values
       below. No protection rules or branch policy are required for the alpha —
@@ -317,7 +317,7 @@ report can name exactly which release was live before and after.
 
 These acceptance criteria are the ones no amount of implementation work could
 close, because they each require a real environment. They are what `G4.5` waited
-on; it opened on 2026-08-06. Tick them on [issue #68 (`OPS-001`)](https://github.com/afternoon/solid-groove/issues/68) only from observed
+on; it opened on 2026-08-06. Tick them on [issue #68 (`OPS-001`)](https://github.com/trygroove/groove/issues/68) only from observed
 results — except the two deferred by `DEC-012`, noted below:
 
 | Task | Criterion | Closed by |
@@ -350,7 +350,7 @@ feature set, so the event list to confirm in part 5 is every Alpha Milestone 0,
 - [x] Mark **G4.5: Hosted environment verified** open. **Open 2026-08-06.**
       Deploy, rollback, analytics, and error monitoring are each verified
       against the hosted environment; the monitoring defect that originally held
-      the gate ([#174](https://github.com/afternoon/solid-groove/issues/174)) is
+      the gate ([#174](https://github.com/trygroove/groove/issues/174)) is
       fixed, and on release `e15ce13` a deliberately triggered error reaches
       Sentry's ingest endpoint with HTTP 200.
 

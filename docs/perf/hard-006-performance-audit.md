@@ -2,7 +2,7 @@
 
 | Field | Value |
 | --- | --- |
-| Status | Implemented (`HARD-006`, issue [#127](https://github.com/afternoon/solid-groove/issues/127)) |
+| Status | Implemented (`HARD-006`, issue [#127](https://github.com/trygroove/groove/issues/127)) |
 | Scope | Audit of the per-edit and per-frame hot paths against the PRD section 10 performance budgets and section 9.3 arrangement acceptance, plus the fixes the audit surfaced |
 | Gates | Blocks `REL-003` (the private-alpha release gate, issue #80) |
 

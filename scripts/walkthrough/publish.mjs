@@ -17,7 +17,7 @@
  * the `claude/`-prefixed namespace that cloud sessions are always allowed to
  * push to.
  *
- * This depends on `afternoon/solid-groove` being a **public** repository.
+ * This depends on `trygroove/groove` being a **public** repository.
  * GitHub renders a Markdown image by proxying the URL anonymously, and
  * `raw.githubusercontent.com` refuses anonymous reads of a private repo — so if
  * this repository is ever made private, every published walkthrough silently

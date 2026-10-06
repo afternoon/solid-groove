@@ -6,14 +6,14 @@ automated suites cover most of that; this runbook is the part a person has to
 do on real machines, and the rule for what a failure means for a release.
 
 Record every pass as a comment on the release's issue (for the first alpha,
-[#75](https://github.com/afternoon/solid-groove/issues/75)), using the results
+[#75](https://github.com/trygroove/groove/issues/75)), using the results
 table at the end.
 
 | Field | Value |
 | --- | --- |
 | Owner | Whoever cuts the release, on the physical baseline device (not an implementation agent) |
 | Frequency | Before every alpha release, and again whenever a gating browser ships a new major |
-| Hardware | The PRD baseline: a 2019 13-inch Intel MacBook Pro class machine, 8 GB RAM, integrated graphics, run alongside the performance pass in [#63](https://github.com/afternoon/solid-groove/issues/63). Plus one Windows 10/11 machine for Edge |
+| Hardware | The PRD baseline: a 2019 13-inch Intel MacBook Pro class machine, 8 GB RAM, integrated graphics, run alongside the performance pass in [#63](https://github.com/trygroove/groove/issues/63). Plus one Windows 10/11 machine for Edge |
 | Related | [PRD 10, Supported environment](../prd.md#10-non-functional-requirements), [`docs/testing.md`, "Which browsers run where"](../testing.md#which-browsers-run-where), [`docs/core-flows.md`](../core-flows.md) |
 
 ## What automation already covers, and what it cannot

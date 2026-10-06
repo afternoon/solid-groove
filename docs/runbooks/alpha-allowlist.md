@@ -184,7 +184,7 @@ nothing more.
 ```sh
 gcloud iam service-accounts keys create qa-sign-in.json \
   --iam-account=qa-sign-in@<project>.iam.gserviceaccount.com
-gh secret set QA_SIGN_IN_SERVICE_ACCOUNT --repo afternoon/solid-groove < qa-sign-in.json
+gh secret set QA_SIGN_IN_SERVICE_ACCOUNT --repo trygroove/groove < qa-sign-in.json
 rm qa-sign-in.json
 ```
 
