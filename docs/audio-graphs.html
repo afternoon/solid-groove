@@ -460,6 +460,21 @@ const GRAPHS = [
     ],
     coreIn: "rin", coreOut: "damp", coreEdges: [["rin", "conv"], ["conv", "damp"]], wet: true, trim: true,
   }),
+  deviceGraph({
+    id: "limiter", title: "Limiter", files: ["src/audio/devices/limiter.ts", "src/audio/devices/compressorMakeup.ts"],
+    summary: "Drive into a 20:1, no-knee, zero-attack DynamicsCompressorNode with its threshold at the ceiling, then a hard clip at the ceiling so no sample leaves above it (#937). The clip is a fixed [−1, 1] shaper between two gains that scale the ceiling to full scale and back. The dry leg (used only when bypassed) runs through a never-compressing node so a bypass never moves the song in time. No Dry/Wet, no output trim.",
+    core: [
+      { id: "drive", label: "drive", type: "Tone.Gain", kind: "node", params: ["gain = 10^(drive/20)"] },
+      { id: "lim", label: "limit", type: "Tone.Compressor", kind: "node", params: ["threshold = ceiling, release", "20:1, knee 0, attack 0 (fixed)"], note: "gainReductionDb() reads its reduction for the panel meter." },
+      { id: "up", label: "to unit", type: "Tone.Gain", kind: "node", params: ["gain = 10^(−builtInMakeupGainDb/20) / ceiling"] },
+      { id: "clip", label: "clip", type: "Tone.WaveShaper [−1, 1]", kind: "node" },
+      { id: "down", label: "from unit", type: "Tone.Gain", kind: "node", params: ["gain = ceiling"] },
+    ],
+    coreIn: "drive", coreOut: "down",
+    coreEdges: [["drive", "lim"], ["lim", "up"], ["up", "clip"], ["clip", "down"]],
+    dryAlign: { id: "align", label: "dry align", type: "Tone.Compressor", kind: "node", params: ["1:1, knee 0, threshold 0"], note: "A pure delay of exactly the limiter's lookahead." },
+    wet: false, trim: false,
+  }),
   {
     id: "passthrough", group: "Devices", title: "Unknown type (passthrough)",
     files: ["src/audio/DeviceChain.ts", "src/audio/devices/index.ts"],

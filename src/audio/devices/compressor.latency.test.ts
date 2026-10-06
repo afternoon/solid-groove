@@ -100,6 +100,20 @@ describe("declared processing latency (#883)", () => {
     }
   });
 
+  it.each([22_050, 44_100, 48_000])(
+    "the Limiter delays its signal by exactly its declared latency at %d Hz, bypassed or not (#937)",
+    async (sampleRate) => {
+      const declared = devices.deviceLatencyFrames("limiter", sampleRate);
+      expect(declared).toBeGreaterThan(0);
+      for (const bypassed of [false, true]) {
+        const lag = await lagThrough(sampleRate, () =>
+          nodeFor({ ...createDevice("dev_lim" as DeviceId, "limiter", 0), bypassed }),
+        );
+        expect(lag, `bypassed ${bypassed}`).toBe(declared);
+      }
+    },
+  );
+
   it("the master safety limiter delays the mix by exactly its declared latency", async () => {
     const sampleRate = 44_100;
     const lag = await lagThrough(sampleRate, () => {
@@ -111,7 +125,7 @@ describe("declared processing latency (#883)", () => {
 
   it("declares no latency for a device that looks ahead of nothing", () => {
     for (const type of devices.registeredDeviceCoreTypes()) {
-      if (type === "compressor") continue;
+      if (type === "compressor" || type === "limiter") continue;
       expect(devices.deviceLatencyFrames(type, 48_000), type).toBe(0);
     }
     expect(devices.deviceLatencyFrames("future-device", 48_000)).toBe(0);

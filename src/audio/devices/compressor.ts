@@ -9,7 +9,7 @@ import {
 } from "./types";
 
 /**
- * How far below a ceiling of exactly 0 {@link applyParam} keeps a value. A
+ * How far below a ceiling of exactly 0 {@link applyDynamicsParam} keeps a value. A
  * millionth of a decibel is not a different threshold to any ear or any meter;
  * it exists only to keep the value off the one number Tone treats specially.
  */
@@ -33,7 +33,7 @@ const ZERO_CEILING_EPSILON = 1e-6;
  * registered range ("do not compress"), the fix is to never store the literal
  * zero: -1e-6 dB behaves identically and every later ramp stays in range.
  */
-function applyParam(
+export function applyDynamicsParam(
   param: RampableParam & {
     readonly minValue: number;
     readonly maxValue: number;
@@ -93,20 +93,24 @@ export const createCompressorCore: DeviceCoreFactory = (): DeviceCore => {
   const makeup = new Tone.Volume(0);
   compressor.connect(makeup);
   const dryAlign = new Tone.Compressor();
-  applyParam(dryAlign.knee, 0, true);
-  applyParam(dryAlign.threshold, 0, true);
-  applyParam(dryAlign.ratio, 1, true);
+  applyDynamicsParam(dryAlign.knee, 0, true);
+  applyDynamicsParam(dryAlign.threshold, 0, true);
+  applyDynamicsParam(dryAlign.ratio, 1, true);
 
   return {
     input: compressor,
     output: makeup,
     dryAlign,
     apply(values, _context, initial) {
-      const knee = applyParam(compressor.knee, KNEE_DB, initial);
-      const threshold = applyParam(compressor.threshold, values.threshold, initial);
-      const ratio = applyParam(compressor.ratio, values.ratio, initial);
-      applyParam(compressor.attack, values.attack, initial);
-      applyParam(compressor.release, values.release, initial);
+      const knee = applyDynamicsParam(compressor.knee, KNEE_DB, initial);
+      const threshold = applyDynamicsParam(
+        compressor.threshold,
+        values.threshold,
+        initial,
+      );
+      const ratio = applyDynamicsParam(compressor.ratio, values.ratio, initial);
+      applyDynamicsParam(compressor.attack, values.attack, initial);
+      applyDynamicsParam(compressor.release, values.release, initial);
       // Computed from the values the node actually holds, after clamping, so
       // the cancellation matches the gain it is cancelling.
       setOrRamp(

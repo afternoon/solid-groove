@@ -45,6 +45,8 @@ export const TRACK_FEATURE_KEYS = [
   // curve (LOOP-022).
   "eq_device",
   "eq_curve",
+  // The first Limiter added to any chain (#937).
+  "limiter_device",
   // Adding a drum pad from the Sequence view's [+ Pad] row (#947).
   "sequence_add_pad",
 ] as const;
@@ -106,6 +108,7 @@ export const TRACK_EVENTS = {
         "delay",
         "reverb",
         "eq",
+        "limiter",
       ]),
       chain: enumParam(["insert", "return", "master"]),
     },
