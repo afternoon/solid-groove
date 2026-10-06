@@ -41,7 +41,7 @@ src/
 ├── access/         # Who may sign in during the alpha: allowlist, sign-in gate, admin repository (#854), QA account pool (#1055)
 ├── analytics/      # The typed event catalog and its transports
 ├── arrangement/    # The arrangement view, its canvas renderer, gestures and clipboard
-├── assistant/      # The assistant gateway (#69, ADR 0006): protocol, provider boundary, history, telemetry; Firebase- and SDK-free
+├── assistant/      # The assistant gateway (#69, ADR 0006): protocol, provider boundary, history, telemetry, quota and spend guards; Firebase- and SDK-free
 ├── audio/          # Tone/Web Audio: runtime, project graph, instruments, transport, offline render
 ├── auth/           # AuthProvider and the Firebase auth wrapper
 ├── browser/        # Browser capability detection and messages

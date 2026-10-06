@@ -8,6 +8,7 @@
 import { describe, expect, it } from "vitest";
 import { ASSISTANT_MODELS } from "../../src/assistant/config";
 import { type AssistantGatewayDeps, runAssistantTurn } from "../../src/assistant/gateway";
+import { createInMemoryGuardStores } from "../../src/assistant/inMemoryGuardStores";
 import {
   AssistantGatewayError,
   type AssistantTurnRequest,
@@ -248,6 +249,7 @@ describe("the gateway over the real SDK", () => {
   function deps(fetchImpl: typeof fetch, logs: AssistantTurnLog[]): AssistantGatewayDeps {
     return {
       provider: createAnthropicProvider({ apiKey: "k", fetch: fetchImpl }),
+      guards: createInMemoryGuardStores(),
       log: (record) => logs.push(record),
       now: Date.now,
       sleep: async () => {},

@@ -12,7 +12,8 @@ import type { ProviderFailureKind } from "./provider";
 import type { ProviderUsage } from "./streamEvents";
 
 export interface AssistantTurnLog {
-  readonly outcome: "completed" | AssistantErrorCode;
+  /** `internal_error`: the turn failed for a reason the gateway does not know. */
+  readonly outcome: "completed" | AssistantErrorCode | "internal_error";
   readonly model: string;
   readonly promptVersion: string;
   /** Provider calls made, retries included. */

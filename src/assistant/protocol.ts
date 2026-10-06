@@ -96,6 +96,8 @@ export interface AssistantTurnResult {
   readonly stopReason: AssistantStopReason;
   readonly model: string;
   readonly promptVersion: string;
+  /** Provider calls the account has left in the rolling window. */
+  readonly requestsRemaining: number;
 }
 
 /**
@@ -113,6 +115,10 @@ export interface AssistantTurnResult {
  *   neither.
  * - `malformed_response`: the provider's stream broke, or its reply failed
  *   validation.
+ * - `quota_exceeded`: the account has made its 100 requests in the last 24
+ *   hours; `resetsAt` says when the next one frees up (ADR 0006 decision 5).
+ * - `assistant_disabled`: the manual kill switch is off.
+ * - `spend_ceiling_reached`: today's organisation-wide spend ceiling is hit.
  */
 export const ASSISTANT_ERROR_CODES = [
   "unauthenticated",
@@ -122,6 +128,9 @@ export const ASSISTANT_ERROR_CODES = [
   "provider_unavailable",
   "provider_error",
   "malformed_response",
+  "quota_exceeded",
+  "assistant_disabled",
+  "spend_ceiling_reached",
 ] as const;
 export type AssistantErrorCode = (typeof ASSISTANT_ERROR_CODES)[number];
 
@@ -136,19 +145,27 @@ const RETRYABLE_CODES: ReadonlySet<AssistantErrorCode> = new Set([
 export interface AssistantErrorDetails {
   readonly code: AssistantErrorCode;
   readonly retryable: boolean;
+  /** For `quota_exceeded`: when the next request frees up, ms since the epoch. */
+  readonly resetsAt?: number;
 }
 
 /** A turn that failed for a known reason. Its message is ours, never the provider's. */
 export class AssistantGatewayError extends Error {
   readonly code: AssistantErrorCode;
+  readonly resetsAt: number | undefined;
 
-  constructor(code: AssistantErrorCode, message: string) {
+  constructor(code: AssistantErrorCode, message: string, resetsAt?: number) {
     super(message);
     this.name = "AssistantGatewayError";
     this.code = code;
+    this.resetsAt = resetsAt;
   }
 
   get details(): AssistantErrorDetails {
-    return { code: this.code, retryable: RETRYABLE_CODES.has(this.code) };
+    return {
+      code: this.code,
+      retryable: RETRYABLE_CODES.has(this.code),
+      ...(this.resetsAt === undefined ? {} : { resetsAt: this.resetsAt }),
+    };
   }
 }

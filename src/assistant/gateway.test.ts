@@ -17,6 +17,10 @@ import {
   pseudonymousUserId,
   runAssistantTurn,
 } from "./gateway";
+import {
+  createInMemoryGuardStores,
+  type InMemoryGuardStores,
+} from "./inMemoryGuardStores";
 import { assistantContextPayload } from "./payload";
 import { ASSISTANT_PROMPT_VERSION } from "./prompt";
 import {
@@ -45,6 +49,7 @@ interface Harness {
   logs: AssistantTurnLog[];
   chunks: AssistantStreamChunk[];
   sleeps: number[];
+  guards: InMemoryGuardStores;
   provider: ReturnType<typeof createScriptedAssistantProvider>;
 }
 
@@ -55,14 +60,17 @@ function harness(
   const provider = createScriptedAssistantProvider(scripts);
   const logs: AssistantTurnLog[] = [];
   const sleeps: number[] = [];
+  const guards = createInMemoryGuardStores();
   let clock = 1_000;
   return {
     provider,
+    guards,
     logs,
     chunks: [],
     sleeps,
     deps: {
       provider,
+      guards,
       log: (record) => logs.push(record),
       now: () => {
         clock += 5;
@@ -116,6 +124,7 @@ describe("runAssistantTurn: a completed turn", () => {
       stopReason: "end_turn",
       model: ASSISTANT_MODELS["claude-sonnet-5"].id,
       promptVersion: ASSISTANT_PROMPT_VERSION,
+      requestsRemaining: 99,
     });
   });
 
@@ -429,6 +438,16 @@ describe("runAssistantTurn: redacted telemetry", () => {
       }
     },
   );
+
+  it("logs a failure it does not know as an internal error", async () => {
+    const h = harness([replyEvents(["ok"])]);
+    h.guards.reserveCall = async () => {
+      throw new Error("Firestore unreachable for Secret Project Name");
+    };
+    await expect(run(h)).rejects.toThrow();
+    expect(h.logs.map((log) => log.outcome)).toEqual(["internal_error"]);
+    expect(JSON.stringify(h.logs)).not.toContain("Secret Project Name");
+  });
 
   it("counts tokens over every attempt", async () => {
     const h = harness([

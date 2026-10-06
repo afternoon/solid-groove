@@ -226,5 +226,24 @@ service cloud.firestore {
       allow read, delete: if isAdmin();
       allow create, update: if false;
     }
+
+    // The assistant's limits (#69, ADR 0006): each account's recent requests,
+    // each day's spend, and the kill switch. Only the `assistantTurn` Cloud
+    // Function reads or writes them, with the admin credential that rules do
+    // not apply to. No client may, the account a usage record belongs to and
+    // an admin included, so nobody can lower their own count or flip the
+    // switch from a browser; the product owner flips it in the console.
+    // `src/assistant/guards.ts` owns the paths and shapes.
+    match /assistantUsage/{uid} {
+      allow read, write: if false;
+    }
+
+    match /assistantSpend/{day} {
+      allow read, write: if false;
+    }
+
+    match /assistantControl/{document} {
+      allow read, write: if false;
+    }
   }
 }
