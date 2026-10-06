@@ -98,7 +98,8 @@
     "verify:landing-static": "node scripts/verify-landing-static.mjs",
     "allowlist:add": "bun scripts/access/allowlistAdd.ts",
     "allowlist:seed": "bun scripts/access/allowlistSeed.ts",
-    "admin:grant": "bun scripts/access/adminGrant.ts"
+    "admin:grant": "bun scripts/access/adminGrant.ts",
+    "qa:accounts": "bun scripts/access/qaAccounts.ts"
   },
   "type": "module",
   "trustedDependencies": [

@@ -129,6 +129,100 @@ FIRESTORE_EMULATOR_HOST=127.0.0.1:8080 FIREBASE_AUTH_EMULATOR_HOST=127.0.0.1:909
   FIREBASE_PROJECT_ID=demo-solid-groove bun run allowlist:add -- you@example.com
 ```
 
+## Signing CI in as a QA account
+
+CI signs into the live app as a standing pool of allowlisted QA accounts
+(#1055): `testuser0`…`testuser10@qa.trygroove.app`, UIDs `qa-testuser-<n>`,
+each with a verified address on a domain that receives no mail. `testuser0` is
+the post-deploy smoke test's; `testuser1`…`testuser10` are the QA sweep's,
+one per agent slot. The pool is written down once, in `src/access/qaAccounts.ts`.
+
+There is no new sign-in method. A dedicated service account signs a Firebase
+custom token for one of the accounts; the hosted suites exchange it for a
+session in Node with the Firebase client SDK and write that session into the
+page's IndexedDB, the way the emulator suite installs its sessions. Nothing in
+the app's bundle knows about any of it.
+
+**The allowlist gate does not run for these sign-ins.** Firebase never runs a
+blocking function for a custom-token sign-in ("Anonymous and custom
+authentication do not trigger blocking functions",
+[Firebase docs](https://firebase.google.com/docs/auth/extend-with-blocking-functions)),
+so `alphaAllowlistGate` is never asked about a QA account. Only the holder of
+the service account's key can mint a token, which is what keeps this closed.
+The accounts are on the allowlist anyway, verified, so they would pass the gate
+if Firebase ever did run it (`providerId` would be `custom`, so the gate would
+rely on `emailVerified`), and so they show on `/admin` as the people who can
+sign in.
+
+`<project>` below is the production Firebase project ID (the
+`FIREBASE_PROJECT_ID` repository variable). The sweep and the signed-in smoke
+test cannot pass until steps 1 to 3 are done.
+
+### 1. Create the service account
+
+With `gcloud`, signed in as a project owner:
+
+```sh
+gcloud iam service-accounts create qa-sign-in \
+  --project=<project> \
+  --display-name="QA sign-in (custom tokens for CI QA accounts)"
+```
+
+Or in the Google Cloud console: IAM & Admin → Service accounts → Create
+service account, name `qa-sign-in`. **Grant it no roles.** It only signs
+custom tokens with its own key, which needs no IAM permission. It is not
+`FIREBASE_DEPLOY_SERVICE_ACCOUNT`: a leaked key can sign in as a QA user and
+nothing more.
+
+### 2. Make a key and save it as a GitHub secret
+
+```sh
+gcloud iam service-accounts keys create qa-sign-in.json \
+  --iam-account=qa-sign-in@<project>.iam.gserviceaccount.com
+gh secret set QA_SIGN_IN_SERVICE_ACCOUNT --repo afternoon/solid-groove < qa-sign-in.json
+rm qa-sign-in.json
+```
+
+Or in GitHub: Settings → Secrets and variables → Actions → New repository
+secret, name `QA_SIGN_IN_SERVICE_ACCOUNT`, value is the whole JSON file.
+Delete the local file afterwards; the secret is the only copy.
+
+If key creation is refused, the organisation policy
+`iam.disableServiceAccountKeyCreation` is on. Allow it for this project, or
+say so on #1055 so the build can switch to keyless signing (Workload Identity
+Federation plus the `iam.serviceAccounts.signBlob` permission).
+
+### 3. Create the QA accounts
+
+With application default credentials for an owner
+(`gcloud auth application-default login`):
+
+```sh
+FIREBASE_PROJECT_ID=<project> bun run qa:accounts
+```
+
+It creates or updates `testuser0`…`testuser10@qa.trygroove.app` (UIDs
+`qa-testuser-<n>`, email verified, display name `QA testuser<n>`) and adds each
+address to the allowlist. Running it again changes nothing. It never grants
+`admin`, and it leaves a disabled account disabled. The accounts show on
+`/admin` in the allowlist; don't remove them there.
+
+### 4. Check it
+
+Actions → QA sweep → Run workflow with `dry_run` on. The run walks a flow as
+`testuser1` and reports a real build SHA on the pinned QA sweep issue. The
+next deploy's smoke test creates and plays a project as `testuser0`.
+
+### Rotating or revoking
+
+- **Rotate the key:** make a new key (step 2), update the secret, then delete
+  the old key:
+  `gcloud iam service-accounts keys list --iam-account=qa-sign-in@<project>.iam.gserviceaccount.com`,
+  then `keys delete <id>`.
+- **Suspected leak:** delete the key straight away. That stops new sign-ins.
+  To end sessions already open, revoke the QA users' refresh tokens
+  (`auth.revokeRefreshTokens(uid)`) or disable them in Authentication → Users.
+
 ## What no longer signs in by itself
 
 Guest start was what let automation into the live app without an account. With
