@@ -155,6 +155,40 @@ describe("delay (FX-01)", () => {
     expect(Math.max(...data.map(Math.abs))).toBeLessThan(2.5);
   });
 
+  // #1032: the loop limiter's table must reach past full scale, so a hot loop
+  // is rounded by tanh's knee rather than held flat at the table's end.
+  it("saturates feedback past full scale at a knee, not at the table's edge", async () => {
+    const buffer = await Tone.Offline(() => {
+      const node = deviceNode.buildDeviceNode(
+        device("delay", { sync: 0, time: 0.1, feedback: 0.99, filter: 18_000, wet: 1 }),
+        context(),
+        delay.createDelayCore,
+      );
+      // +6 dBFS, so the loop is driven well past full scale while it plays.
+      const source = new Tone.Oscillator({
+        type: "sine",
+        frequency: 220,
+        volume: Tone.gainToDb(2),
+      });
+      source.connect(node.input);
+      node.output.toDestination();
+      source.start(0).stop(0.25);
+    }, 0.5);
+    const data = buffer.getChannelData(0);
+    const rate = buffer.sampleRate;
+    // The source stops at 0.25 s and the line is 0.1 s long, so between 0.35 s
+    // and 0.45 s the output is exactly what the limiter made of the hot loop.
+    const firstRepeat = data.subarray(Math.floor(0.36 * rate), Math.floor(0.44 * rate));
+    const peak = firstRepeat.reduce((m, s) => Math.max(m, Math.abs(s)), 0);
+    // A table built over -1..1 holds everything over full scale at tanh(1),
+    // about 0.76, and sits flat there for a large part of every cycle.
+    expect(peak).toBeGreaterThan(0.9);
+    const flat = firstRepeat.filter((s) => Math.abs(Math.abs(s) - peak) < 1e-4).length;
+    expect(flat / firstRepeat.length).toBeLessThan(0.05);
+    // Still bounded by the knee.
+    expect(peak).toBeLessThan(1);
+  });
+
   it("widens the two channels with spread", async () => {
     async function channelDifference(spread: number): Promise<number> {
       const buffer = await Tone.Offline(() => {

@@ -13,6 +13,24 @@ import {
 const MAX_DELAY_SECONDS = 4;
 
 /**
+ * How far past full scale the feedback limiter's tanh is defined, as a linear
+ * factor: 4 is +12 dB. A `WaveShaperNode` only reads its table over -1..1 and
+ * holds the end values beyond it, so a table built over -1..1 held every hot
+ * feedback sample flat at tanh(1) ≈ 0.76 instead of rounding it (#1032).
+ * Building the table over -4..4 and scaling the loop into it by 1/4 leaves the
+ * knee, not the table's edge, to do the limiting (as the Saturator, #885, and
+ * the Overdrive, #925, do).
+ */
+const FEEDBACK_HEADROOM = 4;
+
+/**
+ * How many points the limiter's table has: proportionally more than a -1..1
+ * table's 1024 so the knee is as finely resolved, plus one so input 0 lands
+ * on a point and silence in is silence out.
+ */
+const FEEDBACK_CURVE_POINTS = 1024 * (FEEDBACK_HEADROOM / 2) + 1;
+
+/**
  * The delay time one channel should use, in seconds.
  *
  * When `sync` is on, the time comes from the song tempo and the stored
@@ -71,8 +89,15 @@ export const createDelayCore: DeviceCoreFactory = (): DeviceCore => {
    * loop to ±1 while staying smooth, so a long tail saturates gently into the
    * classic tape-delay warmth instead of buzzing. It is inaudible at ordinary
    * feedback settings, where the loop never approaches the knee.
+   *
+   * The table spans ±FEEDBACK_HEADROOM, and the feedback gain scales the loop
+   * into it, so the shaper's net transfer is tanh of the loop's true level:
+   * unchanged below full scale, and still rounding above it.
    */
-  const feedbackLimit = new Tone.WaveShaper((x: number) => Math.tanh(x), 1024);
+  const feedbackLimit = new Tone.WaveShaper(
+    (x: number) => Math.tanh(x * FEEDBACK_HEADROOM),
+    FEEDBACK_CURVE_POINTS,
+  );
   const merger = new Tone.Merge();
   const output = new Tone.Gain(1);
 
@@ -114,7 +139,9 @@ export const createDelayCore: DeviceCoreFactory = (): DeviceCore => {
         Math.min(MAX_DELAY_SECONDS, base * (1 + values.spread)),
         initial,
       );
-      setOrRamp(feedback.gain, values.feedback, initial);
+      // Scaled into the limiter table's ±FEEDBACK_HEADROOM span: a full-scale
+      // repeat lands a quarter of the way out, on the curve.
+      setOrRamp(feedback.gain, values.feedback / FEEDBACK_HEADROOM, initial);
       setOrRamp(damping.frequency, values.filter, initial);
     },
     dispose() {
