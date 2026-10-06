@@ -54,7 +54,7 @@ export interface DeviceCore {
   readonly dryAlign?: Tone.ToneAudioNode;
   /**
    * An optional live read of how much gain the device is currently removing,
-   * in dB (0 when it is not reducing). Only the compressor implements it; the
+   * in dB (0 when it is not reducing). The compressor and the limiter implement it; the
    * panel polls it for a gain-reduction meter (FX-01) and it is never the
    * source of an analytics event.
    */
@@ -73,6 +73,11 @@ export interface DeviceCore {
    * node offers `readSpectrum()`. Only the EQ does (LOOP-022).
    */
   readonly spectrum?: boolean;
+  /**
+   * Whether the device's panel shows the loudness of its output, so its node
+   * offers `sampleLoudness()`. Only the Limiter does (#937).
+   */
+  readonly loudness?: boolean;
 }
 
 /** A device's parameter values, by bare id, with every default filled in. */

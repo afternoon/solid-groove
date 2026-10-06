@@ -247,6 +247,14 @@ export class TransportController {
   /** Where the playhead was when `stop()` last ran, so `continueFromStop()`
    * can resume there rather than from the position `stop()` rewound to. */
   private stoppedAtTicks = 0;
+  /**
+   * Whether the playhead was explicitly put back at the top (a fresh
+   * transport, `stop()`, or a seek to the start while stopped) and nothing has
+   * played since. Deliberately not inferred from the position: a pause before
+   * the transport advanced, or one that lands exactly on the loop start, sits
+   * on the start tick too, and resuming from it is still the same programme.
+   */
+  private rewound = true;
 
   constructor(options: TransportControllerOptions = {}) {
     this.engine = options.engine ?? liveTransportEngine;
@@ -293,8 +301,24 @@ export class TransportController {
     return this.metronome?.enabled ?? false;
   }
 
+  /**
+   * Whether the next `play()` plays from the top: the transport was stopped
+   * (or freshly made, or seeked to the start while stopped) and has not
+   * played since (#937: a loudness meter's integrated figure starts over
+   * then). A pause is never the top, wherever its playhead happens to sit.
+   */
+  get atStart(): boolean {
+    return this.rewound && !this.isPlaying;
+  }
+
+  /** The tick `stop()` rewinds to: the loop start when looping, else 0. */
+  private get startTicks(): number {
+    return this.engine.loop ? (this.loopRange?.startTicks ?? 0) : 0;
+  }
+
   /** Start (or resume) playback from the current position. */
   play(): void {
+    this.rewound = false;
     this.engine.start();
   }
 
@@ -312,7 +336,8 @@ export class TransportController {
   stop(): void {
     this.stoppedAtTicks = this.positionTicks;
     this.engine.stop();
-    this.engine.ticks = this.engine.loop ? (this.loopRange?.startTicks ?? 0) : 0;
+    this.engine.ticks = this.startTicks;
+    this.rewound = true;
   }
 
   /**
@@ -327,13 +352,18 @@ export class TransportController {
     if (this.engine.state === "stopped") {
       this.engine.ticks = this.stoppedAtTicks;
     }
+    this.rewound = false;
     this.engine.start();
   }
 
   /** Move the playhead without changing whether the transport is running. A
    * tempo change is a mirror, not a seek — see {@link setTempo}. */
   seekTicks(ticks: number): void {
-    this.engine.ticks = Math.max(0, Math.round(ticks));
+    const target = Math.max(0, Math.round(ticks));
+    this.engine.ticks = target;
+    // Only a seek made while stopped or paused can put the next play at the
+    // top; one made mid-play is part of the running programme.
+    if (!this.isPlaying) this.rewound = target === this.startTicks;
   }
 
   /**

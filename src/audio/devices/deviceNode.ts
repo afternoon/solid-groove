@@ -2,6 +2,7 @@ import * as Tone from "tone";
 import { deviceParameters } from "../../domain/devices";
 import type { Device } from "../../domain/entities";
 import type { DeviceNode, SpectrumReading } from "../DeviceChain";
+import { LoudnessMeter } from "../loudnessMeter";
 import {
   type DeviceCoreFactory,
   type DeviceGraphContext,
@@ -105,6 +106,9 @@ export function buildDeviceNode(
     };
   }
 
+  /** The meter behind `sampleLoudness()`, tapped off `output` on first use. */
+  let loudness: LoudnessMeter | undefined;
+
   const initialValues = readDeviceParameters(definitions, device);
   core.apply(initialValues, context, true);
   applyMix(device, initialValues, true);
@@ -120,6 +124,7 @@ export function buildDeviceNode(
       applyMix(next, values, false);
     },
     dispose() {
+      loudness?.dispose();
       analyser?.dispose();
       mono?.dispose();
       core.dispose();
@@ -132,5 +137,12 @@ export function buildDeviceNode(
     gainReductionDb: core.gainReductionDb?.bind(core),
     resolvedDelaySeconds: core.resolvedDelaySeconds?.bind(core),
     readSpectrum: core.spectrum ? readSpectrum : undefined,
+    sampleLoudness: core.loudness
+      ? () => {
+          loudness ??= new LoudnessMeter(output);
+          return loudness.sample();
+        }
+      : undefined,
+    resetLoudness: core.loudness ? () => loudness?.reset() : undefined,
   };
 }

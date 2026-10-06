@@ -147,6 +147,60 @@ describe("TransportController (PRD AUD-01/AUD-02)", () => {
     expect(transport.positionTicks).toBe(2 * TICKS_PER_BAR);
   });
 
+  it("knows when the next play starts from the top (#937)", () => {
+    const engine = fakeEngine();
+    const transport = new TransportModule.TransportController({ engine });
+    expect(transport.atStart).toBe(true);
+    transport.play();
+    expect(transport.atStart).toBe(false);
+    engine.ticks = 3 * TICKS_PER_QUARTER;
+    transport.pause();
+    expect(transport.atStart).toBe(false);
+    transport.stop();
+    expect(transport.atStart).toBe(true);
+    transport.seekTicks(TICKS_PER_BAR);
+    expect(transport.atStart).toBe(false);
+
+    // Looping, the top is the loop start, which is where stop rewinds to.
+    transport.mirrorLoop({
+      startTicks: 2 * TICKS_PER_BAR,
+      endTicks: 4 * TICKS_PER_BAR,
+      enabled: true,
+    });
+    transport.stop();
+    expect(transport.atStart).toBe(true);
+    transport.seekTicks(2 * TICKS_PER_BAR);
+    expect(transport.atStart).toBe(true);
+  });
+
+  it("never treats a pause as the top, even one that sits on the start tick (#937)", () => {
+    const engine = fakeEngine();
+    const transport = new TransportModule.TransportController({ engine });
+
+    // Paused before the transport advanced: the playhead is still on tick 0.
+    transport.play();
+    transport.pause();
+    expect(engine.ticks).toBe(0);
+    expect(transport.atStart).toBe(false);
+
+    // Paused exactly on the loop start mid-pass.
+    transport.mirrorLoop({
+      startTicks: TICKS_PER_BAR,
+      endTicks: 2 * TICKS_PER_BAR,
+      enabled: true,
+    });
+    transport.play();
+    engine.ticks = TICKS_PER_BAR;
+    transport.pause();
+    expect(transport.atStart).toBe(false);
+
+    // A seek made while playing is part of the programme, even to the top.
+    transport.play();
+    transport.seekTicks(TICKS_PER_BAR);
+    transport.pause();
+    expect(transport.atStart).toBe(false);
+  });
+
   it("reports a position just past the loop end as back at the loop start while looping", () => {
     const engine = fakeEngine();
     const transport = new TransportModule.TransportController({ engine });

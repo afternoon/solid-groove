@@ -28,7 +28,8 @@ function dbToGain(db: number): number {
 }
 
 /**
- * Limiter: drive, ceiling and release, with a live gain-reduction read (#937).
+ * Limiter: drive, ceiling and release, with a live gain-reduction read and
+ * a loudness meter on its output for the panel (#937).
  *
  * `drive -> limit -> toUnit -> clip -> fromUnit`:
  *
@@ -69,6 +70,7 @@ export const createLimiterCore: DeviceCoreFactory = (): DeviceCore => {
     input: drive,
     output: fromUnit,
     dryAlign,
+    loudness: true,
     apply(values, _context, initial) {
       setOrRamp(drive.gain, dbToGain(values.drive), initial);
       const knee = applyDynamicsParam(limit.knee, LIMIT_KNEE_DB, initial);

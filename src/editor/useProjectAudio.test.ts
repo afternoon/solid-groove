@@ -331,6 +331,47 @@ describe("useProjectAudio", () => {
     expect(result.readDeviceSpectrum(eqId)).toBeNull();
   });
 
+  it("starts the loudness programme over only on a play from the top (#937)", async () => {
+    const { ProjectAudioGraph } = await import("../audio/ProjectAudioGraph");
+    const project = createSliceFixtureProject();
+    const real = AudioRuntimeModule.getAudioRuntime();
+    const runtime: AudioHost = {
+      getDestination: () => real.getDestination(),
+      getSampleRate: () => real.getSampleRate(),
+      resume: () => Promise.resolve(),
+      openProjectScope: (owner) => real.openProjectScope(owner),
+    };
+    const reset = vi.spyOn(ProjectAudioGraph.prototype, "resetLoudness");
+    try {
+      const { result } = renderHook(
+        () => useProjectAudioModule.useProjectAudio(() => project, { runtime }),
+        {},
+      );
+      void result.isPlaying();
+      await Promise.resolve();
+      await Promise.resolve();
+
+      await result.play();
+      expect(reset).toHaveBeenCalledTimes(1);
+      // A pause before the transport has advanced still sits on tick 0, but
+      // resuming from it carries on with the same programme.
+      result.pause();
+      await result.play();
+      expect(reset).toHaveBeenCalledTimes(1);
+      // So does a resume from a pause further in.
+      result.seekTicks(2 * TICKS_PER_BAR);
+      result.pause();
+      await result.play();
+      expect(reset).toHaveBeenCalledTimes(1);
+      result.stop();
+      await result.play();
+      expect(reset).toHaveBeenCalledTimes(2);
+      result.stop();
+    } finally {
+      reset.mockRestore();
+    }
+  });
+
   it("previews a library sound in a slot without touching the project, and clears back (LIB-010)", async () => {
     const runtime = AudioRuntimeModule.getAudioRuntime();
     const project = createSliceFixtureProject();
