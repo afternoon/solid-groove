@@ -1,0 +1,49 @@
+name: Merge
+
+# Merges what the product owner approved, one whole stack at a time. Add the
+# `status:approved` label to an issue (the board's Approved column) to approve every open PR for it (and the PRs
+# stacked under them), or to a PR to approve it and the PRs under it (to land
+# the bottom of a stack early). See `.github/scripts/merge.mjs`.
+#
+# The bottom PR goes into the merge queue at once; each PR above it joins when
+# restack.yml moves it onto `main`. Queue failures go back to the agent through
+# ci-failure.yml. A push to an approved PR re-queues it without a new approval;
+# remove the label to stop that.
+on:
+  issues:
+    types: [labeled]
+  pull_request:
+    types: [labeled, edited, synchronize]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  merge:
+    if: >-
+      (github.event_name == 'issues' && github.event.label.name == 'status:approved' && !github.event.issue.pull_request) ||
+      (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && (
+        (github.event.action == 'labeled' && github.event.label.name == 'status:approved') ||
+        (github.event.action == 'edited' && github.event.changes.base != null) ||
+        github.event.action == 'synchronize'
+      ))
+    runs-on: ubuntu-latest
+    # One at a time, never cancelled: an approval and the pushes it causes can
+    # arrive together.
+    concurrency:
+      group: merge
+      cancel-in-progress: false
+    env:
+      # Not GITHUB_TOKEN: a merge made by it triggers no workflows, so `main`
+      # would get no CI and no deploy.
+      GH_TOKEN: ${{ secrets.RESTACK_TOKEN || github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts
+      - env:
+          MODE: ${{ github.event_name == 'issues' && 'issue' || (github.event.action == 'labeled' && 'pr' || 'sync') }}
+          NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+        run: node .github/scripts/merge.mjs "$MODE" "$NUMBER"

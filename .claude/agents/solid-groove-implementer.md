@@ -41,11 +41,12 @@ If you truly cannot reproduce it at any layer, return `unreproduced` with what y
 tried, instead of shipping a speculative fix.
 
 **Feature.**
-- Plan the PRs first. One purpose per PR; split into a stack only where a reader
-  would want to review parts separately (a refactor and the feature on it, a
-  schema change and its UI). About 400 changed lines is a sign to consider
-  splitting, not a cap. Tests ship with the code they cover. Never mix a
-  behaviour change into a pure move.
+- Plan the PRs first. One PR is the default; stack only a big change (about
+  400 changed lines is the sign, not a cap) where a reader would want to review
+  parts separately (a refactor and the feature on it, a schema change and its
+  UI). Stack only real dependencies and keep the stack as short as they allow;
+  put a pure refactor or move at the bottom so it can land early. Tests ship
+  with the code they cover. Never mix a behaviour change into a pure move.
 - If the feature adds a user journey worth guarding for the life of the product,
   write its core flow (see `docs/core-flows.md`, "Anatomy of a flow") as the
   **first branch of the stack**: the register entry plus
