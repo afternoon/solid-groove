@@ -34,12 +34,13 @@ in it, and read a failure or a slowdown as belonging to a layer rather than to
 | `domain` | `src/domain`, `src/commands`, `src/projection`, `src/selection` | 38 |
 | `audio` | `src/audio` | 25 |
 | `ui` | `src/editor`, `src/components`, `src/instrument`, `src/arrangement`, `src/controls` | 51 |
-| `data` | `src/persistence`, `src/library`, `src/auth` | 19 |
+| `data` | `src/persistence`, `src/library`, `src/auth`, `src/export`, `src/userData`, `src/userLibrary`, `src/access`, `src/assistant` | 19 |
 | `platform` | `src/analytics`, `src/monitoring`, `src/shortcuts`, `src/shared`, `src/testing`, root `src/*.test.ts` | 25 |
+| `functions` | `functions/src` — the Cloud Functions' glue (the assistant's provider adapter and callable handler), in Node | 2 |
 | `library-pipeline` | `scripts/` — the sample-library build tooling, not the app | 16 |
 
 ```bash
-bun run test                     # the five application projects
+bun run test                     # the application projects and functions
 bun run test:all                 # every project, including library-pipeline
 bun run test:library             # library-pipeline alone
 bunx vitest run --project=audio  # one layer

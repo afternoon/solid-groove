@@ -21,7 +21,15 @@ import { execFileSync } from "node:child_process";
 import { relative, resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dirname, "..");
-const PROJECTS = ["domain", "audio", "ui", "data", "platform", "library-pipeline"];
+const PROJECTS = [
+  "domain",
+  "audio",
+  "ui",
+  "data",
+  "platform",
+  "functions",
+  "library-pipeline",
+];
 
 /** Every test file git knows about, excluding the separately-configured suites. */
 function filesOnDisk() {
