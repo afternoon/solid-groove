@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { createReferenceProject } from "../domain/fixtures";
-import { buildAssistantContext } from "../projection/assistantContextProjection";
 import {
   type CallScript,
   createScriptedAssistantProvider,
@@ -21,7 +20,7 @@ import {
   createInMemoryGuardStores,
   type InMemoryGuardStores,
 } from "./inMemoryGuardStores";
-import { assistantContextPayload } from "./payload";
+import { buildAssistantPayload } from "./payload";
 import { ASSISTANT_PROMPT_VERSION } from "./prompt";
 import {
   type AssistantErrorCode,
@@ -39,7 +38,7 @@ const SIGNED_IN: AssistantCaller = {
 function request(overrides: Partial<AssistantTurnRequest> = {}): AssistantTurnRequest {
   return {
     messages: [{ role: "user", text: "Make the bass hit harder" }],
-    context: assistantContextPayload(buildAssistantContext(createReferenceProject())),
+    context: buildAssistantPayload(createReferenceProject()),
     ...overrides,
   };
 }

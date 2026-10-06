@@ -10,7 +10,12 @@
  * Firebase-free and provider-free, so the browser can share these types.
  */
 import { z } from "zod";
-import { timeSignatureSchema, trackTypeSchema } from "../domain/entities";
+import {
+  noteTriggerSchema,
+  timeSignatureSchema,
+  trackTypeSchema,
+} from "../domain/entities";
+import { MAX_SELECTED_NOTES } from "../projection/selectedNotes";
 import { ASSISTANT_REQUEST_LIMITS } from "./config";
 
 const name = z.string().max(200);
@@ -24,6 +29,8 @@ export const assistantTrackContextSchema = z.strictObject({
   type: trackTypeSchema,
   instrumentKind: z.enum(["sampler", "synth", "drumMachine"]).nullable(),
   deviceCount: count,
+  volume: z.number().min(-60).max(6),
+  pan: z.number().min(-1).max(1),
   muted: z.boolean(),
   soloed: z.boolean(),
   clipCount: count,
@@ -42,10 +49,75 @@ export const assistantSelectionContextSchema = z.strictObject({
   countByKind: z.record(z.string().max(32), count),
 });
 
+const unit = z.number().min(0).max(1);
+
+/** One selected note, at its clip-relative position. */
+export const assistantNoteEventSchema = z.strictObject({
+  id: z.string().max(64),
+  trigger: noteTriggerSchema,
+  startTicks: ticks,
+  durationTicks: ticks,
+  velocity: unit,
+  probability: unit.nullable(),
+});
+
+/**
+ * The current selection's raw note events, and only the selection's
+ * (ADR 0007 decision 3; `src/projection/selectedNotes.ts`). Never a clip's
+ * name. The cap is on the notes across every clip, not per clip, and
+ * `noteCount` is exactly how many are sent.
+ */
+export const assistantSelectedNotesSchema = z
+  .strictObject({
+    clips: z
+      .array(
+        z.strictObject({
+          clipId: z.string().max(64),
+          trackId: z.string().max(64),
+          lengthTicks: ticks,
+          events: z.array(assistantNoteEventSchema).max(MAX_SELECTED_NOTES),
+        }),
+      )
+      .max(MAX_SELECTED_NOTES),
+    noteCount: count.max(MAX_SELECTED_NOTES),
+    omittedNoteCount: count,
+  })
+  .refine(
+    (notes) =>
+      notes.clips.reduce((sum, clip) => sum + clip.events.length, 0) === notes.noteCount,
+    { message: "noteCount must be the number of notes sent, at most the cap" },
+  );
+
+const registerSchema = z.strictObject({
+  lowestPitch: z.int().min(0).max(127),
+  highestPitch: z.int().min(0).max(127),
+  meanPitch: z.int().min(0).max(127),
+  distinctPitchClasses: z.int().min(0).max(12),
+});
+
+/** Derived note statistics: register, velocity, density (ADR 0007 decision 1). */
+export const assistantNoteStatsSchema = z.strictObject({
+  noteCount: count,
+  padNoteCount: count,
+  register: registerSchema.nullable(),
+  meanVelocity: unit.nullable(),
+  notesPerBar: z.number().min(0).nullable(),
+});
+
+/** Per-track statistics, repetition included. */
+export const assistantTrackNoteStatsSchema = assistantNoteStatsSchema.extend({
+  trackId: z.string().max(64),
+  repetitionRatio: unit,
+  distinctClipCount: count,
+});
+
 /**
  * The project context sent with a turn: the open project's name, tempo,
- * time signature and length, its sections and tracks, and a description of
- * the selection. Never the project's ID, its owner, an asset or a URL.
+ * time signature and length, its sections and tracks with their mixer
+ * state, derived note statistics, a description of the selection, and the
+ * selection's notes. ADR 0007's allowlist, field for field. Never the
+ * project's ID, its owner, an asset, a URL, a clip's name or a note outside
+ * the selection.
  */
 export const assistantContextPayloadSchema = z.strictObject({
   projectName: name,
@@ -54,7 +126,12 @@ export const assistantContextPayloadSchema = z.strictObject({
   totalTicks: ticks,
   tracks: z.array(assistantTrackContextSchema).max(256),
   sections: z.array(assistantSectionContextSchema).max(256),
+  noteStats: z.strictObject({
+    song: assistantNoteStatsSchema,
+    tracks: z.array(assistantTrackNoteStatsSchema).max(256),
+  }),
   selection: assistantSelectionContextSchema.nullable(),
+  selectedNotes: assistantSelectedNotesSchema.nullable(),
 });
 export type AssistantContextPayload = z.infer<typeof assistantContextPayloadSchema>;
 

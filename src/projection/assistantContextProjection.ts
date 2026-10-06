@@ -1,6 +1,7 @@
 import type { Instrument, Project, Track } from "../domain/entities";
 import type { SelectionScope, SelectionState } from "../selection/types";
 import { fingerprintOf } from "./fingerprint";
+import { type AssistantSelectedNotes, selectedNotes } from "./selectedNotes";
 
 /**
  * The assistant's project context (PRD section 9.8).
@@ -8,7 +9,11 @@ import { fingerprintOf } from "./fingerprint";
  * "Project analysis produces a compact, serializable context rather than
  * sending the full persistence document by default." This is that compact
  * context: track/section summaries and counts, never a full note-by-note
- * clip dump, a Firestore document, or provider-specific objects. The current
+ * dump of the project, a Firestore document, or provider-specific objects.
+ * The one place notes appear is `selectedNotes`: the raw events of the
+ * current selection and nothing outside it (ADR 0007, `selectedNotes.ts`),
+ * which is what lets the assistant edit the notes a producer is working on.
+ * The current
  * selection is folded in as a short human-readable description (never as the
  * `SelectionScope` values verbatim), because a conversation turn or a
  * selection change is, per the same PRD section, something the assistant
@@ -21,6 +26,10 @@ export interface AssistantTrackSummary {
   readonly type: Track["type"];
   readonly instrumentKind: Instrument["kind"] | null;
   readonly deviceCount: number;
+  /** The track's fader, in decibels (`TRACK_VOLUME`). */
+  readonly volume: number;
+  /** The track's pan, -1 (left) to 1 (right). */
+  readonly pan: number;
   readonly muted: boolean;
   readonly soloed: boolean;
   readonly clipCount: number;
@@ -49,6 +58,8 @@ export interface AssistantContext {
   readonly tracks: readonly AssistantTrackSummary[];
   readonly sections: readonly AssistantSectionSummary[];
   readonly selection: AssistantSelectionSummary | null;
+  /** The selection's raw note events; `null` when nothing selected holds notes. */
+  readonly selectedNotes: AssistantSelectedNotes | null;
   readonly fingerprint: string;
 }
 
@@ -59,6 +70,8 @@ function summarizeTrack(track: Track, project: Project): AssistantTrackSummary {
     type: track.type,
     instrumentKind: track.instrument?.kind ?? null,
     deviceCount: track.devices.length,
+    volume: track.mixer.volume,
+    pan: track.mixer.pan,
     muted: track.mixer.muted,
     soloed: track.mixer.soloed,
     clipCount: project.clips.filter((clip) => clip.trackId === track.id).length,
@@ -125,6 +138,7 @@ export function buildAssistantContext(
     ...project.song.sections.map((s) => s.startTicks + s.durationTicks),
   );
   const selectionSummary = selection ? summarizeSelection(selection) : null;
+  const notes = selectedNotes(project, selection);
 
   const shape = {
     projectName: project.metadata.name,
@@ -134,6 +148,7 @@ export function buildAssistantContext(
     tracks,
     sections,
     selection: selectionSummary,
+    selectedNotes: notes,
   };
 
   return {
@@ -145,6 +160,7 @@ export function buildAssistantContext(
     tracks,
     sections,
     selection: selectionSummary,
+    selectedNotes: notes,
     fingerprint: fingerprintOf(shape),
   };
 }
