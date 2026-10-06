@@ -95,6 +95,7 @@ export function serializeSong(song: Song): JsonObject {
     master: {
       volume: song.master.volume,
       devices: serializeDevices(song.master.devices),
+      safetyLimiter: song.master.safetyLimiter,
     },
     sections: sortBy(song.sections, (section) => [section.startTicks, section.id]).map(
       serializeSection,

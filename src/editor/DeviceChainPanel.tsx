@@ -11,6 +11,7 @@ import {
   type Gesture,
   type GestureOptions,
   insertChain,
+  newDeviceOrder,
   type RawCommandInput,
   reorderDevice,
   type TransactionResult,
@@ -200,7 +201,11 @@ export function DeviceChain(props: DeviceChainProps): JSX.Element {
   });
 
   function add(type: DeviceTypeId): void {
-    const device = createDevice(ids()("device"), type, devices().length);
+    const device = createDevice(
+      ids()("device"),
+      type,
+      newDeviceOrder(props.chain, devices()),
+    );
     const result = edit(addDevice(props.chain, device));
     if (!result?.ok) return;
     analytics().log("device_added", { device_type: type, chain: props.chain.chain });

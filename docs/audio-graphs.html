@@ -538,13 +538,13 @@ const GRAPHS = [
   {
     id: "master", group: "Strips & buses", title: "Master",
     files: ["src/audio/MasterAudioGraph.ts"],
-    summary: "Tracks and returns sum on the mix bus, then device chain → volume → a transparent −0.5 dB safety limiter → the destination. The metronome joins after the mix, at the chain input. The meter taps the limited signal.",
+    summary: "A project made before #937 (master.safetyLimiter true): tracks and returns sum on the mix bus, then device chain → volume → a transparent −0.5 dB safety limiter → the destination. The metronome joins after the mix, at the chain input. The meter taps the limited signal.",
     nodes: [
       { id: "tracks", label: "Tracks", type: "TrackAudioGraph × n", kind: "io" },
       { id: "returns", label: "Returns", type: "ReturnAudioGraph × n", kind: "io" },
       { id: "metro", label: "Metronome", type: "Transport click", kind: "io" },
       { id: "mix", label: "mix", type: "SummingBus", kind: "bus" },
-      { id: "chain", label: "device chain", type: "DeviceChain", kind: "node", note: "MasterAudioGraph.input is this chain's input." },
+      { id: "chain", label: "device chain", type: "DeviceChain", kind: "node" },
       { id: "vol", label: "volume", type: "Tone.Volume", kind: "node" },
       { id: "lim", label: "limiter", type: "Tone.Limiter(−0.5 dB)", kind: "node", params: ["MASTER_LIMITER_THRESHOLD_DB"] },
       { id: "meter", label: "meter", type: "Tone.Meter", kind: "tap" },
@@ -553,6 +553,25 @@ const GRAPHS = [
     edges: [
       ["tracks", "mix"], ["returns", "mix"], ["mix", "chain"], ["metro", "chain"],
       ["chain", "vol"], ["vol", "lim"], ["lim", "dest"], ["lim", "meter"],
+    ],
+  },
+  {
+    id: "master-limiter", group: "Strips & buses", title: "Master, new project",
+    files: ["src/audio/MasterAudioGraph.ts"],
+    summary: "A project made since #937 (master.safetyLimiter false) starts with a Limiter device last on its chain and has no hidden safety limiter. The volume comes before the chain, so raising the fader drives into the Limiter rather than lifting its output past the ceiling, and the Limiter's loudness readout is of what plays and exports. The metronome joins at the volume. The same nodes as the older order, reconnected, never rebuilt.",
+    nodes: [
+      { id: "tracks", label: "Tracks", type: "TrackAudioGraph × n", kind: "io" },
+      { id: "returns", label: "Returns", type: "ReturnAudioGraph × n", kind: "io" },
+      { id: "metro", label: "Metronome", type: "Transport click", kind: "io" },
+      { id: "mix", label: "mix", type: "SummingBus", kind: "bus" },
+      { id: "vol", label: "volume", type: "Tone.Volume", kind: "node", params: ["master.volume, up to +6 dB"] },
+      { id: "chain", label: "device chain", type: "DeviceChain", kind: "node", note: "A new master device is inserted before the trailing Limiter, so the Limiter stays last." },
+      { id: "meter", label: "meter", type: "Tone.Meter", kind: "tap" },
+      { id: "dest", label: "Destination", type: "context destination / offline", kind: "io" },
+    ],
+    edges: [
+      ["tracks", "mix"], ["returns", "mix"], ["mix", "vol"], ["metro", "vol"],
+      ["vol", "chain"], ["chain", "dest"], ["chain", "meter"],
     ],
   },
   {

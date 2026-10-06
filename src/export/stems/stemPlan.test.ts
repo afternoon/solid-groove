@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { createDevice } from "../../domain/devices";
+import type { DeviceId } from "../../domain/ids";
 import { buildAudioProjection } from "../../projection/audioProjection";
 import { createStemFixtureProject } from "./stemFixture";
 import { planStems, REFERENCE_MIX_PATH, safeFileName } from "./stemPlan";
@@ -97,6 +99,39 @@ describe("planStems", () => {
     expect(mix).toEqual(buildAudioProjection(project));
     expect(mix?.master.devices).toHaveLength(1);
     expect(mix?.tracksById.get(bass.id)?.mixer.muted).toBe(true);
+  });
+
+  it("limits a new project's reference mix but none of its stems (#937)", () => {
+    const limited = {
+      ...project,
+      song: {
+        ...project.song,
+        master: {
+          ...project.song.master,
+          devices: [
+            ...project.song.master.devices,
+            createDevice(
+              "dev_limiter" as DeviceId,
+              "limiter",
+              project.song.master.devices.length,
+            ),
+          ],
+          safetyLimiter: false,
+        },
+      },
+    };
+    const stems = planStems(limited);
+    const mix = stems.find((stem) => stem.kind === "mix")?.projection;
+    expect(mix?.master.devices.map((device) => device.type)).toContain("limiter");
+    for (const stem of stems.filter((candidate) => candidate.kind !== "mix")) {
+      expect(stem.projection.master.devices, stem.path).toEqual([]);
+      expect(stem.projection.master.safetyLimiter, stem.path).toBe(false);
+    }
+  });
+
+  it("keeps an older project's hidden safety limiter in every render, as it always was", () => {
+    expect(project.song.master.safetyLimiter).toBe(true);
+    for (const stem of plan) expect(stem.projection.master.safetyLimiter).toBe(true);
   });
 
   it("plans only the selected tracks, with returns and the mix fed by them alone", () => {

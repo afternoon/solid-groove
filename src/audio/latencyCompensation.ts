@@ -26,8 +26,8 @@ import { masterLimiterLatencyFrames } from "./MasterAudioGraph";
  *    and every track's direct output to the master by that same figure, so
  *    the dry and the returned signal arrive together.
  *
- * What remains is the latency of the master itself (its devices and its
- * safety limiter), which delays the whole mix alike. Live, that is a lag
+ * What remains is the latency of the master itself (its devices and, on a
+ * project made before #937, its hidden safety limiter), which delays the whole mix alike. Live, that is a lag
  * behind the playhead no path can be aligned against; an offline render drops
  * {@link LatencyCompensationPlan.totalFrames} from the front, so the file
  * starts at bar 1 whatever devices any chain holds.
@@ -47,7 +47,8 @@ export interface LatencyCompensationPlan {
   /** How late every compensated path reaches the master's mix. Anything that
    * joins the master directly (the metronome) is delayed by this much too. */
   readonly mixFrames: number;
-  /** The master's own latency: its devices, then the safety limiter. */
+  /** The master's own latency: its devices, then the safety limiter if the
+   * project has one (#937). */
   readonly masterFrames: number;
   /** From the transport to the output: `mixFrames + masterFrames`. */
   readonly totalFrames: number;
@@ -80,7 +81,7 @@ export function planLatencyCompensation(
   const mixFrames = slowestTrack + slowestReturn;
   const masterFrames =
     chainLatencyFrames(song.master.devices, sampleRate) +
-    masterLimiterLatencyFrames(sampleRate);
+    (song.master.safetyLimiter ? masterLimiterLatencyFrames(sampleRate) : 0);
   return {
     tracks: new Map(trackLatency.map(([id, frames]) => [id, slowestTrack - frames])),
     trackOutputFrames: slowestReturn,

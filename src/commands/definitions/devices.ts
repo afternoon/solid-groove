@@ -368,6 +368,25 @@ export function restoreDeviceParameters(
   };
 }
 
+// --- Placement ---------------------------------------------------------------
+
+/**
+ * Where a newly added device goes in a chain: at the end, except that on the
+ * master a Limiter already at the end stays there (#937). A new project's
+ * master starts with a Limiter as its ceiling, and an effect added after it
+ * would be heard, and exported, unlimited. Every surface that adds a device
+ * to the end of a chain asks this rather than taking the chain's length.
+ */
+export function newDeviceOrder(
+  target: DeviceChainTarget,
+  devices: readonly Device[],
+): number {
+  const sorted = byOrder(devices);
+  const last = sorted.at(-1);
+  if (target.chain === "master" && last?.type === "limiter") return sorted.length - 1;
+  return sorted.length;
+}
+
 // --- Typed builders --------------------------------------------------------
 
 export function addDevice(

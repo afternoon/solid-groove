@@ -11,6 +11,7 @@ import {
   duplicateDevice,
   insertChain,
   masterChain,
+  newDeviceOrder,
   removeDevice,
   reorderDevice,
   resetDevice,
@@ -82,6 +83,51 @@ describe("device.add across chains", () => {
       ),
     );
     expect(result.ok).toBe(false);
+  });
+});
+
+describe("newDeviceOrder keeps a master Limiter last (#937)", () => {
+  it("adds to the end of a chain with no trailing Limiter", () => {
+    const fixture = createCommandTestProject();
+    const devices = trackDevices(fixture.project, fixture);
+    expect(newDeviceOrder(insertChain(fixture.trackAId), devices)).toBe(devices.length);
+    expect(newDeviceOrder(masterChain, [])).toBe(0);
+  });
+
+  it("puts a new master device before a trailing Limiter, which stays last", () => {
+    const fixture = createCommandTestProject();
+    const limiterId = newDeviceId();
+    let project = apply(
+      fixture.project,
+      addDevice(masterChain, createDevice(limiterId, "limiter", 0)),
+    );
+    for (const type of ["saturator", "compressor"] as const) {
+      const devices = project.song.master.devices;
+      project = apply(
+        project,
+        addDevice(
+          masterChain,
+          createDevice(newDeviceId(), type, newDeviceOrder(masterChain, devices)),
+        ),
+      );
+    }
+    const chain = [...project.song.master.devices].sort((a, b) => a.order - b.order);
+    expect(chain.map((device) => device.type)).toEqual([
+      "saturator",
+      "compressor",
+      "limiter",
+    ]);
+    expect(chain.at(-1)?.id).toBe(limiterId);
+  });
+
+  it("leaves a Limiter that is not last, or one on a track, where it is", () => {
+    const fixture = createCommandTestProject();
+    const limiter = createDevice(newDeviceId(), "limiter", 0);
+    const reverb = createDevice(newDeviceId(), "reverb", 1);
+    expect(newDeviceOrder(masterChain, [limiter, reverb])).toBe(2);
+    expect(
+      newDeviceOrder(insertChain(fixture.trackAId), [reverb, { ...limiter, order: 1 }]),
+    ).toBe(2);
   });
 });
 

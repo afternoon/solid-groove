@@ -24,6 +24,14 @@ import { expectView } from "../support/views";
  * the view on `5`. Parked at `test.fixme` until #817's stack lands: the PR that
  * closes #817 removes the marker.
  *
+ * **Revised for #937.** A new project's master starts with a visible Limiter
+ * in place of the hidden safety limiter (a product-owner decision), so step 4
+ * finds the Limiter alone on the chain rather than an empty one, and every
+ * count below is one higher. The overdrive is added before it (a new master
+ * device never goes after a Limiter at the end) and is still what
+ * the flow undoes, redoes, drives and reloads; its Drive is found on its own
+ * card, since the Limiter has a Drive too.
+ *
  * Runs against the Firestore/Auth emulator rather than the mock backend,
  * because step 8 is a real `page.reload()` and the mock repository is a fresh,
  * empty store on every page load.
@@ -66,6 +74,10 @@ const masterView = (page: Page): Locator =>
  */
 const masterChain = (page: Page): Locator =>
   masterView(page).getByRole("list", { name: "Master chain" });
+
+/** The overdrive's card on the master chain: the Limiter has a Drive too (#937). */
+const overdrive = (page: Page): Locator =>
+  masterChain(page).getByRole("listitem").filter({ hasText: "Overdrive" });
 
 /** The arrangement's way into the library — see CF-005. */
 const addFromLibrary = (page: Page): Locator =>
@@ -157,12 +169,13 @@ test.describe("CF-007", () => {
     await expect(mixer(page)).toBeVisible();
     await step("Switch to the mixer");
 
-    // 4. Select the master strip. The master's effects are on screen, with an
-    //    empty chain. Add an overdrive to it.
+    // 4. Select the master strip. The master's effects are on screen, with
+    //    only the Limiter a new project starts with on its chain. Add an
+    //    overdrive to it.
     await masterStrip(page).click();
     await expect(masterView(page)).toBeVisible();
-    await expect(masterChain(page).getByRole("listitem")).toHaveCount(0);
-    await step("The master is on screen, with an empty chain");
+    await expect(masterChain(page).getByRole("listitem")).toHaveText([/Limiter/]);
+    await step("The master is on screen, with only its Limiter on the chain");
 
     // #283 offers the six registered device types from their registry
     // definitions as one add button per type after the chain, the unit the
@@ -172,7 +185,7 @@ test.describe("CF-007", () => {
       .getByRole("group", { name: "Add device" })
       .getByRole("button", { name: "Add overdrive device" })
       .click();
-    await expect(masterChain(page).getByRole("listitem")).toHaveCount(1);
+    await expect(masterChain(page).getByRole("listitem")).toHaveCount(2);
     await expect(masterChain(page)).toContainText("Overdrive");
     await step("Add an overdrive to the master chain");
 
@@ -181,12 +194,12 @@ test.describe("CF-007", () => {
     // Nothing has been edited since the add, so the one entry on the stack is
     // the add itself.
     await page.getByRole("button", { name: /^Undo/ }).click();
-    await expect(masterChain(page).getByRole("listitem")).toHaveCount(0);
+    await expect(masterChain(page).getByRole("listitem")).toHaveText([/Limiter/]);
     await step("Undo once — the overdrive comes off");
 
     // 6. Redo. It is back.
     await page.getByRole("button", { name: /^Redo/ }).click();
-    await expect(masterChain(page).getByRole("listitem")).toHaveCount(1);
+    await expect(masterChain(page).getByRole("listitem")).toHaveCount(2);
     await expect(masterChain(page)).toContainText("Overdrive");
     await step("Redo — it is back");
 
@@ -197,7 +210,7 @@ test.describe("CF-007", () => {
     // (`src/domain/devices.ts`), normalized 0-1 and defaulting to 0.3, and
     // the panel's control is generated from that definition rather than from
     // literals — so this sets a value in the parameter's own range.
-    const drive = masterView(page).getByRole("slider", { name: "Drive" });
+    const drive = overdrive(page).getByRole("slider", { name: "Drive" });
     await expect(drive).toBeVisible();
     await drive.fill("0.8");
     await expect(drive).toHaveValue("0.8");
@@ -239,9 +252,9 @@ test.describe("CF-007", () => {
     // persisted, has to be made again.
     await expect(page).toHaveURL(mixerUrl);
     await masterStrip(page).click();
-    await expect(masterChain(page).getByRole("listitem")).toHaveCount(1);
+    await expect(masterChain(page).getByRole("listitem")).toHaveCount(2);
     await expect(masterChain(page)).toContainText("Overdrive");
-    await expect(masterView(page).getByRole("slider", { name: "Drive" })).toHaveValue(
+    await expect(overdrive(page).getByRole("slider", { name: "Drive" })).toHaveValue(
       "0.8",
     );
     await step("Reload — the overdrive is still there, still at that drive");

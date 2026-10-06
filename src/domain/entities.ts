@@ -53,7 +53,7 @@ import { durationTickSchema, tickSchema } from "./time";
  * forward by trimming the later-starting placement of each overlapping pair. v5
  * (ARR-010) adds `song.key`, the root and scale; a v4 project opens chromatic.
  */
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 const nonEmptyString = z.string().min(1);
 const displayName = z.string().min(1).max(120);
@@ -266,6 +266,14 @@ export type ReturnBus = z.infer<typeof returnBusSchema>;
 export const masterSettingsSchema = z.strictObject({
   volume: parameterValueSchema(MASTER_VOLUME),
   devices: z.array(deviceSchema),
+  /**
+   * Whether the hidden safety limiter runs after the master volume (#937).
+   * Every project made before the Limiter device existed has it, and keeps it,
+   * so it sounds and exports exactly as it did. A new project has a visible
+   * Limiter on its master chain instead, and this is `false`: what limits the
+   * mix is then on screen, and bypassing or removing it really does.
+   */
+  safetyLimiter: z.boolean(),
 });
 export type MasterSettings = z.infer<typeof masterSettingsSchema>;
 

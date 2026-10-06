@@ -391,7 +391,9 @@ export async function buildExportSong(
   const addToMaster = masterView(page).getByRole("group", { name: "Add device" });
   await addToMaster.getByRole("button", { name: "Add saturator device" }).click();
   await addToMaster.getByRole("button", { name: "Add compressor device" }).click();
-  await expect(masterDevices(page)).toHaveText([/Saturator/, /Compressor/]);
+  // A new project's master starts with its Limiter (#937); the two land before
+  // it, so the Limiter stays last and still limits everything on the master.
+  await expect(masterDevices(page)).toHaveText([/Saturator/, /Compressor/, /Limiter/]);
   await step("Add a saturator, then a compressor, to the master");
 
   // 7. There are now five tracks, each with a clip in bar 1. Play the song,
@@ -453,7 +455,7 @@ export async function reloadAndExpectSongUnchanged(
 
   await viewLink(page, "Mixer").click();
   await mixer(page).getByRole("button", { name: "Master" }).click();
-  await expect(masterDevices(page)).toHaveText([/Saturator/, /Compressor/]);
+  await expect(masterDevices(page)).toHaveText([/Saturator/, /Compressor/, /Limiter/]);
 }
 
 /** The song's length from bar 1 to the end of its last clip, in seconds. */

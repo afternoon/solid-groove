@@ -4,6 +4,7 @@ import {
   createDrumPad,
   createEmptySong,
   createFactoryContext,
+  createNewProjectMaster,
   createNoteClip,
   createNoteEvent,
   createPlacement,
@@ -25,6 +26,7 @@ import { generateProjectName, type RandomSource } from "./projectName";
  * `createSliceFixtureProject` pins for tests, but with real (non-seeded) IDs
  * and the current time, for "New Project" to hand to the repository. The
  * project is named by `generateProjectName` ("Mood Energy"), not "Untitled".
+ * Its master carries a Limiter in place of the hidden safety limiter (#937).
  *
  * This is deliberately the smallest project the `FND-009` 16-step slice needs
  * to be playable immediately, not the richer dashboard creation flow
@@ -70,6 +72,8 @@ export function createStarterProject(
 
   const song: Song = {
     ...createEmptySong(120),
+    // A visible Limiter on the master, not the hidden safety limiter (#937).
+    master: createNewProjectMaster(context),
     tracks: [track],
     placements: [placement],
     assets: [asset],

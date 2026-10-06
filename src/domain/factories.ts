@@ -1,9 +1,11 @@
+import { createDevice } from "./devices";
 import {
   type Asset,
   type Clip,
   type Device,
   type DrumPad,
   type Instrument,
+  type MasterSettings,
   type NoteEvent,
   type Pack,
   type PackDependency,
@@ -442,11 +444,25 @@ export function createEmptySong(tempo: number = SONG_TEMPO.defaultValue): Song {
     key: createChromaticKey(),
     tracks: [],
     returns: [],
-    master: { volume: MASTER_VOLUME.defaultValue, devices: [] },
+    master: { volume: MASTER_VOLUME.defaultValue, devices: [], safetyLimiter: true },
     sections: [],
     placements: [],
     automation: [],
     assets: [],
+  };
+}
+
+/**
+ * The master a new project starts with (#937): a visible Limiter at the end of
+ * its chain, at its default -0.3 dBFS ceiling, in place of the hidden safety
+ * limiter every older project keeps. What stops the mix clipping is then on
+ * screen, where a producer can push into it, bypass it or take it off.
+ */
+export function createNewProjectMaster(context: DomainFactoryContext): MasterSettings {
+  return {
+    volume: MASTER_VOLUME.defaultValue,
+    devices: [createDevice(context.ids("device"), "limiter", 0)],
+    safetyLimiter: false,
   };
 }
 

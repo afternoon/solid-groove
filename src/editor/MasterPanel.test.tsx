@@ -66,6 +66,21 @@ describe("MasterPanel", () => {
     expect(panel().getByText(/Nothing on the master yet/)).toBeInTheDocument();
   });
 
+  it("adds a new device before a Limiter at the end, so the Limiter stays last (#937)", () => {
+    const { add, names, master } = renderPanel();
+    add("Limiter");
+    add("Saturator");
+    add("Compressor");
+    expect(names()).toEqual(["Saturator", "Compressor", "Limiter"]);
+    expect(master().map((device) => [device.type, device.order])).toEqual(
+      expect.arrayContaining([
+        ["saturator", 0],
+        ["compressor", 1],
+        ["limiter", 2],
+      ]),
+    );
+  });
+
   it("adds to the master, not a track, as one undoable entry", () => {
     const { history, transport, add, names, master } = renderPanel();
     const tracksBefore = history.project.song.tracks;

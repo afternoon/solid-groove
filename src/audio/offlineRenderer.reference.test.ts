@@ -245,7 +245,7 @@ function paritySong(options: { eq?: boolean | Device } = {}): Project {
     song: {
       ...project.song,
       returns: [bus],
-      master: { volume: -3, devices: [device("compressor")] },
+      master: { volume: -3, devices: [device("compressor")], safetyLimiter: true },
     },
   };
 }

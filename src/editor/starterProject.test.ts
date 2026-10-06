@@ -12,6 +12,20 @@ describe("createStarterProject", () => {
     expect(() => assertProject(project)).not.toThrow();
   });
 
+  it("starts with a visible Limiter on the master, in place of the hidden one (#937)", () => {
+    const project = createStarterProject("user_1");
+
+    expect(project.song.master.safetyLimiter).toBe(false);
+    expect(project.song.master.devices).toEqual([
+      expect.objectContaining({
+        type: "limiter",
+        order: 0,
+        bypassed: false,
+        parameters: { drive: 0, ceiling: -0.3, release: 0.1 },
+      }),
+    ]);
+  });
+
   it("starts with the loop on over bars 1-2 (LOOP-017)", () => {
     const project = createStarterProject("user_1");
 

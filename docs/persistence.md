@@ -123,7 +123,7 @@ A favourite whose pack or sound the library no longer holds is not the repositor
 
 ## Migrations
 
-The current schema is **v5**. v1 was the first production schema; **v2 ([LIB-08](#packs-and-pack-qualified-assets)) added `metadata.addedPacks`, the pack shelf; v3 (LOOP-017) added `song.loop`, the loop range and loop toggle**; v4 (#290) made a track's placements disjoint; v5 (ARR-010) added `song.key`, the root and scale. `src/persistence/migrations.ts` provides the mechanism and its rules:
+The current schema is **v6**. v1 was the first production schema; **v2 ([LIB-08](#packs-and-pack-qualified-assets)) added `metadata.addedPacks`, the pack shelf; v3 (LOOP-017) added `song.loop`, the loop range and loop toggle**; v4 (#290) made a track's placements disjoint; v5 (ARR-010) added `song.key`, the root and scale; v6 (#937) added `song.master.safetyLimiter`, whether the hidden master safety limiter runs. `src/persistence/migrations.ts` provides the mechanism and its rules:
 
 - A **newer** schema version is never read and never overwritten — it is reported so the UI can ask the user to update.
 - An **older** version is upgraded by applying every registered migration in order; a gap in the chain is an error, not a partial upgrade.
@@ -140,7 +140,9 @@ The current schema is **v5**. v1 was the first production schema; **v2 ([LIB-08]
 
 **The v4 → v5 migration** (ARR-010) gives the song document `key: { root: 0, scale: "chromatic" }`, the key every new project starts in, so a project saved before the key existed opens with nothing hidden or moved. A chromatic key's root is pinned to C by `checkSongIntegrity`. The key lives in the song document, so changing it is a song-tier write.
 
-**Fixture convention.** Stored-state fixtures live at `public/fixtures/persistence/v{version}-{name}.json` and hold the `RawProjectDocuments` shape exactly as it was stored; load them with `loadStoredProjectFixture` from `src/testing/fixtures.ts`. `v5-slice-project.json` pins today's wire format — if encoding changes shape, that file stops decoding and the change has to become a deliberate migration. `v1-slice-project.json`, `v2-slice-project.json`, `v3-slice-project.json` and `v4-slice-project.json` are the source fixtures the v1 → v2, v2 → v3, v3 → v4 and v4 → v5 migrations are tested against. `v6-future-project.json` is the unreadable-future-version case. Every migration added after v1 ships a fixture for each supported source version and tests that migrating it produces a valid project (PRJ-04).
+**The v5 → v6 migration** (#937) gives the song document's master `safetyLimiter: true`. Every project made before the Limiter device existed was mixed into the hidden safety limiter after the master volume, so it keeps it and sounds and exports exactly as it did. A new project is made with a visible Limiter on its master chain and `safetyLimiter: false` (`src/editor/starterProject.ts`), so what limits its mix is on screen and can be bypassed or removed.
+
+**Fixture convention.** Stored-state fixtures live at `public/fixtures/persistence/v{version}-{name}.json` and hold the `RawProjectDocuments` shape exactly as it was stored; load them with `loadStoredProjectFixture` from `src/testing/fixtures.ts`. `v6-slice-project.json` pins today's wire format — if encoding changes shape, that file stops decoding and the change has to become a deliberate migration. `v1-slice-project.json`, `v2-slice-project.json`, `v3-slice-project.json`, `v4-slice-project.json` and `v5-slice-project.json` are the source fixtures the v1 → v2, v2 → v3, v3 → v4, v4 → v5 and v5 → v6 migrations are tested against. `v7-future-project.json` is the unreadable-future-version case. Every migration added after v1 ships a fixture for each supported source version and tests that migrating it produces a valid project (PRJ-04).
 
 ## Security rules and indexes
 

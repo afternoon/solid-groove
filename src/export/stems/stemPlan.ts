@@ -36,8 +36,11 @@ import {
  * selected tracks get stems, every return is fed by the selected tracks' sends
  * alone, and the reference mix is the selected tracks as they play.
  *
- * Master processing is excluded from stems, but the master's transparent
- * safety limiter stays, as it does in every render (`MASTER_LIMITER_THRESHOLD_DB`,
+ * Master processing is excluded from stems, so stems are not limited (#937):
+ * a new project's Limiter is a master device, and only the reference mix and
+ * the stereo export pass through it. A project made before the Limiter keeps
+ * its hidden safety limiter (`master.safetyLimiter`) in every render, stems
+ * included, exactly as it always has (`MASTER_LIMITER_THRESHOLD_DB`,
  * `DEC-004`): it never touches material under -0.5 dBFS.
  */
 
@@ -160,7 +163,9 @@ function byOrder<T extends { order: number; id: string }>(items: readonly T[]): 
   return [...items].sort((a, b) => a.order - b.order || (a.id < b.id ? -1 : 1));
 }
 
-/** The master with its processing removed: no devices, unity volume. */
+/** The master with its processing removed: no devices, unity volume. The
+ * hidden safety limiter, which only an older project has, is not processing
+ * the producer chose, so it stays as the project has it. */
 function bareMaster(mix: AudioSongProjection): AudioSongProjection["master"] {
   return { ...mix.master, devices: [], volume: 0 };
 }

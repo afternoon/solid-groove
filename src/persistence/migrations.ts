@@ -89,6 +89,24 @@ const migrateV4ToV5: ProjectMigration = {
   song: (song) => ({ ...song, key: createChromaticKey() }),
 };
 
+/**
+ * v5 -> v6 (#937): the master gains `safetyLimiter`, whether the hidden safety
+ * limiter runs after its volume. Every project saved before it was made with
+ * that limiter, so it keeps it and sounds and exports exactly as it did; only
+ * a new project swaps it for a visible Limiter. Only the song tier changes.
+ */
+const migrateV5ToV6: ProjectMigration = {
+  from: 5,
+  to: 6,
+  description: "Keep the hidden master safety limiter on every existing project",
+  song: (song) => {
+    const master = song.master;
+    return typeof master === "object" && master !== null
+      ? { ...song, master: { ...master, safetyLimiter: true } }
+      : song;
+  },
+};
+
 function trimDocumentPlacements(
   document: Record<string, unknown>,
 ): Record<string, unknown> {
@@ -184,6 +202,7 @@ export const PROJECT_MIGRATIONS: readonly ProjectMigration[] = [
   migrateV2ToV3,
   migrateV3ToV4,
   migrateV4ToV5,
+  migrateV5ToV6,
 ];
 
 export type MigrationFailureReason =

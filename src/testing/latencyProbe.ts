@@ -67,9 +67,16 @@ export function bestLag(
 /**
  * Where the export alignment matrix puts Compressors, as the issue measured
  * them (#883): none, one or two on the master, one on the Kick track only,
- * and one on the return.
+ * and one on the return; and a new project's master (#937), a Limiter in
+ * place of the hidden safety limiter.
  */
-export type AlignmentCase = "none" | "master" | "master-twice" | "kick" | "return";
+export type AlignmentCase =
+  | "none"
+  | "master"
+  | "master-twice"
+  | "kick"
+  | "return"
+  | "master-limiter";
 
 export const ALIGNMENT_CASES: readonly AlignmentCase[] = [
   "none",
@@ -77,13 +84,15 @@ export const ALIGNMENT_CASES: readonly AlignmentCase[] = [
   "master-twice",
   "kick",
   "return",
+  "master-limiter",
 ];
 
 /**
  * The matrix's song: "Kick" on the beats and "Bass" on the off-beats, both
  * samplers, with Bass sending to a "Verb" return, and Compressors placed per
- * `where`. Every Compressor runs 1:1 at a 0 dB threshold, so it changes
- * nothing but time: each case should export the same files as `"none"`.
+ * `where`. Every Compressor runs 1:1 at a 0 dB threshold, and the Limiter
+ * sits at its ceiling far above this quiet song, so each changes nothing but
+ * time: each case should export the same files as `"none"`.
  */
 export function createAlignmentProject(where: AlignmentCase): Project {
   const base = createSliceFixtureProject();
@@ -125,7 +134,9 @@ export function createAlignmentProject(where: AlignmentCase): Project {
       ? [compressor(0)]
       : where === "master-twice"
         ? [compressor(0), compressor(1)]
-        : [];
+        : where === "master-limiter"
+          ? [createDevice(ids("device"), "limiter", 0)]
+          : [];
   return {
     ...base,
     song: {
@@ -135,7 +146,11 @@ export function createAlignmentProject(where: AlignmentCase): Project {
         bass,
       ],
       returns: [{ ...verb, devices: where === "return" ? [compressor(0)] : [] }],
-      master: { ...base.song.master, devices: masterDevices },
+      master: {
+        ...base.song.master,
+        devices: masterDevices,
+        safetyLimiter: where !== "master-limiter",
+      },
       placements: [...base.song.placements, bassPlacement],
     },
     clips: [...base.clips, bassClip],
