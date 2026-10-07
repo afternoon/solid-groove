@@ -3,14 +3,18 @@ import { FIXTURE_PACK_INDEX_DOC } from "./__fixtures__/fixtures";
 import { variedPackFetcher } from "./__fixtures__/variedPackFetcher";
 import { LibraryClient } from "./libraryClient";
 import {
+  categoriesLabel,
   coverCategoryLine,
   familyChoices,
   heardSounds,
   type PackCatalogEntry,
   packCategories,
+  packCounts,
   packFamilies,
   packHasFamily,
   packInitials,
+  shelfCategoryCount,
+  shelfSounds,
   watchPackCatalog,
 } from "./packCatalog";
 
@@ -82,5 +86,53 @@ describe("a pack catalog", () => {
     expect(run.length).toBeLessThanOrEqual(6);
     expect(new Set(run.map((asset) => asset.role)).size).toBe(run.length);
     expect(run.every((asset) => asset.type === "one-shot")).toBe(true);
+  });
+});
+
+describe("what a pack advertises (GRV-48)", () => {
+  it("counts the sounds and categories its shelf shows in the scope", async () => {
+    const [drums] = await loadEntries();
+    const all = drums.assets ?? [];
+    // Five one-shots over five roles, a drum loop, and a kit preset.
+    expect(all.map((asset) => asset.type).sort()).toEqual([
+      "loop",
+      "one-shot",
+      "one-shot",
+      "one-shot",
+      "one-shot",
+      "one-shot",
+      "preset",
+    ]);
+    // From a pad: the one-shots alone.
+    expect(packCounts(drums, ["one-shot"])).toEqual({ sounds: 5, categories: 5 });
+    // From a loop track: the loop alone.
+    expect(packCounts(drums, ["loop"])).toEqual({ sounds: 1, categories: 1 });
+    // With no slot: everything the shelf has a family for, never the preset.
+    expect(packCounts(drums)).toEqual({ sounds: 6, categories: 6 });
+    expect(shelfSounds(all).some((asset) => asset.type === "preset")).toBe(false);
+  });
+
+  it("knows only the index's total before the manifest loads", () => {
+    const [pack] = FIXTURE_PACK_INDEX_DOC.packs;
+    const entry = { pack, assets: null } as unknown as PackCatalogEntry;
+    expect(packCounts(entry, ["one-shot"])).toEqual({
+      sounds: pack.assetCount,
+      categories: null,
+    });
+  });
+
+  it("counts a role two families share once per family, as the shelf's chips do", async () => {
+    const [, bass] = await loadEntries();
+    const [sound] = shelfSounds(bass.assets ?? [], ["one-shot"]);
+    const stabs = [
+      { ...sound, id: "a", family: "bass", role: "stab" },
+      { ...sound, id: "b", family: "tonal", role: "stab" },
+    ];
+    expect(shelfCategoryCount(stabs)).toBe(2);
+  });
+
+  it("says category in the singular for one", () => {
+    expect(categoriesLabel(1)).toBe("1 category");
+    expect(categoriesLabel(4)).toBe("4 categories");
   });
 });

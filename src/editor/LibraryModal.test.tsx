@@ -527,6 +527,49 @@ describe("LibraryModal packs", () => {
       .getAllByRole("button", { name: /^Audition / })
       .map((button) => button.getAttribute("aria-label")?.replace(/^Audition /, ""));
 
+  it("advertises only the sounds and categories a pad slot's shelf shows (GRV-48)", async () => {
+    // Opened from a pad: one-shots only, so the drum pack's loop and preset
+    // never reach the shelf, and no count may promise them.
+    render(() => (
+      <LibraryModal
+        client={new LibraryClient(fixtureFetcher())}
+        previewEngine={fakePreviewEngine()}
+        slotKind="drum-pad"
+        assetTypes={["one-shot"]}
+        onInsert={() => undefined}
+        addedPackIds={[drums.id]}
+      />
+    ));
+    const shown = packAssets(parsePackManifest(fixturePackManifest(drums.slug))).filter(
+      (asset) => asset.type === "one-shot",
+    );
+    const sounds = shown.length;
+    const categories = new Set(shown.map((asset) => asset.role)).size;
+    expect(sounds).toBeLessThan(drums.assetCount);
+    const meta = new RegExp(`\\b${sounds} sounds\\b.*\\b${categories} categor(y|ies)`);
+
+    const rail = within(screen.getByRole("navigation", { name: "Places" }));
+    const row = await rail.findByRole("button", { name: new RegExp(drums.name) });
+    await waitFor(() =>
+      expect(row.querySelector("small")).toHaveTextContent(new RegExp(`^${sounds}$`)),
+    );
+
+    clickAndFlush(rail.getByRole("button", { name: /^Browse packs/ }));
+    const card = await screen.findByRole("button", { name: `Open ${drums.name}` });
+    await waitFor(() => expect(card).toHaveTextContent(meta));
+
+    clickAndFlush(card);
+    const banner = await screen.findByRole("region", { name: `About ${drums.name}` });
+    await waitFor(() => expect(banner).toHaveTextContent(meta));
+
+    // What the shelf inside the pack actually offers.
+    const families = await screen.findByRole("tablist", { name: "Families" });
+    await waitFor(() => expect(within(families).getAllByRole("tab")).toHaveLength(1));
+    expect(within(families).getByRole("tab")).toHaveTextContent(`${sounds}`);
+    // "All drums" plus one chip per category.
+    expect(document.querySelectorAll(".shelf-chip")).toHaveLength(categories + 1);
+  });
+
   it("swaps the list for the cover grid under Browse packs", async () => {
     const { browsePacks } = renderPacks();
     browsePacks();

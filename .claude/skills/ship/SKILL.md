@@ -31,8 +31,9 @@ without asking questions. See `CLAUDE.md`, "Shape, then ship".
    - the PRs it opened (full URLs), and the kind of work it treated the issue as;
    - any assumptions or open review findings that ended up in a PR body;
    - or, if it stopped, why (an issue likely to conflict with an open PR is held
-     off: the PRs it waits for are named on the card and the card goes back to
-     Backlog, to be moved to Ready again once they land; an unclear issue posts
+     off: the PRs it waits for are named on the card, their cards become its
+     blockers and it goes back to Ready, where the board starts it again once
+     they merge; an unclear issue posts
      its question on the card and moves it to Blocked; answer there or in this
      session and re-run `/ship`; a run that stopped at a gated PR continues
      from what has landed when `/ship` runs again after that PR merges).

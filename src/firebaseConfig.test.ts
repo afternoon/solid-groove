@@ -25,7 +25,10 @@ const setDefaultEventParameters = vi.fn((_params: unknown) => {});
 
 vi.mock("firebase/app", () => ({ initializeApp: () => ({}) }));
 vi.mock("firebase/auth", () => ({ getAuth: () => ({}) }));
-vi.mock("firebase/firestore", () => ({ getFirestore: () => ({}) }));
+vi.mock("firebase/firestore", () => ({
+  initializeFirestore: () => ({}),
+  connectFirestoreEmulator: () => {},
+}));
 vi.mock("firebase/analytics", () => ({
   getAnalytics: (app: unknown) => getAnalytics(app),
   isSupported: () => isSupported(),

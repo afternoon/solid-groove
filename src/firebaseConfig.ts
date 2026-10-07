@@ -7,9 +7,13 @@ import {
 } from "firebase/analytics";
 import { initializeApp } from "firebase/app";
 import { connectAuthEmulator, getAuth } from "firebase/auth";
-import { connectFirestoreEmulator, getFirestore } from "firebase/firestore";
+import { connectFirestoreEmulator, initializeFirestore } from "firebase/firestore";
 import { INTERNAL_TRAFFIC_EVENT_PARAMS } from "./analytics/catalog";
-import { placeholderFirebaseConfig, resolveEmulatorHosts } from "./devBackend";
+import {
+  firestoreSettings,
+  placeholderFirebaseConfig,
+  resolveEmulatorHosts,
+} from "./devBackend";
 import { isInternalTraffic } from "./shared/internalTraffic";
 
 // Placeholder credentials for the two backends that do not authenticate
@@ -33,7 +37,6 @@ const firebaseConfig = {
 
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app);
 
 // Local Firebase Emulator wiring (`VITE_DEV_BACKEND=emulator`, plus the
 // `FND-009` emulator-backed browser E2E suite; see
@@ -44,6 +47,7 @@ export const db = getFirestore(app);
 // implies the default hosts and `VITE_*_EMULATOR_HOST` overrides them — see
 // `src/devBackend.ts`. Dev/test only; never set in a real deployment.
 const emulatorHosts = resolveEmulatorHosts();
+export const db = initializeFirestore(app, firestoreSettings(emulatorHosts));
 if (emulatorHosts) {
   const [firestoreHost, firestorePort] = emulatorHosts.firestore.split(":");
   connectFirestoreEmulator(db, firestoreHost, Number(firestorePort));

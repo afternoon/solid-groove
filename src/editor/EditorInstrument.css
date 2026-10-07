@@ -4,11 +4,13 @@
    room to, and stacking them keeps each one full width instead of competing
    with a timeline for the page. */
 
+/* The rail and the rack meet edge to edge, as the arrangement's track column
+   meets its timeline (GRV-53). */
 .instrument-view {
   display: flex;
   flex-direction: row;
   align-items: stretch;
-  gap: var(--size-divider);
+  gap: 0;
   min-height: 0;
 }
 
@@ -85,5 +87,5 @@
   align-self: flex-start;
   position: sticky;
   /* Where it stands unscrolled: under the header and the gap below it. */
-  top: calc(var(--editor-header-height) + 3 * var(--size-divider));
+  top: calc(var(--editor-header-height) + 2 * var(--size-divider));
 }

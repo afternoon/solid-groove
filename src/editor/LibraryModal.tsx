@@ -14,6 +14,11 @@ import type {
 import PackBanner from "../library/PackBanner";
 import PacksView from "../library/PacksView";
 import {
+  type PackCatalogEntry,
+  packCounts,
+  watchPackCatalog,
+} from "../library/packCatalog";
+import {
   createRecentlyHeardStore,
   type RecentlyHeardStore,
 } from "../library/recentlyHeard";
@@ -336,6 +341,13 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   const projectPacks = createMemo(() =>
     indexed().filter((pack) => props.addedPackIds.includes(pack.id)),
   );
+  // Each pack's manifest, so a rail row counts what its shelf shows (GRV-48).
+  const [catalog, setCatalog] = createSignal<readonly PackCatalogEntry[]>([]);
+  const railCount = (pack: LibraryPackSummary) =>
+    packCounts(
+      catalog().find((entry) => entry.pack.id === pack.id) ?? { pack, assets: null },
+      props.assetTypes,
+    ).sounds;
 
   // The header search outside any pack, put back when the pack is left (#875).
   let searchOutsidePack = "";
@@ -651,6 +663,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
 
   onSettled(() => {
     void client.loadIndex().then(setIndexed, () => setIndexFailed(true));
+    const stopCatalog = watchPackCatalog(client, setCatalog);
     props.onActions?.({
       showView,
       insertSelected,
@@ -664,6 +677,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
       escapeSearch,
     });
     return () => {
+      stopCatalog();
       clearTimeout(insertedTimer);
       props.onActions?.(null);
       // Leaving the view ends here: the slot plays its own sound again.
@@ -856,7 +870,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
                   onClick={() => openPack(pack.slug)}
                 >
                   <span>{pack.name}</span>
-                  <small>{pack.assetCount}</small>
+                  <small>{railCount(pack)}</small>
                 </button>
               )}
             </For>
@@ -890,6 +904,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
                 client={client}
                 slug={slug()}
                 projectPackIds={props.addedPackIds}
+                assetTypes={props.assetTypes}
                 onClose={() => showView("all")}
                 onBanner={bannerRendered}
               />
@@ -901,6 +916,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
               previewEngine={previewEngine}
               analytics={props.analytics}
               projectPackIds={props.addedPackIds}
+              assetTypes={props.assetTypes}
               keyLabel={props.keyLabel}
               onOpenPack={openPack}
             />

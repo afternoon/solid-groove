@@ -6,7 +6,8 @@
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  margin-bottom: calc(-1 * var(--view-dock-clearance));
+  /* The editor runs the view on under the dock (EditorView.css); this keeps
+     the footer clear of it. */
   padding-bottom: var(--view-dock-clearance);
   background: var(--color-background-secondary);
 }

@@ -126,3 +126,22 @@ export function resolveEmulatorHosts(
     functions: functions || DEFAULT_FUNCTIONS_EMULATOR_HOST,
   };
 }
+
+/**
+ * How the Firestore SDK reaches the backend: `initializeFirestore`'s settings.
+ *
+ * Against the emulator the SDK long-polls instead of streaming (GRV-67). Its
+ * default transport reads each listen and write stream as one long streamed
+ * response, and WebKit can sit on a chunk the emulator has already sent: the
+ * acknowledgement of a write reaches the browser and never reaches the page,
+ * so New Project stayed disabled and the WebKit browser suite failed whichever
+ * test happened to hit it. A long poll ends each response once it has
+ * answered, which every browser delivers. The application never depends on
+ * which transport the SDK picks, so the emulator uses the one every browser
+ * can run deterministically; the real project keeps the SDK's own default.
+ */
+export function firestoreSettings(
+  emulatorHosts: ReturnType<typeof resolveEmulatorHosts>,
+): { experimentalForceLongPolling?: true } {
+  return emulatorHosts ? { experimentalForceLongPolling: true } : {};
+}

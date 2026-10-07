@@ -157,7 +157,7 @@ export default function FillSlider(props: FillSliderProps): JSX.Element {
     if (typed.trim() === props.displayValue) return;
     const parsed = props.parseEntry
       ? props.parseEntry(typed)
-      : parseParameterInput(props.definition, typed, props.value);
+      : parseParameterInput(props.definition, typed);
     if (parsed === null) {
       entry.setAttribute("aria-invalid", "true");
       revert();

@@ -62,6 +62,11 @@ test.describe("Limiter", () => {
         timeout: 15_000,
       })
       .toBeGreaterThan(1);
+    // The integrated figure needs one whole 400 ms gating block of measured
+    // audio, where the short-term one shows after its first 100 ms, so it
+    // reads a figure a few frames later (GRV-67: stopping before then left
+    // nothing to keep).
+    await expect(integrated).toHaveText(/^−?\d+\.\d$/, { timeout: 15_000 });
 
     // Stopped, nothing is being reduced and the short-term window is gone,
     // but the integrated figure for what was played stays to be read.
