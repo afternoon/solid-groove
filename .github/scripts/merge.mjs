@@ -83,9 +83,13 @@ function queue(number) {
     gh(["pr", "merge", String(number), "--repo", REPO, "--auto", "--squash"]);
     console.log(`#${number}: queued`);
   } catch (e) {
-    // Already queued or already auto-merging is fine; anything else is not.
+    // Already queued or already auto-merging is fine. A PR in one of GitHub's
+    // native stacks (stack-link.yml) cannot auto-merge at all: it merges from
+    // the stack's own page, so that is reported, not failed. Anything else fails.
     const msg = String(e.stderr ?? e);
     if (/already|is in clean status/i.test(msg)) console.log(`#${number}: ${msg.trim()}`);
+    else if (/not supported for stacked pull requests/i.test(msg))
+      console.log(`#${number}: in a native stack; merge it from the stack's page`);
     else throw e;
   }
 }
