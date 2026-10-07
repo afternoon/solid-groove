@@ -7,7 +7,7 @@ export const meta = {
     { title: 'Triage', detail: 'read the issue, pick feature / fix / polish' },
     { title: 'Build', detail: 'implement, test, push branches, capture screenshots' },
     { title: 'Review', detail: 'features only: adversarial review, up to two fix rounds' },
-    { title: 'Land', detail: 'open each PR against main once the one before it has merged; merge.yml queues the safe ones' },
+    { title: 'Land', detail: 'open each PR against main once the one before it has merged; merge.yml queues the safe ones', model: 'sonnet' },
   ],
 }
 
@@ -178,8 +178,10 @@ if (t.kind === 'feature') {
 // ---------------------------------------------------------------- Land
 // Every PR targets main. A sequence lands one PR at a time: the next opens only
 // once the one before it has merged, with main merged into its branch first, so
-// its diff is its own and nothing is ever rebased or force-pushed.
+// its diff is its own and nothing is ever rebased or force-pushed. The code is
+// finished by now, so every landing agent is mechanical and runs on Sonnet.
 phase('Land')
+const LANDING = { model: 'sonnet', effort: 'low' }
 const n = build.branches.length
 const action = t.kind === 'fix' ? 'Fix' : 'Implement'
 const prs = []
@@ -194,7 +196,7 @@ for (let i = 0; i < n; i++) {
       `Wait for PR #${prev.number} (${prev.url}) to merge. ${GITHUB}
 
 Poll \`gh pr view ${prev.number} --repo trygroove/groove --json state,mergedAt,labels\` every two to five minutes (the Monitor tool if you have it, else a bounded shell loop) for up to ${WAIT_MINUTES} minutes. It merges on its own once CI is green, unless it is labelled \`needs-approval\` (then the product owner has to approve it, which may not happen in time). Return \`merged\`, \`closed\` (closed without merging), or \`waiting\` if it is still open when the time runs out, with its labels. Change nothing.`,
-      { label: `wait #${prev.number}`, schema: WAIT_SCHEMA, effort: 'low' },
+      { label: `wait #${prev.number}`, schema: WAIT_SCHEMA, ...LANDING },
     )
     if (waited?.state !== 'merged') {
       const rest = build.branches.slice(i).map((x) => `\`${x.branch}\``).join(', ')
@@ -203,7 +205,7 @@ Poll \`gh pr view ${prev.number} --repo trygroove/groove --json state,mergedAt,l
         : `#${prev.number} has not merged yet${waited?.labels?.includes('needs-approval') ? ' (it needs approval)' : ''}`
       await agent(
         `Post one comment on GitHub issue #${issue}: this /ship run opened #${prev.number} and stopped because ${why}. The remaining work is pushed as ${rest} and opens as its own PR${n - i > 1 ? 's' : ''} against main once #${prev.number} has landed: then move the issue to Ready again and /ship continues from there. Do not change any label. ${GITHUB}`,
-        { label: `report #${issue}`, effort: 'low' },
+        { label: `report #${issue}`, ...LANDING },
       )
       problems.push(`${why}; ${rest} not opened`)
       log(`#${issue}: ${why}; stopped before ${rest}`)
@@ -215,7 +217,7 @@ Poll \`gh pr view ${prev.number} --repo trygroove/groove --json state,mergedAt,l
 Check out \`origin/${b.branch}\`, run \`git merge origin/main\` (expect it to be clean: the earlier piece is in both sides), resolve any conflict so both sides' behaviour survives, run \`bun run typecheck\` and \`bun run check\`, and push with a plain \`git push\`. Never rebase or force-push. If the merge cannot keep both sides' behaviour, stop and say so.
 
 ${ENV}`,
-      { label: `update ${b.branch}`, effort: 'low', isolation: 'worktree' },
+      { label: `update ${b.branch}`, isolation: 'worktree', ...LANDING },
     )
   }
   const landed = await agent(
@@ -232,7 +234,7 @@ ${build.rootCause ? `- Root cause: ${build.rootCause}\n` : ''}${build.redEvidenc
 - Screenshots (put them in the Screenshots section if this branch changed the UI, or if it is the last PR): ${build.uiChanged ? build.screenshots || 'MISSING: say so plainly in the body' : 'No UI change'}
 ${i === n - 1 && unresolved.length ? `- Review findings still open after ${MAX_FIX_ROUNDS} fix rounds (list them under a "Open review findings" heading):\n${unresolved.map((f) => `  - ${f}`).join('\n')}\n` : ''}
 Add no labels: \`.github/workflows/merge.yml\` queues the PR on its own, or flags it \`needs-approval\` if it touches a gated path. After writing the body, re-read it and check no image link contains a backtick. Confirm the PR exists before returning its number and URL.`,
-    { label: `land ${b.branch}`, schema: LAND_SCHEMA, effort: 'low' },
+    { label: `land ${b.branch}`, schema: LAND_SCHEMA, ...LANDING },
   )
   if (!landed?.number) {
     problems.push(`no PR opened for ${b.branch}`)

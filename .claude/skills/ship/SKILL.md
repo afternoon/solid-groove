@@ -18,7 +18,9 @@ without asking questions. See `CLAUDE.md`, "Shape, then ship".
    If the session cannot run workflows, or is headless (GitHub Actions, `-p`),
    run the same stages yourself with the Agent tool in the foreground
    (`run_in_background: false`), following `.claude/workflows/solid-groove-ship.js`
-   and the agent briefs in `.claude/agents/`. A headless run ends when your turn
+   and the agent briefs in `.claude/agents/`, with the `model` and `effort` each
+   stage names there (the landing agents run on Sonnet: the code is finished by
+   then and their work is mechanical). A headless run ends when your turn
    ends, so a background workflow there is killed before it does anything.
    Never end your turn while the work is still running.
 3. **When it returns**, confirm every PR it names exists (`gh pr view <n>` or the
