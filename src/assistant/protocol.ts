@@ -142,10 +142,13 @@ export const assistantMessageSchema = z.strictObject({
 export type AssistantMessage = z.infer<typeof assistantMessageSchema>;
 
 /**
- * One turn: the conversation so far, ending in the user's new message, and
- * the project context it is about.
+ * One turn: the conversation so far, ending in the user's new message, the
+ * project context it is about, and the revision of the project that context
+ * was read from (PRD AI-06). A proposal the turn returns carries that
+ * revision back, so the browser refuses it once the project has moved on.
  */
 export const assistantTurnRequestSchema = z.strictObject({
+  projectRevision: z.int().min(0),
   messages: z
     .array(assistantMessageSchema)
     .min(1)
@@ -163,14 +166,41 @@ export interface AssistantStreamChunk {
   readonly text: string;
 }
 
-/** Why the provider stopped, as the browser needs to know it. */
-export type AssistantStopReason = "end_turn" | "max_tokens" | "refusal";
+/**
+ * Why the provider stopped, as the browser needs to know it. `tool_use`: the
+ * turn ends in a proposal.
+ */
+export type AssistantStopReason = "end_turn" | "max_tokens" | "refusal" | "tool_use";
+
+/** One tool call the model made, its input parsed but not yet trusted. */
+export interface AssistantToolCall {
+  readonly id: string;
+  readonly name: string;
+  readonly input: unknown;
+}
+
+/**
+ * The changes a turn proposes, in the shape `validateProposal`
+ * (`proposal.ts`) takes. Nothing has checked the calls beyond their being
+ * well-formed JSON: the browser validates them against the open project, and
+ * refuses the lot if the project is no longer at `baseRevision` or the tool
+ * set is not the one it knows.
+ */
+export interface AssistantProposal {
+  /** The `projectRevision` the request carried. */
+  readonly baseRevision: number;
+  /** The `ASSISTANT_TOOLSET_VERSION` of the tools the model was offered. */
+  readonly toolsetVersion: number;
+  readonly calls: readonly AssistantToolCall[];
+}
 
 /** What a completed turn returns. */
 export interface AssistantTurnResult {
   /** The whole reply, the concatenation of every streamed chunk. */
   readonly text: string;
   readonly stopReason: AssistantStopReason;
+  /** What the turn proposes to change, when it stopped for `tool_use`. */
+  readonly proposal: AssistantProposal | null;
   readonly model: string;
   readonly promptVersion: string;
   /** Provider calls the account has left in the rolling window. */
@@ -188,8 +218,8 @@ export interface AssistantTurnResult {
  * - `cancelled`: the browser went away; the provider call was abandoned.
  * - `provider_unavailable`: rate limited, overloaded or down, after retries.
  * - `provider_error`: the provider refused the request itself (a 4xx), or
- *   ended the reply for a reason a text turn never has; retrying fixes
- *   neither.
+ *   ended the reply for a reason a turn never has (`pause_turn`, a reason
+ *   newer than this code); retrying fixes neither.
  * - `malformed_response`: the provider's stream broke, or its reply failed
  *   validation.
  * - `quota_exceeded`: the account has made its 100 requests in the last 24

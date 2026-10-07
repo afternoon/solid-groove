@@ -14,14 +14,17 @@ import {
   type AssistantTurnRequest,
 } from "../../src/assistant/protocol";
 import { ProviderFailure } from "../../src/assistant/provider";
-import { buildProviderRequest } from "../../src/assistant/providerRequest";
+import { buildProviderRequest, providerTools } from "../../src/assistant/providerRequest";
 import type { AssistantTurnLog } from "../../src/assistant/telemetry";
+import { assistantTools } from "../../src/assistant/tools";
 import { MINIMAL_ASSISTANT_CONTEXT } from "../../src/testing/scriptedAssistantProvider";
 import { createAnthropicProvider } from "./anthropicProvider";
 
 const request = buildProviderRequest(ASSISTANT_MODELS["claude-sonnet-5"], {
   system: [{ type: "text", text: "system" }],
   messages: [{ role: "user", content: "hello" }],
+  // The real tool set, so the body sent over the wire is checked with it.
+  tools: providerTools(assistantTools()),
   pseudonymousUserId: "abc",
 });
 
@@ -235,6 +238,7 @@ describe("createAnthropicProvider", () => {
 
 describe("the gateway over the real SDK", () => {
   const turn: AssistantTurnRequest = {
+    projectRevision: 0,
     messages: [{ role: "user", text: "hello" }],
     context: MINIMAL_ASSISTANT_CONTEXT,
   };

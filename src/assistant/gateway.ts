@@ -20,6 +20,11 @@
  *    per-attempt inactivity timeout, retrying a transient failure that has
  *    not streamed anything yet, and abandoning the call if the browser goes away;
  * 7. validates the reply and logs one redacted record of how it went.
+ *
+ * Every turn offers the model the assistant's tool set (GRV-4). A turn that
+ * stops for `tool_use` returns its calls as a proposal stamped with the
+ * request's project revision and the tool set's version; the browser
+ * validates it against the open project before anything can apply.
  */
 import {
   ASSISTANT_CALL_LIMITS,
@@ -37,18 +42,25 @@ import { type BoundedHistory, boundHistory, estimateTokens } from "./history";
 import { ASSISTANT_PROMPT_VERSION, buildSystemBlocks } from "./prompt";
 import {
   AssistantGatewayError,
+  type AssistantProposal,
   type AssistantStopReason,
   type AssistantStreamChunk,
+  type AssistantToolCall,
   type AssistantTurnRequest,
   type AssistantTurnResult,
   assistantTurnRequestSchema,
 } from "./protocol";
 import { type AssistantProvider, ProviderFailure } from "./provider";
-import { buildProviderRequest, type ProviderMessagesRequest } from "./providerRequest";
+import {
+  buildProviderRequest,
+  type ProviderMessagesRequest,
+  providerTools,
+} from "./providerRequest";
 import { admitCall, type QuotaLimits, quotaExceededMessage } from "./quota";
 import { costMicroUsd, spendDay, usdToMicro } from "./spend";
 import { NO_USAGE, type ProviderUsage, StreamReader } from "./streamEvents";
 import { type AssistantTurnLog, toTurnLog } from "./telemetry";
+import { ASSISTANT_TOOLSET_VERSION, assistantTools } from "./tools";
 
 /** Who is calling, as the function's auth context reports it. */
 export interface AssistantCaller {
@@ -162,7 +174,11 @@ async function prepare(
   turn: AssistantTurnRequest,
 ): Promise<PreparedTurn> {
   const system = buildSystemBlocks(turn.context);
-  const systemTokens = system.reduce((sum, block) => sum + estimateTokens(block.text), 0);
+  const tools = providerTools(assistantTools());
+  // The tool definitions take room in the window just as the prompt does.
+  const systemTokens =
+    system.reduce((sum, block) => sum + estimateTokens(block.text), 0) +
+    estimateTokens(JSON.stringify(tools));
   const history = boundHistory(turn.messages, historyBudgetFor(systemTokens));
   if (history.messages.length === 0) {
     throw new AssistantGatewayError(
@@ -176,6 +192,7 @@ async function prepare(
       role: message.role,
       content: message.text,
     })),
+    tools,
     pseudonymousUserId: await pseudonymousUserId(uid),
   });
   return { request, history };
@@ -183,7 +200,12 @@ async function prepare(
 
 /** The outcome of one provider call. */
 type AttemptOutcome =
-  | { kind: "completed"; text: string; stopReason: AssistantStopReason }
+  | {
+      kind: "completed";
+      text: string;
+      stopReason: AssistantStopReason;
+      toolCalls: AssistantToolCall[];
+    }
   | { kind: "failed"; failure: ProviderFailure; streamedText: boolean }
   | { kind: "timed_out" }
   | { kind: "cancelled" };
@@ -342,6 +364,19 @@ async function reserveCall(
   return decision.remaining;
 }
 
+/** The turn's tool calls as a proposal, or null when it made none. */
+function proposalOf(
+  turn: AssistantTurnRequest,
+  calls: readonly AssistantToolCall[],
+): AssistantProposal | null {
+  if (calls.length === 0) return null;
+  return {
+    baseRevision: turn.projectRevision,
+    toolsetVersion: ASSISTANT_TOOLSET_VERSION,
+    calls,
+  };
+}
+
 /**
  * Runs one assistant turn. Resolves with the validated reply, or rejects with
  * an {@link AssistantGatewayError}; either way it logs exactly one
@@ -422,6 +457,7 @@ export async function runAssistantTurn(
         return {
           text: outcome.text,
           stopReason: outcome.stopReason,
+          proposal: proposalOf(turn, outcome.toolCalls),
           model: model.id,
           promptVersion: ASSISTANT_PROMPT_VERSION,
           requestsRemaining,

@@ -94,6 +94,46 @@ export function replyEvents(
   ];
 }
 
+/**
+ * The wire events of a reply that says `text` and then calls tools, each
+ * call's input streamed as JSON in two pieces, ending in `tool_use`.
+ */
+export function toolUseEvents(
+  text: string,
+  calls: readonly { readonly name: string; readonly input: unknown }[],
+): ScriptStep[] {
+  const toolBlocks = calls.flatMap((call, index): ScriptStep[] => {
+    const json = JSON.stringify(call.input);
+    const half = Math.floor(json.length / 2);
+    const blockIndex = index + 1;
+    return [
+      {
+        event: {
+          type: "content_block_start",
+          index: blockIndex,
+          content_block: {
+            type: "tool_use",
+            id: `toolu_${blockIndex}`,
+            name: call.name,
+            input: {},
+          },
+        },
+      },
+      ...[json.slice(0, half), json.slice(half)].map((partial_json) => ({
+        event: {
+          type: "content_block_delta",
+          index: blockIndex,
+          delta: { type: "input_json_delta", partial_json },
+        },
+      })),
+      { event: { type: "content_block_stop", index: blockIndex } },
+    ];
+  });
+  const reply = replyEvents([text], { stopReason: "tool_use" });
+  // The text block, then the tool blocks, then the stop.
+  return [...reply.slice(0, -2), ...toolBlocks, ...reply.slice(-2)];
+}
+
 export function createScriptedAssistantProvider(
   scripts: readonly CallScript[],
 ): ScriptedAssistantProvider {

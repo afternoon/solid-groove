@@ -17,6 +17,7 @@ import {
 import { createAssistantHandler } from "./assistantHandler";
 
 const turn: AssistantTurnRequest = {
+  projectRevision: 0,
   messages: [{ role: "user", text: "hello" }],
   context: MINIMAL_ASSISTANT_CONTEXT,
 };

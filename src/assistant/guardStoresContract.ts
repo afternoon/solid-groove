@@ -39,6 +39,7 @@ const LIMITS: AssistantGuardLimits = {
 };
 const CALLER: AssistantCaller = { uid: "contract-uid", signInProvider: "google.com" };
 const TURN = {
+  projectRevision: 0,
   messages: [{ role: "user", text: "Name the private track" }],
   context: { ...MINIMAL_ASSISTANT_CONTEXT, projectName: "Private Project" },
 };
