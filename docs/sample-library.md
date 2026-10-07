@@ -973,7 +973,7 @@ Isolation is a build-time partition, not an error: `buildAllPacks` splits what i
 | `missing-file` | An entry with no delivered file, or one whose size disagrees with its record; a delivered file no entry names | |
 | `decode` | Bytes that do not match the recorded SHA-256; a WAV that does not decode as 24-bit PCM; a rate, channel count or length that disagrees with the record; a preset that does not parse | |
 | `loudness` | A measured peak more than 0.1 dB from the record, above -0.1 dBFS, or silent | RMS below -40 dBFS (too quiet to audition); a crest factor under 3 dB (brick-walled) |
-| `tuning` | A pitched (`bass`, `tonal`) one-shot with no root note; a root with no tuning reading or more than 50 cents out | A pitched derived master with no root, since its transform moved the pitch |
+| `tuning` | A pitched (`bass`, `tonal`) one-shot with no root note; a root with no tuning reading or more than 50 cents out | A pitched derived master with no root, since its transform moved the pitch; a root the detector found `undetectable` or `gliding` (section 15.12), left to the section 11 listening review. A loop is not tuned: its root is its key |
 | `loop-boundary` | A loop re-measured off its bar grid, not sample-aligned, or clicking at the wrap over 32 cycles | |
 | `duplicates` | The same master in two packs (the validator already rejects it inside one) | Two masters with the same length and the same 48-bin overview: a near duplicate to check by ear |
 

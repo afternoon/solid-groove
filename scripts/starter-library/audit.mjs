@@ -19,7 +19,7 @@
 //                 every preset parses
 //   loudness      the measured peak agrees with the record, leaves headroom and
 //                 is not silent; very quiet or brick-walled audio is flagged
-//   tuning        every pitched asset carries a root note and tuning metadata
+//   tuning        every pitched asset carries a root note and a measured tuning
 //   loop-boundary every loop is re-measured from its bytes: on its bar grid and
 //                 seamless over 32 cycles, as its record claims
 //   duplicates    no byte-identical master in two packs, and identical waveform
@@ -463,7 +463,9 @@ function auditLoopBoundary(asset, decoded, slug, report) {
  * one-shot without a root cannot be played in key; a root without a tuning
  * reading, or one further than a quarter-tone out, is a root nobody checked.
  * A derived master's pitch moved with its transform, so a missing root there is
- * a finding to review rather than a failure.
+ * a finding to review rather than a failure, and so is a root the detector
+ * could not measure (undetectable or gliding): it was checked, and it is left
+ * for the ear.
  */
 function auditTuning(asset, slug, report) {
   const audio = asset.audio;
@@ -484,7 +486,20 @@ function auditTuning(asset, slug, report) {
     );
     return;
   }
-  if (typeof audio.tuningCents !== "number") {
+  // A loop's root is its key, not one sounding pitch, so there is nothing to
+  // tune against (section 15.12).
+  if (asset.type === "loop") return;
+  if (audio.tuningStatus === "undetectable" || audio.tuningStatus === "gliding") {
+    // The detector cannot judge an inharmonic or gliding sound (section 15.12),
+    // so its root is left to the section 11 listening review.
+    report(
+      "tuning",
+      "warning",
+      slug,
+      `root ${audio.rootNote} could not be measured (${audio.tuningStatus}); review it by ear`,
+      asset.id,
+    );
+  } else if (typeof audio.tuningCents !== "number") {
     report(
       "tuning",
       "error",
