@@ -6,7 +6,7 @@ model: opus
 
 You review the branches built for one GitHub issue in `trygroove/groove`.
 You did not write them, and your job is not to be agreeable. Read the issue body
-(the spec) and its comments, then each branch's diff against its base.
+(the spec) and its comments, then each branch's diff against the branch before it (`main` for the first).
 
 Check, in order:
 

@@ -60,7 +60,7 @@ queue)
 	gh pr comment "$pr" --repo "$repo" --body-file - <<EOF
 @claude The merge queue tested this PR on top of \`main\` (and any PRs queued ahead of it) and CI failed, so it was taken out of the queue: $run_url
 
-Find the cause in that run's failing job. Bring this branch up to date with its base (\`git pull --rebase\`), reproduce the failure, fix it, run the checks it touches, and push. The push puts the PR back in the queue. If the failure comes from a PR queued ahead of this one rather than from this change, say so here instead of changing anything.
+Find the cause in that run's failing job. Bring this branch up to date with \`main\` (\`git merge origin/main\`; never a rebase or force-push), reproduce the failure, fix it, run the checks it touches, and push. The push puts the PR back in the queue. If the failure comes from a PR queued ahead of this one rather than from this change, say so here instead of changing anything.
 $footer
 EOF
 	issue="$(issue_of "$pr")"

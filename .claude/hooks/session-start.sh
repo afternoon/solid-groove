@@ -77,7 +77,7 @@ finished — wait and retry rather than diagnosing it as a tsconfig or lockfile
 problem. A null ALSA device and PW_CHROMIUM_PATH are already configured.
 NOTICE
 
-# The skills and workflows drive GitHub through `gh` (stacked PRs, `blocked_by`,
+# The skills and workflows drive GitHub through `gh` (PRs, `blocked_by`,
 # labels). In a cloud session the GitHub proxy supplies the credentials for REST
 # calls but refuses GraphQL, and `gh auth status` reports the token as "invalid"
 # even though REST works. Agents read that line and gave up on `gh` entirely,

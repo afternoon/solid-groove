@@ -2,15 +2,12 @@
 // Merge PRs through the merge queue: safe ones on their own, the rest once the
 // product owner approves them.
 //
-//   node .github/scripts/merge.mjs sync <n>    PR <n> opened or moved (pushed, or
-//                                              retargeted onto main when the PR under it
-//                                              merged): queue it if it sits on main and is
-//                                              safe or approved; otherwise flag it.
+//   node .github/scripts/merge.mjs sync <n>    PR <n> opened or was pushed: queue it if
+//                                              it is safe or approved; otherwise flag it.
 //   node .github/scripts/merge.mjs issue <n>   `status:approved` went on issue <n>:
-//                                              approve every open PR that refers to it,
-//                                              and every PR stacked under those.
+//                                              approve every open PR that refers to it.
 //   node .github/scripts/merge.mjs pr <n>      `status:approved` went on PR <n>:
-//                                              approve it and every PR stacked under it.
+//                                              approve it.
 //
 // A PR is safe when it touches no GATED path: those change what is stored,
 // who may read it, what runs server side, dependencies, or the automation
@@ -20,16 +17,15 @@
 // merges). A gated PR is labelled `needs-approval` and its card goes to Ready
 // for review until the product owner approves it.
 //
-// Only a PR on `main` can be queued, so a stack lands bottom-up: each PR above
-// the bottom is checked by `sync` when restack.yml moves it onto `main`.
-// Queuing is auto-merge: GitHub queues the PR once its checks pass, tests it on
-// top of everything ahead of it, and merges it. ci-failure.yml handles a PR the
-// queue throws out.
+// Every PR targets `main` (there are no stacked PRs; an issue that needs more
+// than one PR lands them in sequence, each after the last merged). Queuing is
+// auto-merge: GitHub queues the PR once its checks pass, tests it on top of
+// everything ahead of it, and merges it. ci-failure.yml handles a PR the queue
+// throws out, and conflicts.yml a PR that `main` moved out from under.
 //
 // The PRs are authored as the product owner (RESTACK_TOKEN), and GitHub does not
 // let anyone approve their own PR, so the signal is a label, not a review.
 import { execFileSync } from "node:child_process";
-import { chainThrough } from "./stack-link.mjs";
 
 const REPO = process.env.GITHUB_REPOSITORY;
 const APPROVED = "status:approved";
@@ -77,11 +73,7 @@ function openPrs() {
       "number,headRefName,baseRefName,isCrossRepository,isDraft,body,labels",
     ]),
   ).filter((p) => !p.isCrossRepository);
-  const byHead = new Map(prs.map((p) => [p.headRefName, p]));
-  const byBase = new Map();
-  for (const p of prs)
-    byBase.set(p.baseRefName, [...(byBase.get(p.baseRefName) ?? []), p]);
-  return { prs, byHead, byBase };
+  return { prs };
 }
 
 /** True when a PR body closes, completes or refers to the issue (`Closes #12`, `Completes #12`, `Refs #12`). */
@@ -92,19 +84,14 @@ export function refersTo(body, issue) {
   ).test(body ?? "");
 }
 
-/** The PRs approving `number` covers: it and the PRs stacked under it, bottom first. */
+/** The PRs approving `number` covers: that PR, if it is open here. */
 export function approvalOf(number, index) {
-  const chain = chainThrough(number, index);
-  return chain.slice(0, chain.indexOf(number) + 1);
+  return index.prs.some((p) => p.number === number) ? [number] : [];
 }
 
-/** Every PR an approval of `issue` covers, bottom of each stack first. */
+/** Every open PR an approval of `issue` covers: each one whose body refers to it. */
 export function approvalOfIssue(issue, index) {
-  const covered = [];
-  for (const p of index.prs.filter((p) => refersTo(p.body, issue)))
-    for (const n of approvalOf(p.number, index))
-      if (!covered.includes(n)) covered.push(n);
-  return covered;
+  return index.prs.filter((p) => refersTo(p.body, issue)).map((p) => p.number);
 }
 
 function queue(number) {
@@ -113,13 +100,9 @@ function queue(number) {
     gh(["pr", "merge", String(number), "--repo", REPO, "--auto", "--squash"]);
     console.log(`#${number}: queued`);
   } catch (e) {
-    // Already queued or already auto-merging is fine. A PR in one of GitHub's
-    // native stacks (stack-link.yml) cannot auto-merge at all: it merges from
-    // the stack's own page, so that is reported, not failed. Anything else fails.
+    // Already queued or already auto-merging is fine. Anything else fails.
     const msg = String(e.stderr ?? e);
     if (/already|is in clean status/i.test(msg)) console.log(`#${number}: ${msg.trim()}`);
-    else if (/not supported for stacked pull requests/i.test(msg))
-      console.log(`#${number}: in a native stack; merge it from the stack's page`);
     else throw e;
   }
 }
@@ -136,7 +119,8 @@ function approve(numbers, index) {
   for (const n of numbers) {
     const p = index.prs.find((p) => p.number === n);
     if (p?.baseRefName === BASE) queue(n);
-    else console.log(`#${n}: waits for the PR under it (${p?.baseRefName})`);
+    else
+      console.log(`#${n}: not on ${BASE} (${p?.baseRefName}); retarget it onto ${BASE}`);
   }
 }
 
@@ -202,7 +186,9 @@ function sync(n, index) {
   if (!p) return console.log(`#${n}: not an open PR here`);
   if (p.isDraft) return console.log(`#${n}: draft; not queued`);
   if (p.baseRefName !== BASE)
-    return console.log(`#${n}: waits for the PR under it (${p.baseRefName})`);
+    return console.log(
+      `#${n}: not on ${BASE} (${p.baseRefName}); retarget it onto ${BASE}`,
+    );
   if (has(HOLD)) return console.log(`#${n}: labelled ${HOLD}; not queued`);
   if (has(APPROVED)) return queue(n);
   const gated = gatedPaths(changedPaths(n));

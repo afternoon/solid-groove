@@ -286,12 +286,14 @@ before starting a task, not after. In short:
 
 - Work is tracked as **GitHub issues**; the issue is the specification and the
   live record, and readiness is its native `blocked_by` graph.
-- A PR is **one reviewable unit of purpose** and at most **400 changed lines**.
-  A larger task ships as a stack of such PRs.
+- A PR is **one reviewable unit of purpose**, targets `main`, and is small by
+  preference (around **400 changed lines** is the sign a change wants splitting,
+  not a cap). A larger task ships as a sequence of such PRs, each landing before
+  the next opens; PRs are never stacked on one another.
 - Tests for a slice ship **in the same PR** as that slice.
 - A feature's **core flows** ([`docs/core-flows.md`](./docs/core-flows.md)) are
-  written as `test.fixme` Playwright specs in the *first* PR of its stack, and
-  frozen from then on; the PR that closes the issue removes the markers in the
+  written as `test.fixme` Playwright specs in their *own* PR, landed before the
+  implementation, and frozen from then on; the PR that closes the issue removes the markers in the
   same diff that makes them pass.
 - Any change that alters the UI includes a **walkthrough** in the body of the PR
   that closes the issue — captured from those passing flows with

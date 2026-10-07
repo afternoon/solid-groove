@@ -2,12 +2,12 @@ export const meta = {
   name: 'solid-groove-ship',
   description: 'Ship one Groove issue: triage it as a feature, fix or polish, build it, review features, and open PRs that merge themselves once green',
   whenToUse:
-    'Run to ship ONE issue in trygroove/groove whose spec has been agreed in the issue body. Pass the issue number: { issue: 123 } (or just 123). Triage picks the kind of work and stops only if the issue is genuinely unclear; the build runs unattended; features get an adversarial review with up to two fix rounds; every PR opens ready for review with screenshots for any UI change, and merges on its own once CI passes unless it touches a gated path; the issue is QA\'d on production after the PR that completes it lands.',
+    'Run to ship ONE issue in trygroove/groove whose spec has been agreed in the issue body. Pass the issue number: { issue: 123 } (or just 123). Triage picks the kind of work and stops only if the issue is genuinely unclear; the build runs unattended; features get an adversarial review with up to two fix rounds; every PR opens ready for review against main, with screenshots for any UI change, one at a time (each after the one before it has merged), and merges on its own once CI passes unless it touches a gated path; the issue is QA\'d on production after the PR that completes it lands.',
   phases: [
     { title: 'Triage', detail: 'read the issue, pick feature / fix / polish' },
     { title: 'Build', detail: 'implement, test, push branches, capture screenshots' },
     { title: 'Review', detail: 'features only: adversarial review, up to two fix rounds' },
-    { title: 'Land', detail: 'open ready PRs; merge.yml queues the safe ones' },
+    { title: 'Land', detail: 'open each PR against main once the one before it has merged; merge.yml queues the safe ones' },
   ],
 }
 
@@ -59,7 +59,7 @@ const BUILD_SCHEMA = {
     question: { type: 'string', description: 'If unclear or unreproduced: the question, or what was tried' },
     branches: {
       type: 'array',
-      description: 'Pushed branches in stack order; the first is based on main',
+      description: 'Pushed branches in landing order; the first is based on main, each later one on the branch before it',
       items: {
         type: 'object',
         required: ['branch', 'purpose'],
@@ -86,18 +86,21 @@ const REVIEW_SCHEMA = {
   },
 }
 
+const WAIT_SCHEMA = {
+  type: 'object',
+  required: ['state'],
+  properties: {
+    state: { type: 'string', enum: ['merged', 'closed', 'waiting'], description: 'merged; closed without merging; or still open when the wait ran out' },
+    labels: { type: 'array', items: { type: 'string' }, description: 'The PR\'s labels when the wait ended' },
+  },
+}
+
 const LAND_SCHEMA = {
   type: 'object',
-  required: ['prs'],
+  required: ['number', 'url'],
   properties: {
-    prs: {
-      type: 'array',
-      items: {
-        type: 'object',
-        required: ['number', 'url'],
-        properties: { number: { type: 'number' }, url: { type: 'string' } },
-      },
-    },
+    number: { type: 'number' },
+    url: { type: 'string' },
     problems: { type: 'array', items: { type: 'string' } },
   },
 }
@@ -108,7 +111,7 @@ const t = await agent(
   `Triage GitHub issue #${issue} for an unattended build. ${GITHUB}
 
 Read the issue body and every comment. Decide:
-- **kind**: \`feature\` (new capability: one PR, or a short stack when it is big), \`fix\` (something is wrong), or \`polish\` (a small enhancement or tweak). The issue's own label does not decide it. Behaviour that works as coded but is not what the issue wants is a fix or polish, never a reason to stop.
+- **kind**: \`feature\` (new capability: one PR, or a few in sequence when a part can land first), \`fix\` (something is wrong), or \`polish\` (a small enhancement or tweak). The issue's own label does not decide it. Behaviour that works as coded but is not what the issue wants is a fix or polish, never a reason to stop.
 - **unclear**: true only if two reasonable readings would build materially different things and nothing in the issue, its comments, a core flow or the code decides. Terse is not unclear; a missing cause is not unclear (finding it is the job). If unclear, post the single question as an issue comment, written so a one-line answer unblocks it, and add the \`status:blocked\` label (the board removes the old status).
 - **existingPr**: an open PR that already closes or completes #${issue}, if any.
 
@@ -151,14 +154,14 @@ if (t.kind === 'feature') {
   const branchList = () => build.branches.map((b, i) => `${i + 1}. \`${b.branch}\` (base: \`${i === 0 ? 'main' : build.branches[i - 1].branch}\`): ${b.purpose}`).join('\n')
   for (let round = 0; ; round++) {
     const review = await agent(
-      `${brief(REVIEWER)}Review the branches built for GitHub issue #${issue} ("${t.title}"), in stack order:\n${branchList()}\n\nThe implementer's own report: ${build.summary}\nAssumptions it made: ${build.assumptions.join('; ') || 'none'}\n\n${GITHUB}\n\n${ENV}`,
+      `${brief(REVIEWER)}Review the branches built for GitHub issue #${issue} ("${t.title}"), in landing order:\n${branchList()}\n\nThe implementer's own report: ${build.summary}\nAssumptions it made: ${build.assumptions.join('; ') || 'none'}\n\n${GITHUB}\n\n${ENV}`,
       { label: `review #${issue} r${round + 1}`, schema: REVIEW_SCHEMA, isolation: 'worktree', effort: 'high' },
     )
     unresolved = review?.blocking ?? []
     if (unresolved.length === 0 || round >= MAX_FIX_ROUNDS) break
     log(`#${issue} review round ${round + 1}: ${unresolved.length} blocking finding(s)`)
     const fixed = await agent(
-      `${brief(IMPLEMENTER)}You are fixing review findings on already-pushed branches for GitHub issue #${issue} (kind: feature). Check out each branch from \`origin/<branch>\`, fix, re-run the checks, and push. When you change a lower branch, rebase the branches above it onto it (\`git rebase --onto <lower> <old lower tip>\`, only their own commits) and push those with \`--force-with-lease\`: their PRs are not open yet, and a native GitHub stack only merges with a linear history. Never merge one branch into another. Branches:\n${branchList()}\n\nBlocking findings:\n${unresolved.map((f) => `- ${f}`).join('\n')}\n\nReturn the full report again, updated (keep the same branches unless a split was genuinely needed). ${GITHUB}\n\n${ENV}`,
+      `${brief(IMPLEMENTER)}You are fixing review findings on already-pushed branches for GitHub issue #${issue} (kind: feature). Check out each branch from \`origin/<branch>\`, fix, re-run the checks, and push. When you change an earlier piece, merge its branch into each later piece (\`git merge <earlier branch>\`) so every later branch still contains it, and push. Never rebase or force-push. Branches:\n${branchList()}\n\nBlocking findings:\n${unresolved.map((f) => `- ${f}`).join('\n')}\n\nReturn the full report again, updated (keep the same branches unless a split was genuinely needed). ${GITHUB}\n\n${ENV}`,
       { label: `fix review #${issue} r${round + 1}`, schema: BUILD_SCHEMA, isolation: 'worktree' },
     )
     if (fixed?.outcome === 'built' && fixed.branches.length) build = fixed
@@ -167,31 +170,72 @@ if (t.kind === 'feature') {
 }
 
 // ---------------------------------------------------------------- Land
+// Every PR targets main. A sequence lands one PR at a time: the next opens only
+// once the one before it has merged, with main merged into its branch first, so
+// its diff is its own and nothing is ever rebased or force-pushed.
 phase('Land')
 const n = build.branches.length
 const action = t.kind === 'fix' ? 'Fix' : 'Implement'
-const landed = await agent(
-  `Open the pull requests for GitHub issue #${issue}. ${GITHUB}
+const prs = []
+const problems = []
+const WAIT_MINUTES = 90
 
-Branches, in stack order:
-${build.branches.map((b, i) => `${i + 1}. \`${b.branch}\`: ${b.purpose}`).join('\n')}
+for (let i = 0; i < n; i++) {
+  const b = build.branches[i]
+  const prev = prs[i - 1]
+  if (prev) {
+    const waited = await agent(
+      `Wait for PR #${prev.number} (${prev.url}) to merge. ${GITHUB}
 
-For each, in order:
-- Base: \`main\` for the first, the previous branch for each later one.
-- Open it **ready for review, not as a draft**.
-- Title: \`${action} #${issue}: <what this PR does>\`${n > 1 ? ' (that slice\'s purpose)' : ` (e.g. "${action} #${issue}: ${t.title}")`}.
-- Body: follow \`.github/pull_request_template.md\` (fill its sections from the facts below). ${n > 1 ? `Say "i of ${n}, builds on #<prev>" where it applies. ` : ''}\`Completes #${issue}\` on the last PR only, \`Refs #${issue}\` on earlier ones. Never \`Closes\` or \`Fixes\`: the issue stays open after the merge so QA can test it on production.
+Poll \`gh pr view ${prev.number} --repo trygroove/groove --json state,mergedAt,labels\` every two to five minutes (the Monitor tool if you have it, else a bounded shell loop) for up to ${WAIT_MINUTES} minutes. It merges on its own once CI is green, unless it is labelled \`needs-approval\` (then the product owner has to approve it, which may not happen in time). Return \`merged\`, \`closed\` (closed without merging), or \`waiting\` if it is still open when the time runs out, with its labels. Change nothing.`,
+      { label: `wait #${prev.number}`, schema: WAIT_SCHEMA, effort: 'low' },
+    )
+    if (waited?.state !== 'merged') {
+      const rest = build.branches.slice(i).map((x) => `\`${x.branch}\``).join(', ')
+      const why = waited?.state === 'closed'
+        ? `#${prev.number} was closed without merging`
+        : `#${prev.number} has not merged yet${waited?.labels?.includes('needs-approval') ? ' (it needs approval)' : ''}`
+      await agent(
+        `Post one comment on GitHub issue #${issue}: this /ship run opened #${prev.number} and stopped because ${why}. The remaining work is pushed as ${rest} and opens as its own PR${n - i > 1 ? 's' : ''} against main once #${prev.number} has landed: then move the issue to Ready again and /ship continues from there. Do not change any label. ${GITHUB}`,
+        { label: `report #${issue}`, effort: 'low' },
+      )
+      problems.push(`${why}; ${rest} not opened`)
+      log(`#${issue}: ${why}; stopped before ${rest}`)
+      break
+    }
+    await agent(
+      `Bring \`${b.branch}\` up to date with main before its PR opens: it was built on \`${build.branches[i - 1].branch}\`, which has now merged as #${prev.number}. ${GITHUB}
 
-Facts for the bodies:
-- Summary: ${build.summary}
+Check out \`origin/${b.branch}\`, run \`git merge origin/main\` (expect it to be clean: the earlier piece is in both sides), resolve any conflict so both sides' behaviour survives, run \`bun run typecheck\` and \`bun run check\`, and push with a plain \`git push\`. Never rebase or force-push. If the merge cannot keep both sides' behaviour, stop and say so.
+
+${ENV}`,
+      { label: `update ${b.branch}`, effort: 'low', isolation: 'worktree' },
+    )
+  }
+  const landed = await agent(
+    `Open the pull request for branch \`${b.branch}\` of GitHub issue #${issue}: ${b.purpose}. ${GITHUB}
+
+- Base: \`main\`. Open it **ready for review, not as a draft**.
+- Title: \`${action} #${issue}: <what this PR does>\`${n > 1 ? ' (this piece\'s purpose)' : ` (e.g. "${action} #${issue}: ${t.title}")`}.
+- Body: follow \`.github/pull_request_template.md\` (fill its sections from the facts below). ${n > 1 ? `Say "${i + 1} of ${n}${prev ? `, follows #${prev.number}` : ''}". ` : ''}${i === n - 1 ? `\`Completes #${issue}\`` : `\`Refs #${issue}\` (not Completes: this is not the last PR)`}. Never \`Closes\` or \`Fixes\`: the issue stays open after the merge so QA can test it on production.
+
+Facts for the body:
+- Summary of the whole issue: ${build.summary}
 ${build.rootCause ? `- Root cause: ${build.rootCause}\n` : ''}${build.redEvidence ? `- Regression test, red before the fix:\n\`\`\`\n${build.redEvidence}\n\`\`\`\n` : ''}- Assumptions made without asking: ${build.assumptions.join('; ') || 'none'}
 - Checks: ${build.checks}
-- Screenshots (put in the Screenshots section of the PR whose branch changed the UI, or the last PR): ${build.uiChanged ? build.screenshots || 'MISSING: say so plainly in the body' : 'No UI change'}
-${unresolved.length ? `- Review findings still open after ${MAX_FIX_ROUNDS} fix rounds (list them under a "Open review findings" heading in the last PR):\n${unresolved.map((f) => `  - ${f}`).join('\n')}\n` : ''}
-Add no labels: \`.github/workflows/merge.yml\` queues each PR once it sits on \`main\`, or flags it \`needs-approval\` if it touches a gated path. After writing each body, re-read it and check no image link contains a backtick.`,
-  { label: `land #${issue}`, schema: LAND_SCHEMA, effort: 'low' },
-)
+- Screenshots (put them in the Screenshots section if this branch changed the UI, or if it is the last PR): ${build.uiChanged ? build.screenshots || 'MISSING: say so plainly in the body' : 'No UI change'}
+${i === n - 1 && unresolved.length ? `- Review findings still open after ${MAX_FIX_ROUNDS} fix rounds (list them under a "Open review findings" heading):\n${unresolved.map((f) => `  - ${f}`).join('\n')}\n` : ''}
+Add no labels: \`.github/workflows/merge.yml\` queues the PR on its own, or flags it \`needs-approval\` if it touches a gated path. After writing the body, re-read it and check no image link contains a backtick. Confirm the PR exists before returning its number and URL.`,
+    { label: `land ${b.branch}`, schema: LAND_SCHEMA, effort: 'low' },
+  )
+  if (!landed?.number) {
+    problems.push(`no PR opened for ${b.branch}`)
+    log(`#${issue}: no PR opened for ${b.branch}`)
+    break
+  }
+  prs.push({ number: landed.number, url: landed.url })
+  problems.push(...(landed.problems ?? []))
+  log(`#${issue}: opened ${landed.url}`)
+}
 
-const prs = landed?.prs ?? []
-log(`#${issue}: opened ${prs.map((p) => p.url).join(', ') || 'no PRs'}`)
-return { issue, kind: t.kind, prs, openFindings: unresolved, problems: landed?.problems ?? [] }
+return { issue, kind: t.kind, prs, openFindings: unresolved, problems }
