@@ -23,6 +23,7 @@ import { executeTransaction } from "../commands/execute";
 import type { RawCommandInput } from "../commands/types";
 import type { Placement, Project } from "../domain/entities";
 import type { IdFactory, PlacementId } from "../domain/ids";
+import { TICKS_PER_BAR } from "../domain/time";
 import {
   type ArrangementBand,
   type ArrangementPosition,
@@ -59,6 +60,7 @@ import {
 } from "./placementDuplication";
 import {
   deletePlacements,
+  findPlacement,
   moveSelection,
   resizePlacement,
   setPlacementLooped,
@@ -614,6 +616,44 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
     return run(commands);
   }
 
+  /**
+   * The keyboard's edge drag (#76): move one edge of every selected clip a
+   * bar either way, as one transaction and one undo entry, through the same
+   * `resizePlacement` the drag uses. A clip is never shorter than a bar, its
+   * start trims or rewinds its content as the start edge's drag does, and a
+   * clip that grows over a neighbour overwrites it, as a drop does (#290).
+   * Lengthening a looped clip repeats it into the new bars; the pointer's
+   * drag past the end tiles linked copies instead, which Cmd/Ctrl+D does from
+   * the keyboard.
+   */
+  function resizeSelection(edge: "start" | "end", byBars: -1 | 1): boolean {
+    const current = project();
+    const ids = covered();
+    if (!current || ids.length === 0) return false;
+    const resized = ids.flatMap((id) => {
+      const placement = findPlacement(current, id);
+      if (!placement) return [];
+      const at =
+        edge === "start"
+          ? placement.startTicks
+          : placement.startTicks + placement.durationTicks;
+      return resizePlacement(current, id, edge, at + byBars * TICKS_PER_BAR);
+    });
+    if (resized.length === 0) return false;
+    const landed = executeTransaction(current, resized, {
+      commitRevision: false,
+      deferredInvariants: ["placement_overlap"],
+    });
+    if (!landed.ok) return false;
+    const grows = (edge === "end") === byBars > 0;
+    const overwrite = grows
+      ? tileOverwrites(landed.project, ids, () => options.ids("placement"))
+      : [];
+    run([...resized, ...overwrite]);
+    options.analytics?.logFeatureFirstUse("arrangement_clip_resize");
+    return true;
+  }
+
   /** Duplicate the selection. `placement_duplicated` fires once per action,
    * carrying only which of CLP-01's two operations ran — never a name. */
   function duplicate(mode: DuplicateMode): boolean {
@@ -714,6 +754,7 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
     cancelDrag,
     deleteSelection,
     toggleLoop,
+    resizeSelection,
     duplicate,
     copy,
     cut,

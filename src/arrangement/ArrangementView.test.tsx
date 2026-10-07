@@ -1078,3 +1078,171 @@ describe("vertical scroll range (#959)", () => {
     expect(belowTracks.style.transform).toBe(`translateY(${-nativeMax}px)`);
   });
 });
+
+describe("the clip list (#76)", () => {
+  const BAR = TICKS_PER_BAR;
+
+  async function withClipList() {
+    const built = buildArrangementProject([
+      [
+        { startTicks: 0, durationTicks: BAR },
+        { startTicks: 2 * BAR, durationTicks: BAR },
+      ],
+      [{ startTicks: 0, durationTicks: 3 * BAR }],
+    ]);
+    const { session, transport } = await setUpEditing(built.project);
+    const actions: { current: PlacementEditingActions | null } = { current: null };
+    const focusChanges: boolean[] = [];
+    const analytics = new Analytics({
+      transport,
+      consent: (() => {
+        const consent = new ConsentStore(memoryStorage());
+        consent.optIn();
+        return consent;
+      })(),
+      storage: memoryStorage(),
+    });
+    const { unmount } = render(() => (
+      <ArrangementView
+        project={session.project}
+        analytics={analytics}
+        dispatch={session.dispatch.bind(session)}
+        onEditingActionsReady={(ready) => {
+          actions.current = ready;
+        }}
+        onClipListFocusChange={(focused) => focusChanges.push(focused)}
+      />
+    ));
+    const list = screen.getByRole("listbox", { name: "Clips" });
+    return { ...built, session, transport, actions, focusChanges, list, unmount };
+  }
+
+  const announcement = () =>
+    screen.getByTestId("arrangement-selection-live").textContent ?? "";
+
+  it("lists every clip in reading order, as one tab stop", async () => {
+    const { list } = await withClipList();
+    expect(list).toHaveAttribute("tabindex", "0");
+    const options = within(list).getAllByRole("option");
+    expect(options.map((option) => option.textContent)).toEqual([
+      expect.stringMatching(/on BD, bar 1$/),
+      expect.stringMatching(/on BD, bar 3$/),
+      expect.stringMatching(/bars 1 to 3$/),
+    ]);
+    expect(options.every((o) => o.getAttribute("aria-selected") === "false")).toBe(true);
+  });
+
+  it("reports focus, so the editor can turn its arrows on", async () => {
+    const { list, focusChanges } = await withClipList();
+    fireEvent.focus(list);
+    fireEvent.blur(list);
+    expect(focusChanges).toEqual([true, false]);
+  });
+
+  it("says it has lost focus when it goes with focus in it", async () => {
+    const { list, focusChanges, unmount } = await withClipList();
+    fireEvent.focus(list);
+    // No blur: Firefox fires none when a focused element is removed.
+    unmount();
+    expect(focusChanges).toEqual([true, false]);
+  });
+
+  it("adds the next clip to the selection with Shift, and carries on from it", async () => {
+    const { list, actions, placementIds } = await withClipList();
+    actions.current?.stepClip(1);
+    actions.current?.extendClip(1);
+    flush();
+    expect(actions.current?.getSelection()).toEqual([
+      placementIds[0][0],
+      placementIds[0][1],
+    ]);
+    const selected = within(list)
+      .getAllByRole("option")
+      .map((option) => option.getAttribute("aria-selected"));
+    expect(selected).toEqual(["true", "true", "false"]);
+    const active = list.getAttribute("aria-activedescendant");
+    expect(active).toBe(within(list).getAllByRole("option")[1].id);
+
+    actions.current?.extendClip(1);
+    flush();
+    expect(actions.current?.getSelection()).toHaveLength(3);
+  });
+
+  it("moves the selected clips' ends a bar, the edge drag's keyboard twin", async () => {
+    const { actions, placementIds, session } = await withClipList();
+    const duration = (id: PlacementId) =>
+      session.project.song.placements.find((p) => p.id === id)?.durationTicks;
+    actions.current?.select(placementIds[1][0]);
+    actions.current?.resizeSelection("end", -1);
+    flush();
+    expect(duration(placementIds[1][0])).toBe(2 * BAR);
+
+    // Lengthening the first clip over the second overwrites it, as a drop does.
+    actions.current?.select(placementIds[0][0]);
+    actions.current?.resizeSelection("end", 1);
+    actions.current?.resizeSelection("end", 1);
+    flush();
+    expect(duration(placementIds[0][0])).toBe(3 * BAR);
+    expect(duration(placementIds[0][1])).toBeUndefined();
+    session.undo();
+    expect(duration(placementIds[0][0])).toBe(2 * BAR);
+  });
+
+  it("steps the selection through the clips as a click on each would", async () => {
+    const { list, actions, placementIds } = await withClipList();
+    actions.current?.stepClip(1);
+    flush();
+    expect(actions.current?.getSelection()).toEqual([placementIds[0][0]]);
+    expect(announcement()).toBe("Selected clip on BD, bar 1");
+    const active = list.getAttribute("aria-activedescendant");
+    expect(active && document.getElementById(active)).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+
+    actions.current?.stepClip(1);
+    actions.current?.stepClip(1);
+    flush();
+    expect(actions.current?.getSelection()).toEqual([placementIds[1][0]]);
+    // At the end it stays put.
+    actions.current?.stepClip(1);
+    flush();
+    expect(actions.current?.getSelection()).toEqual([placementIds[1][0]]);
+
+    actions.current?.stepClip(-1);
+    flush();
+    expect(announcement()).toBe("Selected clip on BD, bar 3");
+  });
+
+  it("starts from the clip a click selected", async () => {
+    const { actions, placementIds } = await withClipList();
+    actions.current?.select(placementIds[0][1]);
+    actions.current?.stepClip(-1);
+    flush();
+    expect(actions.current?.getSelection()).toEqual([placementIds[0][0]]);
+  });
+
+  it("logs its feature_first_use once, however many steps", async () => {
+    const { actions, transport } = await withClipList();
+    actions.current?.stepClip(1);
+    actions.current?.stepClip(1);
+    const firstUses = transport.events.filter(
+      (event) =>
+        event.name === "feature_first_use" &&
+        event.params.feature === "arrangement_clip_list",
+    );
+    expect(firstUses).toHaveLength(1);
+  });
+
+  it("is not there in an arrangement with no clips", () => {
+    const { project } = buildArrangementProject([
+      [{ startTicks: 0, durationTicks: BAR }],
+    ]);
+    render(() => (
+      <ArrangementView
+        project={{ ...project, song: { ...project.song, placements: [] } }}
+      />
+    ));
+    expect(screen.queryByRole("listbox", { name: "Clips" })).toBeNull();
+  });
+});

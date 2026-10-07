@@ -107,6 +107,7 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     arrangementEditingActions,
     hasArrangementSelection,
     loopBraceFocused,
+    clipListFocused,
   } = options.surfaces;
   const { toggleLoop: toggleLooping, moveLoop, resizeLoop } = options.song;
 
@@ -277,6 +278,32 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     "arrangement.loop_move_later": { run: () => moveLoop(1) },
     "arrangement.loop_shorten": { run: () => resizeLoop(-1) },
     "arrangement.loop_lengthen": { run: () => resizeLoop(1) },
+    // The focused clip list's arrows (#76), live only in `clip_list`.
+    "arrangement.clip_previous": { run: () => arrangementEditingActions()?.stepClip(-1) },
+    "arrangement.clip_next": { run: () => arrangementEditingActions()?.stepClip(1) },
+    "arrangement.clip_extend_previous": {
+      run: () => arrangementEditingActions()?.extendClip(-1),
+    },
+    "arrangement.clip_extend_next": {
+      run: () => arrangementEditingActions()?.extendClip(1),
+    },
+    // The canvas's edge drag, a bar at a time (#76).
+    "arrangement.clip_shorten": {
+      run: () => arrangementEditingActions()?.resizeSelection("end", -1),
+      isEnabled: () => hasArrangementSelection(),
+    },
+    "arrangement.clip_lengthen": {
+      run: () => arrangementEditingActions()?.resizeSelection("end", 1),
+      isEnabled: () => hasArrangementSelection(),
+    },
+    "arrangement.clip_start_earlier": {
+      run: () => arrangementEditingActions()?.resizeSelection("start", -1),
+      isEnabled: () => hasArrangementSelection(),
+    },
+    "arrangement.clip_start_later": {
+      run: () => arrangementEditingActions()?.resizeSelection("start", 1),
+      isEnabled: () => hasArrangementSelection(),
+    },
     "edit.undo": {
       run: () => session.undo(),
       isEnabled: () => session.state.canUndo,
@@ -563,7 +590,9 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
       : withSequence;
     const withLoopBrace: readonly ShortcutContext[] = loopBraceFocused()
       ? [...withGesture, "loop_brace"]
-      : withGesture;
+      : clipListFocused()
+        ? [...withGesture, "clip_list"]
+        : withGesture;
     // The assistant's focused resize edge takes the arrows (#849).
     return assistant.edgeHasFocus() ? [...withLoopBrace, "resize_edge"] : withLoopBrace;
   };

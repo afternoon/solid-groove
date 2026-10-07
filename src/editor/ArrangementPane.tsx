@@ -51,6 +51,7 @@ export default function ArrangementPane(props: ArrangementPaneProps): JSX.Elemen
           initialSelection={props.initialSelection}
           onSelectionChange={(selected) => props.onSelectionChange(selected)}
           onLoopBraceFocusChange={props.surfaces.setLoopBraceFocused}
+          onClipListFocusChange={props.surfaces.setClipListFocused}
           /* The arrangement's own way to add a track (`UI-001`), the same unit
            and the same route the mixer uses — rendered by the arrangement
            directly below the last track, where the next one would go, rather
