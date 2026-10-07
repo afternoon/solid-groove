@@ -150,7 +150,7 @@ const FIT: readonly FitColumn[] = [
   },
   {
     title: "Groove",
-    body: "Real tracks, clips, devices and mixing, a step at a time, with an AI producer to suggest what's next.",
+    body: `Real tracks, clips, devices and mixing, a step at a time, with an AI producer to suggest what's next (from ${AI_PRODUCER_ARRIVES}).`,
     ours: true,
   },
   {
@@ -357,7 +357,7 @@ export default function LandingPageContent(props: LandingPageContentProps) {
               src={`${ASSETS}/assistant-study.jpg`}
               alt="A design study of the AI producer's panel: it proposes three changes to a drum beat, previewed with dashed outlines, with Apply and Cancel."
               width={1180}
-              height={780}
+              height={781}
               loading="lazy"
               decoding="async"
             />

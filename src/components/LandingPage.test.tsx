@@ -131,6 +131,33 @@ describe("LandingPage (PRD PRJ-06)", () => {
       );
     });
 
+    // PRD PRJ-06 again, as a guard: every block of copy that names the AI
+    // producer says when it arrives, so a new sentence cannot present it as
+    // shipped. Two blocks are exempt, each for a stated reason: the hero lede,
+    // whose wording the spec dictates, and the AI section's own heading and
+    // lede, which sit under its "Coming in October" badge.
+    it("dates every mention of the AI producer", () => {
+      setup();
+      const main = screen.getByRole("main");
+      const blocks = main.querySelectorAll("h1, h2, h3, p, li, figcaption, dt, dd");
+      const mentions = [...blocks].filter(
+        (block) =>
+          /AI producer/i.test(block.textContent ?? "") &&
+          // The innermost block only: a list item is checked through its <p>.
+          !block.querySelector("h1, h2, h3, p, li, figcaption, dt, dd"),
+      );
+      expect(mentions.length).toBeGreaterThan(3);
+      for (const block of mentions) {
+        if (block.matches(".landing-hero .landing-lede")) continue;
+        const section = block.closest("section");
+        const underBadge =
+          section?.querySelector(".landing-badge")?.textContent === "Coming in October" &&
+          !block.closest("li, figure");
+        if (underBadge) continue;
+        expect(block.textContent).toContain("October");
+      }
+    });
+
     it("shows the studio today in four rows, each with a real screenshot", () => {
       setup();
       const section = screen
