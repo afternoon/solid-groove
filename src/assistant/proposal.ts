@@ -10,9 +10,13 @@
  *    {@link MAX_PROPOSAL_COMMANDS} calls (`malformed`, `too_many_commands`);
  * 2. the revision must still be the project's (`stale_revision`);
  * 3. every call must name an allowlisted tool with a valid, authorized payload
- *    (`unknown_tool`, `invalid_payload`, `unauthorized`, see `tools.ts`);
- * 4. the commands are dry-run as one transaction through the same kernel a
- *    manual edit uses, so a missing ID, an out-of-range value, a combination
+ *    (`unknown_tool`, `invalid_payload`, `unauthorized`, see `tools.ts`), from
+ *    the tool set this code offers (`toolset_mismatch`);
+ * 4. every value must be inside its parameter's range, checked command by
+ *    command against the state it applies to (`out_of_range`): a manual edit's
+ *    value is clamped, the assistant's is refused;
+ * 5. the commands are dry-run as one transaction through the same kernel a
+ *    manual edit uses, so a missing ID, a combination
  *    that breaks an invariant, or anything else the kernel refuses is reported
  *    (`rejected`, `invalid_project`) before anything is applied.
  *
@@ -28,9 +32,11 @@ import { requireCommand } from "../commands/registry";
 import type { CommandIssue, RawCommandInput } from "../commands/types";
 import type { Project } from "../domain/entities";
 import {
+  ASSISTANT_TOOLSET_VERSION,
   type AssistantCapability,
   type ProposalCapability,
   proposalCapability,
+  refuseCommandValue,
   resolveToolCall,
 } from "./tools";
 
@@ -52,6 +58,11 @@ const toolCallSchema = z.object({
 const proposalInputSchema = z.strictObject({
   /** The project revision the request that produced this proposal carried. */
   baseRevision: z.int().min(0),
+  /**
+   * The tool set version the calls were made against. A proposal from another
+   * version is refused: its tools may not mean what this code's do.
+   */
+  toolsetVersion: z.int().min(1).optional(),
   /** What the change is for, in the assistant's words, for the card. */
   intent: z.string().max(MAX_PROPOSAL_INTENT_LENGTH).optional(),
   calls: z.array(toolCallSchema).min(1),
@@ -69,7 +80,11 @@ export type ProposalIssueCode =
   | "unknown_tool"
   | "invalid_payload"
   | "unauthorized"
-  /** The kernel refused a command (a missing ID, an out-of-range value, …). */
+  /** The calls were made against another version of the tool set. */
+  | "toolset_mismatch"
+  /** A value is outside its parameter's range. */
+  | "out_of_range"
+  /** The kernel refused a command (a missing ID, a wrong kind of track, …). */
   | "rejected"
   /** The commands together would break a domain invariant. */
   | "invalid_project";
@@ -164,7 +179,16 @@ export function validateProposal(project: Project, input: unknown): ProposalVali
       { code: "malformed", callIndex: null, message: describeShape(shape.error) },
     ]);
   }
-  const { baseRevision, intent, calls } = shape.data;
+  const { baseRevision, toolsetVersion, intent, calls } = shape.data;
+  if (toolsetVersion !== undefined && toolsetVersion !== ASSISTANT_TOOLSET_VERSION) {
+    return invalid([
+      {
+        code: "toolset_mismatch",
+        callIndex: null,
+        message: `The proposal uses tool set version ${toolsetVersion}, but this is version ${ASSISTANT_TOOLSET_VERSION}`,
+      },
+    ]);
+  }
   if (calls.length > MAX_PROPOSAL_COMMANDS) {
     return invalid([
       {
@@ -201,6 +225,8 @@ export function validateProposal(project: Project, input: unknown): ProposalVali
     capabilities.push(resolution.capability);
   });
   if (issues.length > 0) return invalid(issues);
+  const rangeIssues = valueIssues(project, commands);
+  if (rangeIssues.length > 0) return invalid(rangeIssues);
 
   // The dry run: the same transaction the apply will run, against the same
   // project, without committing a revision.
@@ -228,6 +254,27 @@ export function validateProposal(project: Project, input: unknown): ProposalVali
       },
     },
   };
+}
+
+/**
+ * Every value outside its parameter's range, each command checked against the
+ * state the commands before it leave. A command the kernel cannot apply ends
+ * the walk; the dry run that follows reports it.
+ */
+function valueIssues(
+  project: Project,
+  commands: readonly RawCommandInput[],
+): ProposalIssue[] {
+  const issues: ProposalIssue[] = [];
+  let working = project;
+  for (const [callIndex, command] of commands.entries()) {
+    const reason = refuseCommandValue(command.type, command.payload, working);
+    if (reason) issues.push({ code: "out_of_range", callIndex, message: reason });
+    const step = requireCommand(command.type).apply(working, command.payload);
+    if (!step.ok) break;
+    working = step.project;
+  }
+  return issues;
 }
 
 /**

@@ -1,8 +1,8 @@
 /**
  * Applying, cancelling and undoing an assistant proposal (GRV-4, PRD AI-03).
  *
- * The executor wraps the command history a manual edit goes through; it adds
- * no mutation path of its own. `propose` validates the model's response
+ * The executor goes through the editor session a manual edit goes through
+ * (see {@link ProposalTarget}); it adds no mutation path of its own. `propose` validates the model's response
  * (`proposal.ts`) and hands back a {@link ProposalHandle}:
  *
  * - `apply()` executes the proposal's commands as one transaction, as the
@@ -34,11 +34,13 @@ import { type Clock, systemClock } from "../shared/clock";
 import { type ProposalIssue, type ValidProposal, validateProposal } from "./proposal";
 
 /**
- * What the executor applies to: the command history (or the editor session
- * around it). `CommandHistory` satisfies it as it stands.
+ * What the executor applies to. In the editor that is the editor session
+ * (`src/editor/assistantProposalTarget.ts`), so an applied or undone proposal
+ * is autosaved, counted as an edit and ends an open preview exactly as a
+ * manual edit or undo does; nothing here reaches the history underneath it.
  */
 export interface ProposalTarget {
-  /** The committed project. */
+  /** The committed project, never a preview of one. */
   readonly project: Project;
   /**
    * True while a continuous gesture is open. The history folds anything
@@ -46,12 +48,13 @@ export interface ProposalTarget {
    * rather than becoming part of someone's drag.
    */
   readonly gestureActive: boolean;
-  /** Undo entries, oldest first; only the newest one's correlation ID is read. */
-  readonly entries: readonly { readonly correlationId: string }[];
+  /** The newest undo entry's correlation ID, or null with nothing to undo. */
+  readonly latestCorrelationId: string | null;
   execute(
     commands: readonly RawCommandInput[],
     options: TransactionOptions,
   ): TransactionResult;
+  /** Undoes the newest entry, on the assistant's behalf. */
   undo(): TransactionResult | null;
 }
 
@@ -99,6 +102,11 @@ export interface ProposalHandle {
   readonly id: string;
   readonly proposal: ValidProposal;
   readonly status: ProposalStatus;
+  /**
+   * True once the project has moved since the proposal was validated, so it
+   * can no longer be applied: before `apply()` tries and finds out.
+   */
+  readonly isStale: boolean;
   apply(): ProposalActionResult;
   cancel(): ProposalActionResult;
   undo(): ProposalActionResult;
@@ -149,6 +157,14 @@ class Handle implements ProposalHandle {
     return this.#status;
   }
 
+  get isStale(): boolean {
+    if (this.#status === "stale") return true;
+    return (
+      this.#status === "pending" &&
+      this.options.target.project.metadata.revision !== this.proposal.baseRevision
+    );
+  }
+
   apply(): ProposalActionResult {
     if (this.#status !== "pending") return refuse("not_pending");
     const { target, analytics, clock } = this.options;
@@ -197,8 +213,7 @@ class Handle implements ProposalHandle {
     if (this.#status !== "applied") return refuse("not_applied");
     const { target, analytics, clock } = this.options;
     if (target.gestureActive) return refuse("busy");
-    const newest = target.entries[target.entries.length - 1];
-    if (newest?.correlationId !== this.id) return refuse("not_latest");
+    if (target.latestCorrelationId !== this.id) return refuse("not_latest");
     const result = target.undo();
     if (!result) return refuse("not_latest");
     if (!result.ok) return refuse("failed", result.issues);

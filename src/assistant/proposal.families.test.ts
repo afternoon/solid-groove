@@ -62,6 +62,7 @@ import {
   createSynthInstrument,
   createTrack,
   type DeviceId,
+  getParameterDefinition,
   MASTER_VOLUME,
   PAD_PITCH,
   RETURN_VOLUME,
@@ -74,6 +75,7 @@ import {
   toTicks,
 } from "../domain";
 import { createManualClock } from "../shared/clock";
+import { historyProposalTarget } from "../testing/historyProposalTarget";
 import { type ProposalIssueCode, validateProposal } from "./proposal";
 import { createProposalExecutor } from "./proposalExecutor";
 import {
@@ -107,11 +109,11 @@ interface FamilyCase {
   readonly unauthorized: (fx: CommandTestProject) => ToolCall;
   readonly unauthorizedCode: "unknown_tool" | "unauthorized";
   /**
-   * A well-formed proposal the kernel refuses: a missing ID or a broken
-   * invariant. `null` for a family whose only target cannot be missing (the
-   * song's tempo), whose range invariant is tested on its own below.
+   * A well-formed proposal that is refused before it changes anything: a
+   * missing ID, a broken invariant or, for the song's tempo (which always
+   * exists), a value outside its range.
    */
-  readonly invariant: ((fx: CommandTestProject) => readonly ToolCall[]) | null;
+  readonly invariant: (fx: CommandTestProject) => readonly ToolCall[];
 }
 
 const context = createTestFactoryContext("assistant-families");
@@ -132,7 +134,10 @@ const FAMILIES: readonly FamilyCase[] = [
     unauthorized: () =>
       call(setParameter({ scope: "song", parameterId: SONG_SWING.id }, 60)),
     unauthorizedCode: "unauthorized",
-    invariant: null,
+    // The tempo always exists; its invariant is its range, refused, not clamped.
+    invariant: () => [
+      call(setParameter({ scope: "song", parameterId: SONG_TEMPO.id }, 1_000)),
+    ],
   },
   {
     capability: "tracks",
@@ -426,7 +431,10 @@ function expectRefused(
 ): void {
   const before = contentSignature(fx.project);
   const history = createCommandHistory(fx.project);
-  const executor = createProposalExecutor({ target: history, analytics: { log() {} } });
+  const executor = createProposalExecutor({
+    target: historyProposalTarget(history),
+    analytics: { log() {} },
+  });
   const result = executor.propose(proposalOf(fx, calls));
   expect(result.ok).toBe(false);
   if (result.ok) return;
@@ -490,17 +498,10 @@ describe.each(FAMILIES)("the $capability family", (family) => {
 
   it("refuses a missing ID or a broken invariant before anything changes", () => {
     const fx = createCommandTestProject();
-    if (!family.invariant) {
-      expectTempoKeptInRange(fx);
-      return;
-    }
-    expectRefused(fx, family.invariant(fx), ["rejected", "invalid_project"]);
+    const codes: ProposalIssueCode[] = ["rejected", "invalid_project", "out_of_range"];
+    expectRefused(fx, family.invariant(fx), codes);
     // Atomic: valid commands ahead of the refused one do not land either.
-    expectRefused(
-      fx,
-      [...family.valid(fx), ...family.invariant(fx)],
-      ["rejected", "invalid_project"],
-    );
+    expectRefused(fx, [...family.valid(fx), ...family.invariant(fx)], codes);
   });
 
   it("refuses malformed calls", () => {
@@ -528,7 +529,7 @@ describe.each(FAMILIES)("the $capability family", (family) => {
     const history = createCommandHistory(fx.project);
     const logged: { name: string; capability: ProposalCapability }[] = [];
     const executor = createProposalExecutor({
-      target: history,
+      target: historyProposalTarget(history),
       analytics: {
         log(name, ...args) {
           const [params] = args as unknown as [{ capability: ProposalCapability }];
@@ -560,20 +561,128 @@ describe.each(FAMILIES)("the $capability family", (family) => {
   });
 });
 
-/**
- * The song's tempo always exists, so a tempo proposal cannot name a missing
- * target; its invariant is its range, which the parameter's definition keeps by
- * clamping, exactly as a manual edit would.
- */
-function expectTempoKeptInRange(fx: CommandTestProject): void {
-  const history = createCommandHistory(fx.project);
-  const executor = createProposalExecutor({ target: history, analytics: { log() {} } });
-  const proposed = executor.propose(
-    proposalOf(fx, [
-      call(setParameter({ scope: "song", parameterId: SONG_TEMPO.id }, 1_000)),
-    ]),
-  );
-  if (!proposed.ok) throw new Error(JSON.stringify(proposed.issues));
-  expect(proposed.handle.apply().ok).toBe(true);
-  expect(history.project.song.tempo).toBe(SONG_TEMPO.max);
-}
+describe("a value outside its parameter's range", () => {
+  const above = (definition: { readonly max: number }) => definition.max + 1;
+
+  it.each<[string, (fx: CommandTestProject) => readonly ToolCall[]]>([
+    [
+      "a tempo",
+      () => [call(setParameter({ scope: "song", parameterId: SONG_TEMPO.id }, 1_000))],
+    ],
+    [
+      "a tempo below the range",
+      () => [call(setParameter({ scope: "song", parameterId: SONG_TEMPO.id }, 1))],
+    ],
+    [
+      "a track volume",
+      (fx) => [
+        call(
+          setParameter(
+            { scope: "track", trackId: fx.trackAId, parameterId: TRACK_VOLUME.id },
+            500,
+          ),
+        ),
+      ],
+    ],
+    [
+      "the master volume",
+      () => [
+        call(
+          setParameter(
+            { scope: "master", parameterId: MASTER_VOLUME.id },
+            above(MASTER_VOLUME),
+          ),
+        ),
+      ],
+    ],
+    [
+      "a send level",
+      (fx) => [
+        call(
+          setParameter(
+            {
+              scope: "send",
+              trackId: fx.trackAId,
+              returnId: fx.returnId,
+              parameterId: TRACK_SEND_LEVEL.id,
+            },
+            above(TRACK_SEND_LEVEL),
+          ),
+        ),
+      ],
+    ],
+    [
+      "a return volume",
+      (fx) => [
+        call(
+          setParameter(
+            { scope: "return", returnId: fx.returnId, parameterId: RETURN_VOLUME.id },
+            above(RETURN_VOLUME),
+          ),
+        ),
+      ],
+    ],
+    [
+      "a device parameter, on a device the same proposal adds",
+      (fx) => {
+        const reverb = createDevice(newDeviceId(), "reverb", 2);
+        const [parameterId] = Object.keys(reverb.parameters);
+        const definition = getParameterDefinition(`reverb.${parameterId}`);
+        if (!definition) throw new Error("expected a reverb parameter");
+        return [
+          call(addDevice(insertChain(fx.trackAId), reverb)),
+          call(
+            setParameter(
+              {
+                scope: "trackDevice",
+                trackId: fx.trackAId,
+                deviceId: reverb.id,
+                parameterId,
+              },
+              above(definition),
+            ),
+          ),
+        ];
+      },
+    ],
+    [
+      "an instrument parameter",
+      (fx) => [
+        call(changeInstrument(fx.trackAId, createSynthInstrument())),
+        call(
+          setParameter(
+            {
+              scope: "instrument",
+              trackId: fx.trackAId,
+              parameterId: bareParameterId(SYNTH_FILTER_CUTOFF.id),
+            },
+            above(SYNTH_FILTER_CUTOFF),
+          ),
+        ),
+      ],
+    ],
+    [
+      "a drum pad's pitch",
+      (fx) => [call(setPadParameter(fx.trackBId, fx.padIds[0], PAD_PITCH.id, 9_999))],
+    ],
+  ])("refuses %s, and changes nothing", (_label, calls) => {
+    const fx = createCommandTestProject();
+    expectRefused(fx, calls(fx), ["out_of_range"]);
+    const result = validateProposal(fx.project, proposalOf(fx, calls(fx)));
+    expect(result.ok ? null : result.issues).toEqual([
+      expect.objectContaining({ code: "out_of_range", callIndex: calls(fx).length - 1 }),
+    ]);
+  });
+
+  it("allows the range's own ends", () => {
+    const fx = createCommandTestProject();
+    const result = validateProposal(
+      fx.project,
+      proposalOf(fx, [
+        call(setParameter({ scope: "song", parameterId: SONG_TEMPO.id }, SONG_TEMPO.max)),
+        call(setPadParameter(fx.trackBId, fx.padIds[0], PAD_PITCH.id, PAD_PITCH.min)),
+      ]),
+    );
+    expect(result.ok).toBe(true);
+  });
+});

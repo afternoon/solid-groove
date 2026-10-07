@@ -126,3 +126,10 @@ describe("proposalCapability", () => {
     expect(PROPOSAL_CAPABILITIES).toEqual([...ASSISTANT_CAPABILITIES, "mixed"]);
   });
 });
+
+describe("toolNameFor", () => {
+  it("replaces every dot, so a deeper command type still makes a legal name", () => {
+    expect(toolNameFor("note.add")).toBe("note_add");
+    expect(toolNameFor("a.b.c")).toBe("a_b_c");
+  });
+});

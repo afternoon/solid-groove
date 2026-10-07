@@ -42,9 +42,19 @@
  * decision here before the tests pass.
  */
 import { z } from "zod";
-import type { ParameterSetPayload } from "../commands/definitions/parameters";
+import type { DrumSetPadParameterPayload } from "../commands/definitions/drum";
+import {
+  type ParameterSetPayload,
+  parameterDefinitionAt,
+} from "../commands/definitions/parameters";
 import { findCommand } from "../commands/registry";
-import { SONG_TEMPO } from "../domain/parameters";
+import type { Project } from "../domain/entities";
+import {
+  getParameterDefinition,
+  isParameterValueInRange,
+  type ParameterDefinition,
+  SONG_TEMPO,
+} from "../domain/parameters";
 
 /** Bumped whenever a tool is added, removed, renamed or changes its rules. */
 export const ASSISTANT_TOOLSET_VERSION = 1;
@@ -173,6 +183,13 @@ interface ToolRule {
   readonly capabilities: readonly AssistantCapability[];
   /** Why this parsed payload is not allowed, or null when it is. */
   readonly refuse?: (payload: unknown) => string | null;
+  /**
+   * Why this payload's value is not allowed against `project`, the state the
+   * command would apply to, or null when it is. A command clamps a value into
+   * its parameter's range; the assistant's is refused instead (PRD AI-03:
+   * invalid values are rejected before mutation).
+   */
+  readonly refuseValue?: (payload: unknown, project: Project) => string | null;
 }
 
 function rule(
@@ -190,10 +207,20 @@ function rule(
   };
 }
 
+/** Why `value` is outside `definition`'s range, or null when it is inside. */
+function outOfRange(
+  definition: ParameterDefinition | undefined,
+  value: number,
+): string | null {
+  // A target that does not resolve is the kernel's to refuse, with its reason.
+  if (!definition || isParameterValueInRange(definition, value)) return null;
+  return `${definition.label} must be between ${definition.min} and ${definition.max}; ${value} is out of range`;
+}
+
 const PARAMETER_SET_RULE: ToolRule = {
   commandType: "parameter.set",
   description:
-    "Set one numeric parameter: the song's tempo (song.tempo), a track's or the master's volume or pan, a send level, a return's volume, an instrument parameter, or a device parameter. Values outside the parameter's range are clamped or refused by its definition.",
+    "Set one numeric parameter: the song's tempo (song.tempo), a track's or the master's volume or pan, a send level, a return's volume, an instrument parameter, or a device parameter. A value outside the parameter's range is refused, never clamped.",
   capability: (payload) =>
     PARAMETER_SCOPE_CAPABILITY[(payload as ParameterSetPayload).target.scope],
   capabilities: [...new Set(Object.values(PARAMETER_SCOPE_CAPABILITY))],
@@ -203,6 +230,22 @@ const PARAMETER_SET_RULE: ToolRule = {
       return `Only ${SONG_TEMPO.id} may be set at song scope`;
     }
     return null;
+  },
+  refuseValue(payload, project) {
+    const { target, value } = payload as ParameterSetPayload;
+    return outOfRange(parameterDefinitionAt(project, target), value);
+  },
+};
+
+const DRUM_PAD_PARAMETER_RULE: ToolRule = {
+  ...rule(
+    "drum.setPadParameter",
+    "instrument",
+    "Set a drum pad's volume, pan, pitch, attack or decay. A value outside the parameter's range is refused, never clamped.",
+  ),
+  refuseValue(payload) {
+    const { parameterId, value } = payload as DrumSetPadParameterPayload;
+    return outOfRange(getParameterDefinition(parameterId), value);
   },
 };
 
@@ -253,11 +296,7 @@ const TOOL_RULES: readonly ToolRule[] = [
     "instrument",
     "Point a drum pad at an asset already in the project.",
   ),
-  rule(
-    "drum.setPadParameter",
-    "instrument",
-    "Set a drum pad's volume, pan, pitch, attack or decay.",
-  ),
+  DRUM_PAD_PARAMETER_RULE,
   rule("device.add", "devices", "Add a device to a track, return or master chain."),
   rule("device.remove", "devices", "Remove a device from its chain."),
   rule("device.reorder", "devices", "Move a device within its chain."),
@@ -274,7 +313,7 @@ const TOOL_RULES: readonly ToolRule[] = [
 
 /** The tool name for a command type: `note.add` is offered as `note_add`. */
 export function toolNameFor(commandType: string): string {
-  return commandType.replace(".", "_");
+  return commandType.replaceAll(".", "_");
 }
 
 /** A JSON Schema object, as a provider's tool definition carries it. */
@@ -375,6 +414,22 @@ export function resolveToolCall(name: string, input: unknown): ToolCallResolutio
     payload: parsed.payload,
     capability: entry.capability(parsed.payload),
   };
+}
+
+/**
+ * Why an allowlisted command's value is refused against `project`, the state
+ * it would apply to, or null when it is allowed. `proposal.ts` walks a
+ * proposal's commands in order, so a value on something an earlier command
+ * creates is checked against that creation.
+ */
+export function refuseCommandValue(
+  commandType: string,
+  payload: unknown,
+  project: Project,
+): string | null {
+  return (
+    RULES_BY_NAME.get(toolNameFor(commandType))?.refuseValue?.(payload, project) ?? null
+  );
 }
 
 /** One capability when every call shares it, otherwise `mixed`. */

@@ -23,9 +23,10 @@ import {
   TRACK_VOLUME,
 } from "../domain";
 import { createManualClock, type ManualClock } from "../shared/clock";
+import { historyProposalTarget } from "../testing/historyProposalTarget";
 import { MAX_PROPOSAL_COMMANDS, validateProposal } from "./proposal";
 import { createProposalExecutor, type ProposalExecutor } from "./proposalExecutor";
-import { toolNameFor } from "./tools";
+import { ASSISTANT_TOOLSET_VERSION, toolNameFor } from "./tools";
 
 const INTENT = "Lift the bassline an octave so it clears the kick";
 
@@ -50,7 +51,7 @@ beforeEach(() => {
   clock = createManualClock(1_000_000);
   logged = [];
   executor = createProposalExecutor({
-    target: history,
+    target: historyProposalTarget(history),
     clock,
     analytics: {
       log(name, ...args) {
@@ -155,8 +156,11 @@ describe("a stale proposal", () => {
     history.execute(updateTrack(fx.trackBId, { name: "Kit" }));
     const moved = history.project;
 
+    expect(handle.isStale).toBe(true);
+    expect(handle.status).toBe("pending");
     const applied = handle.apply();
     expect(applied).toMatchObject({ ok: false, reason: "stale" });
+    expect(handle.isStale).toBe(true);
     expect(handle.status).toBe("stale");
     expect(history.project).toBe(moved);
     expect(history.entries).toHaveLength(1);
@@ -165,7 +169,38 @@ describe("a stale proposal", () => {
     // Still a decision the producer can make: cancelling it.
     expect(handle.cancel().ok).toBe(true);
     expect(handle.status).toBe("cancelled");
+    expect(handle.isStale).toBe(false);
     expect(handle.apply()).toMatchObject({ ok: false, reason: "not_pending" });
+  });
+
+  it("is not stale while the project stays where it was validated", () => {
+    const handle = propose();
+    expect(handle.isStale).toBe(false);
+    handle.apply();
+    // Its own commit moves the revision; that does not make it stale.
+    expect(handle.isStale).toBe(false);
+  });
+});
+
+describe("the tool set version", () => {
+  it("accepts a proposal made against this tool set", () => {
+    const result = executor.propose({
+      ...notesProposal(),
+      toolsetVersion: ASSISTANT_TOOLSET_VERSION,
+    });
+    expect(result.ok).toBe(true);
+  });
+
+  it("refuses one made against another, and changes nothing", () => {
+    const result = executor.propose({
+      ...notesProposal(),
+      toolsetVersion: ASSISTANT_TOOLSET_VERSION + 1,
+    });
+    expect(result.ok ? null : result.issues).toMatchObject([
+      { code: "toolset_mismatch", callIndex: null },
+    ]);
+    expectNoChange();
+    expect(logged).toEqual([]);
   });
 });
 
