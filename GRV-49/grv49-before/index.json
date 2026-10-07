@@ -1,0 +1,10 @@
+{
+  "id": "grv49-before",
+  "title": "Before: Library family tab count",
+  "steps": [
+    {
+      "file": "01-before-the-fx-tab-with-one-matching-soun.png",
+      "caption": "Before: the FX tab with one matching sound reads 1 sounds"
+    }
+  ]
+}
