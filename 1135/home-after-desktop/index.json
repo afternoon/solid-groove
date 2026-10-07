@@ -1,0 +1,14 @@
+{
+  "id": "home-after-desktop",
+  "title": "Home page, after, desktop",
+  "steps": [
+    {
+      "file": "01-desktop-1280px-first-screen.png",
+      "caption": "desktop (1280px), first screen"
+    },
+    {
+      "file": "02-desktop-1280px-whole-page.png",
+      "caption": "desktop (1280px), whole page"
+    }
+  ]
+}

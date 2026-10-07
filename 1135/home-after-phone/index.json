@@ -1,0 +1,14 @@
+{
+  "id": "home-after-phone",
+  "title": "Home page, after, phone",
+  "steps": [
+    {
+      "file": "01-phone-390px-first-screen.png",
+      "caption": "phone (390px), first screen"
+    },
+    {
+      "file": "02-phone-390px-whole-page.png",
+      "caption": "phone (390px), whole page"
+    }
+  ]
+}
