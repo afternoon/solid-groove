@@ -72,6 +72,19 @@ describe("enrichment (PRD OPS-02)", () => {
     analytics.setTransport(replacement);
     expect(replacement.userProperties.account_type).toBe("registered");
   });
+
+  it("marks the session internal when told so, without re-reading storage", () => {
+    const { analytics, transport } = setup();
+    analytics.setAccountType("registered");
+    analytics.setInternalTraffic(true);
+    expect(transport.userProperties).toEqual({
+      account_type: "registered",
+      internal: "true",
+    });
+    // Internal traffic is a user property, never an event parameter.
+    analytics.log("app_opened");
+    expect(transport.events[0].params).not.toHaveProperty("internal");
+  });
 });
 
 describe("validation", () => {

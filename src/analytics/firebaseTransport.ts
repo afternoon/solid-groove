@@ -10,10 +10,34 @@
 // views, and engagement time come from Google Analytics automatic collection
 // and are not re-implemented as custom events."
 
-import type { AnalyticsParamValue } from "./catalog";
+import {
+  type AnalyticsParamValue,
+  INTERNAL_TRAFFIC_EVENT_PARAMS,
+  USER_PROPERTIES,
+} from "./catalog";
 import type { AnalyticsTransport } from "./transport";
 
 type FirebaseAnalytics = import("firebase/analytics").Analytics;
+type FirebaseAnalyticsSdk = typeof import("firebase/analytics");
+
+/**
+ * Applies user properties, and the one of them GA4 needs twice: `internal` is
+ * also sent as the `traffic_type` default event parameter, because the
+ * property's Internal Traffic data filter reads that parameter and not the
+ * user property. A default parameter rides every later event, gtag's automatic
+ * ones included. It is only ever set, never unset: a browser is marked internal
+ * for good until `?internal=0` clears it, and the next load starts clean.
+ */
+function applyUserProperties(
+  sdk: FirebaseAnalyticsSdk,
+  instance: FirebaseAnalytics,
+  properties: Readonly<Record<string, string>>,
+): void {
+  sdk.setUserProperties(instance, properties);
+  if (properties[USER_PROPERTIES.internal] === "true") {
+    sdk.setDefaultEventParameters({ ...INTERNAL_TRAFFIC_EVENT_PARAMS });
+  }
+}
 
 /** Events buffered while the SDK resolves. */
 const MAX_BUFFERED = 20;
@@ -62,7 +86,7 @@ export function createFirebaseAnalyticsTransport(
       instance = resolved;
       const sdk = await import("firebase/analytics");
       if (bufferedProperties) {
-        sdk.setUserProperties(resolved, bufferedProperties);
+        applyUserProperties(sdk, resolved, bufferedProperties);
         bufferedProperties = null;
       }
       for (const event of bufferedEvents.splice(0, bufferedEvents.length)) {
@@ -102,7 +126,7 @@ export function createFirebaseAnalyticsTransport(
       void ready.then(async () => {
         try {
           const sdk = await import("firebase/analytics");
-          if (instance) sdk.setUserProperties(instance, properties);
+          if (instance) applyUserProperties(sdk, instance, properties);
         } catch {
           // Same as above: never surfaces.
         }

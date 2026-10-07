@@ -3,11 +3,14 @@ import {
   getAnalytics,
   isSupported,
   setAnalyticsCollectionEnabled,
+  setDefaultEventParameters,
 } from "firebase/analytics";
 import { initializeApp } from "firebase/app";
 import { connectAuthEmulator, getAuth } from "firebase/auth";
 import { connectFirestoreEmulator, getFirestore } from "firebase/firestore";
+import { INTERNAL_TRAFFIC_EVENT_PARAMS } from "./analytics/catalog";
 import { placeholderFirebaseConfig, resolveEmulatorHosts } from "./devBackend";
+import { isInternalTraffic } from "./shared/internalTraffic";
 
 // Placeholder credentials for the two backends that do not authenticate
 // against a real project: the mock backend never loads the SDK at all, and the
@@ -72,12 +75,22 @@ let analyticsInstance: Promise<Analytics | null> | null = null;
  * Analytics is optional and only works in supported environments with a valid
  * `measurementId`, so every failure path resolves `null` rather than throwing:
  * running without Firebase env vars configured must not break app startup.
+ *
+ * A browser marked as internal traffic (`src/shared/internalTraffic.ts`) gets
+ * GA4's `traffic_type: internal` as a default event parameter *before* gtag is
+ * configured, so the `page_view`, `session_start` and `first_visit` that the
+ * config call itself sends already carry it. Set any later and those first
+ * events would start a session the Internal Traffic filter cannot exclude.
  */
 export function loadAnalytics(): Promise<Analytics | null> {
   analyticsInstance ??= isSupported()
-    .then((supported) =>
-      supported && firebaseConfig.measurementId ? getAnalytics(app) : null,
-    )
+    .then((supported) => {
+      if (!supported || !firebaseConfig.measurementId) return null;
+      if (isInternalTraffic()) {
+        setDefaultEventParameters({ ...INTERNAL_TRAFFIC_EVENT_PARAMS });
+      }
+      return getAnalytics(app);
+    })
     .catch(() => null);
   return analyticsInstance;
 }

@@ -555,7 +555,14 @@ That is exactly what shipped on `d65077c`, where a fully green deploy put an app
 
 ### Marking internal/team traffic
 
-Visiting the hosted alpha with `?internal=1` (e.g. `https://trygroove.app/?internal=1`) persists a flag in that browser's `localStorage` (`src/shared/internalTraffic.ts`), so team members can mark their own sessions once rather than on every visit; `?internal=0` clears it. `FND-001c` reads `isInternalTraffic()` to set the GA4 `internal` user property so team traffic can be excluded from the PRD section 11 measures — this task only owns detection and persistence of the flag, not the analytics wiring.
+A browser is marked as internal traffic in two ways, both persisted in its `localStorage` (`src/shared/internalTraffic.ts`):
+
+- **Signing in as a team or test account.** `isInternalAccount` lists them: the product owner, the `groovetestuser<n>@gmail.com` accounts used for hands-on testing, and every QA-pool address on `qa.trygroove.app` (#1055). `AuthProvider` marks the browser the moment one of them signs in, so nobody has to remember a URL. The mark is one-way: it stays after a sign-out or a cohort account's sign-in in the same browser.
+- **Visiting with `?internal=1`** (e.g. `https://trygroove.app/?internal=1`), for a browser none of those accounts has signed into. `?internal=0` clears the flag either way, so a team member can see the cohort experience as it is measured.
+
+A marked browser sends two things to GA4. The `internal` user property (`"true"`) is a custom dimension for *reading* reports. GA4's reserved `traffic_type: internal` event parameter is what the property's **Internal Traffic data filter** *excludes*; it is set as a default parameter before gtag is configured (`loadAnalytics` in `src/firebaseConfig.ts`), so `session_start` and `page_view` carry it too, and again when an internal account signs in part-way through a load (`src/analytics/firebaseTransport.ts`). The first-ever load of a browser before its first internal sign-in is the one window that is not marked.
+
+The filter is a property setting, not code: in GA4, *Admin → Data settings → Data filters*, the default **Internal Traffic** filter (matching `traffic_type` equals `internal`, the default rule under *Data streams → Configure tag settings → Define internal traffic*) must be set to **Active**, not *Testing*. In Testing it only labels the sessions with a `Test data filter name` dimension; only Active drops them from reports, and it is not retroactive.
 
 ### Post-deploy smoke test
 
@@ -648,7 +655,7 @@ Neither GA4 nor Sentry can be verified from the unit suite — the last mile is 
 | `audio_start_failed` | Load a project and press play *without* interacting first, so autoplay is blocked. | Fires with `error_code: autoplay_blocked` and `was_browser_blocked: true`. |
 | `exception` | Trigger the test error in step 2. | Fires with `fatal`, `area`, and `error_code` — and **no message**. |
 
-Confirm the `account_type` and `internal` user properties are set under *Admin → Custom definitions*. Mark your own session first with `?internal=1` (see "Marking internal/team traffic") so your verification traffic can be excluded from the section 11 measures.
+Confirm the `account_type` and `internal` user properties are set under *Admin → Custom definitions*. Signing in as the product owner marks your browser as internal traffic (see "Marking internal/team traffic"); use `?internal=1` first if you verify signed out, so your verification traffic can be excluded from the section 11 measures. In the DebugView event details, every event should show `traffic_type: internal`.
 
 **2. A deliberately triggered error.** From the deployed site's console, throw an error that no application code catches, so it takes the real path — global handler → reporting boundary → Sentry *and* the GA4 `exception` counter:
 
@@ -714,7 +721,7 @@ The first must return JavaScript. The second must return the SPA shell — `<!DO
 - **Inspecting a delivered error in the Sentry UI** is deferred to post-alpha (`DEC-012`). Delivery itself is verified above: an uncaught error reaches ingest with HTTP 200 from the deployed build, so a crash in front of a real user *is* reported. What is deferred is confirming what the resulting issue looks like — the release SHA on it, a **symbolicated** stack naming `src/` files, the expected tags, a redacted message, one-issue-per-error, and a crash-free session rate under *Releases → Health*. Each is a property of the Sentry console rather than of the app, and every one is already covered by unit tests against a fake SDK (`src/monitoring/sentrySink.test.ts`, `scrub.test.ts`).
   - The half that fails silently in CI *is* confirmed: source maps uploaded for release `9e109fee` with debug IDs paired to every chunk ([run 31104650815](https://github.com/trygroove/groove/actions/runs/31104650815)). Symbolication resolves on those debug IDs, so the remaining risk is narrow.
   - **The residual risk, stated plainly:** if scrubbing were misconfigured in a way the unit tests do not model, a real error could carry user content into Sentry before anyone notices. That is the one item here worth revisiting early, and it is why this is recorded as accepted rather than dismissed.
-- **Internal-traffic exclusion** is deferred to post-alpha (`DEC-012`). `?internal=1` persistence is unit-tested, but the `internal` user property has not been confirmed in GA4 from the deployed build, and internal traffic has not been shown to be excluded. The effect is that alpha-period measures may be inflated by the team's own sessions — which matters for *reading* the numbers, not for whether the product works, and the primary measure those numbers feed is itself deferred (`DEC-011`). Re-verify alongside it.
+- **Internal-traffic exclusion** is deferred to post-alpha (`DEC-012`). The marking (by account and by `?internal=1`) and the `traffic_type: internal` parameter are unit-tested, but neither the `internal` user property nor the parameter has been confirmed in GA4 from the deployed build, the Internal Traffic data filter still has to be switched to Active there, and internal traffic has not been shown to be excluded. The effect is that alpha-period measures may be inflated by the team's own sessions — which matters for *reading* the numbers, not for whether the product works, and the primary measure those numbers feed is itself deferred (`DEC-011`). Re-verify alongside it.
 
 Both deferrals are the same call: these are operator-console checks that were absorbing attention better spent building the core product experience, and both are cheap to run once the alpha is built. Neither blocks the cohort, and neither is a defect — see PRD section 16 (`DEC-012`).
 

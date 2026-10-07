@@ -10,6 +10,7 @@ import {
   useContext,
 } from "solid-js";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
+import { isInternalAccount, markInternalTraffic } from "../shared/internalTraffic";
 import { authService } from "./authService";
 
 interface AuthState {
@@ -39,10 +40,17 @@ const AuthContext = createContext<AuthContextValue>();
 export interface AuthProviderProps extends ParentProps {
   /** Overridden in tests; defaults to the app-wide analytics boundary. */
   analytics?: Analytics;
+  /**
+   * Where the internal-traffic flag persists when a team or test account
+   * signs in. Defaults to the browser's `localStorage`; tests inject
+   * `memoryStorage()`, and `null` persists nothing.
+   */
+  internalTrafficStorage?: Storage | null;
 }
 
 export function AuthProvider(props: AuthProviderProps) {
   const analytics = props.analytics ?? defaultAnalytics;
+  const internalTrafficStorage = props.internalTrafficStorage;
   const [state, setState] = createStore<AuthState>({
     user: null,
     loading: true,
@@ -71,6 +79,21 @@ export function AuthProvider(props: AuthProviderProps) {
   createEffect(
     () => (state.loading || !state.user ? "unknown" : accountTypeOf(state)),
     (accountType) => analytics.setAccountType(accountType),
+  );
+
+  // The team's and the test accounts' sessions are internal traffic
+  // (`src/shared/internalTraffic.ts`), so they stay out of the product's
+  // measures without anyone remembering `?internal=1`. Marking is one-way: the
+  // browser stays marked after a sign-out or a cohort account's sign-in, and
+  // only `?internal=0` clears it. The address is read in the compute half and
+  // goes no further than this boolean; analytics never sees it.
+  createEffect(
+    () => !state.loading && isInternalAccount(state.user?.email),
+    (internalAccount) => {
+      if (!internalAccount) return;
+      markInternalTraffic(internalTrafficStorage);
+      analytics.setInternalTraffic(true);
+    },
   );
 
   // Split effect with no reactive dependencies: the subscription is created

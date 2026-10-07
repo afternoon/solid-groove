@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { INTERNAL_TRAFFIC_STORAGE_KEY } from "./shared/internalTraffic";
 
 /**
  * PRD `OPS-02`: "a user-facing opt-out disables collection."
@@ -20,6 +21,7 @@ const isSupported = vi.fn(async () => true);
 const setAnalyticsCollectionEnabled = vi.fn(
   (_instance: unknown, _enabled: boolean) => {},
 );
+const setDefaultEventParameters = vi.fn((_params: unknown) => {});
 
 vi.mock("firebase/app", () => ({ initializeApp: () => ({}) }));
 vi.mock("firebase/auth", () => ({ getAuth: () => ({}) }));
@@ -29,6 +31,7 @@ vi.mock("firebase/analytics", () => ({
   isSupported: () => isSupported(),
   setAnalyticsCollectionEnabled: (instance: unknown, enabled: boolean) =>
     setAnalyticsCollectionEnabled(instance, enabled),
+  setDefaultEventParameters: (params: unknown) => setDefaultEventParameters(params),
 }));
 
 /** A fresh module instance, so one test's memoized SDK is not the next's. */
@@ -42,10 +45,39 @@ beforeEach(() => {
   getAnalytics.mockClear();
   isSupported.mockClear();
   setAnalyticsCollectionEnabled.mockClear();
+  setDefaultEventParameters.mockClear();
 });
 
 afterEach(() => {
   vi.unstubAllEnvs();
+  localStorage.removeItem(INTERNAL_TRAFFIC_STORAGE_KEY);
+});
+
+// A browser marked as internal traffic (`src/shared/internalTraffic.ts`) must
+// say so on the very first events gtag sends, which its config call fires: a
+// `traffic_type` set after `getAnalytics` would miss `session_start`, and the
+// session would count in the product's measures after all.
+describe("internal traffic is stamped before gtag is configured", () => {
+  it("sets traffic_type: internal as a default parameter, before getAnalytics", async () => {
+    localStorage.setItem(INTERNAL_TRAFFIC_STORAGE_KEY, "true");
+    const config = await loadModule();
+
+    await config.loadAnalytics();
+
+    expect(setDefaultEventParameters).toHaveBeenCalledWith({ traffic_type: "internal" });
+    expect(setDefaultEventParameters.mock.invocationCallOrder[0]).toBeLessThan(
+      getAnalytics.mock.invocationCallOrder[0],
+    );
+  });
+
+  it("sets nothing for a browser that is not marked", async () => {
+    const config = await loadModule();
+
+    await config.loadAnalytics();
+
+    expect(getAnalytics).toHaveBeenCalledTimes(1);
+    expect(setDefaultEventParameters).not.toHaveBeenCalled();
+  });
 });
 
 describe("Google Analytics initialization is deferred until consent allows it", () => {

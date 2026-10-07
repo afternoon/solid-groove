@@ -3,15 +3,27 @@
 // marked so internal sessions can be excluded") and `OPS-02`'s
 // non-identifying `internal` user property.
 //
-// This module owns *detection and persistence* of the flag. `FND-001c` reads
-// `isInternalTraffic()` to set the GA4 user property; nothing here talks to
-// an analytics SDK.
+// This module owns *detection and persistence* of the flag. `src/analytics`
+// reads `isInternalTraffic()` to set the GA4 `internal` user property and to
+// stamp every event with GA4's `traffic_type: internal`, which is what the
+// property's Internal Traffic data filter excludes; nothing here talks to an
+// analytics SDK.
 //
-// Mechanism: visiting the app with `?internal=1` (or `?internal=true`) once
-// persists the flag in `localStorage` for that browser, so it survives
-// navigation and future sessions without the query param needing to be
-// present every time. `?internal=0` (or `?internal=false`) clears it, so a
-// team member testing the anonymous/cohort experience can turn it back off.
+// Two things mark a browser as internal:
+//
+// - **Signing in as a team or test account.** `isInternalAccount` names them:
+//   the product owner, the `groovetestuser<n>@gmail.com` accounts used for
+//   hands-on testing, and the QA pool CI signs in as (`src/access/qaAccounts.ts`,
+//   every address on its domain). `AuthProvider` calls `markInternalTraffic`
+//   when one of them signs in, so from then on every load of that browser is
+//   internal from its first event, not just from sign-in onwards.
+// - **Visiting with `?internal=1`** (or `?internal=true`), for a browser no
+//   listed account has signed into. `?internal=0` (or `?internal=false`) clears
+//   the flag either way, so a team member testing the cohort experience can
+//   turn it back off.
+//
+// Both persist the flag in `localStorage` for that browser, so it survives
+// navigation and future sessions.
 
 export const INTERNAL_TRAFFIC_STORAGE_KEY = "sg_internal_traffic";
 
@@ -68,6 +80,41 @@ function setInternalTraffic(value: boolean, storage: Storage | null): void {
     // is a measurement nicety, never something that should surface an error
     // or block the app from loading.
   }
+}
+
+/** The product owner's address. */
+const PRODUCT_OWNER_EMAIL = "bpgodfrey@gmail.com";
+
+/** The Gmail accounts used for hands-on testing: `groovetestuser1@gmail.com`, … */
+const TEST_ACCOUNT_PATTERN = /^groovetestuser\d*@gmail\.com$/;
+
+/**
+ * The QA pool's domain (`QA_ACCOUNT_DOMAIN` in `src/access/qaAccounts.ts`,
+ * spelled out here so the bundle does not pull the provisioning code in;
+ * `internalTraffic.test.ts` pins the two together).
+ */
+const QA_ACCOUNT_DOMAIN = "qa.trygroove.app";
+
+/**
+ * Whether a signed-in address belongs to the team or to a test account, so its
+ * sessions count as internal traffic. Case-insensitive, like email addresses;
+ * a missing address (a guest session, or signed out) is not internal.
+ */
+export function isInternalAccount(email: string | null | undefined): boolean {
+  if (!email) return false;
+  const normalized = email.trim().toLowerCase();
+  if (normalized === PRODUCT_OWNER_EMAIL) return true;
+  if (TEST_ACCOUNT_PATTERN.test(normalized)) return true;
+  return normalized.endsWith(`@${QA_ACCOUNT_DOMAIN}`);
+}
+
+/**
+ * Persists the flag for this browser, as signing in with an internal account
+ * does. Never clears it: that is `?internal=0`'s job, so a team member who
+ * then signs in as a cohort account to see their experience stays marked.
+ */
+export function markInternalTraffic(storage: Storage | null = defaultStorage()): void {
+  setInternalTraffic(true, storage);
 }
 
 /**
