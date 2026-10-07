@@ -1,0 +1,387 @@
+/**
+ * The assistant's tool schema (GRV-4, PRD AI-03 and AI-05).
+ *
+ * The assistant changes a project only through shared commands, and only
+ * through the allowlisted subset below. Each tool is one registered command:
+ * its name is the command type with `_` for `.`, its input schema is generated
+ * from the command's own Zod payload schema, and a call is turned back into
+ * that command with the registered version pinned. Nothing here applies a
+ * command — `proposal.ts` validates a set of calls and `proposalExecutor.ts`
+ * hands them to the command history as one transaction.
+ *
+ * ## Appendix A families and the commands that carry them
+ *
+ * The PRD's Appendix A named the families the allowlist should cover before
+ * the command layer existed, so its names are not the registry's. Each family
+ * maps onto a capability key (the `capability` analytics parameter) and the
+ * registered commands that do its job:
+ *
+ * | Appendix A family                     | Capability   | Commands |
+ * | ------------------------------------- | ------------ | -------- |
+ * | `project.setTempo`                    | `tempo`      | `parameter.set` on `song.tempo` only |
+ * | `track.add/update/move/duplicate/remove` | `tracks`  | `track.create`, `track.update`, `track.reorder`, `track.delete` |
+ * | `clip.add/update/duplicate/remove`    | `clips`      | `clip.create`, `clip.update`, `clip.delete` |
+ * | `note.add/update/transform/remove`    | `notes`      | `note.*` and every `notes.*` transform |
+ * | `placement.add/update/duplicate/remove` | `placements` | `placement.create`, `placement.update`, `placement.delete` |
+ * | `instrument.set/setParameter`         | `instrument` | `instrument.change`, `instrument.setSample`, `drum.setPadAsset`, `drum.setPadParameter`, `parameter.set` on an instrument |
+ * | `device.add/update/move/duplicate/remove` | `devices` | `device.add/remove/reorder/duplicate/setBypass/reset`, `parameter.set` on a device in any chain |
+ * | `send.setLevel`, `return.add/update/remove` | `returns` | `return.create/update/delete`, `send.add/remove`, `parameter.set` on a send or a return |
+ * | `mixer.setParameter`                  | `mixer`      | `parameter.set` on a track strip or the master, `track.setFlag` (mute, solo) |
+ * | `transaction.apply`                   | —            | Every proposal is one transaction; a proposal spanning capabilities reports `mixed` |
+ * | `section.add/update/move/remove`      | —            | No section command exists yet |
+ * | `automation.addLane/setPoints/transform/removeLane` | — | No automation command exists yet |
+ *
+ * A `duplicate` is a create with new IDs (the command layer has no separate
+ * duplicate for tracks, clips or placements; `device.duplicate` is the one
+ * that exists). Section and automation commands are a contract change of their
+ * own, so until they land those families are absent and their lanes cannot be
+ * slipped in through a create's restore fields either (see `refuse` below).
+ *
+ * Commands the assistant may not call at all are pinned in
+ * {@link NON_ASSISTANT_COMMANDS}, so a newly registered command needs a
+ * decision here before the tests pass.
+ */
+import { z } from "zod";
+import type { ParameterSetPayload } from "../commands/definitions/parameters";
+import { findCommand } from "../commands/registry";
+import { SONG_TEMPO } from "../domain/parameters";
+
+/** Bumped whenever a tool is added, removed, renamed or changes its rules. */
+export const ASSISTANT_TOOLSET_VERSION = 1;
+
+/** One key per Appendix A family the allowlist carries. */
+export const ASSISTANT_CAPABILITIES = [
+  "tempo",
+  "tracks",
+  "clips",
+  "notes",
+  "placements",
+  "instrument",
+  "devices",
+  "returns",
+  "mixer",
+] as const;
+export type AssistantCapability = (typeof ASSISTANT_CAPABILITIES)[number];
+
+/** What a proposal reports when its commands span more than one capability. */
+export const MIXED_CAPABILITY = "mixed";
+export type ProposalCapability = AssistantCapability | typeof MIXED_CAPABILITY;
+
+/** The `capability` analytics values a proposal can produce. */
+export const PROPOSAL_CAPABILITIES: readonly ProposalCapability[] = [
+  ...ASSISTANT_CAPABILITIES,
+  MIXED_CAPABILITY,
+];
+
+/** The Appendix A families, as the PRD named them, and where each one went. */
+export const APPENDIX_A_FAMILIES: Readonly<
+  Record<string, AssistantCapability | "transaction" | "unavailable">
+> = {
+  "project.setTempo": "tempo",
+  "track.add": "tracks",
+  "track.update": "tracks",
+  "track.move": "tracks",
+  "track.duplicate": "tracks",
+  "track.remove": "tracks",
+  "clip.add": "clips",
+  "clip.update": "clips",
+  "clip.duplicate": "clips",
+  "clip.remove": "clips",
+  "note.add": "notes",
+  "note.update": "notes",
+  "note.transform": "notes",
+  "note.remove": "notes",
+  "placement.add": "placements",
+  "placement.update": "placements",
+  "placement.duplicate": "placements",
+  "placement.remove": "placements",
+  "section.add": "unavailable",
+  "section.update": "unavailable",
+  "section.move": "unavailable",
+  "section.remove": "unavailable",
+  "instrument.set": "instrument",
+  "instrument.setParameter": "instrument",
+  "device.add": "devices",
+  "device.update": "devices",
+  "device.move": "devices",
+  "device.duplicate": "devices",
+  "device.remove": "devices",
+  "send.setLevel": "returns",
+  "return.add": "returns",
+  "return.update": "returns",
+  "return.remove": "returns",
+  "automation.addLane": "unavailable",
+  "automation.setPoints": "unavailable",
+  "automation.transform": "unavailable",
+  "automation.removeLane": "unavailable",
+  "mixer.setParameter": "mixer",
+  "transaction.apply": "transaction",
+};
+
+/**
+ * Registered commands the assistant cannot call, and why. Pinned so that a
+ * command added to the registry has to be allowlisted or listed here.
+ */
+export const NON_ASSISTANT_COMMANDS: Readonly<Record<string, string>> = {
+  "pack.add": "Pack dependencies are library state, derived from assets",
+  "pack.remove": "Pack dependencies are library state, derived from assets",
+  "pack.setVersion": "Pack versions are the producer's choice",
+  "asset.add":
+    "Sounds come from the library, which the assistant cannot browse yet; it picks among the project's own assets",
+  "asset.remove": "Assets are removed by the producer",
+  "device.restoreParameters": "Only the inverse of device.reset",
+  "drum.renamePad": "Not in the alpha capability set",
+  "drum.setPadFlag": "Not in the alpha capability set",
+  "drum.setPadChoke": "Not in the alpha capability set",
+  "drum.addPad": "Not in the alpha capability set",
+  "drum.removePad": "Not in the alpha capability set",
+  "drum.reorderPad": "Not in the alpha capability set",
+  "loop.setRange": "The loop is the producer's playback state",
+  "loop.setEnabled": "The loop is the producer's playback state",
+  "key.set": "Not in the alpha capability set",
+  "project.rename": "The project's name is the producer's",
+};
+
+type ParameterScope = ParameterSetPayload["target"]["scope"];
+
+/** Which capability `parameter.set` falls under, by its target's scope. */
+const PARAMETER_SCOPE_CAPABILITY: Record<ParameterScope, AssistantCapability> = {
+  song: "tempo",
+  instrument: "instrument",
+  trackDevice: "devices",
+  returnDevice: "devices",
+  masterDevice: "devices",
+  send: "returns",
+  return: "returns",
+  track: "mixer",
+  master: "mixer",
+};
+
+function automationRestore(payload: unknown): string | null {
+  const automation = (payload as { automation?: readonly unknown[] }).automation;
+  return automation && automation.length > 0
+    ? "Automation lanes are not in the assistant's tool set yet"
+    : null;
+}
+
+interface ToolRule {
+  readonly commandType: string;
+  readonly description: string;
+  /** The capability one parsed payload falls under. */
+  readonly capability: (payload: unknown) => AssistantCapability;
+  /** Every capability the tool can fall under, for the family tables. */
+  readonly capabilities: readonly AssistantCapability[];
+  /** Why this parsed payload is not allowed, or null when it is. */
+  readonly refuse?: (payload: unknown) => string | null;
+}
+
+function rule(
+  commandType: string,
+  capability: AssistantCapability,
+  description: string,
+  refuse?: ToolRule["refuse"],
+): ToolRule {
+  return {
+    commandType,
+    description,
+    capability: () => capability,
+    capabilities: [capability],
+    refuse,
+  };
+}
+
+const PARAMETER_SET_RULE: ToolRule = {
+  commandType: "parameter.set",
+  description:
+    "Set one numeric parameter: the song's tempo (song.tempo), a track's or the master's volume or pan, a send level, a return's volume, an instrument parameter, or a device parameter. Values outside the parameter's range are clamped or refused by its definition.",
+  capability: (payload) =>
+    PARAMETER_SCOPE_CAPABILITY[(payload as ParameterSetPayload).target.scope],
+  capabilities: [...new Set(Object.values(PARAMETER_SCOPE_CAPABILITY))],
+  refuse(payload) {
+    const { target } = payload as ParameterSetPayload;
+    if (target.scope === "song" && target.parameterId !== SONG_TEMPO.id) {
+      return `Only ${SONG_TEMPO.id} may be set at song scope`;
+    }
+    return null;
+  },
+};
+
+/** The allowlist, in the order the tools are offered to the model. */
+const TOOL_RULES: readonly ToolRule[] = [
+  PARAMETER_SET_RULE,
+  rule(
+    "track.create",
+    "tracks",
+    "Add a track, with its instrument, clips and placements. Duplicate a track by creating a copy with new IDs.",
+    automationRestore,
+  ),
+  rule("track.update", "tracks", "Rename or recolour a track."),
+  rule("track.reorder", "tracks", "Move a track to a new position in the track list."),
+  rule("track.delete", "tracks", "Remove a track and its clips and placements."),
+  rule(
+    "clip.create",
+    "clips",
+    "Add a clip to a track, optionally with placements. Duplicate a clip as an independent variation by creating a copy with new IDs.",
+  ),
+  rule("clip.update", "clips", "Rename, recolour or resize a clip."),
+  rule("clip.delete", "clips", "Remove a clip and every placement of it."),
+  rule("note.add", "notes", "Add note events to a clip."),
+  rule("note.update", "notes", "Move, resize, re-pitch or re-velocity note events."),
+  rule("note.remove", "notes", "Remove note events from a clip."),
+  rule("notes.transpose", "notes", "Transpose a clip's notes, or some of them."),
+  rule("notes.scaleVelocity", "notes", "Scale the velocity of a clip's notes."),
+  rule("notes.quantize", "notes", "Quantize a clip's notes to a grid."),
+  rule("notes.quantizeToScale", "notes", "Move a clip's notes onto a scale."),
+  rule("notes.duplicate", "notes", "Repeat a clip's notes later in the clip."),
+  rule("notes.clear", "notes", "Remove every note from a clip."),
+  rule("notes.vary", "notes", "Vary a clip's notes deterministically from a seed."),
+  rule("placement.create", "placements", "Place a clip on its track's timeline."),
+  rule("placement.update", "placements", "Move, resize, trim or loop a placement."),
+  rule("placement.delete", "placements", "Remove a placement from the timeline."),
+  rule(
+    "instrument.change",
+    "instrument",
+    "Replace a track's instrument (sampler, synth or drum machine).",
+  ),
+  rule(
+    "instrument.setSample",
+    "instrument",
+    "Point a sampler at an asset already in the project.",
+  ),
+  rule(
+    "drum.setPadAsset",
+    "instrument",
+    "Point a drum pad at an asset already in the project.",
+  ),
+  rule(
+    "drum.setPadParameter",
+    "instrument",
+    "Set a drum pad's volume, pan, pitch, attack or decay.",
+  ),
+  rule("device.add", "devices", "Add a device to a track, return or master chain."),
+  rule("device.remove", "devices", "Remove a device from its chain."),
+  rule("device.reorder", "devices", "Move a device within its chain."),
+  rule("device.duplicate", "devices", "Duplicate a device next to itself."),
+  rule("device.setBypass", "devices", "Bypass or re-enable a device."),
+  rule("device.reset", "devices", "Return a device's parameters to their defaults."),
+  rule("return.create", "returns", "Add a return bus.", automationRestore),
+  rule("return.update", "returns", "Rename a return bus."),
+  rule("return.delete", "returns", "Remove a return bus and every send to it."),
+  rule("send.add", "returns", "Send a track to a return bus.", automationRestore),
+  rule("send.remove", "returns", "Remove a track's send to a return bus."),
+  rule("track.setFlag", "mixer", "Mute, unmute, solo or unsolo a track."),
+];
+
+/** The tool name for a command type: `note.add` is offered as `note_add`. */
+export function toolNameFor(commandType: string): string {
+  return commandType.replace(".", "_");
+}
+
+/** A JSON Schema object, as a provider's tool definition carries it. */
+export type JsonSchema = Record<string, unknown>;
+
+/** One tool as it is offered to the model. */
+export interface AssistantToolDefinition {
+  /** Matches `^[a-zA-Z0-9_-]{1,64}$`, which providers require of tool names. */
+  readonly name: string;
+  readonly description: string;
+  readonly inputSchema: JsonSchema;
+  readonly commandType: string;
+  /** The registered command version a call to this tool is executed at. */
+  readonly commandVersion: number;
+  readonly capabilities: readonly AssistantCapability[];
+}
+
+/** The allowlisted command types, in tool order. */
+export const ASSISTANT_COMMAND_TYPES: readonly string[] = TOOL_RULES.map(
+  (entry) => entry.commandType,
+);
+
+const RULES_BY_NAME: ReadonlyMap<string, ToolRule> = new Map(
+  TOOL_RULES.map((entry) => [toolNameFor(entry.commandType), entry]),
+);
+
+function toolDefinition(entry: ToolRule): AssistantToolDefinition {
+  const command = findCommand(entry.commandType);
+  if (!command) {
+    throw new TypeError(`Allowlisted command "${entry.commandType}" is not registered`);
+  }
+  // `input` describes what the model may send: a field with a default is
+  // optional to it, which is what the kernel's own parse accepts.
+  const { $schema: _dialect, ...inputSchema } = z.toJSONSchema(command.schema, {
+    io: "input",
+  }) as JsonSchema;
+  return {
+    name: toolNameFor(entry.commandType),
+    description: entry.description,
+    inputSchema,
+    commandType: entry.commandType,
+    commandVersion: command.version,
+    capabilities: entry.capabilities,
+  };
+}
+
+let toolCache: readonly AssistantToolDefinition[] | null = null;
+
+/** Every tool the assistant may call, generated once from the registry. */
+export function assistantTools(): readonly AssistantToolDefinition[] {
+  toolCache ??= TOOL_RULES.map(toolDefinition);
+  return toolCache;
+}
+
+/** How one tool call resolves against the allowlist. */
+export type ToolCallResolution =
+  | {
+      readonly ok: true;
+      readonly commandType: string;
+      readonly commandVersion: number;
+      /** The payload as the command's schema parsed it. */
+      readonly payload: unknown;
+      readonly capability: AssistantCapability;
+    }
+  | {
+      readonly ok: false;
+      readonly code: "unknown_tool" | "invalid_payload" | "unauthorized";
+      readonly message: string;
+    };
+
+/**
+ * Resolves one call against the allowlist: the tool must exist, its input
+ * must pass the command's payload schema, and the payload must be one the
+ * assistant is allowed to send. Never throws.
+ */
+export function resolveToolCall(name: string, input: unknown): ToolCallResolution {
+  const entry = RULES_BY_NAME.get(name);
+  const command = entry ? findCommand(entry.commandType) : undefined;
+  if (!entry || !command) {
+    return {
+      ok: false,
+      code: "unknown_tool",
+      message: `"${name.slice(0, 64)}" is not an assistant tool`,
+    };
+  }
+  const parsed = command.parsePayload(input);
+  if (!parsed.ok) {
+    return { ok: false, code: "invalid_payload", message: parsed.message };
+  }
+  const refusal = entry.refuse?.(parsed.payload) ?? null;
+  if (refusal) {
+    return { ok: false, code: "unauthorized", message: refusal };
+  }
+  return {
+    ok: true,
+    commandType: command.type,
+    commandVersion: command.version,
+    payload: parsed.payload,
+    capability: entry.capability(parsed.payload),
+  };
+}
+
+/** One capability when every call shares it, otherwise `mixed`. */
+export function proposalCapability(
+  capabilities: readonly AssistantCapability[],
+): ProposalCapability {
+  const distinct = new Set(capabilities);
+  if (distinct.size === 1) return capabilities[0];
+  return MIXED_CAPABILITY;
+}
