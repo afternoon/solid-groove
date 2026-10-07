@@ -1,0 +1,22 @@
+{
+  "id": "revoke",
+  "title": "Revoking access on /admin (#1147)",
+  "steps": [
+    {
+      "file": "01-the-allowlist-each-address-has-remove-an.png",
+      "caption": "The allowlist: each address has Remove and Revoke, with a line saying what each does"
+    },
+    {
+      "file": "02-revoke-asks-first-the-dialog-says-the-ac.png",
+      "caption": "Revoke asks first: the dialog says the account is signed out everywhere"
+    },
+    {
+      "file": "03-after-confirming-the-report-under-the-ap.png",
+      "caption": "After confirming: the report under the approve box, and the row is gone"
+    },
+    {
+      "file": "04-revoking-an-address-that-never-signed-in.png",
+      "caption": "Revoking an address that never signed in says there was nothing to sign out"
+    }
+  ]
+}
