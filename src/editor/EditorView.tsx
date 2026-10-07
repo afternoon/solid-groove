@@ -51,6 +51,7 @@ import LibraryPane from "./LibraryPane";
 import LoadRecoveryNotice from "./LoadRecoveryNotice";
 import MissingSounds, {
   type MissingSoundsReport,
+  missingAssetIds,
   missingSoundCount,
 } from "./MissingSounds";
 import Mixer from "./Mixer";
@@ -403,6 +404,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                   <EditorHeader
                     projectName={currentProject().metadata.name}
                     onRename={(name) => session.dispatch(renameProject(name))}
+                    missingAssetIds={() => missingAssetIds(missingSounds())}
                     session={session}
                     audio={audio}
                     onToggleLoop={song.toggleLoop}

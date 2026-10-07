@@ -338,6 +338,26 @@ describe("renderProjectOffline cancellation and failure", () => {
     expect(registry.isEmpty()).toBe(true);
   });
 
+  // #78: a project whose only sound is in a withdrawn pack still exports, as
+  // the song's length of silence, and says which sound it went without.
+  it("renders a reported-missing sound that will not load as silence", async () => {
+    const project = createSliceFixtureProject();
+    const ids = project.song.assets.map((asset) => asset.id);
+    const { outcome, registry } = await render(project, {
+      missingAssetIds: new Set(ids),
+      bufferLoader: {
+        load: async () => {
+          throw new Error("withdrawn");
+        },
+      },
+    });
+    const result = await outcome;
+    expect(result.silencedAssetIds).toEqual(ids);
+    expect(result.frames).toBeGreaterThanOrEqual(result.songEndSeconds * RATE);
+    expect(rms(result.channels[0])).toBe(0);
+    expect(registry.isEmpty()).toBe(true);
+  });
+
   it("fails as an internal error when the graph cannot be built, and restores the live context", async () => {
     const live = Tone.getContext();
     const { outcome, registry } = await render(createPianoRollFixtureProject(), {

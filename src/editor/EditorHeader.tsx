@@ -95,6 +95,8 @@ export interface EditorHeaderProps {
   readonly assistant?: HeaderAssistant;
   /** Injected in tests; defaults to the app-wide instance. */
   readonly analytics?: Analytics;
+  /** The sounds the editor reports missing, which an export renders around (#78). */
+  readonly missingAssetIds?: () => ReadonlySet<string>;
 }
 
 /**
@@ -300,6 +302,7 @@ export default function EditorHeader(props: EditorHeaderProps) {
             <Portal>
               <ExportDialog
                 project={project}
+                missingAssetIds={props.missingAssetIds}
                 analytics={props.analytics}
                 onClose={() => setExporting(false)}
               />

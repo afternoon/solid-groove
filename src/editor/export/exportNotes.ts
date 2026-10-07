@@ -30,6 +30,16 @@ export function stemsNote({ tracks, zips, bytes }: StemsNoteInput): string {
   return `Stems over ${LIMIT_TEXT} come as several ZIPs in track order. These fit in one.`;
 }
 
+/**
+ * What the slot says before exporting a project with sounds it reports missing
+ * (#78): the export goes ahead, and leaves out any of them that cannot load.
+ * The editor's Missing sounds notice names them; this only says how many.
+ */
+export function missingSoundsNote(count: number): string {
+  // Short enough for the one-line slot; the editor's notice names them.
+  return `${count} missing ${count === 1 ? "sound" : "sounds"} may be left out.`;
+}
+
 /** `ZIP 1 is` or `ZIPs 1–2 are`: the first `done` ZIPs, told as downloaded. */
 export function zipsAre(done: number): string {
   return done > 1 ? `ZIPs 1–${done} are` : "ZIP 1 is";

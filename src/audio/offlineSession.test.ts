@@ -1,6 +1,7 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import type { Project } from "../domain/entities";
 import {
+  createDrumMachineFixtureProject,
   createPianoRollFixtureProject,
   createSliceFixtureProject,
 } from "../domain/fixtures";
@@ -145,6 +146,43 @@ describe("openOfflineSession", () => {
     const error = await rejection(missing.prepare());
     expect(error.code).toBe("asset_missing");
     expect(error.cancelled).toBe(false);
+  });
+
+  // #78: a sound the project already reports missing (a withdrawn library
+  // pack, a deleted personal sound) renders as silence rather than failing the
+  // render; any other sound that will not load still fails it.
+  it("renders around a reported-missing sound that will not load, and only that", async () => {
+    const project = createDrumMachineFixtureProject();
+    const [gone, ...kept] = project.song.assets;
+    expect(kept.length).toBeGreaterThan(0);
+    const loader = {
+      load: async (asset: { id: string }) => {
+        if (asset.id === gone.id) throw new Error("withdrawn");
+        return Tone.ToneAudioBuffer.fromArray(new Float32Array(64).fill(0.5));
+      },
+    };
+
+    const reported = open(project, {
+      bufferLoader: loader,
+      missingAssetIds: new Set([gone.id]),
+    }).session;
+    reported.build();
+    await reported.prepare();
+    expect(reported.silencedAssetIds).toEqual([gone.id]);
+
+    const unreported = open(project, { bufferLoader: loader }).session;
+    unreported.build();
+    expect((await rejection(unreported.prepare())).code).toBe("decode_failed");
+  });
+
+  it("plays a reported-missing sound that still loads", async () => {
+    const project = createDrumMachineFixtureProject();
+    const { session } = open(project, {
+      missingAssetIds: new Set(project.song.assets.map((asset) => asset.id)),
+    });
+    session.build();
+    await session.prepare();
+    expect(session.silencedAssetIds).toEqual([]);
   });
 
   it("reports an environment that cannot render offline as not supported", () => {

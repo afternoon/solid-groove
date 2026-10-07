@@ -28,6 +28,17 @@ export function missingSoundCount(report: MissingSoundsReport): number {
   );
 }
 
+/** The project asset IDs a report names, for an export to render around. */
+export function missingAssetIds(report: MissingSoundsReport | null): ReadonlySet<string> {
+  if (!report) return new Set();
+  return new Set([
+    ...report.missingAssets.map((entry) => entry.assetId as string),
+    ...[...report.missingPacks, ...report.withdrawnPacks].flatMap((entry) =>
+      entry.assets.map((asset) => asset.id as string),
+    ),
+  ]);
+}
+
 export interface MissingSoundsProps {
   readonly report: MissingSoundsReport;
   /** The name of one of the producer's packs, or `null` when it is gone. */
