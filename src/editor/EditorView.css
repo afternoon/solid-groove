@@ -457,8 +457,13 @@
   gap: var(--size-divider);
   flex: 1 1 auto;
   min-height: 0;
-  /* Room for the docked assistant (#849); zero otherwise. */
-  margin-right: var(--assistant-dock-space);
+  /* The views are full bleed (GRV-53): the body reaches out over the editor's
+     padding to the window's left, right and bottom edges, so no black frame
+     shows round them. Only the header keeps that padding. On the right it
+     stops at the docked assistant (#849), meeting it with no gap; that space
+     is zero otherwise. */
+  margin: 0 calc(var(--assistant-dock-space) - var(--size-divider))
+    calc(-1 * var(--size-divider)) calc(-1 * var(--size-divider));
 }
 
 /*
@@ -525,6 +530,13 @@
   min-height: var(--editor-height);
   padding-bottom: 0;
   overflow: visible;
+}
+
+/* With no padding at the foot here there is nothing to reach out over, and
+   reaching anyway would scroll the document by the overhang. */
+.editor-instrument .editor-body,
+.editor-mixer .editor-body {
+  margin-bottom: 0;
 }
 
 .editor-instrument .editor-header,
