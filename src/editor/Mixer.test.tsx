@@ -751,10 +751,12 @@ describe("Mixer master strip", () => {
     expect(screen.getByRole("list", { name: "Master chain" })).toBeEmptyDOMElement();
   });
 
-  it("takes you to the master's effects when the master strip is selected", () => {
+  it("takes you to the master's effects when the master strip is selected", async () => {
     renderMixer();
 
     clickAndFlush(screen.getByRole("button", { name: "Master" }));
+    // Focus moves once the selection's flush has mounted the panel (#1106).
+    await Promise.resolve();
 
     // Nothing is revealed or hidden — the chain was already there — but the
     // strip is the way in for a keyboard, so focus lands in the panel.

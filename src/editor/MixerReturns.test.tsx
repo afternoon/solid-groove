@@ -78,6 +78,7 @@ function renderMixer(
       onSelectTrack={() => setSelectedReturnId(null)}
       selectedReturnId={selectedReturnId()}
       onSelectReturn={options.noReturnSelection ? undefined : setSelectedReturnId}
+      onSelectMaster={() => setSelectedReturnId(null)}
     />
   ));
 
@@ -192,6 +193,53 @@ describe("Mixer returns (#386)", () => {
     for (const button of screen.getAllByRole("button", { name: /^Edit / })) {
       if (button !== edit) expect(button).toHaveAttribute("aria-pressed", "false");
     }
+  });
+
+  it("shows a selected return's chain in place of the master's (#1106)", () => {
+    const { history, transport } = renderMixer();
+    addReturn();
+    clickAndFlush(screen.getByRole("button", { name: "Edit Return A" }));
+
+    // The mixer's chain slot is the selected return's, not the master's.
+    expect(screen.getByRole("region", { name: "Return effects" })).toBeVisible();
+    expect(screen.queryByRole("region", { name: "Master effects" })).toBeNull();
+
+    // And a device goes onto the return's chain, through the device commands.
+    clickAndFlush(screen.getByRole("button", { name: "Add overdrive device" }));
+    expect(history.project.song.returns[0].devices.map((d) => d.type)).toEqual([
+      "overdrive",
+    ]);
+    expect(history.project.song.master.devices).toEqual([]);
+    const added = transport.events.filter((e) => e.name === "device_added");
+    expect(added).toHaveLength(1);
+    expect(added[0].params).toMatchObject({ device_type: "overdrive", chain: "return" });
+    expect(screen.getByRole("list", { name: "Return chain" })).toHaveTextContent(
+      "Overdrive",
+    );
+  });
+
+  it("goes back to the master's chain when the master is selected (#1106)", async () => {
+    const { selectedReturnId } = renderMixer();
+    addReturn();
+    const master = screen.getByRole("button", { name: "Master" });
+    const edit = screen.getByRole("button", { name: "Edit Return A" });
+    clickAndFlush(edit);
+
+    clickAndFlush(master);
+
+    // Selecting the master lets go of the return.
+    expect(selectedReturnId()).toBeNull();
+    expect(screen.getByRole("region", { name: "Master effects" })).toBeVisible();
+    expect(screen.queryByRole("region", { name: "Return effects" })).toBeNull();
+    await Promise.resolve();
+    expect(screen.getByRole("region", { name: "Master effects" })).toHaveFocus();
+    expect(master).toHaveAttribute("aria-pressed", "true");
+    expect(edit).toHaveAttribute("aria-pressed", "false");
+
+    // And marks which chain the slot shows: the master's goes unpressed while
+    // a return's is open.
+    clickAndFlush(edit);
+    expect(master).toHaveAttribute("aria-pressed", "false");
   });
 
   it("has no Edit control when there is nowhere to show a return", () => {

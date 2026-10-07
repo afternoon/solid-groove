@@ -284,10 +284,18 @@
   background-color: var(--color-background-sunken);
 }
 
-.mixer-master > .device-chain {
+.mixer-master > .device-chain,
+.mixer-master > .instrument-view-return {
   box-sizing: border-box;
   width: 100%;
   max-width: var(--rack-unit-width);
+}
+
+/* A selected return's chain in the slot (#1106): its name over its chain. */
+.mixer-master > .instrument-view-return {
+  display: flex;
+  flex-direction: column;
+  gap: var(--rack-gap);
 }
 
 .mixer-master-select {
@@ -325,6 +333,14 @@
 
 .mixer-master-strip .mixer-master-select {
   align-self: stretch;
+}
+
+/* The slot below the desk shows the master's chain (#1106): brightness, as
+   a selected strip's Edit control reads. */
+.mixer-master-select:hover,
+.mixer-master-select[aria-pressed="true"] {
+  border-color: var(--color-foreground-bright);
+  color: var(--color-foreground-bright);
 }
 
 /* The master has no mute, solo or pan; its fader drops to the tracks' line so

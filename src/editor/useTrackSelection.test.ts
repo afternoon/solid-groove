@@ -150,6 +150,23 @@ describe("useTrackSelection", () => {
     expect(bus()).toBeNull();
   });
 
+  it("lets go of a return when the master is selected (#1106)", () => {
+    const { selection, onPoint, project, drums } = setup(
+      withReturn(createDrumMachineFixtureProject()),
+    );
+    selection.selectTrack(drums.id);
+    selection.selectReturn(returnIdOf(project()));
+    flush();
+    onPoint.mockClear();
+
+    selection.selectMaster();
+    flush();
+    expect(selection.selectedReturn()).toBeNull();
+    // The master is not a track: the track the editor follows stays put.
+    expect(selection.selectedTrackId()).toBe(drums.id);
+    expect(onPoint).not.toHaveBeenCalled();
+  });
+
   it("lets go of a return the song no longer has (#386)", () => {
     const { selection, setProject, project } = setup(
       withReturn(createDrumMachineFixtureProject()),

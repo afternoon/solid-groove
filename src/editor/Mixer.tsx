@@ -31,6 +31,7 @@ import MasterPanel from "./MasterPanel";
 import MasterStrip, { chainSummary } from "./MasterStrip";
 import MuteSoloToggles from "./MuteSoloToggles";
 import NewTrackButtons from "./NewTrackButtons";
+import ReturnPanel from "./ReturnPanel";
 import ReturnStrip from "./ReturnStrip";
 import {
   addReturnBus,
@@ -96,6 +97,11 @@ export interface MixerProps {
   readonly selectedReturnId?: ReturnId | null;
   /** Called with a return when its strip's Edit control is pressed. */
   onSelectReturn?(returnId: ReturnId): void;
+  /**
+   * Called when the master strip is selected (#1106): the host lets go of the
+   * return, so the chain slot goes back to the master's.
+   */
+  onSelectMaster?(): void;
   /** Defaults to the application singleton; injectable for tests. */
   readonly analytics?: Analytics;
 }
@@ -133,14 +139,36 @@ export default function Mixer(props: MixerProps): JSX.Element {
       return analytics();
     },
   };
-  /** Points the editor at a return: the instrument view then shows its chain. */
+  /** Points the editor at a return: the chain slot below the desk, and the
+   * instrument view, then show its chain (#386, #1106). */
   function selectReturn(returnId: ReturnId): void {
     if (!props.onSelectReturn) return;
     props.onSelectReturn(returnId);
     analytics().logFeatureFirstUse("mixer");
   }
+  /** The selected return, while the song still has it; else the slot is the
+   * master's. */
+  const selectedReturn = createMemo(() =>
+    props.selectedReturnId
+      ? (returns().find((bus) => bus.id === props.selectedReturnId) ?? null)
+      : null,
+  );
   /** The master's effects, which selecting the master strip takes you to. */
   let masterEffects: HTMLElement | undefined;
+  /**
+   * Selecting the master lets go of any return, so its chain comes back to the
+   * slot (#1106), then moves focus into it. The focus waits a microtask: when a
+   * return's chain was showing, the master's panel mounts on the flush that
+   * the selection's write schedules, which runs first.
+   */
+  function selectMaster(): void {
+    props.onSelectMaster?.();
+    analytics().logFeatureFirstUse("mixer");
+    queueMicrotask(() => {
+      masterEffects?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
+      masterEffects?.focus();
+    });
+  }
   function clipCount(trackId: TrackId): number {
     return props.project.clips.filter((clip) => clip.trackId === trackId).length;
   }
@@ -355,36 +383,53 @@ export default function Mixer(props: MixerProps): JSX.Element {
           </button>
         </div>
         {/*
-         * The master and its chain, always on screen (`UI-001`), at the end of
-         * the strips where a console puts it. There is exactly one master, so
-         * there is nothing to choose: the chain is never hidden behind a press.
-         * The strip's name is still a control, like every track strip's, and
-         * selecting it takes you to the master's effects (#283) — which on a
-         * wide mix may be off to the side, and for a keyboard is the way in.
+         * The master strip, at the end of the strips where a console puts it.
+         * Its name is a control, like every track strip's: selecting it puts
+         * the master's chain back in the slot below the desk when a return's
+         * was showing (#1106), and takes you to it (#283) — which on a wide
+         * mix may be off to the side, and for a keyboard is the way in. It
+         * reads pressed while the slot is the master's.
          */}
         <MasterStrip
           volume={props.project.song.master.volume}
           devices={props.project.song.master.devices}
-          onSelect={() => {
-            masterEffects?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
-            masterEffects?.focus();
-            analytics().logFeatureFirstUse("mixer");
-          }}
+          selected={selectedReturn() === null}
+          onSelect={selectMaster}
           onFirstUse={() => analytics().logFeatureFirstUse("mixer")}
           dispatch={props.dispatch}
           beginGesture={props.beginGesture}
         />
       </div>
+      {/*
+       * One chain below the desk (`UI-001`): the master's, unless a return is
+       * selected, then that return's (#1106), on the same `DeviceChain`. The
+       * master's is what shows by default, so it is on screen without asking.
+       */}
       <div class="mixer-master">
-        <MasterPanel
-          sectionRef={(element) => {
-            masterEffects = element;
-          }}
-          project={props.project}
-          dispatch={props.dispatch}
-          beginGesture={props.beginGesture}
-          analytics={props.analytics}
-        />
+        <Show
+          when={selectedReturn()}
+          fallback={
+            <MasterPanel
+              sectionRef={(element) => {
+                masterEffects = element;
+              }}
+              project={props.project}
+              dispatch={props.dispatch}
+              beginGesture={props.beginGesture}
+              analytics={props.analytics}
+            />
+          }
+        >
+          {(bus) => (
+            <ReturnPanel
+              project={props.project}
+              returnBus={bus()}
+              dispatch={props.dispatch}
+              beginGesture={props.beginGesture}
+              analytics={props.analytics}
+            />
+          )}
+        </Show>
       </div>
       <Show when={pendingDelete()}>
         {(track) => (

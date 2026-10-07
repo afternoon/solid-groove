@@ -8,6 +8,7 @@ import type {
 import { deviceTypeDefinition } from "../domain/devices";
 import type { Device } from "../domain/entities";
 import { MASTER_VOLUME } from "../domain/parameters";
+import { ariaBool } from "../shared/aria";
 import { DbFader } from "./TrackFaders";
 
 /** A chain's devices by name, in signal order, for a strip's footer (#447). */
@@ -22,6 +23,8 @@ export interface MasterStripProps {
   /** The master's volume, in dB. */
   readonly volume: number;
   readonly devices: readonly Device[];
+  /** Whether the chain below the desk is the master's, not a return's (#1106). */
+  readonly selected: boolean;
   /** Takes the user to the master's effects, below the desk. */
   onSelect(): void;
   onFirstUse(): void;
@@ -44,6 +47,7 @@ export default function MasterStrip(props: MasterStripProps): JSX.Element {
         <button
           type="button"
           class="mixer-master-select"
+          aria-pressed={ariaBool(props.selected)}
           onClick={() => props.onSelect()}
         >
           Master
