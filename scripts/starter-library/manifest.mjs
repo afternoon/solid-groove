@@ -16,6 +16,7 @@ import {
 } from "./catalog/index.mjs";
 import {
   createRng,
+  integratedLoudness,
   normalizePeak,
   reverse as reverseBuffer,
   SAMPLE_RATE,
@@ -27,6 +28,7 @@ import { PACKS, packForFamily, packRef } from "./packs.mjs";
 import { renderVoice } from "./voices.mjs";
 import {
   analyze,
+  decodeWav,
   encodeWav,
   peaksFromWav,
   sha256,
@@ -482,13 +484,11 @@ export function buildAllPacks(
   // manifests. Withheld assets are reported, not delivered, and never fail the
   // build — the rest of the library still ships.
   const { delivered, withheld } = partitionByIntake(produced);
-  // Every audio-bearing entry gets its 48-bin overview from the master bytes it
-  // ships; a preset has no audio, so it has no `peaks` at all.
+  // Every audio-bearing entry is measured from the master bytes it ships — its
+  // 48-bin overview and the audit measurements — so rendered and acquired
+  // audio are judged by one path. A preset has no audio, so it has neither.
   const built = delivered.map(({ asset, bytes }) => ({
-    asset:
-      asset.files.master.format === "wav"
-        ? { ...asset, peaks: peaksFromWav(bytes) }
-        : asset,
+    asset: asset.files.master.format === "wav" ? measureDelivered(asset, bytes) : asset,
     bytes,
   }));
 
@@ -529,6 +529,26 @@ export function buildAllPacks(
     files: [...files].map(([storageKey, bytes]) => ({ storageKey, bytes })),
     packManifests,
     withheld,
+  };
+}
+
+/**
+ * The measurements taken from a delivered WAV master rather than from whatever
+ * produced it: the row overview the library draws (`peaks`), and the
+ * integrated loudness the section 10 audit compares within a role
+ * (`audio.loudnessLufs`, ITU-R BS.1770-4, rounded to 0.1 LU). Measured, never
+ * applied: nothing here changes a sample of the audio.
+ */
+export function measureDelivered(asset, bytes) {
+  const { channels, sampleRate } = decodeWav(bytes);
+  const loudness = integratedLoudness(channels, sampleRate);
+  return {
+    ...asset,
+    audio: {
+      ...asset.audio,
+      loudnessLufs: loudness === null ? null : Math.round(loudness * 10) / 10,
+    },
+    peaks: peaksFromWav(bytes),
   };
 }
 

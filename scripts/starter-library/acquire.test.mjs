@@ -36,6 +36,7 @@ import {
   licenseRejectionReason,
   SOURCES,
 } from "./acquire/sources.mjs";
+import { measureDelivered } from "./manifest.mjs";
 import { CC0_PACK_SLUGS, packBySlug } from "./packs.mjs";
 import { validatePackManifest } from "./validate.mjs";
 import { encodeWav } from "./wav.mjs";
@@ -581,7 +582,10 @@ describe("end-to-end ingest", () => {
   });
 
   it("produces an asset the shared manifest validator accepts", async () => {
-    const { asset } = await ingestFixture();
+    // Measured from its delivered bytes exactly as `buildAllPacks` measures
+    // every audio master before validation (loudness, overview peaks).
+    const ingested = await ingestFixture();
+    const asset = measureDelivered(ingested.asset, ingested.bytes);
     const pack = packBySlug(CC0_PACK_SLUGS.percussion);
     // Validate the single acquired asset against the per-asset rules by
     // embedding it in an otherwise-valid pack manifest shape.

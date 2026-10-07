@@ -551,3 +551,137 @@ export function trimTail(buffer, thresholdDbfs = -72, minimumSeconds = 0.02) {
 export function dbfs(amplitude) {
   return amplitude <= 0 ? Number.NEGATIVE_INFINITY : 20 * Math.log10(amplitude);
 }
+
+// ---------------------------------------------------------------------------
+// Loudness (ITU-R BS.1770-4)
+// ---------------------------------------------------------------------------
+
+/** BS.1770 gating block length and hop: 400 ms blocks, 75% overlap. */
+export const LOUDNESS_BLOCK_SECONDS = 0.4;
+const LOUDNESS_HOP_SECONDS = 0.1;
+/** BS.1770 absolute gate, in LUFS. */
+const ABSOLUTE_GATE_LUFS = -70;
+/** BS.1770 relative gate, in LU below the absolute-gated loudness. */
+const RELATIVE_GATE_LU = 10;
+
+/**
+ * The two K-weighting biquads (a high shelf modelling the head, then the RLB
+ * high-pass), designed for any sample rate. These are the analogue prototypes
+ * libebur128 and pyloudnorm use; at 48 kHz they reproduce BS.1770's published
+ * coefficients to better than 1e-8.
+ */
+function kWeightingStages(sampleRate) {
+  const shelfK = Math.tan((Math.PI * 1681.974450955533) / sampleRate);
+  const shelfQ = 0.7071752369554196;
+  const vh = 10 ** (3.999843853973347 / 20);
+  const vb = vh ** 0.4996667741545416;
+  const shelfA0 = 1 + shelfK / shelfQ + shelfK * shelfK;
+  const shelf = {
+    b0: (vh + (vb * shelfK) / shelfQ + shelfK * shelfK) / shelfA0,
+    b1: (2 * (shelfK * shelfK - vh)) / shelfA0,
+    b2: (vh - (vb * shelfK) / shelfQ + shelfK * shelfK) / shelfA0,
+    a1: (2 * (shelfK * shelfK - 1)) / shelfA0,
+    a2: (1 - shelfK / shelfQ + shelfK * shelfK) / shelfA0,
+  };
+
+  const highK = Math.tan((Math.PI * 38.13547087602444) / sampleRate);
+  const highQ = 0.5003270373238773;
+  const highA0 = 1 + highK / highQ + highK * highK;
+  const highPass = {
+    b0: 1,
+    b1: -2,
+    b2: 1,
+    a1: (2 * (highK * highK - 1)) / highA0,
+    a2: (1 - highK / highQ + highK * highK) / highA0,
+  };
+  return [shelf, highPass];
+}
+
+function applyBiquad(input, { b0, b1, b2, a1, a2 }) {
+  const out = new Float64Array(input.length);
+  let x1 = 0;
+  let x2 = 0;
+  let y1 = 0;
+  let y2 = 0;
+  for (let i = 0; i < input.length; i++) {
+    const x0 = input[i];
+    const y0 = b0 * x0 + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2;
+    x2 = x1;
+    x1 = x0;
+    y2 = y1;
+    y1 = y0;
+    out[i] = y0;
+  }
+  return out;
+}
+
+/** K-weight one channel (BS.1770 section 2.1). Exported for its tests. */
+export function kWeight(channel, sampleRate = SAMPLE_RATE) {
+  const [shelf, highPass] = kWeightingStages(sampleRate);
+  return applyBiquad(applyBiquad(channel, shelf), highPass);
+}
+
+function blockLoudness(meanSquare) {
+  return -0.691 + 10 * Math.log10(meanSquare);
+}
+
+/**
+ * Integrated loudness in LUFS, per ITU-R BS.1770-4: K-weighting, 400 ms blocks
+ * at 75% overlap, the -70 LUFS absolute gate, then the relative gate 10 LU
+ * below the loudness of the blocks that passed it. Every channel is weighted
+ * 1.0 — the library only holds mono and stereo (L/R), and BS.1770 gives
+ * neither a surround weight — and a mono file is measured as one channel, not
+ * as a dual-mono pair, so a mono master reads 3 LU quieter than the same
+ * signal copied to both sides. That matches how the sampler plays it.
+ *
+ * **One deliberate extension.** BS.1770 is defined over programme material,
+ * and many one-shots (a hat, a rim, a short kick) are shorter than one 400 ms
+ * block, so the standard yields no measurement at all for them. A sound
+ * shorter than one block is measured as a single block of its own length,
+ * still under both gates. That is the honest reading for an audition level —
+ * how loud the hit is while it sounds — but it is not a BS.1770 figure, and
+ * the docs say so (sample-library section 10).
+ *
+ * @param {Float32Array | Float32Array[]} samples  Mono, or one array per channel.
+ * @returns {number | null}  LUFS, or `null` when every block is gated out
+ *   (silence, or material below -70 LUFS throughout).
+ */
+export function integratedLoudness(samples, sampleRate = SAMPLE_RATE) {
+  const channels = ArrayBuffer.isView(samples) ? [samples] : samples;
+  const frames = channels[0]?.length ?? 0;
+  if (frames === 0) return null;
+  const weighted = channels.map((channel) => kWeight(channel, sampleRate));
+
+  const blockFrames = Math.round(LOUDNESS_BLOCK_SECONDS * sampleRate);
+  const hopFrames = Math.round(LOUDNESS_HOP_SECONDS * sampleRate);
+  const starts = [];
+  if (frames < blockFrames) {
+    starts.push(0);
+  } else {
+    for (let start = 0; start + blockFrames <= frames; start += hopFrames) {
+      starts.push(start);
+    }
+  }
+  const length = Math.min(blockFrames, frames);
+
+  // One mean square per block, summed across channels (all weights 1.0).
+  const blocks = starts.map((start) => {
+    let sum = 0;
+    for (const channel of weighted) {
+      let channelSum = 0;
+      for (let i = start; i < start + length; i++) channelSum += channel[i] * channel[i];
+      sum += channelSum / length;
+    }
+    return sum;
+  });
+
+  const meanOf = (values) =>
+    values.reduce((sum, value) => sum + value, 0) / values.length;
+  const absolute = blocks.filter(
+    (meanSquare) => meanSquare > 0 && blockLoudness(meanSquare) > ABSOLUTE_GATE_LUFS,
+  );
+  if (absolute.length === 0) return null;
+  const relativeGate = blockLoudness(meanOf(absolute)) - RELATIVE_GATE_LU;
+  const gated = absolute.filter((meanSquare) => blockLoudness(meanSquare) > relativeGate);
+  return blockLoudness(meanOf(gated));
+}

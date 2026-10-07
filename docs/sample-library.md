@@ -467,6 +467,7 @@ Each asset record should support a shape equivalent to:
     "channels": 1,
     "durationSeconds": 0.42,
     "peakDbfs": -1.2,
+    "loudnessLufs": -14.8,
     "rootNote": "C1",
     "tuningCents": -3,
     "bpm": null,
@@ -523,6 +524,7 @@ Manifest validation fails CI when an asset is missing its checksum, rights evide
 - Remove DC offset, corrupt chunks, unintended leading/trailing silence, and accidental clicks.
 - Use very short fades where necessary without softening intended transients.
 - Do not brick-wall normalize the collection. Prevent clipping and provide perceptually reasonable audition levels while retaining useful dynamics.
+- Measure every master's integrated loudness (ITU-R BS.1770-4) and flag an asset that sits far from the rest of its role band, for a person to re-prepare or retire. The measurement is recorded, never applied (section 15.12).
 - Keep a checksum of the untouched source and treat processed masters as derived assets.
 
 ### One-shots
@@ -800,6 +802,7 @@ scripts/starter-library/
   manifest.mjs      section 9 manifest records; merges every acquired bundle
   validate.mjs      per-asset and collection-level rules; the CI gate
   audit.mjs         the release audit over the shipped bytes (section 15.11)
+  audits.mjs        library-wide audio audits: loudness outliers per role band (section 15.12)
   acquire.mjs       CLI: plan, pin, ingest
   manage.mjs        CLI + local review UI server (section 15.7)
   managePage.mjs    the review page served by library:manage
@@ -974,6 +977,19 @@ Isolation is a build-time partition, not an error: `buildAllPacks` splits what i
 | `duplicates` | The same master in two packs (the validator already rejects it inside one) | Two masters with the same length and the same 48-bin overview: a near duplicate to check by ear |
 
 The report leads with one line per pack: pass or fail, version, asset count, its rights position, and how many roles and genres it claims. What the audit cannot hear is still the section 11 musical review: `library:audition` remains the step where a kick is checked for sounding like a kick.
+
+### 15.12 Audio audits
+
+`library:validate` (and `library:build`, `library:audition` and `library:upload`, which run the same checks) audits the audio itself, not only its metadata. Every measurement is taken from the delivered WAV bytes in `buildAllPacks` (`measureDelivered` in `manifest.mjs`), so synthesized and acquired masters go through one path, and every rule only *flags*: nothing in an audit changes a sample. The per-asset rules live in `validate.mjs`; the rules that compare an asset with the rest of the library live in `audits.mjs`, and each has a fixture that violates it in `audits.test.mjs`.
+
+**Loudness.** `audio.loudnessLufs` is the integrated loudness per ITU-R BS.1770-4 (`integratedLoudness` in `dsp.mjs`): K-weighting, 400 ms blocks at 75% overlap, the -70 LUFS absolute gate and the relative gate 10 LU below. Channels are weighted 1.0 and a mono master is measured as one channel, as the sampler plays it. One extension is deliberate: BS.1770 gives no figure for material shorter than one 400 ms block, and many one-shots are, so a sound that short is measured as a single block of its own length. That is how loud the hit is while it sounds, which is what an audition level is about, but it is not a BS.1770 figure.
+
+- A missing measurement fails, and so does `null`: every block fell under the absolute gate.
+- An asset more than **12 LU** from the median of its role band (`family/role`, across every pack and type) is reported as an outlier: a warning that names it, for a person to audition. A band of fewer than three measured assets is compared with its family's median instead. 12 LU is roughly four times or a quarter as loud as the rest of the band. It is wide on purpose: section 10 keeps useful dynamics, and K-weighting reads sub-heavy material several LU quieter than it sounds (the synthesized octave-down sub sits 8.6 LU under its band for that reason alone).
+- An outlier is a warning, not a failure, because a quiet sound is not by itself a defect. A sparse chord with a long decay measures far under a band of dense hits and is exactly the dynamics section 10 keeps; failing it would push the library towards the normalizing section 10 forbids. If the audition finds the level is a mistake, the remedy is to re-prepare the file or retire it, never to normalize the collection.
+- A band mixes one-shots and loops. Split by type, most loop bands would be too thin to have a median and fall back to the family, which mixes them again.
+
+Measured across the whole library with every acquired source ingested (476 audio assets: 216 synthesized; 260 acquired from VCSL, every FreePats bank, Karoryfer, both open-drums kits and the nine smpldsnds kits), one asset is reported: `sg-one-shot-tonal-chord-6020`, a VCSL Dan Tranh chord at -29 LUFS, 12.5 LU under the tonal/chord median of -16.5. It is sparse, with a long decay: the useful dynamics section 10 keeps, which is why an outlier is a warning. No synthesized asset is outside its band; the widest is that octave-down sub. CI builds without the acquired content, so these figures come from a local run with it ingested.
 
 ## 16. Pack marketplace
 
