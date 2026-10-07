@@ -172,7 +172,7 @@ describe("InstrumentKindPicker disabled (#447)", () => {
         disabled
       />
     ));
-    expect(screen.getByRole("heading", { name: "Instrument" })).toBeInTheDocument();
+    expect(screen.getByRole("region", { name: "Instrument" })).toBeInTheDocument();
     const synth = screen.getByRole("radio", { name: "Synth" });
     expect(synth).toBeDisabled();
     clickAndFlush(synth);

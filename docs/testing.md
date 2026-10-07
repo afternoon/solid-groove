@@ -287,7 +287,8 @@ The sanity subset is the specs whose `test.describe` carries
 `{ tag: "@sanity" }`: CF-001 (landing to a playing loop), the foundation slice
 (add, play, undo, save, reload), CF-005 (a Library loop into a project), CF-006
 (your own sounds into a pack), CF-008 (the five views), CF-030 (trying sounds on
-a pad), CF-031 (a return bus) and `authSession`. Run it locally with
+a pad), CF-031 (a return bus), `authSession`, and `accessibility` (axe over
+every surface, #76; see [`docs/accessibility.md`](./accessibility.md)). Run it locally with
 `--grep @sanity`. Keep it small: tag a new spec only when it is the one pass
 through a major surface that nothing else in the subset makes.
 

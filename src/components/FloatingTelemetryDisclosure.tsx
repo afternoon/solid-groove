@@ -27,7 +27,12 @@ import TelemetryDisclosure, { inlineDisclosureMounted } from "./TelemetryDisclos
 export default function FloatingTelemetryDisclosure() {
   return (
     <Show when={!inlineDisclosureMounted()}>
-      <TelemetryDisclosure />
+      {/* A landmark of its own (#76), so a screen reader's landmark list
+          reaches the opt-out and no page content sits outside one. The inline
+          copy needs none: the landing page's footer is its landmark. */}
+      <aside aria-label="Privacy">
+        <TelemetryDisclosure />
+      </aside>
     </Show>
   );
 }

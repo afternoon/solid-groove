@@ -1374,8 +1374,9 @@ describe("EditorView new-track unit", () => {
     const rows = () => within(rail).getAllByRole("button", { name: /^Edit / });
     expect(rows()).toHaveLength(1);
 
-    // The same unit and the same route as the arrangement's.
-    const unit = within(rail).getByRole("group", { name: "Add track" });
+    // The same unit and the same route as the arrangement's, after the list
+    // rather than in it: it is not a track (#76).
+    const unit = screen.getByRole("group", { name: "Add track" });
     clickAndFlush(within(unit).getByRole("button", { name: "Add sampler track" }));
 
     await vi.waitFor(() => expect(rows()).toHaveLength(2));
@@ -1401,9 +1402,9 @@ describe("EditorView new-track unit", () => {
       libraryClient: new LibraryClient(fixtureFetcher()),
     });
     await goToView("Instrument");
-    const rail = screen.getByRole("list", { name: "Tracks" });
+    const unit = screen.getByRole("group", { name: "Add track" });
 
-    clickAndFlush(within(rail).getByRole("button", { name: "Add loop from library" }));
+    clickAndFlush(within(unit).getByRole("button", { name: "Add loop from library" }));
 
     const library = await screen.findByRole("region", { name: "Library" });
     expect(within(library).getByRole("heading", { name: "Loops" })).toBeVisible();
@@ -1428,7 +1429,7 @@ describe("EditorView new-track unit", () => {
     const before = rows().length;
 
     clickAndFlush(
-      within(screen.getByRole("list", { name: "Tracks" })).getByRole("button", {
+      within(screen.getByRole("group", { name: "Add track" })).getByRole("button", {
         name: "Add loop from library",
       }),
     );
