@@ -139,6 +139,11 @@ export interface LibraryModalProps {
 
 /** How long a committed insert stays marked on the slot's readout. */
 const INSERTED_MARK_MS = 1600;
+/** How soon after a change of place a second click counts as a double-click's (#1011). */
+const DOUBLE_CLICK_MS = 600;
+/** What a press focuses itself, so holding focus elsewhere would be wrong. */
+const PRESS_FOCUSES =
+  "a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]";
 
 /** A boxed key badge. `hidden` when its control already names its key. */
 function Key(props: { label?: string; hidden?: boolean }): JSX.Element {
@@ -301,8 +306,92 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
 
   /** Scope the sounds view to a pack, keeping every pack's search to come back to. */
   function openPack(slug: string): void {
-    if (packScope() === null) searchOutsidePack = query();
-    setPackScope(slug);
+    keepFocus(() => {
+      if (packScope() === null) searchOutsidePack = query();
+      setPackScope(slug);
+    });
+  }
+
+  // Where focus goes when a change of place takes the focused control with it
+  // (#1011): the opened pack's banner, or the rail item naming the new place.
+  let main: HTMLDivElement | undefined;
+  let banner: HTMLElement | undefined;
+  const railButtons = new Map<LibraryView, HTMLButtonElement>();
+  // Set when the banner the focus belongs on has not rendered yet.
+  let bannerAwaitsFocus = false;
+  // When the place last changed, so the second click of a double-click that
+  // lands on the new place's bare surface does not blur focus to <body>.
+  let placeChangedAt = Number.NEGATIVE_INFINITY;
+
+  const adrift = (element: Element | null) =>
+    element === null || element === document.body;
+
+  /**
+   * Runs a change of place. The grid of packs, a pack's banner, similar sounds
+   * and the sounds list each go (or hide) with the place they belong to, and
+   * focus on a control there would fall to <body>; it lands on what names the
+   * new place instead. So does focus on the rail item naming the place Back
+   * leaves, and focus already adrift on <body>. Focus on any other rail item
+   * stays put.
+   */
+  function keepFocus(change: () => void): void {
+    const active = document.activeElement;
+    const inMain = active instanceof HTMLElement && main?.contains(active) === true;
+    const leftView = view();
+    const onLeftRail = active !== null && railButtons.get(leftView) === active;
+    const wasAdrift = adrift(active);
+    change();
+    placeChangedAt = performance.now();
+    if (!inMain && !onLeftRail && !wasAdrift) return;
+    queueMicrotask(() => {
+      const lost = inMain
+        ? !active?.isConnected ||
+          active.closest("[hidden]") !== null ||
+          adrift(document.activeElement)
+        : onLeftRail
+          ? view() !== leftView && document.activeElement === active
+          : adrift(document.activeElement);
+      if (lost) focusPlace();
+    });
+  }
+
+  function mainRendered(element: HTMLDivElement): void {
+    main = element;
+    // A guard on focus, not an interaction, so it is a listener and not a handler.
+    element.addEventListener("mousedown", holdFocusOnDoubleClick);
+  }
+
+  /**
+   * The second press of a double-click on the control that changed the place
+   * lands on whatever the new place put under the pointer. On bare surface that
+   * would blur focus to <body>, so it is held where the change put it.
+   */
+  function holdFocusOnDoubleClick(event: MouseEvent): void {
+    if (event.detail < 2 || performance.now() - placeChangedAt > DOUBLE_CLICK_MS) return;
+    const target = event.target;
+    if (target instanceof Element && target.closest(PRESS_FOCUSES) !== null) return;
+    event.preventDefault();
+  }
+
+  function focusPlace(): void {
+    if (similarOf() === null && packScope() !== null) {
+      if (banner?.isConnected) banner.focus();
+      // The banner renders once the pack index has loaded.
+      else bannerAwaitsFocus = true;
+      return;
+    }
+    railButtons.get(view())?.focus();
+  }
+
+  function bannerRendered(element: HTMLElement): void {
+    banner = element;
+    if (!bannerAwaitsFocus) return;
+    bannerAwaitsFocus = false;
+    queueMicrotask(() => {
+      // Unless the producer has put focus somewhere in the meantime.
+      const active = document.activeElement;
+      if (active === null || active === document.body) element.focus();
+    });
   }
 
   /** Leave an opened pack, with the search it was opened over. */
@@ -313,9 +402,11 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   }
 
   function showView(next: LibraryView): void {
-    setSimilarOf(null);
-    closePack();
-    setView(next);
+    keepFocus(() => {
+      setSimilarOf(null);
+      closePack();
+      setView(next);
+    });
   }
 
   /** Swap the main area to the similar-sounds view for `asset`. */
@@ -333,10 +424,12 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
 
   /** Back: out of similar sounds, then an opened pack, then the grid of packs. */
   function back(): boolean {
-    if (similarOf() !== null) setSimilarOf(null);
-    else if (packScope() !== null) closePack();
-    else if (view() === "packs") setView("all");
-    else return false;
+    if (similarOf() === null && packScope() === null && view() !== "packs") return false;
+    keepFocus(() => {
+      if (similarOf() !== null) setSimilarOf(null);
+      else if (packScope() !== null) closePack();
+      else setView("all");
+    });
     return true;
   }
 
@@ -491,6 +584,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
     return (
       <button
         type="button"
+        ref={(button) => railButtons.set(railProps.item.id, button)}
         class={railProps.browse ? "library-modal-browse" : "library-modal-rail-item"}
         aria-current={isCurrent(railProps.item.id) ? "true" : undefined}
         onClick={() => showView(railProps.item.id)}
@@ -652,7 +746,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
           </fieldset>
           <RailButton item={RECENT} />
         </nav>
-        <div class="library-modal-main">
+        <div class="library-modal-main" ref={mainRendered}>
           <Show when={similarOf()}>
             {(reference) => (
               <SimilarSoundsView
@@ -676,6 +770,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
                 slug={slug()}
                 projectPackIds={props.addedPackIds}
                 onClose={() => showView("all")}
+                onBanner={bannerRendered}
               />
             )}
           </Show>
