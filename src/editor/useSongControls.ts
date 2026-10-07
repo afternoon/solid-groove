@@ -1,7 +1,7 @@
 import { type Accessor, createMemo } from "solid-js";
 import type { Analytics } from "../analytics/analytics";
 import { clampTempo } from "../audio/Transport";
-import { createControlGesture } from "../commands";
+import { type ControlSettle, createControlGesture } from "../commands";
 import { setParameter } from "../commands/definitions/parameters";
 import type { Project } from "../domain/entities";
 import { SONG_SWING, SONG_TEMPO } from "../domain/parameters";
@@ -29,7 +29,7 @@ export interface SongControls {
   /** One step of a swing drag. */
   swingInput(value: number): void;
   /** The end of a swing drag: one undo step and one save. */
-  commitSwing(value: number): void;
+  commitSwing(value: number, settle?: ControlSettle): void;
   /** Flips whether the transport obeys the song's loop brace. */
   toggleLoop(): void;
   /** Moves the loop brace by whole bars. */
@@ -71,8 +71,8 @@ export function useSongControls(options: UseSongControlsOptions): SongControls {
     command: (value) =>
       setParameter({ scope: "song", parameterId: SONG_SWING.id }, value),
   });
-  const commitSwing = (value: number) => {
-    swingGesture.commit(value);
+  const commitSwing = (value: number, settle?: ControlSettle) => {
+    swingGesture.commit(value, settle);
     options.analytics().logFeatureFirstUse("swing");
   };
 

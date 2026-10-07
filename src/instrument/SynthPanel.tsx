@@ -116,8 +116,8 @@ export default function SynthPanel(props: SynthPanelProps): JSX.Element {
         value={read(definition)}
         displayValue={formatInstrumentValue(definition, read(definition))}
         onInput={(next) => control.input(next)}
-        onCommit={(next) => {
-          control.commit(next);
+        onCommit={(next, settle) => {
+          control.commit(next, settle);
           analytics().logFeatureFirstUse("synth");
         }}
       />

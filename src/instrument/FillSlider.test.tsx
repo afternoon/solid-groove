@@ -44,7 +44,7 @@ describe("FillSlider value field (#447)", () => {
     fireEvent.change(field);
 
     expect(onInput).toHaveBeenCalledExactlyOnceWith(2400);
-    expect(onCommit).toHaveBeenCalledExactlyOnceWith(2400);
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith(2400, "release");
     flush();
     expect(field.value).toBe("2.4 kHz");
   });
@@ -53,7 +53,7 @@ describe("FillSlider value field (#447)", () => {
     const { field, onCommit } = renderSlider();
     field.value = "99k";
     fireEvent.change(field);
-    expect(onCommit).toHaveBeenCalledExactlyOnceWith(SYNTH_FILTER_CUTOFF.max);
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith(SYNTH_FILTER_CUTOFF.max, "release");
   });
 
   it("refuses what is not a value and shows the live value again", () => {
@@ -88,7 +88,7 @@ describe("FillSlider value field (#447)", () => {
 
     field.value = "750";
     fireEvent.change(field);
-    expect(onCommit).toHaveBeenLastCalledWith(0.75);
+    expect(onCommit).toHaveBeenLastCalledWith(0.75, "release");
     flush();
     expect(field.value).toBe("750 ms");
   });
@@ -109,7 +109,7 @@ describe("FillSlider value field (#447)", () => {
     const field = screen.getByLabelText("Cutoff value") as HTMLInputElement;
     field.value = "top";
     fireEvent.change(field);
-    expect(onCommit).toHaveBeenCalledExactlyOnceWith(1);
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith(1, "release");
   });
 });
 
@@ -135,13 +135,16 @@ describe("FillSlider double-click reset (#536)", () => {
     const { slider, onInput, onCommit } = renderResettable();
     fireEvent.dblClick(slider);
     expect(onInput).toHaveBeenCalledExactlyOnceWith(SYNTH_FILTER_CUTOFF.defaultValue);
-    expect(onCommit).toHaveBeenCalledExactlyOnceWith(SYNTH_FILTER_CUTOFF.defaultValue);
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith(
+      SYNTH_FILTER_CUTOFF.defaultValue,
+      "release",
+    );
   });
 
   it("uses resetValue in the slider's own space when it has a range", () => {
     const { slider, onCommit } = renderResettable({ range: true, resetValue: 0.75 });
     fireEvent.dblClick(slider);
-    expect(onCommit).toHaveBeenCalledExactlyOnceWith(0.75);
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith(0.75, "release");
   });
 
   it("does nothing on a ranged slider that gave no resetValue", () => {
@@ -156,5 +159,44 @@ describe("FillSlider double-click reset (#536)", () => {
     fireEvent.dblClick(screen.getByRole("textbox"));
     expect(onInput).not.toHaveBeenCalled();
     expect(onCommit).not.toHaveBeenCalled();
+  });
+});
+
+// GRV-63: one drag or one arrow press commits once, and says which it was.
+describe("FillSlider commits", () => {
+  const slider = () => screen.getByRole("slider") as HTMLInputElement;
+  const move = (value: string) => fireEvent.input(slider(), { target: { value } });
+
+  it("commits a drag once, whichever order the browser ends it in", () => {
+    const { onCommit } = renderSlider();
+    fireEvent.pointerDown(slider());
+    move("2000");
+    fireEvent.pointerUp(slider());
+    fireEvent.change(slider());
+    expect(onCommit).toHaveBeenCalledExactlyOnceWith(2000, "release");
+
+    fireEvent.pointerDown(slider());
+    move("3000");
+    fireEvent.change(slider());
+    fireEvent.pointerUp(slider());
+    expect(onCommit).toHaveBeenCalledTimes(2);
+    expect(onCommit).toHaveBeenLastCalledWith(3000, "release");
+  });
+
+  it("commits nothing for a press and release that did not move it", () => {
+    const { onCommit } = renderSlider();
+    fireEvent.pointerDown(slider());
+    fireEvent.pointerUp(slider());
+    expect(onCommit).not.toHaveBeenCalled();
+  });
+
+  it("commits an arrow press as a nudge", () => {
+    const { onCommit } = renderSlider();
+    move("1010");
+    fireEvent.change(slider());
+    move("1020");
+    fireEvent.change(slider());
+    expect(onCommit).toHaveBeenCalledTimes(2);
+    expect(onCommit).toHaveBeenLastCalledWith(1020, "nudge");
   });
 });

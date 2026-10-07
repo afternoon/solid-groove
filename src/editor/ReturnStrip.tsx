@@ -131,7 +131,7 @@ function ReturnPan(props: {
       value={props.returnBus.mixer.pan}
       displayValue={formatPan(props.returnBus.mixer.pan)}
       onInput={(value) => control.input(value)}
-      onCommit={(value) => control.commit(value)}
+      onCommit={(value, settle) => control.commit(value, settle)}
     />
   );
 }

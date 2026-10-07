@@ -143,6 +143,71 @@ describe("CommandHistory", () => {
       expect(volumeOf(history.project, fixture.trackAId)).toBe(0);
     });
 
+    describe("runs of nudges (GRV-63)", () => {
+      const clock = createManualClock(1_700_000_600_000);
+      let runs: CommandHistory;
+      beforeEach(() => {
+        runs = createCommandHistory(fixture.project, { clock });
+      });
+      const nudge = (value: number, run: { key: unknown; withinMs: number }) => {
+        const gesture = runs.beginGesture({ summary: "Set track volume" });
+        gesture.apply(setParameter(volumeTarget(fixture.trackAId), value));
+        return gesture.commit({ run });
+      };
+
+      it("joins quick nudges on one control into one entry, one revision each", () => {
+        const run = { key: {}, withinMs: 1000 };
+        for (const value of [-1, -2, -3]) {
+          nudge(value, run);
+          clock.advance(400);
+        }
+        expect(runs.entries).toHaveLength(1);
+        expect(runs.entries[0].commands).toHaveLength(3);
+        expect(runs.project.metadata.revision).toBe(3);
+
+        runs.undo();
+        expect(volumeOf(runs.project, fixture.trackAId)).toBe(0);
+        runs.redo();
+        expect(volumeOf(runs.project, fixture.trackAId)).toBe(-3);
+      });
+
+      it("starts a new entry after a pause, another control, or another edit", () => {
+        const run = { key: {}, withinMs: 1000 };
+        nudge(-1, run);
+        clock.advance(1001);
+        nudge(-2, run);
+        expect(runs.entries).toHaveLength(2);
+
+        nudge(-3, { key: {}, withinMs: 1000 });
+        expect(runs.entries).toHaveLength(3);
+
+        runs.execute(updateTrack(fixture.trackAId, { name: "Sub" }));
+        nudge(-4, run);
+        expect(runs.entries).toHaveLength(5);
+      });
+
+      it("never joins a run across an undo", () => {
+        const run = { key: {}, withinMs: 1000 };
+        nudge(-1, run);
+        nudge(-2, run);
+        runs.undo();
+        nudge(-5, run);
+        expect(runs.entries).toHaveLength(1);
+        expect(runs.canRedo).toBe(false);
+        runs.undo();
+        expect(volumeOf(runs.project, fixture.trackAId)).toBe(0);
+      });
+
+      it("never joins a gesture committed without a run", () => {
+        const run = { key: {}, withinMs: 1000 };
+        const drag = runs.beginGesture();
+        drag.apply(setParameter(volumeTarget(fixture.trackAId), -6));
+        drag.commit();
+        nudge(-7, run);
+        expect(runs.entries).toHaveLength(2);
+      });
+    });
+
     it("redoes a committed gesture in one step", () => {
       const gesture = history.beginGesture();
       gesture.apply(setParameter(volumeTarget(fixture.trackAId), -5));

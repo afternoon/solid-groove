@@ -21,9 +21,10 @@ import type { CommandActor, CommandEnvelope, RawCommandInput } from "./types";
  * or reloading this one) clears it. Durable, named history is `PRJ-05` in
  * Alpha Milestone 1 and does not change this contract.
  *
- * One history entry always equals one revision: a single command, a
- * multi-command transaction, and a continuous gesture each produce exactly one
- * of each.
+ * One history entry is one revision for a single command, a multi-command
+ * transaction, and a continuous gesture. The one exception is a run of quick
+ * nudges to one control (`GestureCommitOptions.run`): each press still commits
+ * its own revision, but the run shares one entry, so one undo takes it back.
  */
 
 export interface HistoryEntry {
@@ -71,6 +72,27 @@ export interface GestureOptions {
 }
 
 /**
+ * Joins a committed gesture to a run of them: an arrow key held or tapped on
+ * one control is one undo step, not one per press (GRV-63).
+ *
+ * The gesture merges into the newest history entry when that entry was itself
+ * committed in the same run (the same `key`) no more than `withinMs` ago, and
+ * nothing else has been recorded, undone or redone since. Every merge restarts
+ * the window, so a steady run of presses stays one entry however long it is.
+ */
+export interface GestureRun {
+  /** Identifies the run: one control's own key, compared by identity. */
+  readonly key: unknown;
+  readonly withinMs: number;
+}
+
+export interface GestureCommitOptions {
+  /** Overrides the summary given when the gesture began. */
+  readonly summary?: string;
+  readonly run?: GestureRun;
+}
+
+/**
  * A continuous gesture — a fader drag, a note drag, a paint stroke. Every step
  * applies immediately so the UI and audio engine stay live, but the whole
  * gesture lands as one history entry and one revision when it commits.
@@ -78,8 +100,11 @@ export interface GestureOptions {
 export interface Gesture {
   readonly active: boolean;
   apply(commands: RawCommandInput | readonly RawCommandInput[]): TransactionResult;
-  /** Records the gesture as one entry. Returns null when nothing applied. */
-  commit(summary?: string): HistoryEntry | null;
+  /**
+   * Records the gesture as one entry, or into the entry of the run it joins.
+   * Returns null when nothing applied.
+   */
+  commit(options?: string | GestureCommitOptions): HistoryEntry | null;
   /** Abandons the gesture and restores the project as it was when it began. */
   cancel(): void;
 }
@@ -109,6 +134,9 @@ export class CommandHistory {
   #undo: HistoryEntry[] = [];
   #redo: HistoryEntry[] = [];
   #gesture: GestureState | null = null;
+  /** The run the newest entry belongs to, while it can still be joined. */
+  #run: { readonly entry: HistoryEntry; readonly key: unknown; until: number } | null =
+    null;
   readonly #limit: number;
   readonly #clock: Clock;
   readonly #listeners = new Set<HistoryListener>();
@@ -242,11 +270,14 @@ export class CommandHistory {
         }
         return history.#applyToGesture(toList(commands));
       },
-      commit(summary) {
+      commit(options) {
         if (history.#gesture !== state) {
           throw new Error("This gesture has already finished");
         }
-        return history.#commitGesture(state, summary);
+        return history.#commitGesture(
+          state,
+          typeof options === "string" ? { summary: options } : (options ?? {}),
+        );
       },
       cancel() {
         if (history.#gesture !== state) {
@@ -279,6 +310,7 @@ export class CommandHistory {
     }
     this.#undo.pop();
     this.#redo.push(entry);
+    this.#run = null;
     this.#project = result.project;
     this.#notify();
     return result;
@@ -312,6 +344,7 @@ export class CommandHistory {
     }
     this.#redo.pop();
     this.#undo.push(entry);
+    this.#run = null;
     this.#project = result.project;
     this.#notify();
     return result;
@@ -325,6 +358,7 @@ export class CommandHistory {
    */
   replaceProject(project: Project): void {
     this.#gesture = null;
+    this.#run = null;
     this.#project = project;
     this.#undo = [];
     this.#redo = [];
@@ -333,6 +367,7 @@ export class CommandHistory {
 
   /** Drops undo/redo without touching the project. */
   clear(): void {
+    this.#run = null;
     this.#undo = [];
     this.#redo = [];
     this.#notify();
@@ -372,7 +407,10 @@ export class CommandHistory {
     return result;
   }
 
-  #commitGesture(state: GestureState, summary?: string): HistoryEntry | null {
+  #commitGesture(
+    state: GestureState,
+    options: GestureCommitOptions,
+  ): HistoryEntry | null {
     this.#gesture = null;
     // A step may defer an invariant, but nothing commits in violation of one:
     // a gesture that still breaks one when it ends is abandoned, like a cancel.
@@ -396,7 +434,7 @@ export class CommandHistory {
     };
     const entry: HistoryEntry = {
       id: createEntryId(),
-      summary: summary ?? state.summary ?? state.summaries[0] ?? "Edit project",
+      summary: options.summary ?? state.summary ?? state.summaries[0] ?? "Edit project",
       actor: state.actor,
       correlationId: state.correlationId,
       commands: state.commands,
@@ -405,9 +443,43 @@ export class CommandHistory {
       revision: this.#project.metadata.revision,
       timestamp,
     };
-    this.#push(entry);
+    const recorded = this.#joinRun(entry, options.run) ?? entry;
+    if (recorded === entry) this.#push(entry);
+    this.#run = options.run
+      ? { entry: recorded, key: options.run.key, until: timestamp + options.run.withinMs }
+      : null;
     this.#notify();
-    return entry;
+    return recorded;
+  }
+
+  /**
+   * Folds `entry` into the newest entry when both belong to the same live run,
+   * and returns the merged entry; otherwise returns null. The merged entry
+   * replays both halves' commands in order and undoes them newest first.
+   */
+  #joinRun(entry: HistoryEntry, run: GestureRun | undefined): HistoryEntry | null {
+    const previous = this.#run;
+    const newest = this.#undo[this.#undo.length - 1];
+    if (
+      !run ||
+      !previous ||
+      previous.key !== run.key ||
+      previous.entry !== newest ||
+      this.#redo.length > 0 ||
+      entry.timestamp > previous.until
+    ) {
+      return null;
+    }
+    const merged: HistoryEntry = {
+      ...newest,
+      summary: entry.summary,
+      commands: [...newest.commands, ...entry.commands],
+      inverse: [...entry.inverse, ...newest.inverse],
+      revision: entry.revision,
+      timestamp: entry.timestamp,
+    };
+    this.#undo[this.#undo.length - 1] = merged;
+    return merged;
   }
 
   #push(entry: HistoryEntry): void {

@@ -4,6 +4,7 @@ import { type Accessor, createEffect, createSignal, Show, untrack } from "solid-
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import { MAX_TEMPO_BPM, MIN_TEMPO_BPM } from "../audio/Transport";
 import { parameterControl, SONG_ENTITY } from "../commands/controlAddress";
+import type { ControlSettle } from "../commands/controlGesture";
 import {
   HelpIcon,
   LoopIcon,
@@ -76,7 +77,7 @@ export interface EditorHeaderProps {
   /** Song swing (%), 50-75, and the input/commit halves of its gesture (#500). */
   readonly swing: Accessor<number>;
   readonly onSwingInput: (value: number) => void;
-  readonly onSwingCommit: (value: number) => void;
+  readonly onSwingCommit: (value: number, settle: ControlSettle) => void;
   readonly onOpenGuide: () => void;
   /** Told whether the Export dialog is open, so the editor's keys can stand down. */
   readonly onExportOpenChange?: (open: boolean) => void;

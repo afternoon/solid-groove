@@ -1,6 +1,7 @@
 import type { JSX } from "@solidjs/web";
 import type { Accessor } from "solid-js";
 import { parameterControl, SONG_ENTITY } from "../commands/controlAddress";
+import type { ControlSettle } from "../commands/controlGesture";
 import { SONG_SWING } from "../domain/parameters";
 import FillSlider from "../instrument/FillSlider";
 
@@ -10,7 +11,7 @@ export interface SwingControlProps {
   /** Called with each in-range value while the slider moves. */
   onInput(value: number): void;
   /** Called once when the drag, keystroke or typed value settles. */
-  onCommit(value: number): void;
+  onCommit(value: number, settle: ControlSettle): void;
 }
 
 /**
@@ -31,7 +32,7 @@ export default function SwingControl(props: SwingControlProps): JSX.Element {
         displayValue={`${Math.round(props.swing())}%`}
         orientation="horizontal"
         onInput={(value) => props.onInput(value)}
-        onCommit={(value) => props.onCommit(value)}
+        onCommit={(value, settle) => props.onCommit(value, settle)}
       />
     </div>
   );

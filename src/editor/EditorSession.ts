@@ -282,8 +282,8 @@ export class EditorSession {
         if (result.ok && !firstEditResult) firstEditResult = result;
         return result;
       },
-      commit: (summary?: string) => {
-        const entry = gesture.commit(summary);
+      commit: (options) => {
+        const entry = gesture.commit(options);
         if (!entry) return entry;
         if (firstEditResult) this.logFirstEdit(firstEditResult);
         this.queueDiff(this.history.project, before);

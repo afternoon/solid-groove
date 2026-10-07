@@ -102,7 +102,7 @@ export default function PadControl(props: PadControlProps): JSX.Element {
         props.onFirstUse();
         control.input(value);
       }}
-      onCommit={(value) => control.commit(value)}
+      onCommit={(value, settle) => control.commit(value, settle)}
     />
   );
 }

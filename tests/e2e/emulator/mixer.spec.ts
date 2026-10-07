@@ -79,6 +79,47 @@ test.describe("mixer", () => {
     await expect(fader).not.toHaveAttribute("aria-valuetext", "0.0 dB");
   });
 
+  // GRV-63: Chromium ends a drag with `pointerup` and then `change`, and each
+  // used to commit, so a drag left two undo steps and an arrow key one per
+  // press. Only a real browser fires that pair in its own order.
+  test("a fader drag, and a quick run of arrow presses, is one undo step each", async ({
+    page,
+  }) => {
+    await page.goto("/projects");
+    await page.getByRole("button", { name: "New Project" }).click();
+    await expect(page).toHaveURL(/\/projects\/prj_/);
+    await goToView(page, "Mixer");
+
+    const fader = page.getByRole("slider", { name: /^Volume for / }).first();
+    const track = page.locator(".mixer-strip-controls .fill-slider-track", {
+      has: fader,
+    });
+    await track.scrollIntoViewIfNeeded();
+    const box = await track.boundingBox();
+    expect(box).not.toBeNull();
+    if (!box) return;
+    const undo = page.getByRole("button", { name: /^Undo/ });
+    const start = await fader.inputValue();
+
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.3);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.8, {
+      steps: 8,
+    });
+    await page.mouse.up();
+    await expect(fader).not.toHaveValue(start);
+    await undo.click();
+    await expect(fader).toHaveValue(start);
+    await expect(undo).toBeDisabled();
+
+    await fader.focus();
+    for (let press = 0; press < 3; press += 1) await page.keyboard.press("ArrowUp");
+    await expect(fader).not.toHaveValue(start);
+    await undo.click();
+    await expect(fader).toHaveValue(start);
+    await expect(undo).toBeDisabled();
+  });
+
   // Pan is the same slider laid on its side, so it takes no rotation at all —
   // which is exactly the sort of thing a shared component regresses silently.
   // Dragging right has to pan right, and the strip's fixed width has to hold.
