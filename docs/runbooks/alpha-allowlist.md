@@ -68,12 +68,19 @@ The scripts use application default credentials
   page). Paste any number of addresses (one per line, separated by commas, or a
   column from the Tally export) and press Approve. It reports added, already
   listed and invalid. Below it are blocked sign-in attempts, each with one-click
-  Approve, and the current list, each with Remove.
+  Approve, and the current list, each with Remove and Revoke.
 - **Remove does not sign anyone out.** It stops the address's next sign-in,
   but `beforeSignIn` does not run when a session refreshes its ID token, so a
-  person who is signed in stays signed in. To end their session now, revoke
-  their refresh tokens (`auth.revokeRefreshTokens(uid)` with the Admin SDK) or
-  disable the user in Authentication, Users.
+  person who is signed in stays signed in.
+- **Revoke does** (#1147). After a confirmation it takes the address off the
+  list and revokes the account's refresh tokens through the `revokeAccess`
+  callable (`functions/src/index.ts`, deciding through
+  `src/access/revokeAccess.ts`), so every session of theirs ends when its ID
+  token next expires, within the hour. Their next sign-in is refused by the
+  gate and lands in Blocked sign-ins, from where one click approves them
+  again. The account is neither disabled nor deleted. An admin cannot revoke
+  their own address, and an address that never signed in is simply taken off
+  the list. The function refuses anyone without the `admin` claim.
 - **Terminal:**
   ```sh
   FIREBASE_PROJECT_ID=<project> bun run allowlist:add -- export.csv more@example.com

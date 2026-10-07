@@ -17,6 +17,10 @@ import {
   type SignInAttempt,
   signInAttemptDocPath,
 } from "./allowlist";
+import type { RevokeAccessResult } from "./revokeAccess";
+
+/** The `revokeAccess` callable (#1147), as `src/access/firebaseRevokeAccess.ts` wires it. */
+export type RevokeAccessCall = (email: string) => Promise<RevokeAccessResult>;
 
 /**
  * The allowlist in Firestore, as an admin-claim account sees it through
@@ -25,9 +29,16 @@ import {
  *
  * An approval is one `writeBatch` per {@link approvalChunks} chunk: every
  * entry and every cleared attempt in it land together or not at all.
+ *
+ * A revocation (#1147) is not a Firestore write from here at all: only the
+ * Admin SDK can end another account's sessions, so it goes to the
+ * `revokeAccess` callable, injected so the emulator suite can stand it in.
  */
 export class FirestoreAccessRepository implements AccessRepository {
-  constructor(private readonly db: Firestore) {}
+  constructor(
+    private readonly db: Firestore,
+    private readonly callRevoke: RevokeAccessCall,
+  ) {}
 
   async listAllowlist(): Promise<AllowlistEntry[]> {
     const snapshot = await getDocs(collection(this.db, ALLOWLIST_COLLECTION));
@@ -64,5 +75,9 @@ export class FirestoreAccessRepository implements AccessRepository {
 
   async remove(email: string): Promise<void> {
     await deleteDoc(doc(this.db, allowlistDocPath(email)));
+  }
+
+  revoke(email: string): Promise<RevokeAccessResult> {
+    return this.callRevoke(email);
   }
 }

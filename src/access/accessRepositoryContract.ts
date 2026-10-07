@@ -11,6 +11,8 @@ export interface AccessRepositoryHarness {
   repository(): Promise<AccessRepository>;
   /** Writes a refused sign-in the way the blocking function does. */
   seedAttempt(repository: AccessRepository, attempt: SignInAttempt): Promise<void>;
+  /** Stands in for an account signing in with the address, as Firebase Auth would hold it. */
+  seedAccount(repository: AccessRepository, email: string): Promise<void>;
 }
 
 export function describeAccessRepositoryContract(
@@ -63,6 +65,28 @@ export function describeAccessRepositoryContract(
       await approveEmails(repository, parseEmailBatch("ada@example.com"), 1);
       await repository.remove("ada@example.com");
       await repository.remove("nobody@example.com");
+      expect(await repository.listAllowlist()).toEqual([]);
+    });
+
+    it("revokes an address: off the list, and its account's sessions ended (#1147)", async () => {
+      const repository = await harness.repository();
+      await approveEmails(
+        repository,
+        parseEmailBatch("ada@example.com\ngrace@example.com"),
+        1,
+      );
+      await harness.seedAccount(repository, "ada@example.com");
+      await expect(repository.revoke("Ada@example.com")).resolves.toEqual({
+        email: "ada@example.com",
+        wasListed: true,
+        sessionsEnded: true,
+      });
+      // Approved but never signed in: nothing to sign out, and the page says so.
+      await expect(repository.revoke("grace@example.com")).resolves.toEqual({
+        email: "grace@example.com",
+        wasListed: true,
+        sessionsEnded: false,
+      });
       expect(await repository.listAllowlist()).toEqual([]);
     });
   });

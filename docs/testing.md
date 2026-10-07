@@ -649,6 +649,7 @@ Neither GA4 nor Sentry can be verified from the unit suite — the last mile is 
 | `landing_video_play` | Load `/` with reduced motion off. Then load it with reduced motion on. | Fires once per page view when the hero video starts, with `surface: landing`; never under reduced motion, where the poster stays up. |
 | `sign_in_blocked` | Sign in with a Google address that is not on the alpha allowlist (#854). | Fires once per refusal, with `source: landing` (or `log_in`/`upgrade` from a guest session), and no address. |
 | `allowlist_approved` | As an admin, approve addresses on `/admin` (#854). | Fires once per approval, with `source: paste` or `attempt` and the three counts, and no address. |
+| `access_revoked` | As an admin, Revoke an address on `/admin` and confirm (#1147). | Fires once per revocation, with `was_listed` and `sessions_ended`, and no address. |
 | `first_edit` | Make the first edit in a project. | Fires once for that project, never again — reload and edit again to confirm. |
 | `feature_first_use` | Use a feature for the first time in that browser. | Fires once per `feature`, carrying the feature key. |
 | `save_failed` | Go offline (DevTools → Network → Offline) and make an edit. | Fires with a stable `error_code` and a `retry_count`. |
