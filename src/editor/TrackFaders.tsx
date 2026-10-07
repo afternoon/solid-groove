@@ -88,7 +88,7 @@ export function DbFader(props: DbFaderProps): JSX.Element {
       displayValue={formatDb(props.definition, props.value)}
       // The field takes decibels; the fader travels in positions.
       parseEntry={(text) => {
-        const db = parseParameterInput(props.definition, text, props.value);
+        const db = parseParameterInput(props.definition, text);
         return db === null
           ? null
           : dbToFaderPosition(

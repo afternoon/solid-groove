@@ -7,9 +7,10 @@ import type { ParameterDefinition } from "../domain/parameters";
  * spelling back, plus the short forms people actually type: `2.4k`, `120ms`,
  * `-inf`, `4:1`.
  *
- * A bare number means the unit the field was showing. For a time that read
- * "420 ms", `300` is 300 ms; for one that read "1.50 s", `2` is two seconds.
- * Percent-style normalized values (range `0..1`) read `45` as 45%.
+ * A bare time is always milliseconds, whatever the field was showing (GRV-59):
+ * `750` is 750 ms whether the field read "420 ms" or "2 s", so the same
+ * keystrokes always give the same time. Type `s` or `sec` for seconds
+ * (`1.5 s`). Percent-style normalized values (range `0..1`) read `45` as 45%.
  *
  * The result is not clamped: the caller hands it to the command layer, which
  * owns the range, so an out-of-range entry lands at the nearest edge exactly
@@ -18,7 +19,6 @@ import type { ParameterDefinition } from "../domain/parameters";
 export function parseParameterInput(
   definition: ParameterDefinition,
   input: string,
-  current: number,
   /** Labels for a stepped value whose index is the value (a delay division). */
   options?: readonly string[],
 ): number | null {
@@ -38,7 +38,7 @@ export function parseParameterInput(
       if (n === null || !/^[-+]?[\d.]+(ms|s|sec)?$/.test(text)) return null;
       if (text.endsWith("ms")) return n / 1000;
       if (/s(ec)?$/.test(text)) return n;
-      return current < 1 ? n / 1000 : n;
+      return n / 1000;
     }
     case "hertz": {
       const n = leadingNumber(text);

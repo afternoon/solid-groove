@@ -89,7 +89,7 @@ export default function PadControl(props: PadControlProps): JSX.Element {
       parseEntry={
         faderLaw()
           ? (text) => {
-              const db = parseParameterInput(props.definition, text, props.value);
+              const db = parseParameterInput(props.definition, text);
               return db === null
                 ? null
                 : toSlider(clampParameterValue(props.definition, db));
