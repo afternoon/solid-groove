@@ -248,6 +248,12 @@ const closedBy = (body) => {
   ].map((m) => Number(m[1]));
 };
 
+/** Issues a PR body says it completes (`Completes #12`): not a closing keyword, so the issue stays open for QA. */
+const completedBy = (body) => {
+  const prose = (body ?? "").replace(/```[\s\S]*?```/g, "").replace(/`[^`\n]*`/g, "");
+  return [...prose.matchAll(/\bcompletes?\s+#(\d+)/gi)].map((m) => Number(m[1]));
+};
+
 const RULES_FILES = new Set(["firestore.rules", "storage.rules"]);
 
 function changesRules(pr) {
@@ -308,7 +314,22 @@ function status() {
 
   if (name === "pull_request") {
     const pr = event.pull_request;
-    if (pr.draft || pr.merged) return;
+    // The PR that completes an issue merged on its own (merge.yml queues safe
+    // PRs without an approval), so the issue is QA'd on production, after the
+    // deploy: its card goes to QA.
+    if (pr.merged) {
+      for (const number of completedBy(pr.body)) {
+        const issue = issueLabels(number);
+        if (issue?.state !== "OPEN") continue;
+        setStatus(
+          number,
+          "status:qa",
+          issue.labels.map((l) => l.name),
+        );
+      }
+      return;
+    }
+    if (pr.draft) return;
     // A PR that closes an issue puts its card in QA, unless it changes the
     // security rules: those never get a preview deploy, so the QA bot never
     // sees them, and the card goes straight to review.

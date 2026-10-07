@@ -1,13 +1,13 @@
 export const meta = {
   name: 'solid-groove-ship',
-  description: 'Ship one Groove issue: triage it as a feature, fix or polish, build it, review features, and open ready PRs',
+  description: 'Ship one Groove issue: triage it as a feature, fix or polish, build it, review features, and open PRs that merge themselves once green',
   whenToUse:
-    'Run to ship ONE issue in trygroove/groove whose spec has been agreed in the issue body. Pass the issue number: { issue: 123 } (or just 123). Triage picks the kind of work and stops only if the issue is genuinely unclear; the build runs unattended; features get an adversarial review with up to two fix rounds; every PR opens ready for review, with screenshots for any UI change and deploy-preview on the closing PR.',
+    'Run to ship ONE issue in trygroove/groove whose spec has been agreed in the issue body. Pass the issue number: { issue: 123 } (or just 123). Triage picks the kind of work and stops only if the issue is genuinely unclear; the build runs unattended; features get an adversarial review with up to two fix rounds; every PR opens ready for review with screenshots for any UI change, and merges on its own once CI passes unless it touches a gated path; the issue is QA\'d on production after the PR that completes it lands.',
   phases: [
     { title: 'Triage', detail: 'read the issue, pick feature / fix / polish' },
     { title: 'Build', detail: 'implement, test, push branches, capture screenshots' },
     { title: 'Review', detail: 'features only: adversarial review, up to two fix rounds' },
-    { title: 'Land', detail: 'open ready PRs, label the closing one deploy-preview' },
+    { title: 'Land', detail: 'open ready PRs; merge.yml queues the safe ones' },
   ],
 }
 
@@ -47,7 +47,7 @@ const TRIAGE_SCHEMA = {
     unclear: { type: 'boolean', description: 'True only if two reasonable readings would build materially different things and nothing decides between them' },
     question: { type: 'string', description: 'The one question that unblocks it, if unclear; else empty' },
     changesUi: { type: 'boolean' },
-    existingPr: { type: 'string', description: 'URL of an open PR that already closes this issue, else empty' },
+    existingPr: { type: 'string', description: 'URL of an open PR that already closes or completes this issue, else empty' },
   },
 }
 
@@ -110,7 +110,7 @@ const t = await agent(
 Read the issue body and every comment. Decide:
 - **kind**: \`feature\` (new capability: one PR, or a short stack when it is big), \`fix\` (something is wrong), or \`polish\` (a small enhancement or tweak). The issue's own label does not decide it. Behaviour that works as coded but is not what the issue wants is a fix or polish, never a reason to stop.
 - **unclear**: true only if two reasonable readings would build materially different things and nothing in the issue, its comments, a core flow or the code decides. Terse is not unclear; a missing cause is not unclear (finding it is the job). If unclear, post the single question as an issue comment, written so a one-line answer unblocks it, and add the \`status:blocked\` label (the board removes the old status).
-- **existingPr**: an open PR that already closes #${issue}, if any.
+- **existingPr**: an open PR that already closes or completes #${issue}, if any.
 
 Read only enough code to answer. Do not change anything else.`,
   { label: `triage #${issue}`, schema: TRIAGE_SCHEMA, effort: 'medium' },
@@ -180,7 +180,7 @@ For each, in order:
 - Base: \`main\` for the first, the previous branch for each later one.
 - Open it **ready for review, not as a draft**.
 - Title: \`${action} #${issue}: <what this PR does>\`${n > 1 ? ' (that slice\'s purpose)' : ` (e.g. "${action} #${issue}: ${t.title}")`}.
-- Body: follow \`.github/pull_request_template.md\` (fill its sections from the facts below). ${n > 1 ? `Say "i of ${n}, builds on #<prev>" where it applies. ` : ''}\`Closes #${issue}\` on the last PR only, \`Refs #${issue}\` on earlier ones.
+- Body: follow \`.github/pull_request_template.md\` (fill its sections from the facts below). ${n > 1 ? `Say "i of ${n}, builds on #<prev>" where it applies. ` : ''}\`Completes #${issue}\` on the last PR only, \`Refs #${issue}\` on earlier ones. Never \`Closes\` or \`Fixes\`: the issue stays open after the merge so QA can test it on production.
 
 Facts for the bodies:
 - Summary: ${build.summary}
@@ -188,7 +188,7 @@ ${build.rootCause ? `- Root cause: ${build.rootCause}\n` : ''}${build.redEvidenc
 - Checks: ${build.checks}
 - Screenshots (put in the Screenshots section of the PR whose branch changed the UI, or the last PR): ${build.uiChanged ? build.screenshots || 'MISSING: say so plainly in the body' : 'No UI change'}
 ${unresolved.length ? `- Review findings still open after ${MAX_FIX_ROUNDS} fix rounds (list them under a "Open review findings" heading in the last PR):\n${unresolved.map((f) => `  - ${f}`).join('\n')}\n` : ''}
-Then ${build.rulesChanged ? 'do NOT add `deploy-preview` (this change touches security rules; say so in the body)' : 'add the `deploy-preview` label to the last PR'}. After writing each body, re-read it and check no image link contains a backtick.`,
+Add no labels: \`.github/workflows/merge.yml\` queues each PR once it sits on \`main\`, or flags it \`needs-approval\` if it touches a gated path. After writing each body, re-read it and check no image link contains a backtick.`,
   { label: `land #${issue}`, schema: LAND_SCHEMA, effort: 'low' },
 )
 
