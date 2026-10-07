@@ -127,6 +127,52 @@ test.describe("view layout", () => {
     }
   });
 
+  test("every view is full bleed to the window's edges, with no frame round it", async ({
+    page,
+  }) => {
+    const viewport = { width: 1440, height: 900 };
+    await page.setViewportSize(viewport);
+    await page.goto("/projects");
+    await page.getByRole("button", { name: "New Project" }).click();
+    await page.getByTestId("arrangement-view-ready").waitFor();
+
+    for (const view of [
+      "Arrangement",
+      "Sequence",
+      "Instrument",
+      "Library",
+      "Mixer",
+    ] as const satisfies ViewName[]) {
+      if (view !== "Arrangement") await pressView(page, view);
+      await expect(viewRoot(page)).toBeVisible();
+      // The Instrument and Mixer views scroll the document: their foot is at
+      // the bottom of it.
+      await page.evaluate(() =>
+        window.scrollTo(0, document.documentElement.scrollHeight),
+      );
+      const box = await boxOf(viewRoot(page), `${view}'s view`);
+      expect
+        .soft(
+          { left: box.x, right: box.x + box.width, bottom: box.y + box.height },
+          `${view}: the view runs to the window's left, right and bottom edges`,
+        )
+        .toEqual({ left: 0, right: viewport.width, bottom: viewport.height });
+    }
+
+    // Docked, the assistant takes the right edge: the arrangement meets it
+    // with no strip of the editor's black between them.
+    await pressView(page, "Arrangement");
+    await page.getByRole("button", { name: "Assistant", exact: true }).click();
+    const panel = page.getByRole("region", { name: "Assistant", exact: true });
+    await panel.getByRole("button", { name: "Dock to the right", exact: true }).click();
+    await expect(panel).toHaveAttribute("data-mode", "docked");
+    const arrangement = await boxOf(viewRoot(page), "the arrangement");
+    const assistant = await boxOf(panel, "the docked assistant");
+    expect(arrangement.x + arrangement.width, "the arrangement meets the assistant").toBe(
+      assistant.x,
+    );
+  });
+
   test("the instrument's rack and the mixer's desk run to the view's edges", async ({
     page,
   }) => {
