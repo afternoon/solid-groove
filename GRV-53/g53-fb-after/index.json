@@ -1,0 +1,22 @@
+{
+  "id": "g53-fb-after",
+  "title": "Full bleed (after)",
+  "steps": [
+    {
+      "file": "01-after-arrangement.png",
+      "caption": "after: arrangement"
+    },
+    {
+      "file": "02-after-library.png",
+      "caption": "after: library"
+    },
+    {
+      "file": "03-after-mixer.png",
+      "caption": "after: mixer"
+    },
+    {
+      "file": "04-after-arrangement-with-the-assistant-doc.png",
+      "caption": "after: arrangement with the assistant docked"
+    }
+  ]
+}

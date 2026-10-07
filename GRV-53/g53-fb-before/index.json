@@ -1,0 +1,22 @@
+{
+  "id": "g53-fb-before",
+  "title": "Full bleed (before)",
+  "steps": [
+    {
+      "file": "01-before-arrangement.png",
+      "caption": "before: arrangement"
+    },
+    {
+      "file": "02-before-library.png",
+      "caption": "before: library"
+    },
+    {
+      "file": "03-before-mixer.png",
+      "caption": "before: mixer"
+    },
+    {
+      "file": "04-before-arrangement-with-the-assistant-do.png",
+      "caption": "before: arrangement with the assistant docked"
+    }
+  ]
+}
