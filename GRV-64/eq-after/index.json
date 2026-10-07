@@ -1,0 +1,14 @@
+{
+  "id": "eq-after",
+  "title": "After: this branch",
+  "steps": [
+    {
+      "file": "01-an-active-eq.png",
+      "caption": "An active EQ"
+    },
+    {
+      "file": "02-a-bypassed-eq-its-body-and-curve-recede-.png",
+      "caption": "A bypassed EQ: its body and curve recede, its header stays"
+    }
+  ]
+}

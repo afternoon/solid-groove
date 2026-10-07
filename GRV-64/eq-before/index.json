@@ -1,0 +1,10 @@
+{
+  "id": "eq-before",
+  "title": "Before: main",
+  "steps": [
+    {
+      "file": "01-a-bypassed-eq-on-main-no-different-from-.png",
+      "caption": "A bypassed EQ on main: no different from an active one"
+    }
+  ]
+}
