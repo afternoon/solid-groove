@@ -40,9 +40,6 @@ const PICKUP_MENTION = `${PICKUP}.** ([run](${RUN_URL}))`;
 const PLACEHOLDER =
   "_Reading the issue and working out a plan; this comment will show it and track progress._";
 
-/** A card that is a record, not work: the QA sweep's log. */
-const offBoard = (issue) => issue.labels.some((l) => linear.OFF_BOARD_LABELS.has(l));
-
 const TRANSIENT =
   /HTTP (5\d\d|429)|No server is currently available|secondary rate limit|timed? ?out|ECONNRESET|ETIMEDOUT|EAI_AGAIN|connection reset/i;
 const RETRY_DELAYS_MS = [2_000, 5_000, 15_000, 30_000];
@@ -132,7 +129,6 @@ const enteredInProgress = (issue) =>
 async function pollReady() {
   const ship = [];
   for (const card of await linear.list({ state: "Ready" })) {
-    if (offBoard(card)) continue;
     // Leave Ready first: the next poll must not see this card again.
     await linear.setState(card.identifier, "In Progress");
     const c = await linear.comment(card.identifier, `${PICKUP_SHIP}\n\n${PLACEHOLDER}`);
@@ -144,7 +140,6 @@ async function pollReady() {
 
 async function pollApproved(index) {
   for (const card of await linear.list({ state: "Approved" })) {
-    if (offBoard(card)) continue;
     const prs = approvalOfIssue(card.identifier, index);
     if (prs.length) approve(prs, index);
   }
@@ -165,7 +160,6 @@ async function pollRework(index) {
     history: true,
     comments: true,
   })) {
-    if (offBoard(card)) continue;
     const prs = index.prs.filter((p) => refersTo(p.body, card.identifier));
     if (!prs.length) continue;
     const moved = enteredInProgress(card);
@@ -205,7 +199,7 @@ async function pollMentions() {
   const mentions = [];
   const since = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
   for (const card of await linear.list({ open: true, comments: true })) {
-    if (offBoard(card) || card.updatedAt < since) continue;
+    if (card.updatedAt < since) continue;
     for (const c of card.comments) {
       if (!/@claude\b/i.test(c.body) || c.body.startsWith(PICKUP)) continue;
       const replies = card.comments.filter((r) => r.parent?.id === c.id);
@@ -230,7 +224,7 @@ async function pollMilestones() {
     noMilestone: true,
     createdAfter: since,
   });
-  return bugs.filter((b) => !offBoard(b)).map((b) => b.identifier);
+  return bugs.map((b) => b.identifier);
 }
 
 async function poll() {

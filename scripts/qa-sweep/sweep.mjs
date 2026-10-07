@@ -34,10 +34,6 @@ export const DEFAULT_ISSUES = 15;
 export const MAX_AGENTS = 10;
 export const MAX_ISSUES = 50;
 
-/** The label on the Linear issue that carries each run's summary. */
-export const LOG_LABEL = "qa-sweep";
-export const LOG_TITLE = "QA sweep";
-
 /** The branch `scripts/walkthrough/publish.mjs` pushes screenshots to. */
 export const WALKTHROUGH_BRANCH = "claude/walkthroughs";
 
@@ -405,26 +401,13 @@ export function reseenComment(entry, ctx) {
   return capBody(lines.join("\n"));
 }
 
-/** The body the log issue is created with. */
-export function logIssueBody() {
-  return [
-    "The scheduled QA sweep (`.github/workflows/qa-sweep.yml`) posts a summary of every run here: the flows it walked, the bugs it filed, and the open bugs it saw again.",
-    "",
-    'Agents walk core flows from `docs/core-flows.md` in the live app, each signed in as its own QA account, file each new bug as a `Bug: …` issue, and delete the projects they made before the run ends. See `docs/testing.md`, "Scheduled QA sweep".',
-    "",
-    "This is a record, not a card: leave it in Backlog with its `qa-sweep` label (the board automation ignores it). The sweep finds it by that label, and makes a new one if it is marked Done or Canceled.",
-    "",
-    FOOTER,
-  ].join("\n");
-}
-
 const AGENT_STATE = {
   ok: "walked",
   failed: "**agent failed**",
   missing: "**no report**",
 };
 
-/** The run summary posted on the log issue. */
+/** The run summary, posted as an update on the Groove project. */
 export function summaryBody({
   date,
   runUrl,

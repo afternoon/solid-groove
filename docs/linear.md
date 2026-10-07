@@ -60,14 +60,14 @@ own.
 Milestones are **project milestones** on the Groove project (`M1: …`, `M2:
 …`). A feature with no milestone is unscheduled; a bug always gets one.
 
-A card labelled `qa-sweep` is a record, not work: the QA sweep's run log.
-Leave it in Backlog; the poll and the sweep ignore it.
+The QA sweep posts each run's summary as a **project update** on Groove
+(the project's Updates tab), not on a card.
 
 ## Labels
 
 Team labels carry over from GitHub: `bug` (Linear's built-in `Bug`; the scripts match labels ignoring case), `polish`, `refactor`, `contract`,
 `decision`, `documentation`, `needs-shaping`, `human-input-required`,
-`parked`, `qa-sweep`. `status:*` labels no longer exist: the column is the
+`parked`. `status:*` labels no longer exist: the column is the
 status. On GitHub, `status:approved`, `needs-approval`, `hold`,
 `deploy-preview` and `merge-conflict` are still **PR** labels, and mean what
 they always did.

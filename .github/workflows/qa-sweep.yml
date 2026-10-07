@@ -14,7 +14,7 @@ name: QA sweep
 #            did, and its report uploaded.
 #   file     the only job that writes to Linear: new `Bug: …` issues up to the
 #            cap, comments on open issues seen again, screenshots (pushed to
-#            GitHub), and the run summary on the "QA sweep" issue.
+#            GitHub), and the run summary as a Linear project update.
 #
 # Budget: the `agents` and `issues` inputs, else the QA_SWEEP_MAX_AGENTS and
 # QA_SWEEP_MAX_ISSUES repository variables, else 5 and 15. Clamped to 10 and 50

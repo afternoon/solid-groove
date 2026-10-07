@@ -72,9 +72,6 @@ export const STATES = [
   { name: "Duplicate", type: "duplicate", color: "#95a2b3", about: "Filed twice" },
 ];
 
-/** Issues that are records, not cards: the poller and the sweep leave them alone. */
-export const OFF_BOARD_LABELS = new Set(["qa-sweep"]);
-
 /** `GRV-12` anywhere in text, as a global regex. */
 export const idPattern = () => new RegExp(`\\b${TEAM_KEY}-(\\d+)\\b`, "g");
 export const isIdentifier = (s) => new RegExp(`^${TEAM_KEY}-\\d+$`).test(s ?? "");
@@ -441,6 +438,19 @@ export async function editComment(id, body) {
     { id, input: { body } },
   );
   return data.commentUpdate.comment;
+}
+
+/**
+ * Post an update on the project's status feed (the QA sweep's run summaries).
+ * No health is sent, so the project keeps whatever health it was given.
+ */
+export async function projectUpdate(body) {
+  const { id } = await project();
+  const data = await gql(
+    `mutation($input:ProjectUpdateCreateInput!){projectUpdateCreate(input:$input){projectUpdate{id url}}}`,
+    { input: { projectId: id, body } },
+  );
+  return data.projectUpdateCreate.projectUpdate;
 }
 
 /** `blocker` blocks `blocked`. Idempotent. */

@@ -42,7 +42,6 @@ const LABELS = [
   "needs-shaping",
   "human-input-required",
   "parked",
-  "qa-sweep",
 ];
 
 const say = (line) => console.log(`${DRY ? "[dry-run] " : ""}${line}`);

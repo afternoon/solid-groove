@@ -12,10 +12,9 @@
  *
  *   1. plans the filing (`planFiling`): new issues up to $QA_SWEEP_ISSUES,
  *      re-seen open issues, and what fell over the cap;
- *   2. finds or creates the "QA sweep" log issue (label `qa-sweep`);
- *   3. publishes the screenshots with `scripts/walkthrough/publish.mjs`;
- *   4. opens each new `Bug: …` issue and comments on each re-seen one;
- *   5. posts the run summary on the log issue.
+ *   2. publishes the screenshots with `scripts/walkthrough/publish.mjs`;
+ *   3. opens each new `Bug: …` issue and comments on each re-seen one;
+ *   4. posts the run summary as an update on the Groove project in Linear.
  *
  * `--dry-run` (or QA_SWEEP_DRY_RUN=true) writes nothing to Linear and prints
  * what it would have written. Needs LINEAR_API_KEY (except for a dry run
@@ -38,9 +37,6 @@ import { SITE_ORIGIN } from "../../site.config.mjs";
 import {
   describeError,
   fileFindings,
-  LOG_LABEL,
-  LOG_TITLE,
-  logIssueBody,
   planFiling,
   readReport,
   resolveScreenshot,
@@ -57,6 +53,8 @@ const RUN_URL = env.GITHUB_RUN_ID
   ? `${env.GITHUB_SERVER_URL ?? "https://github.com"}/${REPO}/actions/runs/${env.GITHUB_RUN_ID}`
   : "local run";
 const RUN_ID = env.GITHUB_RUN_NUMBER ?? "local";
+/** The `claude/walkthroughs` directory the sweep's screenshots are published under. */
+const SCREENSHOT_DIR = "qa-sweep";
 
 const readJson = (path) => {
   try {
@@ -89,21 +87,10 @@ function collect(flows) {
 }
 
 async function openIssues() {
-  return (await linear.list({ open: true }))
-    .filter((i) => !i.labels.includes(LOG_LABEL))
-    .map((i) => ({ id: i.identifier, title: i.title }));
-}
-
-/** The issue the summaries go on: the open one labelled `qa-sweep`, or a new one. */
-async function logIssue() {
-  const existing = await linear.list({ open: true, labels: [LOG_LABEL] });
-  if (existing.length > 0) return existing[0].identifier;
-  const created = await linear.create({
-    title: LOG_TITLE,
-    body: logIssueBody(),
-    labels: [LOG_LABEL],
-  });
-  return created.identifier;
+  return (await linear.list({ open: true })).map((i) => ({
+    id: i.identifier,
+    title: i.title,
+  }));
 }
 
 /**
@@ -173,22 +160,11 @@ async function main() {
   if (!canFile) for (const finding of plan.file) finding.failed = true;
   const ctx = { runUrl: RUN_URL, build, siteUrl: SITE_ORIGIN, flows };
 
-  let log = "";
-  if (!DRY_RUN) {
-    try {
-      log = await logIssue();
-    } catch (error) {
-      failures.push({ what: "finding the QA sweep issue", error: describeError(error) });
-    }
-  }
   if (canFile) {
-    // Screenshots are published under the log issue's identifier; without it
-    // the findings are still filed, just with no picture.
-    if (DRY_RUN || log)
-      publishScreenshots(
-        [...plan.file, ...plan.reseen.flatMap((r) => r.findings)],
-        log || "qa-sweep",
-      );
+    publishScreenshots(
+      [...plan.file, ...plan.reseen.flatMap((r) => r.findings)],
+      SCREENSHOT_DIR,
+    );
     const write = {
       create: async ({ title, body }) => ({
         id: (await linear.create({ title, body, labels: ["bug"] })).identifier,
@@ -213,14 +189,14 @@ async function main() {
       failures,
       dryRun: DRY_RUN,
     });
-  if (DRY_RUN) console.log(`\n=== would post on the QA sweep issue\n${summary()}`);
-  else if (log) {
+  if (DRY_RUN) console.log(`\n=== would post as a project update\n${summary()}`);
+  else {
     try {
-      await linear.comment(log, summary());
-      console.log(`Posted the run summary on ${log}.`);
+      const update = await linear.projectUpdate(summary());
+      console.log(`Posted the run summary as a project update: ${update.url}`);
     } catch (error) {
       failures.push({
-        what: `posting the summary on ${log}`,
+        what: "posting the summary as a project update",
         error: describeError(error),
       });
     }
