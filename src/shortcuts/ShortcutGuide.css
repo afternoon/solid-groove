@@ -132,9 +132,18 @@
   white-space: nowrap;
 }
 
-/* Availability is stated in words as well as dimmed, so it is not colour-only. */
-.shortcut-guide-row[data-available="false"] {
-  opacity: 0.65;
+/* Availability is stated in words as well as dimmed, so it is not colour-only.
+   Dimmed with the muted grey rather than a fade, which took its smaller text
+   under WCAG AA's 4.5:1 (#76). */
+.shortcut-guide-row[data-available="false"],
+.shortcut-guide-row[data-available="false"]
+  :is(
+    .shortcut-guide-action-description,
+    .shortcut-guide-ableton,
+    .shortcut-guide-browser-note,
+    .shortcut-guide-unavailable
+  ) {
+  color: var(--color-foreground-muted);
 }
 
 .shortcut-guide-empty {
