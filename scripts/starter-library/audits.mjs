@@ -33,6 +33,19 @@ export const LOUDNESS_OUTLIER_LU = 12;
  */
 export const MIN_LOUDNESS_BAND = 3;
 
+/**
+ * How far a detected pitch may sit from the declared root, in cents.
+ *
+ * 50 cents is where the nearest note changes: past it, the `rootNote` names the
+ * wrong semitone and a sampler mapping the sound by it plays every key out of
+ * tune. Inside it the recorded `tuningCents` is the fine correction, which is
+ * metadata, not a fault. Every detected synthesized sound measures within ±9.
+ */
+export const TUNING_TOLERANCE_CENTS = 50;
+
+/** What `measureTuning` (`dsp.mjs`) can say about a sound's pitch. */
+export const TUNING_STATUSES = ["detected", "undetectable", "gliding"];
+
 function median(values) {
   const sorted = [...values].sort((a, b) => a - b);
   const middle = Math.floor(sorted.length / 2);
@@ -118,10 +131,31 @@ export function validateLibraryAudio(packManifests) {
   const measured = assets.filter((asset) => Number.isFinite(asset.audio.loudnessLufs));
   const summary = [
     `loudness:            ${measured.length} assets measured (BS.1770-4), ${loudness.warnings.length} outside ±${LOUDNESS_OUTLIER_LU} LU of their role band (for review)`,
+    formatTuningSummary(assets),
   ];
   return {
     errors: [...loudness.errors],
     warnings: [...loudness.warnings],
     summary,
   };
+}
+
+/**
+ * One line on the tuning audit. The per-asset rule itself is in `validate.mjs`;
+ * this says how much of the tonal library the detector could actually judge, so
+ * "no tuning errors" is never read as "every root was checked".
+ */
+function formatTuningSummary(assets) {
+  const tonal = assets.filter((asset) => asset.audio.tuningStatus);
+  const count = (status) =>
+    tonal.filter((asset) => asset.audio.tuningStatus === status).length;
+  const detected = tonal.filter((asset) => asset.audio.tuningStatus === "detected");
+  const beyond = detected.filter(
+    (asset) => Math.abs(asset.audio.tuningCents) > TUNING_TOLERANCE_CENTS,
+  ).length;
+  const widest = Math.max(
+    0,
+    ...detected.map((asset) => Math.abs(asset.audio.tuningCents)),
+  );
+  return `tuning:              ${tonal.length} pitched assets, ${detected.length} detected (widest ±${widest} cents, ${beyond} beyond ±${TUNING_TOLERANCE_CENTS}), ${count("undetectable")} undetectable, ${count("gliding")} gliding`;
 }

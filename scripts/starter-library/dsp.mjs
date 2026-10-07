@@ -685,3 +685,203 @@ export function integratedLoudness(samples, sampleRate = SAMPLE_RATE) {
   const gated = absolute.filter((meanSquare) => blockLoudness(meanSquare) > relativeGate);
   return blockLoudness(meanOf(gated));
 }
+
+// ---------------------------------------------------------------------------
+// Pitch (tuning audit)
+// ---------------------------------------------------------------------------
+
+/**
+ * YIN's aperiodicity (its cumulative-mean-normalized difference at the chosen
+ * lag) at or above which a frame is not periodic enough to trust. 0.1 is the
+ * strict end of the range the YIN paper discusses: a harmonic tone sits far
+ * below it, while an inharmonic bell or a modal struck bar — whose partials
+ * share no common period — sits above it, and is reported undetectable rather
+ * than given a pitch it does not have.
+ */
+export const PITCH_MAX_APERIODICITY = 0.1;
+/** Fewest confident frames a settled pitch is read from. */
+const PITCH_MIN_FRAMES = 3;
+/** Most analysis frames per sound, spread over the span analysed. */
+const PITCH_MAX_FRAMES = 24;
+/** Analysis starts this long after the peak, past the attack transient. */
+const PITCH_SKIP_SECONDS = 0.02;
+/** And covers at most this much of the sound: a pitch is settled well before. */
+const PITCH_SPAN_SECONDS = 3;
+/** How far either side of the declared root the lag search reaches, in octaves. */
+const PITCH_SEARCH_OCTAVES = 1.1;
+/**
+ * A settled stretch whose two halves differ by more than this many cents is
+ * still gliding (a tom or a tuned bass whose pitch envelope has not finished
+ * falling), so it has no single pitch to judge.
+ */
+export const PITCH_GLIDE_CENTS = 20;
+
+/**
+ * A dip this much deeper than the chosen one, at a lag that is not a whole
+ * multiple of it, is the true period, and the chosen one was a fraction of it.
+ */
+const SUBHARMONIC_DEPTH_RATIO = 0.5;
+/** How close to a whole number a lag ratio must be to count as a multiple. */
+const SUBHARMONIC_MULTIPLE_TOLERANCE = 0.1;
+
+/**
+ * The subharmonic check on YIN's first-dip choice. When an upper harmonic
+ * dominates the fundamental (a 3rd harmonic 12 dB over it, say), the signal
+ * nearly repeats at a fraction of its period — 2/3 of it for the 3rd — and that
+ * dip can fall under the threshold before the true period's does, reading a
+ * fifth sharp. At the true period every partial lines up, so its dip is far
+ * deeper. Walking the later dips, one at a lag that is not a whole multiple of
+ * the current choice (a whole multiple is the same period again) and at most
+ * half as aperiodic replaces it.
+ */
+function subharmonicCheck(normalized, dips) {
+  let best = dips[0];
+  for (const lag of dips.slice(1)) {
+    const ratio = lag / best;
+    const multiple = Math.abs(ratio - Math.round(ratio)) < SUBHARMONIC_MULTIPLE_TOLERANCE;
+    if (!multiple && normalized[lag] < normalized[best] * SUBHARMONIC_DEPTH_RATIO) {
+      best = lag;
+    }
+  }
+  return best;
+}
+
+/** One YIN estimate (de Cheveigné and Kawahara, 2002) at `start`. */
+function yinFrame(signal, start, windowFrames, minLag, maxLag) {
+  const difference = new Float64Array(maxLag + 2);
+  for (let lag = 1; lag <= maxLag + 1; lag++) {
+    let sum = 0;
+    for (let j = 0; j < windowFrames; j++) {
+      const delta = signal[start + j] - signal[start + j + lag];
+      sum += delta * delta;
+    }
+    difference[lag] = sum;
+  }
+  const normalized = new Float64Array(maxLag + 2);
+  normalized[0] = 1;
+  let running = 0;
+  for (let lag = 1; lag <= maxLag + 1; lag++) {
+    running += difference[lag];
+    normalized[lag] = running > 0 ? (difference[lag] * lag) / running : 1;
+  }
+  // Every dip under the threshold, each followed to its floor. YIN takes the
+  // first, subject to the subharmonic check; failing any dip, the global
+  // minimum (whose aperiodicity then marks the frame untrusted).
+  const dips = [];
+  for (let lag = minLag; lag <= maxLag; lag++) {
+    if (normalized[lag] >= PITCH_MAX_APERIODICITY) continue;
+    while (lag + 1 <= maxLag && normalized[lag + 1] < normalized[lag]) lag++;
+    dips.push(lag);
+    while (lag + 1 <= maxLag && normalized[lag + 1] < PITCH_MAX_APERIODICITY) lag++;
+  }
+  let best = dips.length > 0 ? subharmonicCheck(normalized, dips) : -1;
+  if (best < 0) {
+    let lowest = Number.POSITIVE_INFINITY;
+    for (let lag = minLag; lag <= maxLag; lag++) {
+      if (normalized[lag] < lowest) {
+        lowest = normalized[lag];
+        best = lag;
+      }
+    }
+  }
+  // Parabolic interpolation around the chosen lag, for sub-sample precision.
+  const before = normalized[best - 1];
+  const at = normalized[best];
+  const after = normalized[best + 1];
+  const curvature = before - 2 * at + after;
+  const offset = curvature > 0 ? (0.5 * (before - after)) / curvature : 0;
+  return { lag: best + offset, aperiodicity: at };
+}
+
+/** Cents of `hz` above `referenceHz`, folded to the nearest octave: (-600, 600]. */
+function foldedCents(hz, referenceHz) {
+  const cents = 1200 * Math.log2(hz / referenceHz);
+  const folded = cents - 1200 * Math.round(cents / 1200);
+  return folded <= -600 ? folded + 1200 : folded;
+}
+
+function medianOf(values) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 1
+    ? sorted[middle]
+    : (sorted[middle - 1] + sorted[middle]) / 2;
+}
+
+/**
+ * Measure how far a sound's settled pitch sits from the root it declares.
+ *
+ * YIN runs over up to 24 frames from just after the peak, searching lags within
+ * 1.1 octaves of the declared root. Only frames under `PITCH_MAX_APERIODICITY`
+ * count, and the pitch is read from the later half of those — the settled
+ * pitch, after any designed pitch drop — so a tom is judged where it rings,
+ * not where its envelope starts. The result is folded to the nearest octave:
+ * tuning is the cents correction a sampler applies, and a periodicity detector
+ * cannot tell a note from its octave reliably enough to judge the octave the
+ * catalogue declares.
+ *
+ * @param {Float32Array | Float32Array[]} samples  Mono, or one array per channel (summed).
+ * @returns {{ status: "detected" | "undetectable" | "gliding", cents: number | null }}
+ *   `cents` is the settled pitch's offset from the root, rounded to a cent,
+ *   when `status` is `"detected"`; otherwise `null`. An unpitched, inharmonic,
+ *   or too-short sound is `"undetectable"`, and one whose pitch is still
+ *   moving is `"gliding"`. Neither is a tuning fault.
+ */
+export function measureTuning(samples, rootHz, sampleRate = SAMPLE_RATE) {
+  const channels = ArrayBuffer.isView(samples) ? [samples] : samples;
+  const frames = channels[0]?.length ?? 0;
+  const signal = new Float32Array(frames);
+  for (const channel of channels) {
+    for (let i = 0; i < frames; i++) signal[i] += channel[i] / channels.length;
+  }
+
+  const minLag = Math.max(
+    2,
+    Math.floor(sampleRate / (rootHz * 2 ** PITCH_SEARCH_OCTAVES)),
+  );
+  const maxLag = Math.ceil(sampleRate / (rootHz / 2 ** PITCH_SEARCH_OCTAVES));
+  const windowFrames = Math.max(1024, maxLag);
+
+  let peakIndex = 0;
+  for (let i = 0; i < frames; i++) {
+    if (Math.abs(signal[i]) > Math.abs(signal[peakIndex])) peakIndex = i;
+  }
+  const first = peakIndex + Math.round(PITCH_SKIP_SECONDS * sampleRate);
+  const last = Math.min(
+    frames - windowFrames - maxLag - 2,
+    peakIndex + Math.round(PITCH_SPAN_SECONDS * sampleRate),
+  );
+  const undetectable = { status: "undetectable", cents: null };
+  if (last < first) return undetectable;
+  const hop = Math.max(
+    Math.floor(windowFrames / 2),
+    Math.ceil((last - first) / (PITCH_MAX_FRAMES - 1)),
+  );
+
+  const confident = [];
+  for (let start = first; start <= last; start += hop) {
+    const { lag, aperiodicity } = yinFrame(signal, start, windowFrames, minLag, maxLag);
+    if (aperiodicity < PITCH_MAX_APERIODICITY) {
+      confident.push(foldedCents(sampleRate / lag, rootHz));
+    }
+  }
+  if (confident.length < PITCH_MIN_FRAMES) return undetectable;
+
+  // The later half is the settled pitch. Unwrap it around its first frame so a
+  // pitch sitting near the ±600 fold does not read as a jump.
+  const settled = confident.slice(
+    Math.min(Math.floor(confident.length / 2), confident.length - PITCH_MIN_FRAMES),
+  );
+  const unwrapped = settled.map(
+    (cents) => cents - 1200 * Math.round((cents - settled[0]) / 1200),
+  );
+  const half = Math.floor(unwrapped.length / 2);
+  const drift = Math.abs(
+    medianOf(unwrapped.slice(0, half || 1)) - medianOf(unwrapped.slice(half)),
+  );
+  if (drift > PITCH_GLIDE_CENTS) return { status: "gliding", cents: null };
+
+  const cents = foldedCents(rootHz * 2 ** (medianOf(unwrapped) / 1200), rootHz);
+  // `+ 0` turns a rounded -0 into 0, so the manifest never records "-0".
+  return { status: "detected", cents: Math.round(cents) + 0 };
+}

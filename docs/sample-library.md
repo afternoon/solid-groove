@@ -470,6 +470,7 @@ Each asset record should support a shape equivalent to:
     "loudnessLufs": -14.8,
     "rootNote": "C1",
     "tuningCents": -3,
+    "tuningStatus": "detected",
     "bpm": null,
     "bars": null,
     "loopable": false
@@ -531,7 +532,7 @@ Manifest validation fails CI when an asset is missing its checksum, rights evide
 
 - Trim start latency tightly enough for rhythmic use.
 - Preserve natural or designed tails unless silence is clearly accidental.
-- Detect and review root note and tuning for tonal drums, basses, stabs, and instruments.
+- Detect and review root note and tuning for tonal drums, basses, stabs, and instruments. The build measures each declared root's settled pitch and fails one more than 50 cents off (section 15.12).
 - Record choke relationships for open/closed hats and similar pairs.
 - Identify near duplicates using audio fingerprints and human review.
 
@@ -802,7 +803,7 @@ scripts/starter-library/
   manifest.mjs      section 9 manifest records; merges every acquired bundle
   validate.mjs      per-asset and collection-level rules; the CI gate
   audit.mjs         the release audit over the shipped bytes (section 15.11)
-  audits.mjs        library-wide audio audits: loudness outliers per role band (section 15.12)
+  audits.mjs        library-wide audio audits and their thresholds: loudness, tuning (section 15.12)
   acquire.mjs       CLI: plan, pin, ingest
   manage.mjs        CLI + local review UI server (section 15.7)
   managePage.mjs    the review page served by library:manage
@@ -972,7 +973,7 @@ Isolation is a build-time partition, not an error: `buildAllPacks` splits what i
 | `missing-file` | An entry with no delivered file, or one whose size disagrees with its record; a delivered file no entry names | |
 | `decode` | Bytes that do not match the recorded SHA-256; a WAV that does not decode as 24-bit PCM; a rate, channel count or length that disagrees with the record; a preset that does not parse | |
 | `loudness` | A measured peak more than 0.1 dB from the record, above -0.1 dBFS, or silent | RMS below -40 dBFS (too quiet to audition); a crest factor under 3 dB (brick-walled) |
-| `tuning` | A pitched (`bass`, `tonal`) one-shot with no root note; a root with no tuning reading or more than 50 cents out | A pitched derived master with no root, since its transform moved the pitch |
+| `tuning` | A pitched (`bass`, `tonal`) one-shot with no root note; a root with no tuning reading or more than 50 cents out | A pitched derived master with no root, since its transform moved the pitch; a root the detector found `undetectable` or `gliding` (section 15.12), left to the section 11 listening review. A loop is not tuned: its root is its key |
 | `loop-boundary` | A loop re-measured off its bar grid, not sample-aligned, or clicking at the wrap over 32 cycles | |
 | `duplicates` | The same master in two packs (the validator already rejects it inside one) | Two masters with the same length and the same 48-bin overview: a near duplicate to check by ear |
 
@@ -990,6 +991,21 @@ The report leads with one line per pack: pass or fail, version, asset count, its
 - A band mixes one-shots and loops. Split by type, most loop bands would be too thin to have a median and fall back to the family, which mixes them again.
 
 Measured across the whole library with every acquired source ingested (476 audio assets: 216 synthesized; 260 acquired from VCSL, every FreePats bank, Karoryfer, both open-drums kits and the nine smpldsnds kits), one asset is reported: `sg-one-shot-tonal-chord-6020`, a VCSL Dan Tranh chord at -29 LUFS, 12.5 LU under the tonal/chord median of -16.5. It is sparse, with a long decay: the useful dynamics section 10 keeps, which is why an outlier is a warning. No synthesized asset is outside its band; the widest is that octave-down sub. CI builds without the acquired content, so these figures come from a local run with it ingested.
+
+**Tuning.** For a one-shot or derived master whose `rootNote` names the pitch it sounds at, `audio.tuningCents` is now measured rather than claimed: the builders and ingest paths used to write `0` for every tonal asset, which recorded a hope, not a detection. `measureTuning` in `dsp.mjs` runs YIN over up to 24 frames from 20 ms after the peak, searching within 1.1 octaves of the root, and keeps only frames whose aperiodicity is under 0.1. A subharmonic check guards YIN's first-dip choice: when an upper harmonic dominates the fundamental, the sound nearly repeats at a fraction of its period (2/3 of it for a strong 3rd harmonic, a fifth sharp), so a later dip that is not a whole multiple of the first and at most half as aperiodic is taken as the period instead. The pitch is read from the later half of those frames, so a tom or a tuned bass is judged where its designed pitch drop settles, and it is folded to the nearest octave: tuning is the cents correction, and a periodicity detector cannot judge the octave reliably. `audio.tuningStatus` says what the detector found:
+
+| `tuningStatus` | Meaning | `tuningCents` |
+| --- | --- | --- |
+| `detected` | A settled, periodic pitch | The offset from the root, in whole cents |
+| `undetectable` | Too few periodic frames: noise, inharmonic partials (bells, modal struck bars, most chords and detuned stacks), or too short | `null` |
+| `gliding` | Periodic, but the two halves of the settled stretch differ by more than 20 cents | `null` |
+| `null` | Not audited: no `rootNote`, or a loop, whose `rootNote` is its key rather than one sounding pitch | unchanged |
+
+- A pitched asset with no `tuningStatus`, or a `tuningCents` claimed where no pitch was detected, fails.
+- A detected pitch more than **50 cents** from the root fails: past that the root names the wrong semitone, and a sampler mapping the sound by it plays every key out of tune. Inside it, the recorded `tuningCents` is the fine correction, which is metadata, not a fault.
+- `undetectable` and `gliding` are not faults. The detector cannot judge them, so they stay with the section 11 listening review, and the build prints how many there are so "no tuning errors" is never read as "every root was checked".
+
+Across the whole library with every acquired source ingested, 94 assets declare a pitch and none is beyond the tolerance: 65 are detected, all within ±9 cents, 27 are undetectable and 2 glide. Of those, the synthesized library's 77 are 49 detected (within ±9 cents), 26 undetectable (mostly the modal struck, chord, stab and reese voices, plus one short sub, one bass stab and one pluck) and 2 gliding (a short tom and a modal mallet). The acquired 17 (the pitched FreePats synth banks and Karoryfer's Caveman Cosmonaut; VCSL, the percussion banks and the drum-machine kits declare no root) are 16 detected within ±5 cents and one undetectable FreePats stab. The subharmonic check changes none of these readings; it is there for a harmonic-dominant timbre the library does not yet hold.
 
 ## 16. Pack marketplace
 

@@ -16,6 +16,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 import { licenseRejectionReason, PRIVATE_ALPHA_LICENSE } from "./acquire/sources.mjs";
+import { TUNING_STATUSES, TUNING_TOLERANCE_CENTS } from "./audits.mjs";
 import { isDeliverable, isKnownIntakeState } from "./intake.mjs";
 import { SEAM_CYCLES } from "./loops.mjs";
 import { noteToMidi } from "./music.mjs";
@@ -367,8 +368,8 @@ function validateAsset(
     } else if (!Number.isFinite(audio.loudnessLufs)) {
       errors.push(`${where}: loudnessLufs must be a number`);
     }
-    if (audio.rootNote !== null && typeof audio.tuningCents !== "number") {
-      errors.push(`${where}: tonal asset is missing tuningCents`);
+    if (audio.rootNote !== null && asset.type !== "loop") {
+      validateTuning(audio, where, errors);
     }
     if (audio.loopable && (!(audio.bpm > 0) || !(audio.bars > 0))) {
       errors.push(`${where}: loopable asset is missing bpm/bars`);
@@ -535,6 +536,36 @@ function validateAsset(
         errors.push(`${where}: acquired asset is missing license.sourceUrl`);
       }
     }
+  }
+}
+
+/**
+ * Section 10, "One-shots": "Detect and review root note and tuning for tonal
+ * drums, basses, stabs, and instruments." `measureDelivered` detects the
+ * settled pitch; this rejects a record that was never measured, and a sound
+ * whose detected pitch sits more than `TUNING_TOLERANCE_CENTS` from the root it
+ * declares. A sound with no detectable or no settled pitch (inharmonic, noisy,
+ * still gliding) is reported by status and is not a fault.
+ */
+function validateTuning(audio, where, errors) {
+  if (!TUNING_STATUSES.includes(audio.tuningStatus)) {
+    errors.push(`${where}: tonal asset's tuning was not measured`);
+    return;
+  }
+  if (audio.tuningStatus !== "detected") {
+    if (audio.tuningCents !== null) {
+      errors.push(
+        `${where}: tuningCents claims a value but no pitch was detected (${audio.tuningStatus})`,
+      );
+    }
+    return;
+  }
+  if (!Number.isFinite(audio.tuningCents)) {
+    errors.push(`${where}: detected pitch has no tuningCents`);
+  } else if (Math.abs(audio.tuningCents) > TUNING_TOLERANCE_CENTS) {
+    errors.push(
+      `${where}: detected pitch is ${audio.tuningCents > 0 ? "+" : ""}${audio.tuningCents} cents from its declared root ${audio.rootNote}, beyond the ±${TUNING_TOLERANCE_CENTS} cent tolerance — the root names the wrong note`,
+    );
   }
 }
 

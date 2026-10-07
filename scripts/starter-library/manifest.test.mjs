@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { CATALOG } from "./catalog/index.mjs";
-import { buildAsset, buildPackIndex, serialize } from "./manifest.mjs";
+import { buildAsset, buildPackIndex, measureDelivered, serialize } from "./manifest.mjs";
 import { packBySlug, packForFamily, packRef } from "./packs.mjs";
 import { GENRES, TAXONOMY } from "./taxonomy.mjs";
 import {
@@ -115,12 +115,20 @@ describe("buildAsset", () => {
   it(
     "describes tonal and unpitched assets differently",
     () => {
-      const tonal = buildAsset(sampleEntries[3]).asset;
+      // Tuning is measured from the delivered bytes, as `buildAllPacks` does,
+      // not claimed by the builder.
+      const delivered = (entry) => {
+        const { asset, bytes } = buildAsset(entry);
+        return measureDelivered(asset, bytes);
+      };
+      const tonal = delivered(sampleEntries[3]);
       expect(tonal.audio.rootNote).toBe("C3");
+      expect(tonal.audio.tuningStatus).toBe("detected");
       expect(tonal.audio.tuningCents).toBe(0);
-      const glitch = buildAsset(sampleEntries[4]).asset;
+      const glitch = delivered(sampleEntries[4]);
       expect(glitch.audio.rootNote).toBeNull();
       expect(glitch.audio.tuningCents).toBeNull();
+      expect(glitch.audio.tuningStatus).toBeNull();
       // One-shots never claim a tempo.
       expect(glitch.audio.loopable).toBe(false);
       expect(glitch.audio.bpm).toBeNull();
@@ -363,11 +371,33 @@ describe("validatePackManifest", () => {
       /no measurable loudness/,
     ],
     [
+      "a detected pitch past the tuning tolerance",
+      (m) => {
+        Object.assign(m.assets[0].audio, {
+          rootNote: "C3",
+          tuningStatus: "detected",
+          tuningCents: 80,
+        });
+      },
+      /\+80 cents from its declared root C3, beyond the ±50 cent tolerance/,
+    ],
+    [
+      "a tuning claimed for a sound with no detectable pitch",
+      (m) => {
+        Object.assign(m.assets[0].audio, {
+          rootNote: "C3",
+          tuningStatus: "undetectable",
+          tuningCents: 0,
+        });
+      },
+      /claims a value but no pitch was detected/,
+    ],
+    [
       "a tonal asset with no tuning",
       (m) => {
         m.assets[0].audio.rootNote = "C3";
       },
-      /missing tuningCents/,
+      /tuning was not measured/,
     ],
     [
       "a loop with no tempo",

@@ -363,8 +363,54 @@ describe("the tuning audit", () => {
   it("fails a root further than a quarter-tone out", () => {
     const lib = library();
     const { asset } = pitched(lib);
+    asset.audio.tuningStatus = "detected";
     asset.audio.tuningCents = 70;
     expect(findings(audit(lib), "tuning")).toContainEqual(
+      expect.objectContaining({ assetId: asset.id }),
+    );
+  });
+
+  it("fails a measured root with no tuning reading", () => {
+    const lib = library();
+    const { asset } = pitched(lib);
+    asset.audio.tuningStatus = "detected";
+    asset.audio.tuningCents = null;
+    expect(findings(audit(lib), "tuning")).toContainEqual(
+      expect.objectContaining({
+        assetId: asset.id,
+        message: `root ${asset.audio.rootNote} has no tuning reading`,
+      }),
+    );
+  });
+
+  it.each(["undetectable", "gliding"])(
+    "warns, not fails, on a root the detector found %s",
+    (status) => {
+      const lib = library();
+      const { asset } = pitched(lib);
+      asset.audio.tuningStatus = status;
+      asset.audio.tuningCents = null;
+      const result = audit(lib);
+      expect(findings(result, "tuning")).not.toContainEqual(
+        expect.objectContaining({ assetId: asset.id }),
+      );
+      expect(findings(result, "tuning", "warning")).toContainEqual(
+        expect.objectContaining({
+          assetId: asset.id,
+          message: `root ${asset.audio.rootNote} could not be measured (${status}); review it by ear`,
+        }),
+      );
+    },
+  );
+
+  it("does not tune a loop against its key", () => {
+    const lib = library();
+    const { asset } = assetOf(
+      lib,
+      (candidate) => candidate.type === "loop" && candidate.audio.rootNote,
+    );
+    asset.audio.tuningCents = null;
+    expect(findings(audit(lib), "tuning")).not.toContainEqual(
       expect.objectContaining({ assetId: asset.id }),
     );
   });

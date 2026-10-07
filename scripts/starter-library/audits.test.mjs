@@ -6,10 +6,19 @@ import {
   auditLoudness,
   LOUDNESS_OUTLIER_LU,
   MIN_LOUDNESS_BAND,
+  TUNING_TOLERANCE_CENTS,
   validateLibraryAudio,
 } from "./audits.mjs";
-import { integratedLoudness, kWeight, SAMPLE_RATE } from "./dsp.mjs";
+import {
+  createRng,
+  integratedLoudness,
+  kWeight,
+  measureTuning,
+  SAMPLE_RATE,
+  whiteNoise,
+} from "./dsp.mjs";
 import { measureDelivered } from "./manifest.mjs";
+import { noteToFrequency } from "./music.mjs";
 import { decodeWav, encodeWav, PEAK_BINS } from "./wav.mjs";
 
 function sine(frequency, seconds, amplitude = 1) {
@@ -198,5 +207,183 @@ describe("loudness outliers by role band", () => {
     expect(errors).toEqual([]);
     expect(warnings).toHaveLength(1);
     expect(summary.join("\n")).toContain(`1 outside ±${LOUDNESS_OUTLIER_LU} LU`);
+  });
+});
+
+/**
+ * A decaying harmonic tone whose frequency may move: `frequencyAt(t)` in Hz.
+ * Phase is integrated, so a glide is continuous, as a pitch envelope is.
+ */
+function tone(frequencyAt, seconds, { partials = [1, 0.5, 0.33], decay = 1.5 } = {}) {
+  const out = new Float32Array(Math.round(seconds * SAMPLE_RATE));
+  let phase = 0;
+  for (let i = 0; i < out.length; i++) {
+    const t = i / SAMPLE_RATE;
+    let value = 0;
+    partials.forEach((gain, index) => {
+      value += gain * Math.sin(2 * Math.PI * (index + 1) * phase);
+    });
+    out[i] = 0.5 * value * Math.exp(-t / decay);
+    phase += frequencyAt(t) / SAMPLE_RATE;
+  }
+  return out;
+}
+
+const A3 = noteToFrequency("A3");
+const cents = (hz, offset) => hz * 2 ** (offset / 1200);
+
+describe("tuning measurement (YIN, settled pitch)", () => {
+  it("reads a harmonic tone on its root as 0 cents", () => {
+    expect(
+      measureTuning(
+        tone(() => A3, 1),
+        A3,
+      ),
+    ).toEqual({ status: "detected", cents: 0 });
+  });
+
+  it("reads a detuned tone's offset to within a few cents", () => {
+    for (const offset of [-35, 18, 140]) {
+      const result = measureTuning(
+        tone(() => cents(A3, offset), 1),
+        A3,
+      );
+      expect(result.status).toBe("detected");
+      expect(Math.abs(result.cents - offset)).toBeLessThanOrEqual(2);
+    }
+  });
+
+  it("folds an octave away, judging tuning and not the octave", () => {
+    const result = measureTuning(
+      tone(() => cents(A3 * 2, 10), 1),
+      A3,
+    );
+    expect(result.status).toBe("detected");
+    expect(Math.abs(result.cents - 10)).toBeLessThanOrEqual(2);
+  });
+
+  it("finds the fundamental under a dominant upper harmonic, not a fraction of its period", () => {
+    // A 3rd harmonic 12 dB over the fundamental repeats almost exactly every
+    // 2/3 of the period, a fifth up, which first-dip YIN took for the pitch and
+    // folded to -500 cents. The 5th harmonic does the same at 3/5 and 4/5.
+    for (const partials of [
+      [1, 0, 4],
+      [1, 0, 0, 0, 4],
+      [0.5, 0, 3, 0, 1],
+    ]) {
+      expect(
+        measureTuning(
+          tone(() => A3, 1, { partials, decay: 1 }),
+          A3,
+        ),
+      ).toEqual({
+        status: "detected",
+        cents: 0,
+      });
+    }
+  });
+
+  it("judges a designed pitch drop where it settles, like a tom", () => {
+    // 600 cents above the root, falling onto it with a 40 ms time constant.
+    const drop = (t) => A3 * 2 ** (0.5 * Math.exp(-t / 0.04));
+    const result = measureTuning(tone(drop, 1.2), A3);
+    expect(result.status).toBe("detected");
+    expect(Math.abs(result.cents)).toBeLessThanOrEqual(3);
+  });
+
+  it("reports a pitch that never settles as gliding, not as out of tune", () => {
+    // A steady two-semitone-per-second fall for the whole sound.
+    const fall = (t) => A3 * 2 ** (-(2 * t) / 12);
+    expect(measureTuning(tone(fall, 1.5, { decay: 10 }), A3)).toEqual({
+      status: "gliding",
+      cents: null,
+    });
+  });
+
+  it("reports noise and inharmonic partials as undetectable", () => {
+    expect(measureTuning(whiteNoise(SAMPLE_RATE, createRng(5)), A3).status).toBe(
+      "undetectable",
+    );
+    // A struck bar's modes: partials that share no common period.
+    const bar = new Float32Array(SAMPLE_RATE);
+    for (const [ratio, gain] of [
+      [1, 1],
+      [2.756, 0.8],
+      [5.404, 0.6],
+      [8.933, 0.4],
+    ]) {
+      for (let i = 0; i < bar.length; i++) {
+        bar[i] += gain * Math.sin((2 * Math.PI * A3 * ratio * i) / SAMPLE_RATE);
+      }
+    }
+    expect(measureTuning(bar, A3).status).toBe("undetectable");
+  });
+
+  it("reports a sound too short to analyse as undetectable", () => {
+    expect(
+      measureTuning(
+        tone(() => A3, 0.03),
+        A3,
+      ).status,
+    ).toBe("undetectable");
+  });
+});
+
+describe("the tuning audit on a delivered master", () => {
+  const masterAt = (hz) => encodeWav(tone(() => hz, 1));
+
+  it("measures a one-shot against the root it declares", () => {
+    const asset = measureDelivered(
+      { id: "x", type: "one-shot", audio: { rootNote: "A3", tuningCents: null } },
+      masterAt(cents(A3, -12)),
+    );
+    expect(asset.audio.tuningStatus).toBe("detected");
+    expect(Math.abs(asset.audio.tuningCents + 12)).toBeLessThanOrEqual(2);
+  });
+
+  it("replaces a claimed tuning with the measured one", () => {
+    // The violating fixture: declared A3 and claiming 0 cents, but rendered
+    // a semitone and a half sharp.
+    const asset = measureDelivered(
+      { id: "x", type: "one-shot", audio: { rootNote: "A3", tuningCents: 0 } },
+      masterAt(cents(A3, 150)),
+    );
+    expect(asset.audio.tuningStatus).toBe("detected");
+    expect(asset.audio.tuningCents).toBeGreaterThan(TUNING_TOLERANCE_CENTS);
+  });
+
+  it("does not tuning-audit a loop, whose root is a key", () => {
+    const asset = measureDelivered(
+      { id: "x", type: "loop", audio: { rootNote: "A3", tuningCents: null } },
+      masterAt(cents(A3, 150)),
+    );
+    expect(asset.audio.tuningStatus).toBeNull();
+    expect(asset.audio.tuningCents).toBeNull();
+  });
+
+  it("leaves an unpitched asset unmeasured", () => {
+    const asset = measureDelivered(
+      { id: "x", type: "one-shot", audio: { rootNote: null, tuningCents: null } },
+      masterAt(A3),
+    );
+    expect(asset.audio.tuningStatus).toBeNull();
+  });
+
+  it("says how much of the tonal library it could judge", () => {
+    const pitched = (id, tuningStatus, tuningCents) =>
+      audioAsset(id, { tuningStatus, tuningCents });
+    const { summary } = validateLibraryAudio([
+      {
+        assets: [
+          pitched("a", "detected", -7),
+          pitched("b", "detected", 3),
+          pitched("c", "undetectable", null),
+          pitched("d", "gliding", null),
+        ],
+      },
+    ]);
+    expect(summary.join("\n")).toContain(
+      "4 pitched assets, 2 detected (widest ±7 cents, 0 beyond ±50), 1 undetectable, 1 gliding",
+    );
   });
 });
