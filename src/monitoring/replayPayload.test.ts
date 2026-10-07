@@ -453,6 +453,9 @@ describe("the OPS-03 content rule against the replay payload (ADR 0002 decision 
       "drop.state()",
       "emptySpace.state()",
       "props.row.state",
+      // A library family tile's unit word (GRV-49): "sound" or "sounds",
+      // chosen by the count. Our own copy, never a name.
+      'entry.count === 1 ? "sound" : "sounds"',
     ];
     const offenders: string[] = [];
     for (const file of sourceFiles()) {

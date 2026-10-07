@@ -270,9 +270,10 @@
 }
 
 /* Drawn rather than written so the list's own "<n> sounds" stays the only
-   text in the window that reads as the result count. */
+   text in the window that reads as the result count. The tile names the word
+   in `data-unit`, singular for one sound as the list's count is (GRV-49). */
 .shelf-family-count::after {
-  content: " sounds";
+  content: " " attr(data-unit);
 }
 
 .shelf-family[aria-selected="true"] {
