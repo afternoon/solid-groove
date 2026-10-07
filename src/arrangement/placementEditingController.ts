@@ -125,7 +125,24 @@ interface DragState {
   endKey: string | null;
 }
 
+function sameSelection(
+  a: ArrangementSelection | null,
+  b: ArrangementSelection | null,
+): boolean {
+  if (a === b) return true;
+  if (a?.kind !== "clips" || b?.kind !== "clips") return false;
+  return (
+    a.placementIds.length === b.placementIds.length &&
+    a.placementIds.every((id, index) => id === b.placementIds[index])
+  );
+}
+
 export function createPlacementEditing(options: PlacementEditingOptions) {
+  // What was last chosen, and the part of it the project holds right now.
+  // `reconcile` derives the second from the first rather than overwriting it,
+  // so a clip an undo takes away and a redo brings back is selected again
+  // (GRV-65): a repeat drag's copies after Undo then Redo.
+  let chosen: ArrangementSelection | null = null;
   let selection: ArrangementSelection | null = null;
   // A drag in empty space while its pointer is down: where it was pressed, and
   // the band it has swept so far (null until the pointer first moves).
@@ -158,6 +175,11 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
 
   /** Replace the one selection. The only place it is written. */
   function setSelection(next: ArrangementSelection | null): void {
+    chosen = next;
+    show(next);
+  }
+
+  function show(next: ArrangementSelection | null): void {
     if (next === selection) return;
     selection = next;
     changed();
@@ -225,7 +247,11 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
   /** Drops what the project no longer contains (e.g. after an undo). */
   function reconcile(): void {
     const current = project();
-    if (current) setSelection(reconcileArrangementSelection(selection, current));
+    if (!current) return;
+    const live = reconcileArrangementSelection(chosen, current);
+    // Each pass mints a new object when it drops anything; an unchanged
+    // result is not a change.
+    if (!sameSelection(live, selection)) show(live);
   }
 
   /** The selected clips' extent, for zoom to selection. Null for a point. */
@@ -250,7 +276,7 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
     const swept = bandBetween(current, band.anchor, position);
     if (!swept) return;
     band.swept = swept;
-    selection = null;
+    chosen = selection = null;
     changed();
   }
 
@@ -271,7 +297,7 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
     const touched = bandPlacementIds();
     band = null;
     if (!swept) return false;
-    selection = clipsSelection(touched);
+    chosen = selection = clipsSelection(touched);
     changed();
     options.analytics?.logFeatureFirstUse("arrangement_selection");
     return true;
@@ -393,15 +419,25 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
       );
       state.applied = false;
     }
-    const commands = tiling
-      ? tileCommands(state.base, state.placementId, target, tileIdAt(state)).commands
-      : resizePlacement(state.base, state.placementId, "end", pointerTicks);
+    const tiles = tiling
+      ? tileCommands(state.base, state.placementId, target, tileIdAt(state))
+      : null;
+    const commands =
+      tiles?.commands ??
+      resizePlacement(state.base, state.placementId, "end", pointerTicks);
     if (commands.length > 0 && state.gesture) {
       state.gesture.apply(commands);
       state.applied = true;
     }
+    selectRepeat(state, tiles?.placementIds ?? []);
     changed();
     return true;
+  }
+
+  /** A repeat reads as the clip made longer, so the outline covers the clip
+   * and its copies together (GRV-65), not the clip alone. */
+  function selectRepeat(state: DragState, copies: readonly PlacementId[]): void {
+    setSelection(clipsSelection([state.placementId, ...copies]));
   }
 
   /** An end-drag's drop past the clip's end: the copies land and overwrite
@@ -432,6 +468,7 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
     } else {
       options.dispatch(all);
     }
+    selectRepeat(state, placementIds);
     options.analytics?.log("placement_duplicated", { mode: "linked" });
   }
 
@@ -590,7 +627,7 @@ export function createPlacementEditing(options: PlacementEditingOptions) {
   function cancelDrag(): void {
     if (!drag) return;
     drag.gesture?.cancel();
-    selection = drag.before;
+    chosen = selection = drag.before;
     drag = null;
     changed();
   }

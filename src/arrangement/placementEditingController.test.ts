@@ -98,6 +98,53 @@ describe("drag: move and resize commit as one gesture", () => {
     ]);
   });
 
+  it("a repeat drag selects the clip and its copies, so the outline covers them (GRV-65)", () => {
+    const h = harness();
+    const id = h.placementId();
+    h.editing.select(id);
+    h.editing.beginDrag(id, "end", TICKS_PER_BAR);
+    h.editing.updateDrag(TICKS_PER_BAR * 3);
+    const all = h.getProject().song.placements.map((p) => p.id);
+    // Mid-drag, the outline already follows the copies the drop would make.
+    expect(h.editing.getSelection()).toEqual(all);
+    h.editing.endDrag();
+    expect(h.getProject().song.placements.map((p) => p.id)).toEqual(all);
+    expect(h.editing.getSelection()).toEqual(all);
+  });
+
+  it("undo and redo of a repeat drag keep the selection on what exists (GRV-65)", () => {
+    const h = harness();
+    const id = h.placementId();
+    const before = h.getProject();
+    h.editing.select(id);
+    h.editing.beginDrag(id, "end", TICKS_PER_BAR);
+    h.editing.updateDrag(TICKS_PER_BAR * 3);
+    h.editing.endDrag();
+    const after = h.getProject();
+    const all = after.song.placements.map((p) => p.id);
+
+    h.setProject(before); // undo
+    h.editing.reconcile();
+    expect(h.editing.getSelection()).toEqual([id]);
+
+    h.setProject(after); // redo
+    h.editing.reconcile();
+    expect(h.editing.getSelection()).toEqual(all);
+  });
+
+  it("cancelling a repeat drag puts the selection back (GRV-65)", () => {
+    const h = harness();
+    const id = h.placementId();
+    h.editing.select(id);
+    h.editing.beginDrag(id, "end", TICKS_PER_BAR);
+    h.editing.updateDrag(TICKS_PER_BAR * 3);
+    h.editing.cancelDrag();
+    expect(h.editing.getArrangementSelection()).toEqual({
+      kind: "clips",
+      placementIds: [id],
+    });
+  });
+
   it("beginning a drag selects the placement being dragged", () => {
     const h = harness();
     const id = h.placementId();
