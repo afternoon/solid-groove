@@ -65,6 +65,8 @@ public/samples
 # Vite/start-mode build output.
 dist
 tests/e2e/**/*.screens.spec.ts
+# Kept: it records the home page's video and stills (#1135, `bun run landing:capture`).
+!tests/e2e/emulator/landing.screens.spec.ts
 
 # The assistant's provider key for the local Functions emulator (docs/runbooks/assistant-gateway.md).
 functions/.secret.local
