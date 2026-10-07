@@ -32,6 +32,13 @@ export interface ShortcutDefinition {
    * behaves normally (`KEY-01`).
    */
   readonly textEntry?: "allowed";
+  /**
+   * `allowed` lets a plain Space or Enter through a focused button, toggle,
+   * radio or link, which otherwise keeps the key so the browser presses it
+   * (GRV-54). Only for a mapping whose handler decides about the focused
+   * control itself.
+   */
+  readonly focusedControl?: "allowed";
   /** Auto-repeat fires the action again. Off unless holding the key is the point. */
   readonly repeatable?: boolean;
   /** Set false where the browser default must survive. */

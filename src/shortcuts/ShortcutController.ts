@@ -17,7 +17,7 @@ import {
   type ShortcutActionId,
   type ShortcutDefinition,
 } from "./registry";
-import { isTextEntry as defaultIsTextEntry } from "./textEntry";
+import { isTextEntry as defaultIsTextEntry, focusPressesKey } from "./textEntry";
 import type { ShortcutContext } from "./types";
 
 /** What a surface registers for one action. */
@@ -33,6 +33,7 @@ export type ShortcutHandlers = Partial<Record<ShortcutActionId, ShortcutHandler>
 export type ShortcutRejection =
   | "no_match"
   | "text_entry"
+  | "focused_control"
   | "no_handler"
   | "disabled"
   | "repeat";
@@ -121,6 +122,11 @@ export class ShortcutController {
     const textEntry = this.options.isTextEntry ?? defaultIsTextEntry;
     if (shortcut.textEntry !== "allowed" && textEntry(event.target)) {
       return { shortcut, ran: false, rejected: "text_entry" };
+    }
+    // A focused button, toggle or radio takes its own Space and Enter
+    // (GRV-54): the browser default presses it, so the shortcut stands down.
+    if (shortcut.focusedControl !== "allowed" && focusPressesKey(event.target, event)) {
+      return { shortcut, ran: false, rejected: "focused_control" };
     }
 
     const handler = this.options.handlers()[shortcut.id];
