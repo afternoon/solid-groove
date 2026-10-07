@@ -163,7 +163,7 @@ export const readout = (page: Page, name: "In the slot" | "Hearing"): Locator =>
 
 export const railButton = (
   page: Page,
-  name: "Browse packs" | "All sounds" | "Favourites",
+  name: "Browse packs" | "All sounds" | "Favourites" | "Recently heard",
 ): Locator => library(page).getByRole("button", { name: new RegExp(`^${name}\\b`) });
 
 export const projectPacks = (page: Page): Locator =>
