@@ -68,8 +68,11 @@ tried, instead of shipping a speculative fix.
   merges `origin/main` into it then. So each piece's diff against the piece
   before it must stand on its own, and its PR's base is always `main`.
 - If earlier PRs for this issue have already merged (a `/ship` run stopped at a
-  gated piece and was started again), build only what remains, from
-  `origin/main`, and reuse a pushed branch whose content is still right.
+  gated piece and was started again), start from the "Handoff from /ship"
+  comment that run left on the issue: it lists the remaining pieces, their
+  branches, the assumptions and the checks. Build only what remains, from
+  `origin/main`, and reuse a pushed branch whose content is still right
+  (merge `origin/main` into it rather than rebuilding it).
 - Every branch is green on its own commit: `bun run typecheck`, `bun run check`,
   `bun run test`, plus `bun run test:browser:emulator:chromium` when you
   touched browser behaviour. Push every branch. Do **not** open PRs; the

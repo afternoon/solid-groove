@@ -199,12 +199,22 @@ Poll \`gh pr view ${prev.number} --repo trygroove/groove --json state,mergedAt,l
       { label: `wait #${prev.number}`, schema: WAIT_SCHEMA, ...LANDING },
     )
     if (waited?.state !== 'merged') {
-      const rest = build.branches.slice(i).map((x) => `\`${x.branch}\``).join(', ')
+      const remaining = build.branches.slice(i)
+      const rest = remaining.map((x) => `\`${x.branch}\``).join(', ')
       const why = waited?.state === 'closed'
         ? `#${prev.number} was closed without merging`
         : `#${prev.number} has not merged yet${waited?.labels?.includes('needs-approval') ? ' (it needs approval)' : ''}`
+      // The handoff note: the next run starts from this, not from the diffs.
       await agent(
-        `Post one comment on GitHub issue #${issue}: this /ship run opened #${prev.number} and stopped because ${why}. The remaining work is pushed as ${rest} and opens as its own PR${n - i > 1 ? 's' : ''} against main once #${prev.number} has landed: then move the issue to Ready again and /ship continues from there. Do not change any label. ${GITHUB}`,
+        `Post one comment on GitHub issue #${issue}, headed "**Handoff from /ship**". It says this run opened ${prs.map((p) => `#${p.number}`).join(', ')} and stopped because ${why}, and that the remaining work is pushed and opens as its own PR${remaining.length > 1 ? 's' : ''} against main once #${prev.number} has landed: then move the issue to Ready again and /ship continues from here. Do not change any label. Then the note the next run works from:
+
+- Remaining pieces, in landing order, each with its branch, what it contains and the branch it was built on (merge main into it before opening it):
+${remaining.map((x, j) => `  ${i + j + 1} of ${n}: \`${x.branch}\` (built on \`${build.branches[i + j - 1].branch}\`): ${x.purpose}`).join('\n')}
+- What the whole issue builds: ${build.summary}
+- Assumptions made without asking: ${build.assumptions.join('; ') || 'none'}
+- Checks run on the branches: ${build.checks}
+${build.uiChanged ? `- Screenshots already captured (for the PR whose branch changed the UI):\n${build.screenshots || '  MISSING'}\n` : ''}${unresolved.length ? `- Review findings still open (for the last PR's body):\n${unresolved.map((f) => `  - ${f}`).join('\n')}\n` : ''}
+Copy the facts as given; do not summarise them away. ${GITHUB}`,
         { label: `report #${issue}`, ...LANDING },
       )
       problems.push(`${why}; ${rest} not opened`)
