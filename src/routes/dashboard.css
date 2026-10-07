@@ -84,7 +84,8 @@
 }
 
 /* The project table (#532) is the shared `DataTable`, at most 1000px wide.
-   On a phone it scrolls inside its own box, never the page. */
+   Below 640px it reflows (see the end of this file); between that and its
+   minimum it scrolls inside its own box, never the page. */
 .project-list {
   width: 100%;
   max-width: 1000px;
@@ -231,4 +232,93 @@
   font-size: var(--font-size-small);
   color: var(--color-danger);
   white-space: normal;
+}
+
+/* A phone-width screen (GRV-66). The desktop table needs 560px and the header
+   buttons sit over the heading's row, so below 640px the page reflows instead:
+   the buttons drop under the heading, and each row becomes a grid of swatch,
+   title over its last update, and actions, with no sideways scroll. The
+   created date is the column a phone gives up. */
+@media (max-width: 640px) {
+  .dashboard-title {
+    margin-bottom: 16px;
+  }
+
+  .dashboard-actions {
+    position: static;
+    align-items: flex-start;
+    margin-bottom: 24px;
+  }
+
+  .dashboard-actions .action-row {
+    flex-wrap: wrap;
+  }
+
+  .data-table.project-table {
+    display: block;
+    min-width: 0;
+  }
+
+  /* The column names stay for assistive tech; a phone draws none of them. */
+  .project-table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .project-table tbody {
+    display: block;
+  }
+
+  .project-table .project-row {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    column-gap: 12px;
+    row-gap: 2px;
+    align-items: center;
+    padding: 12px 0;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .data-table.project-table .project-row > td {
+    height: auto;
+    padding: 0;
+    border-top: 0;
+  }
+
+  .project-table .project-row > td:nth-child(1) {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+
+  .project-table .project-row > td:nth-child(2) {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  .project-table .project-row > td:nth-child(3) {
+    display: none;
+  }
+
+  .project-table .project-row > td:nth-child(4) {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  .project-table .project-row > td:nth-child(5) {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+  }
+
+  /* Renaming: the form takes the actions' room, which it hides anyway. */
+  .project-table .project-row:has(.project-rename-form) > td:nth-child(2) {
+    grid-column: 2 / span 2;
+  }
+
+  .project-table .project-row:has(.project-rename-form) > td:nth-child(5) {
+    display: none;
+  }
 }
