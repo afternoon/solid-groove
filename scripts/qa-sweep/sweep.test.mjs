@@ -242,9 +242,13 @@ describe("validateFinding", () => {
     ).toBeDefined();
   });
 
-  it("rejects an unknown severity or a non-numeric duplicate", () => {
+  it("rejects an unknown severity or a duplicate that is not an identifier", () => {
     expect(validateFinding({ ...valid, severity: "critical" }).problems).toBeDefined();
     expect(validateFinding({ ...valid, duplicateOf: "#12" }).problems).toBeDefined();
+    expect(validateFinding({ ...valid, duplicateOf: 12 }).problems).toBeDefined();
+    expect(validateFinding({ ...valid, duplicateOf: "grv-12" }).finding.duplicateOf).toBe(
+      "GRV-12",
+    );
   });
 
   it("cuts an overlong title", () => {
@@ -323,17 +327,17 @@ describe("planFiling", () => {
 
   it("comments on the open issue an agent names as the duplicate", () => {
     const plan = planFiling({
-      findings: [finding({ duplicateOf: 42 })],
-      openIssues: [{ number: 42, title: "Bug: Tempo input takes text" }],
+      findings: [finding({ duplicateOf: "GRV-42" })],
+      openIssues: [{ id: "GRV-42", title: "Bug: Tempo input takes text" }],
       maxIssues: 15,
     });
     expect(plan.file).toEqual([]);
-    expect(plan.reseen).toMatchObject([{ number: 42 }]);
+    expect(plan.reseen).toMatchObject([{ id: "GRV-42" }]);
   });
 
   it("files anew when the named duplicate is not an open issue", () => {
     const plan = planFiling({
-      findings: [finding({ duplicateOf: 7 })],
+      findings: [finding({ duplicateOf: "GRV-7" })],
       openIssues: [],
       maxIssues: 15,
     });
@@ -346,10 +350,10 @@ describe("planFiling", () => {
         finding({ title: "Bug: tempo field accepts letters" }),
         finding({ title: "Bug: Something else" }),
       ],
-      openIssues: [{ number: 9, title: "Bug: Tempo field accepts letters" }],
+      openIssues: [{ id: "GRV-9", title: "Bug: Tempo field accepts letters" }],
       maxIssues: 1,
     });
-    expect(plan.reseen.map((r) => r.number)).toEqual([9]);
+    expect(plan.reseen.map((r) => r.id)).toEqual(["GRV-9"]);
     expect(plan.file.map((f) => f.title)).toEqual(["Bug: Something else"]);
     expect(plan.overCap).toEqual([]);
   });
@@ -367,10 +371,10 @@ describe("planFiling", () => {
   it("groups several findings that re-see one issue into one entry", () => {
     const plan = planFiling({
       findings: [
-        finding({ duplicateOf: 5 }),
-        finding({ flow: "CF-002", title: "Bug: other words", duplicateOf: 5 }),
+        finding({ duplicateOf: "GRV-5" }),
+        finding({ flow: "CF-002", title: "Bug: other words", duplicateOf: "GRV-5" }),
       ],
-      openIssues: [{ number: 5, title: "Bug: x" }],
+      openIssues: [{ id: "GRV-5", title: "Bug: x" }],
       maxIssues: 15,
     });
     expect(plan.reseen).toHaveLength(1);
@@ -421,7 +425,7 @@ describe("issue and comment text", () => {
   });
 
   it("a re-seen comment names the run, the build and each sighting", () => {
-    const body = reseenComment({ number: 5, findings: [finding()] }, ctx);
+    const body = reseenComment({ id: "GRV-5", findings: [finding()] }, ctx);
     expect(body).toContain("Seen again by the QA sweep");
     expect(body).toContain("build `abc123`");
     expect(body).toContain("While walking CF-001");
@@ -442,8 +446,8 @@ describe("issue and comment text", () => {
         { flow: "CF-001", ok: true, findings: [finding()], rejected: [], notes: "" },
         { flow: "CF-002", ok: false, error: "no findings.json", findings: [] },
       ],
-      filed: [{ ...finding(), number: 101 }],
-      reseen: [{ number: 5, findings: [finding({ flow: "CF-001" })] }],
+      filed: [{ ...finding(), id: "GRV-101" }],
+      reseen: [{ id: "GRV-5", findings: [finding({ flow: "CF-001" })] }],
       overCap: [finding({ title: "Bug: Later", severity: "low" })],
       cleanup: [
         { flow: "CF-001", ok: true, deleted: 2, remaining: 0 },
@@ -455,8 +459,8 @@ describe("issue and comment text", () => {
       "| CF-002 Two _(parked)_ | **agent failed** | – | **no** (1 left) |",
     );
     expect(body).toContain("| CF-003 Three | **no report** | – | **unknown** |");
-    expect(body).toContain("### Issues filed (1)\n\n- #101 (CF-001)");
-    expect(body).toContain("### Issues re-seen (1)\n\n- #5 (CF-001)");
+    expect(body).toContain("### Issues filed (1)\n\n- GRV-101 (CF-001)");
+    expect(body).toContain("### Issues re-seen (1)\n\n- GRV-5 (CF-001)");
     expect(body).toContain("Not filed: over the cap of 1 (1)");
     expect(body).toContain("- Bug: Later (CF-001, low)");
   });
@@ -492,7 +496,7 @@ describe("agent text is pasted in safely", () => {
     const ctx = { runUrl: "r", build: "b", siteUrl: "s", flows: [] };
     const texts = [
       issueBody({ ...found, alsoSeenIn: [] }, ctx),
-      reseenComment({ number: 1, findings: [found] }, ctx),
+      reseenComment({ id: "GRV-1", findings: [found] }, ctx),
       found.title,
       report.notes,
     ];
@@ -536,32 +540,37 @@ describe("fileFindings", () => {
       { ...finding({ title: "Bug: Two" }), alsoSeenIn: [] },
       { ...finding({ title: "Bug: Three" }), alsoSeenIn: [] },
     ],
-    reseen: [{ number: 7, title: "Bug: Old", findings: [finding()] }],
+    reseen: [{ id: "GRV-7", title: "Bug: Old", findings: [finding()] }],
     overCap: [],
   });
 
-  it("a failed write is recorded and the rest still go, and the summary still renders", () => {
+  it("a failed write is recorded and the rest still go, and the summary still renders", async () => {
     const plan = planOf();
     const writes = [];
     let next = 100;
-    const post = (path, body) => {
-      writes.push(path);
-      if (body.title === "Bug: Two")
-        throw new Error("Command failed: gh api\nHTTP 422: body is too long");
-      return { number: next++ };
+    const write = {
+      create: ({ title }) => {
+        writes.push(`create ${title}`);
+        if (title === "Bug: Two")
+          throw new Error("Linear: body is too long\nmore detail");
+        return { id: `GRV-${next++}` };
+      },
+      comment: (id) => {
+        writes.push(`comment ${id}`);
+      },
     };
-    const failures = fileFindings({ plan, ctx, repo: "o/r", post, log: () => {} });
+    const failures = await fileFindings({ plan, ctx, write, log: () => {} });
 
     expect(writes).toEqual([
-      "repos/o/r/issues",
-      "repos/o/r/issues",
-      "repos/o/r/issues",
-      "repos/o/r/issues/7/comments",
+      "create Bug: One",
+      "create Bug: Two",
+      "create Bug: Three",
+      "comment GRV-7",
     ]);
     expect(failures).toEqual([
-      { what: 'filing "Bug: Two"', error: "Command failed: gh api" },
+      { what: 'filing "Bug: Two"', error: "Linear: body is too long" },
     ]);
-    expect(plan.file.map((f) => f.number)).toEqual([100, undefined, 101]);
+    expect(plan.file.map((f) => f.id)).toEqual(["GRV-100", undefined, "GRV-101"]);
 
     const body = summaryBody({
       date: "2026-10-05",
@@ -576,23 +585,22 @@ describe("fileFindings", () => {
       cleanup: [{ flow: "CF-001", ok: true, deleted: 1 }],
       failures,
     });
-    expect(body).toContain("- #100 (CF-001)");
+    expect(body).toContain("- GRV-100 (CF-001)");
     expect(body).toContain("- Bug: Two (CF-001) **not filed: the write failed**");
-    expect(body).toContain("- #101 (CF-001)");
+    expect(body).toContain("- GRV-101 (CF-001)");
     expect(body).toContain(
-      '### GitHub writes that failed (1)\n\n- filing "Bug: Two": Command failed: gh api',
+      '### Linear writes that failed (1)\n\n- filing "Bug: Two": Linear: body is too long',
     );
   });
 
-  it("a dry run writes nothing", () => {
-    const post = () => {
+  it("a dry run writes nothing", async () => {
+    const refuse = () => {
       throw new Error("must not write");
     };
-    const failures = fileFindings({
+    const failures = await fileFindings({
       plan: planOf(),
       ctx,
-      repo: "o/r",
-      post,
+      write: { create: refuse, comment: refuse },
       dryRun: true,
       log: () => {},
     });

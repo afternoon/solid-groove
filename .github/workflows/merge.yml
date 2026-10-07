@@ -4,15 +4,14 @@ name: Merge
 #
 #  - a safe PR (no gated path) is queued as soon as it opens or is pushed, unless
 #    it is a draft or labelled `hold`
-#  - a gated PR is labelled `needs-approval` and waits; adding `status:approved`
-#    to its issue (the board's Approved column) approves every open PR for the
-#    issue, and adding it to one PR approves that PR
+#  - a gated PR is labelled `needs-approval` and waits; moving its card to
+#    Approved in Linear approves every open PR for the card (board.yml's poll
+#    calls `merge.mjs issue`), and adding `status:approved` to one PR approves
+#    that PR
 #
 # Queue failures go back to the agent through ci-failure.yml. A push to an
 # approved PR re-queues it without a new approval; remove the label to stop that.
 on:
-  issues:
-    types: [labeled]
   pull_request:
     types: [opened, reopened, ready_for_review, labeled, unlabeled, edited, synchronize]
 
@@ -24,7 +23,6 @@ permissions:
 jobs:
   merge:
     if: >-
-      (github.event_name == 'issues' && github.event.label.name == 'status:approved' && !github.event.issue.pull_request) ||
       (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && (
         (github.event.action == 'labeled' && github.event.label.name == 'status:approved') ||
         (github.event.action == 'unlabeled' && github.event.label.name == 'hold') ||
@@ -32,22 +30,23 @@ jobs:
         contains(fromJSON('["opened", "reopened", "ready_for_review", "synchronize"]'), github.event.action)
       ))
     runs-on: ubuntu-latest
-    # One run per issue or PR at a time, never cancelled. Not one group for the
-    # whole repo: GitHub keeps only the newest pending run in a group and
-    # cancels the rest, so when several PRs moved at once, every approval but
-    # the last was dropped and those PRs were never queued.
+    # One run per PR at a time, never cancelled. Not one group for the whole
+    # repo: GitHub keeps only the newest pending run in a group and cancels the
+    # rest, so when several PRs moved at once, every approval but the last was
+    # dropped and those PRs were never queued.
     concurrency:
-      group: merge-${{ github.event.issue.number || github.event.pull_request.number }}
+      group: merge-${{ github.event.pull_request.number }}
       cancel-in-progress: false
     env:
       # Not GITHUB_TOKEN: a merge made by it triggers no workflows, so `main`
       # would get no CI and no deploy.
       GH_TOKEN: ${{ secrets.RESTACK_TOKEN || github.token }}
+      LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
     steps:
       - uses: actions/checkout@v4
         with:
           sparse-checkout: .github/scripts
       - env:
-          MODE: ${{ github.event_name == 'issues' && 'issue' || (github.event.action == 'labeled' && 'pr' || 'sync') }}
-          NUMBER: ${{ github.event.issue.number || github.event.pull_request.number }}
+          MODE: ${{ github.event.action == 'labeled' && 'pr' || 'sync' }}
+          NUMBER: ${{ github.event.pull_request.number }}
         run: node .github/scripts/merge.mjs "$MODE" "$NUMBER"

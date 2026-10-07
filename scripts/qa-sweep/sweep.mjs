@@ -2,7 +2,7 @@
  * The deterministic half of the scheduled QA sweep (#859).
  *
  * `.github/workflows/qa-sweep.yml` sends a few agents at the live app, one per
- * core flow. The agents explore and *report*; they never write to GitHub. Every
+ * core flow. The agents explore and *report*; they never write to Linear. Every
  * rule that has to hold however an agent behaves lives here, as pure functions
  * with tests beside them:
  *
@@ -34,10 +34,6 @@ export const DEFAULT_ISSUES = 15;
 export const MAX_AGENTS = 10;
 export const MAX_ISSUES = 50;
 
-/** The label on the pinned issue that carries each run's summary. */
-export const LOG_LABEL = "qa-sweep";
-export const LOG_TITLE = "QA sweep";
-
 /** The branch `scripts/walkthrough/publish.mjs` pushes screenshots to. */
 export const WALKTHROUGH_BRANCH = "claude/walkthroughs";
 
@@ -49,8 +45,8 @@ const MAX_TITLE = 120;
 const MAX_STEPS = 30;
 
 /**
- * Longest body the sweep posts. GitHub rejects an issue or comment body over
- * 65,536 characters; a long finding is cut well short of that rather than lost.
+ * Longest body the sweep posts. A long finding is cut well short of what an
+ * issue or comment may hold, rather than lost.
  */
 export const MAX_BODY = 60000;
 
@@ -59,8 +55,9 @@ const SEVERITIES = ["high", "medium", "low"];
 /**
  * Agent-written text with every `@mention` broken by a zero-width space. It is
  * pasted into issues and comments the sweep posts with a write token: a
- * verbatim `@claude` would start `claude.yml` on it, and `@someone` would ping
- * them. The text reads the same; GitHub just no longer sees a mention.
+ * verbatim `@claude` would start a Claude run on it (board.yml's poll), and
+ * `@someone` would ping them. The text reads the same; it is just no longer a
+ * mention.
  */
 export function neutralizeMentions(value) {
   return value.replace(/@(?=[A-Za-z0-9_-])/g, "@\u200b");
@@ -211,15 +208,20 @@ export function validateFinding(raw) {
   if (screenshot !== null && !isSafeScreenshotPath(screenshot))
     problems.push("screenshot is not a .png path inside the output directory");
 
-  const duplicateOf = raw.duplicateOf ?? null;
-  if (duplicateOf !== null && !(Number.isInteger(duplicateOf) && duplicateOf > 0))
-    problems.push("duplicateOf is not an issue number");
+  let duplicateOf = raw.duplicateOf ?? null;
+  if (duplicateOf !== null && !isIssueId(duplicateOf))
+    problems.push("duplicateOf is not an issue identifier like GRV-12");
+  else if (duplicateOf !== null) duplicateOf = duplicateOf.toUpperCase();
 
   if (problems.length > 0) return { problems };
   return {
     finding: { title, symptom, expected, steps, severity, screenshot, duplicateOf },
   };
 }
+
+/** A Linear identifier: a team key, a dash, a number. */
+export const isIssueId = (value) =>
+  typeof value === "string" && /^[A-Za-z][A-Za-z0-9]*-\d+$/.test(value);
 
 /**
  * One agent's `findings.json`, parsed. A report that is not JSON, or not the
@@ -278,7 +280,7 @@ const severityRank = (s) => SEVERITIES.indexOf(s);
  *     **overCap**: listed in the summary, not filed.
  */
 export function planFiling({ findings, openIssues, maxIssues }) {
-  const open = new Map(openIssues.map((issue) => [issue.number, issue]));
+  const open = new Map(openIssues.map((issue) => [issue.id, issue]));
   const openByTitle = new Map();
   for (const issue of openIssues) {
     const key = normalizeTitle(issue.title);
@@ -306,13 +308,13 @@ export function planFiling({ findings, openIssues, maxIssues }) {
       (finding.duplicateOf !== null && open.get(finding.duplicateOf)) ||
       openByTitle.get(key);
     if (match) {
-      if (!reseen.has(match.number))
-        reseen.set(match.number, {
-          number: match.number,
+      if (!reseen.has(match.id))
+        reseen.set(match.id, {
+          id: match.id,
           title: match.title,
           findings: [],
         });
-      reseen.get(match.number).findings.push(finding);
+      reseen.get(match.id).findings.push(finding);
       continue;
     }
     const twin = thisRun.get(key);
@@ -399,26 +401,13 @@ export function reseenComment(entry, ctx) {
   return capBody(lines.join("\n"));
 }
 
-/** The body the pinned log issue is created with. */
-export function logIssueBody() {
-  return [
-    "The scheduled QA sweep (`.github/workflows/qa-sweep.yml`, #859) posts a summary of every run here: the flows it walked, the bugs it filed, and the open bugs it saw again.",
-    "",
-    'Agents walk core flows from `docs/core-flows.md` in the live app, each signed in as its own QA account, file each new bug as a `Bug: …` issue, and delete the projects they made before the run ends. See `docs/testing.md`, "Scheduled QA sweep".',
-    "",
-    "Keep this issue open and pinned: the sweep finds it by its `qa-sweep` label, and makes a new one if it is closed.",
-    "",
-    FOOTER,
-  ].join("\n");
-}
-
 const AGENT_STATE = {
   ok: "walked",
   failed: "**agent failed**",
   missing: "**no report**",
 };
 
-/** The run summary posted on the pinned log issue. */
+/** The run summary, posted as an update on the Groove project. */
 export function summaryBody({
   date,
   runUrl,
@@ -473,15 +462,12 @@ export function summaryBody({
     ...list(
       filed,
       (f) =>
-        `- ${f.number ? `#${f.number}` : f.title} (${f.flow})${f.failed ? " **not filed: the write failed**" : ""}`,
+        `- ${f.id ? f.id : f.title} (${f.flow})${f.failed ? " **not filed: the write failed**" : ""}`,
     ),
     "",
     `### Issues re-seen (${reseen.length})`,
     "",
-    ...list(
-      reseen,
-      (r) => `- #${r.number} (${r.findings.map((f) => f.flow).join(", ")})`,
-    ),
+    ...list(reseen, (r) => `- ${r.id} (${r.findings.map((f) => f.flow).join(", ")})`),
   );
   if (overCap.length > 0)
     lines.push(
@@ -501,7 +487,7 @@ export function summaryBody({
   if (failures.length > 0)
     lines.push(
       "",
-      `### GitHub writes that failed (${failures.length})`,
+      `### Linear writes that failed (${failures.length})`,
       "",
       ...failures.map((f) => `- ${f.what}: ${f.error}`),
     );
@@ -510,25 +496,25 @@ export function summaryBody({
 }
 
 /**
- * Do the run's GitHub writes: each new issue, then each re-seen comment.
- * `post(path, body)` is the one write; one that throws (a rate limit, a 5xx,
- * a body GitHub refuses) is recorded and the rest still go, so a single bad
- * write never costs the other findings or the summary.
+ * Do the run's Linear writes: each new issue, then each re-seen comment.
+ * `write.create({ title, body })` returns the new issue's `{ id }` (its
+ * identifier) and `write.comment(id, body)` posts on an issue; one that throws
+ * (a rate limit, a 5xx, a body Linear refuses) is recorded and the rest still
+ * go, so a single bad write never costs the other findings or the summary.
  *
  * Returns the failures, each `{ what, error }`, for the summary.
  */
-export function fileFindings({
+export async function fileFindings({
   plan,
   ctx,
-  repo,
-  post,
+  write,
   dryRun = false,
   log = console.log,
 }) {
   const failures = [];
-  const attempt = (what, write) => {
+  const attempt = async (what, job) => {
     try {
-      write();
+      await job();
       return true;
     } catch (error) {
       failures.push({ what, error: describeError(error) });
@@ -541,32 +527,25 @@ export function fileFindings({
       log(`\n=== would file: ${finding.title}\n${body}`);
       continue;
     }
-    const ok = attempt(`filing "${finding.title}"`, () => {
-      finding.number = post(`repos/${repo}/issues`, {
-        title: finding.title,
-        body,
-      }).number;
+    const ok = await attempt(`filing "${finding.title}"`, async () => {
+      finding.id = (await write.create({ title: finding.title, body })).id;
     });
-    if (ok) log(`Filed #${finding.number}: ${finding.title}`);
+    if (ok) log(`Filed ${finding.id}: ${finding.title}`);
     else finding.failed = true;
   }
   for (const entry of plan.reseen) {
     const body = reseenComment(entry, ctx);
     if (dryRun) {
-      log(`\n=== would comment on #${entry.number}\n${body}`);
+      log(`\n=== would comment on ${entry.id}\n${body}`);
       continue;
     }
-    if (
-      attempt(`commenting on #${entry.number}`, () =>
-        post(`repos/${repo}/issues/${entry.number}/comments`, { body }),
-      )
-    )
-      log(`Commented on #${entry.number}: seen again.`);
+    if (await attempt(`commenting on ${entry.id}`, () => write.comment(entry.id, body)))
+      log(`Commented on ${entry.id}: seen again.`);
   }
   return failures;
 }
 
-/** One line of an error, for the summary: no stack, no multi-line `gh` output. */
+/** One line of an error, for the summary: no stack, no multi-line output. */
 export function describeError(error) {
   const message = error instanceof Error ? error.message : String(error);
   const line = message.split("\n").find((l) => l.trim() !== "") ?? "unknown error";

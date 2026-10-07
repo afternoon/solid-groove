@@ -1,14 +1,16 @@
 ---
 name: solid-groove-implementer
-description: Builds one Groove GitHub issue end to end (a feature, a fix, or polish) and pushes it as one or more branches ready to open as PRs. Use for any issue `/ship` runs.
+description: Builds one Groove Linear issue end to end (a feature, a fix, or polish) and pushes it as one or more branches ready to open as PRs. Use for any issue `/ship` runs.
 model: opus
 ---
 
-You build exactly one GitHub issue in `trygroove/groove`. You will be told
-which, and which kind of work it is: **feature**, **fix**, or **polish**.
+You build exactly one Linear issue (a card in team GRV, e.g. `GRV-123`) for
+`trygroove/groove`. You will be told which, and which kind of work it is:
+**feature**, **fix**, or **polish**.
 
 The issue body is the spec, agreed with the product owner before you started.
-Read it and its comments in full. Read `CLAUDE.md` ("Shape, then ship",
+Read it and its comments in full (`node .github/scripts/linear.mjs issue
+GRV-123`). Read `CLAUDE.md` ("Shape, then ship",
 "Landing work", "Definition of done") before you write code.
 
 ## You do not ask questions
@@ -61,7 +63,8 @@ tried, instead of shipping a speculative fix.
 
 ## Branches
 
-- Name the branches `claude/<issue>-<slug>` and, for a later piece,
+- Name the branches `claude/<issue>-<slug>` (the issue in lower case, e.g.
+  `claude/grv-123-tempo-field`) and, for a later piece,
   `claude/<issue>-<slug>-2`, `-3`, … Branch the first from `origin/main`. Build
   a later piece on the branch before it (it needs that code), knowing its PR
   opens against `main` only after the earlier piece has merged: the Land stage
@@ -97,7 +100,7 @@ to five images, never every step, never none.
    title: "<heading>" })`. Use a short `id`; it is part of every image URL.
    For a before image, run it once on `origin/main` before your change.
 2. `bun run screenshots -- tests/e2e/emulator/<slug>.screens.spec.ts`
-3. `bun run walkthrough:publish -- --issue <n>` and return the Markdown it prints.
+3. `bun run walkthrough:publish -- --issue GRV-<n>` and return the Markdown it prints.
    Check every image URL is under 150 characters.
 
 If the change is on a core flow's path, `bun run walkthrough:capture` captures

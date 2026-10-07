@@ -9,7 +9,7 @@ day-to-day loop of checks before you open a pull request.
 | Drive the app by hand against a real backend | "Running against the Firebase Emulator" below |
 | Know which test suite covers what, and how CI gates | [`docs/testing.md`](./docs/testing.md) |
 | Know the stack, code style, and architecture boundaries | [`CLAUDE.md`](./CLAUDE.md) |
-| Know what to build and what "done" means | The [GitHub issues](https://github.com/trygroove/groove/issues) and [`docs/core-flows.md`](./docs/core-flows.md) |
+| Know what to build and what "done" means | The [Linear board](https://linear.app/ben2/project/groove-f835b9ea1a25) (team `GRV`) and [`docs/core-flows.md`](./docs/core-flows.md) |
 | Know what the product is for, and what it will not do | [`docs/prd.md`](./docs/prd.md) |
 
 ## Setup
@@ -284,8 +284,10 @@ The rules that govern scope, size, and landing order live in
 [`CLAUDE.md`](./CLAUDE.md#task-tracking-and-landing-work) — read that section
 before starting a task, not after. In short:
 
-- Work is tracked as **GitHub issues**; the issue is the specification and the
-  live record, and readiness is its native `blocked_by` graph.
+- Work is tracked as **Linear issues** (`GRV-<n>`); the issue is the
+  specification and the live record, and readiness is its blocking relations.
+  See [`docs/linear.md`](./docs/linear.md) for how the board drives the
+  automation.
 - A PR is **one reviewable unit of purpose**, targets `main`, and is small by
   preference (around **400 changed lines** is the sign a change wants splitting,
   not a cap). A larger task ships as a sequence of such PRs, each landing before
@@ -293,10 +295,10 @@ before starting a task, not after. In short:
 - Tests for a slice ship **in the same PR** as that slice.
 - A feature's **core flows** ([`docs/core-flows.md`](./docs/core-flows.md)) are
   written as `test.fixme` Playwright specs in their *own* PR, landed before the
-  implementation, and frozen from then on; the PR that closes the issue removes the markers in the
+  implementation, and frozen from then on; the PR that completes the issue removes the markers in the
   same diff that makes them pass.
 - Any change that alters the UI includes a **walkthrough** in the body of the PR
-  that closes the issue — captured from those passing flows with
+  that completes the issue — captured from those passing flows with
   `bun run walkthrough:capture` and `walkthrough:publish`, not assembled by hand.
   See [`.github/pull_request_template.md`](./.github/pull_request_template.md)
   and [`docs/testing.md`](./docs/testing.md#walkthrough-screenshots).
