@@ -438,7 +438,7 @@ bun run check     # tsc --noEmit && biome check
 
 `.github/workflows/ci.yml` runs on every push to `main` and `claude/**` and every pull request, and once a day on `main` (plus on demand: "Run workflow" on the CI workflow). The two browser suites run **only** in the daily and on-demand runs; every other job runs on every push:
 
-1. **`checks`** — `bun run typecheck`, `bun run check:ci`, then a null-ALSA-device setup step (see "Unit and component tests" above) before `bun run test`, and finally `bun run library:validate` (see "Starter sound library" below), which validates the whole 200-asset catalogue rather than the representative sample the unit suite renders. Everything else depends on this. Uploads the run's JSON report as the `vitest-report-unit` artifact, pass or fail (see "Vitest JSON run reports" above).
+1. **`checks`** — `bun run typecheck`, `bun run check:ci`, then a null-ALSA-device setup step (see "Unit and component tests" above) before `bun run test`, then `bun run library:validate` (see "Starter sound library" below), which validates the whole 200-asset catalogue rather than the representative sample the unit suite renders, and finally `bun run library:audit`, the release audit over the bytes that would ship (`docs/sample-library.md` section 15.11). Everything else depends on this. Uploads the run's JSON report as the `vitest-report-unit` artifact, pass or fail (see "Vitest JSON run reports" above).
 2. **`browser-emulator`** (daily and on demand) — `bun run test:browser:emulator` (`FND-009`, and every core flow), matrixed over `chrome`, `msedge`, `firefox` and `webkit` (WebKit is `continue-on-error` signal; branded Chrome stands in for Playwright's Chromium, which `browser-sanity` runs), with a JDK installed for the Firestore emulator, exercising the foundation slice's add/play/undo/save/reload journey against a real (emulated) backend.
 3. **`emulator`** — `bun run test:emulator`, with a JDK installed for the Firestore emulator. Uploads its JSON report as the `vitest-report-emulator` artifact, pass or fail.
 4. **`build`** — `bun run build`, then `bun run verify:bundle` and `bun run verify:budget` (see "Deploy" below). Runs unconditionally, needs no Firebase project or credentials, and gates merges.
@@ -735,6 +735,7 @@ bun run library:test                # the library suites only, without the rest 
 bun run library:build               # render synthesized assets, merge acquired, write the manifest
 bun run library:audition            # listen to the merged library at http://127.0.0.1:4180
 bun run library:validate            # build and validate without writing anything
+bun run library:audit               # decode, loudness, tuning, loop, missing-file, duplicate and per-pack audits
 bun run library:emit-runtime        # regenerate src/library/factoryLibrary.generated.ts
 bun run library:upload              # publish to Cloud Storage (see .env.example for credentials)
 ```

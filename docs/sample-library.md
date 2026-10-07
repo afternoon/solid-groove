@@ -716,6 +716,7 @@ bun run library                     # print the workflow and the current on-disk
 bun run library:build               # render synthesized assets, merge acquired, write the manifest
 bun run library:audition            # serve the merged library locally so you can listen to it
 bun run library:validate            # build and validate without writing (the CI gate)
+bun run library:audit               # the release audit over the bytes that would ship (section 15.11)
 bun run library:upload              # publish to Cloud Storage; idempotent
 bun run library:test                # the library test suites only
 
@@ -798,6 +799,7 @@ scripts/starter-library/
   sources.lock.json the committed pins
   manifest.mjs      section 9 manifest records; merges every acquired bundle
   validate.mjs      per-asset and collection-level rules; the CI gate
+  audit.mjs         the release audit over the shipped bytes (section 15.11)
   acquire.mjs       CLI: plan, pin, ingest
   manage.mjs        CLI + local review UI server (section 15.7)
   managePage.mjs    the review page served by library:manage
@@ -956,6 +958,22 @@ Isolation is a build-time partition, not an error: `buildAllPacks` splits what i
 **New validator rules.** On top of the section 9 and 5.1 rules `CNT-000b` added, `CNT-001` rejects: an ID whose type does not match the asset's `type`; the same asset ID in two packs (`validateLibraryReferences` — duplicate IDs were previously only checked within a pack); a licence evidence path that does not resolve to a file; an asset that requires attribution its pack's rights position does not carry, or claims raw redistribution its pack does not approve; a preset that claims audio metadata; a loop that clicks, is off its bar grid, is not sample-aligned, or was tested over fewer than 32 cycles; a derived master with no source, an unknown transform, an unrecorded transform, or a source checksum that does not match; and an undeliverable intake state inside a published manifest. Each rule is exercised by a fixture that violates it in `scripts/starter-library/ingestion.test.mjs`.
 
 **The application consumes the generated manifest.** `bun run library:emit-runtime` writes `src/library/factoryLibrary.generated.ts` — the handful of assets the app must have before any manifest fetch — and renders their audio into `public/samples/starter-library/audio/<storageKey>`, at the same content-addressed key the bucket serves. `src/library/factoryLibrary.ts` is the app's read side, and the "New Project" starter builds its sampler asset from it rather than from a hard-coded name, path, and duration. It runs from `predev`, `prebuild`, and the browser suites' pre-hooks (via `bun run samples`), writes audio only when missing, and its `--check` mode fails on a stale committed module; the same assertion runs in the unit suite. This is not a bundled library — section 12's model is still that a client fetches the pack index and then the pack manifest it needs, which is `LOOP-013`.
+
+### 15.11 The release audit
+
+`bun run library:audit` (#78) is the section 13 Phase D audit set, run over exactly what `library:upload` would publish: it builds in memory, like `library:audition`, and judges the bytes rather than the records the build wrote about them. CI runs it after `library:validate`. Errors fail it; warnings are findings for a curator, printed and never dropped. `--json` prints the same report as data.
+
+| Audit | Fails on | Flags for review |
+| --- | --- | --- |
+| `pack` | Any section 9/5.1 rule `validatePackManifest` holds for that pack (coverage claim, rights position, licence evidence, payload budget); a description that does not say what the pack leaves out (section 6.5) | A pack with no coverage claim |
+| `missing-file` | An entry with no delivered file, or one whose size disagrees with its record; a delivered file no entry names | |
+| `decode` | Bytes that do not match the recorded SHA-256; a WAV that does not decode as 24-bit PCM; a rate, channel count or length that disagrees with the record; a preset that does not parse | |
+| `loudness` | A measured peak more than 0.1 dB from the record, above -0.1 dBFS, or silent | RMS below -40 dBFS (too quiet to audition); a crest factor under 3 dB (brick-walled) |
+| `tuning` | A pitched (`bass`, `tonal`) one-shot with no root note; a root with no tuning reading or more than 50 cents out | A pitched derived master with no root, since its transform moved the pitch |
+| `loop-boundary` | A loop re-measured off its bar grid, not sample-aligned, or clicking at the wrap over 32 cycles | |
+| `duplicates` | The same master in two packs (the validator already rejects it inside one) | Two masters with the same length and the same 48-bin overview: a near duplicate to check by ear |
+
+The report leads with one line per pack: pass or fail, version, asset count, its rights position, and how many roles and genres it claims. What the audit cannot hear is still the section 11 musical review: `library:audition` remains the step where a kick is checked for sounding like a kick.
 
 ## 16. Pack marketplace
 
