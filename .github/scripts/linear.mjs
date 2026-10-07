@@ -251,14 +251,14 @@ export async function viewer() {
 // ---------------------------------------------------------------- issues
 
 const ISSUE_FIELDS = `
-  id identifier title description url createdAt updatedAt
+  id identifier title description url createdAt updatedAt priority sortOrder
   state{id name type}
   labels{nodes{id name}}
   projectMilestone{id name}
   project{id slugId}
   attachments{nodes{url title}}
-  relations{nodes{type relatedIssue{identifier title state{type}}}}
-  inverseRelations{nodes{type issue{identifier title state{type}}}}
+  relations{nodes{type relatedIssue{identifier title state{name type}}}}
+  inverseRelations{nodes{type issue{identifier title state{name type}}}}
 `;
 
 const COMMENT_FIELDS = `id body createdAt updatedAt user{id name} parent{id}`;
@@ -298,6 +298,27 @@ function normalise(i) {
       .filter((r) => r.type === "blocks")
       .map((r) => r.relatedIssue),
   };
+}
+
+/**
+ * A blocker stops holding a card back once its work has merged: in QA (merged,
+ * being tested on production), Done, or closed some other way. Waiting for
+ * Done would hold every step of a sequence on the QA bot.
+ */
+export const blockerCleared = (blocker) =>
+  ["completed", "canceled", "duplicate"].includes(blocker.state?.type) ||
+  blocker.state?.name?.toLowerCase() === "qa";
+
+/** The blockers still holding a card back. */
+export const openBlockers = (issue) => issue.blockedBy.filter((b) => !blockerCleared(b));
+
+/**
+ * Cards in the order to start them: Linear priority (Urgent first, no priority
+ * last), then their order in the column on the board.
+ */
+export function startOrder(cards) {
+  const rank = (i) => (i.priority > 0 ? i.priority : 5);
+  return [...cards].sort((a, b) => rank(a) - rank(b) || a.sortOrder - b.sortOrder);
 }
 
 /**
