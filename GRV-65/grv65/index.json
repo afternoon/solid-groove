@@ -1,0 +1,14 @@
+{
+  "id": "grv65",
+  "title": "Selection outline after a resize",
+  "steps": [
+    {
+      "file": "01-drag-the-selected-clip-s-right-edge-out-.png",
+      "caption": "Drag the selected clip's right edge out to the end of bar 3"
+    },
+    {
+      "file": "02-undo-then-redo.png",
+      "caption": "Undo, then Redo"
+    }
+  ]
+}
