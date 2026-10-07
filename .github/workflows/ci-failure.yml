@@ -4,7 +4,7 @@ name: CI failure
 # `.github/scripts/ci-failure.sh`; in short:
 #
 #  - a merge-queue run fails -> the PR goes back to @claude to fix, and its card
-#                               (Linear) back to In progress; the fix re-queues it
+#                               (Linear) back to In Progress; the fix re-queues it
 #  - CI fails on main        -> the PR that broke it is reverted through the queue
 #                               and a Linear issue is filed to land it again (or,
 #                               when the cause is unclear, a bug is filed)

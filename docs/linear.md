@@ -19,18 +19,18 @@ work once.
 
 | You do, in Linear | Within five minutes |
 | --- | --- |
-| Move a card to **Ready** | It moves to In progress, a "Picking this up" comment appears on it, and `/ship` runs on it in Actions |
+| Move a card to **Ready** | It moves to In Progress, a "Picking this up" comment appears on it, and `/ship` runs on it in Actions |
 | Move a card to **Approved** | Every open PR that refers to it (`Closes`, `Completes`, `Refs GRV-<n>`) is labelled `status:approved` and queued to merge |
-| Move a card with open PRs back to **In progress** (from QA, Ready for review or Blocked) | A rework agent fixes those PRs in place, after announcing itself on the card |
+| Move a card with open PRs back to **In Progress** (from QA, Ready For Review or Blocked) | A rework agent fixes those PRs in place, after announcing itself on the card |
 | Comment `@claude …` on a card | A Claude run replies "Picking this up" under your comment and does what it asks |
 | File a bug with no milestone | A short run puts it on the milestone of its area |
 
 GitHub events move cards the other way, at once (`board.mjs pr`, `merge.mjs`,
 `ci-failure.sh`): a PR whose body `Closes GRV-<n>` opening moves the card to
-QA (Ready for review if it changes the security rules); a PR that `Completes
+QA (Ready For Review if it changes the security rules); a PR that `Completes
 GRV-<n>` merging moves it to QA; a PR that `Closes GRV-<n>` merging moves it
-to Done; a gated PR opening moves it to Ready for review; a merge-queue
-failure moves it to In progress. The QA bot ([`docs/qa-bot.md`](./qa-bot.md))
+to Done; a gated PR opening moves it to Ready For Review; a merge-queue
+failure moves it to In Progress. The QA bot ([`docs/qa-bot.md`](./qa-bot.md))
 moves a card out of QA.
 
 Everything that reads or writes Linear goes through
@@ -51,7 +51,7 @@ yours. Do not start a comment of your own with those words.
 ## Columns
 
 The team's workflow states, in order, are the board's columns: Backlog, Ready,
-In progress, Blocked, QA, Ready for review, Approved, Done (completed),
+In Progress, Blocked, QA, Ready For Review, Approved, Done (completed),
 Canceled (canceled) and Duplicate (duplicate). Their names are a contract:
 `.github/scripts/linear.mjs` lists them in `STATES`, and a renamed column
 breaks the poll. The set is per team, which is why Groove has a team of its

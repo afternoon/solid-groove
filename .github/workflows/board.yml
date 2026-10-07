@@ -9,9 +9,9 @@ name: Board
 # down), so this polls: every five minutes `poll` reads the columns and starts
 # whatever they ask for, in this same run:
 #
-#  - a card in Ready is moved to In progress and /ship runs on it;
+#  - a card in Ready is moved to In Progress and /ship runs on it;
 #  - a card in Approved has its open PRs approved and queued (merge.mjs);
-#  - a card moved back to In progress while its PRs are open (sent back from
+#  - a card moved back to In Progress while its PRs are open (sent back from
 #    QA, review or Blocked) gets a rework agent on those PRs;
 #  - a comment on a card that says @claude starts a Claude run on it;
 #  - a new bug with no milestone gets one from a short Claude run.
@@ -186,13 +186,13 @@ jobs:
           github_token: ${{ secrets.RESTACK_TOKEN || github.token }}
           show_full_output: true
           prompt: |
-            Linear issue ${{ matrix.card.issue }} was sent back to In progress on the board while its PRs were open: ${{ matrix.card.prs }} (GitHub PR numbers; the PR that closes or completes it, and any earlier PR of the same card that says `Refs ${{ matrix.card.issue }}`). Find out why and do the work. This is a headless run: nobody will answer questions, and it ends when your turn ends, so do not use the Workflow tool or background agents.
+            Linear issue ${{ matrix.card.issue }} was sent back to In Progress on the board while its PRs were open: ${{ matrix.card.prs }} (GitHub PR numbers; the PR that closes or completes it, and any earlier PR of the same card that says `Refs ${{ matrix.card.issue }}`). Find out why and do the work. This is a headless run: nobody will answer questions, and it ends when your turn ends, so do not use the Workflow tool or background agents.
 
             1. If a Claude run is already handling this (an `@claude` comment on one of those PRs in the last 20 minutes, or an in-progress run of the "Claude Code" workflow on one of them: `gh run list --workflow claude.yml --status in_progress`), stop and do nothing.
             2. Read the card (`node .github/scripts/linear.mjs issue ${{ matrix.card.issue }}`: its body and every comment), and on each PR its comments, reviews and review threads. The feedback is whatever the product owner or the QA report said after the PRs were last pushed. If it changes the spec, the card's body and comments are the authority.
             3. Fix it on the existing PR branches, following CLAUDE.md ("Landing work", "Definition of done") and `.claude/agents/solid-groove-implementer.md`. This is not a fresh build: do not open new PRs unless the feedback asks for more work than the open PRs cover. Never rebase or force-push a branch with an open PR; if a push is rejected, `git pull` (a merge, not a rebase) and push again. Run `bun run typecheck`, `bun run check`, `bun run test` and any browser suite you touched before pushing. A UI change needs updated screenshots in the PR body.
             4. Reply on each piece of feedback (the review thread, a comment on the PR, or a reply on the Linear comment) saying what changed, and resolve threads you fixed.
-            5. Move the card (`node .github/scripts/linear.mjs state ${{ matrix.card.issue }} "<column>"`): `QA` if the closing PR has the `deploy-preview` label (the push redeploys it for QA); `Ready for review` if any of the PRs is labelled `needs-approval`; otherwise leave it in In progress, because merge.yml queues the pushed PRs and the card moves to QA when the PR that completes it merges.
+            5. Move the card (`node .github/scripts/linear.mjs state ${{ matrix.card.issue }} "<column>"`): `QA` if the closing PR has the `deploy-preview` label (the push redeploys it for QA); `Ready For Review` if any of the PRs is labelled `needs-approval`; otherwise leave it in In Progress, because merge.yml queues the pushed PRs and the card moves to QA when the PR that completes it merges.
 
             Stop only if two reasonable readings of the feedback would build materially different things: then comment the one question on the card and move it to Blocked. Use the `gh` CLI for GitHub (GH_TOKEN is set) and `node .github/scripts/linear.mjs` for Linear (LINEAR_API_KEY is set). Never report a push you have not seen land.
 
@@ -207,7 +207,7 @@ jobs:
           SINCE: ${{ steps.start.outputs.at }}
         run: |
           state=$(node .github/scripts/linear.mjs issue "$ISSUE" --json | jq -r .state.name)
-          if [ "$state" != "In progress" ]; then
+          if [ "$state" != "In Progress" ]; then
             echo "Card moved on: $state"; exit 0
           fi
           for pr in $PRS; do
@@ -221,7 +221,7 @@ jobs:
               --jq "[.comments[] | select(.createdAt > \"$recent\" and (.body | contains(\"@claude\")))] | length")
             if [ "$n" -gt 0 ]; then echo "An @claude run on PR #$pr has it."; exit 0; fi
           done
-          echo "No push to $PRS and the card is still In progress."; exit 1
+          echo "No push to $PRS and the card is still In Progress."; exit 1
       - name: Move the card to Blocked if the run failed
         if: failure() || cancelled()
         run: |

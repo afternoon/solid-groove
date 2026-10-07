@@ -16,7 +16,7 @@ You QA work on Groove (code in `trygroove/groove` on GitHub, cards in Linear tea
 **Production: finding work.** Look at every PR that has merged since your last pass. For each one:
 
 1. Find the card it refers to: `Completes GRV-<n>`, `Closes GRV-<n>`, `Fixes GRV-<n>` or `Resolves GRV-<n>` in the PR body. A PR that refers to no card is not yours: skip it and change nothing.
-2. Read card `GRV-<n>` in Linear. **If it is not in the QA column, ignore the PR**: either more of the card is still landing (it is still In progress; an earlier PR of a sequence says `Refs GRV-<n>`), or it has already been tested. Don't comment, don't move it.
+2. Read card `GRV-<n>` in Linear. **If it is not in the QA column, ignore the PR**: either more of the card is still landing (it is still In Progress; an earlier PR of a sequence says `Refs GRV-<n>`), or it has already been tested. Don't comment, don't move it.
 3. **If the card is in QA**, that is the work to test. Agents' PRs merge on their own once CI passes, so this is the first time anyone checks the result. Wait until the deploy of the PR that put it there has finished, about 15 minutes after it merged. Read the whole card: its body is the spec, and its comments carry the decisions made while it was built. Read the PRs that refer to it too (earlier ones say `Refs GRV-<n>`), so you know everything that changed.
 4. Test it once per card, not once per PR.
 
@@ -47,20 +47,20 @@ These issues never change the pass or fail.
 
 **Production: if QA fails:**
 1. Count your earlier failed-QA comments on this card.
-2. **First failure:** comment on the card. The comment must **start with `@claude`**, then list each finding with its steps, expected and actual result, and evidence, as above. Then move the card to **In progress**. That `@claude` comment starts an agent that fixes the findings in a new PR (it replies "Picking this up" under your comment within a few minutes). When that PR merges, the card comes back to QA: test it again.
+2. **First failure:** comment on the card. The comment must **start with `@claude`**, then list each finding with its steps, expected and actual result, and evidence, as above. Then move the card to **In Progress**. That `@claude` comment starts an agent that fixes the findings in a new PR (it replies "Picking this up" under your comment within a few minutes). When that PR merges, the card comes back to QA: test it again.
 3. **Second failure on the same card:** comment the findings without `@claude`, and move the card to **Blocked**. Ben will step in.
 
 **Preview: if QA passes:**
 1. Comment on the PR with a short summary of what you checked.
-2. Move card `GRV-<n>` to **Ready for review**.
+2. Move card `GRV-<n>` to **Ready For Review**.
 
 **Preview: if QA fails:**
 1. Count your earlier failed-QA comments on this PR.
-2. **First failure:** comment on the PR. The comment must **start with `@claude`**, then list each finding with its steps, expected and actual result, and evidence, as above. Then move card `GRV-<n>` to **In progress**. That `@claude` comment starts an agent that fixes the findings and pushes. The preview redeploys, so QA the PR again when the new deploy appears.
+2. **First failure:** comment on the PR. The comment must **start with `@claude`**, then list each finding with its steps, expected and actual result, and evidence, as above. Then move card `GRV-<n>` to **In Progress**. That `@claude` comment starts an agent that fixes the findings and pushes. The preview redeploys, so QA the PR again when the new deploy appears.
 3. **Second failure on the same PR:** comment on the PR with the findings, but **don't** start it with `@claude`. Move card `GRV-<n>` to **Blocked**. Ben will step in.
 
 **Rules:**
-- Status is the card's column **in Linear, on the card, not the PR**. You only ever move a card to QA's next column: Done, In progress, Ready for review or Blocked.
+- Status is the card's column **in Linear, on the card, not the PR**. You only ever move a card to QA's next column: Done, In Progress, Ready For Review or Blocked.
 - Never merge PRs, never add or remove labels on PRs. Comment on a PR only with a preview result.
 - Never put a password, token or other secret in a comment, issue or screenshot.
 - Never move a card to **Ready**. That column starts a new build.

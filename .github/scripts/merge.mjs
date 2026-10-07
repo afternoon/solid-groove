@@ -154,7 +154,7 @@ function changedPaths(number) {
     .filter(Boolean);
 }
 
-/** Hold a gated PR for approval, once: label it, say why, and move its card to Ready for review. */
+/** Hold a gated PR for approval, once: label it, say why, and move its card to Ready For Review. */
 async function flag(p, gated) {
   if (p.labels.some((l) => l.name === NEEDS_APPROVAL)) return;
   try {
@@ -185,9 +185,9 @@ async function flag(p, gated) {
   ]);
   for (const issue of new Set(issuesIn(p.body))) {
     try {
-      await linear.setState(issue, "Ready for review");
+      await linear.setState(issue, "Ready For Review");
     } catch (error) {
-      console.warn(`${issue}: could not move to Ready for review: ${error.message}`);
+      console.warn(`${issue}: could not move to Ready For Review: ${error.message}`);
     }
   }
   console.log(`#${p.number}: needs approval (${gated.join(", ")})`);

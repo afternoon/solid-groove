@@ -11,7 +11,7 @@
  *   node .github/scripts/linear.mjs list --state Ready [--label bug] [--no-milestone] [--json]
  *   node .github/scripts/linear.mjs comment GRV-12 --body "…" | --body-file f [--reply-to <comment id>]
  *   node .github/scripts/linear.mjs edit-comment <comment id> --body "…" | --body-file f
- *   node .github/scripts/linear.mjs state GRV-12 "Ready for review"
+ *   node .github/scripts/linear.mjs state GRV-12 "Ready For Review"
  *   node .github/scripts/linear.mjs label GRV-12 bug | unlabel GRV-12 bug
  *   node .github/scripts/linear.mjs milestone GRV-12 "M4: Private Alpha Hardening" | milestones
  *   node .github/scripts/linear.mjs create --title "Bug: …" --body-file f [--label bug]... [--state Backlog]
@@ -38,7 +38,7 @@ export const STATES = [
     about: "Spec agreed; moving here starts /ship",
   },
   {
-    name: "In progress",
+    name: "In Progress",
     type: "started",
     color: "#f2c94c",
     about: "An agent is building it",
@@ -56,7 +56,7 @@ export const STATES = [
     about: "Merged (or previewed); the QA bot is testing it",
   },
   {
-    name: "Ready for review",
+    name: "Ready For Review",
     type: "started",
     color: "#5319e7",
     about: "A gated PR waits for the product owner",
@@ -318,7 +318,9 @@ export async function list({
   createdAfter,
 } = {}) {
   const filter = { team: { key: { eq: TEAM_KEY } } };
-  if (state) filter.state = { name: { in: [].concat(state) } };
+  // Column names match ignoring case, like stateNamed: "In Progress" is "In progress".
+  if (state)
+    filter.state = { or: [].concat(state).map((n) => ({ name: { eqIgnoreCase: n } })) };
   else if (open) filter.state = { type: { nin: ["completed", "canceled", "duplicate"] } };
   // One `some` per wanted label: `every` would mean "every label the issue
   // carries is in this set", which is not what an agent asking for `bug` means.

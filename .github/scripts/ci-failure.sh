@@ -6,7 +6,7 @@
 #   queue <run-id> <queue-branch>  A merge-queue run failed. GitHub has already
 #                                  taken the PR out of the queue; hand it back to
 #                                  @claude to fix, and move its card (Linear) back
-#                                  to In progress. A push re-queues it (merge.yml).
+#                                  to In Progress. A push re-queues it (merge.yml).
 #   main <run-id> <sha>            CI failed on main after <sha> landed. If <sha>
 #                                  is the squash of a PR and main was green before
 #                                  it, revert it through the queue and file a
@@ -75,7 +75,7 @@ $footer
 EOF
 	issue="$(issue_of "$pr")"
 	if [ -n "$issue" ]; then
-		linear state "$issue" "In progress" >/dev/null || log "could not move $issue to In progress"
+		linear state "$issue" "In Progress" >/dev/null || log "could not move $issue to In Progress"
 	fi
 	log "#$pr handed back to @claude"
 	;;

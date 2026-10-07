@@ -42,10 +42,10 @@ const ONLY = (() => {
 const STATUS_TO_STATE = new Map([
   ["status:backlog", "Backlog"],
   ["status:ready", KEEP_READY ? "Ready" : "Backlog"],
-  ["status:in-progress", "In progress"],
+  ["status:in-progress", "In Progress"],
   ["status:blocked", "Blocked"],
   ["status:qa", "QA"],
-  ["status:review", "Ready for review"],
+  ["status:review", "Ready For Review"],
   ["status:approved", "Approved"],
 ]);
 const SKIP_LABELS = new Set(["board", ...STATUS_TO_STATE.keys()]);

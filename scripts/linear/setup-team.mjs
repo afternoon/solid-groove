@@ -8,7 +8,7 @@
  *
  * It:
  *   1. renames the team's default states onto the board's columns (Todo →
- *      Ready, In Progress → In progress) and creates the missing ones, in
+ *      Ready, In progress → In Progress) and creates the missing ones, in
  *      board order;
  *   2. makes Backlog the state a new issue starts in;
  *   3. creates the project milestones M1 … M8 (from GitHub's open milestones,
@@ -28,7 +28,7 @@ const REPO = process.env.GITHUB_REPOSITORY ?? "trygroove/groove";
 /** A default Linear state that becomes one of ours when the name differs. */
 const RENAMES = new Map([
   ["todo", "Ready"],
-  ["in progress", "In progress"],
+  ["in progress", "In Progress"],
 ]);
 
 /** Labels the automation writes or reads. The migration adds any others it meets. */
@@ -53,8 +53,8 @@ async function setupStates() {
   const byName = new Map(existing.map((s) => [s.name.toLowerCase(), s]));
   for (const [from, to] of RENAMES) {
     const s = byName.get(from);
-    // "In Progress" → "In progress" only changes case, so the target name is
-    // the state itself and does not count as already taken.
+    // A rename that only changes case targets the state itself, which does
+    // not count as already taken.
     if (
       !s ||
       s.name === to ||

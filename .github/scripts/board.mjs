@@ -5,13 +5,13 @@
  *
  *   node board.mjs poll   Every five minutes. Reads the columns and writes to
  *                         $GITHUB_OUTPUT the work each one asks for:
- *                           ship=["GRV-12", …]      cards in Ready (moved to In progress here)
- *                           rework=[{issue,prs,comment}, …]  cards sent back to In progress with PRs open
+ *                           ship=["GRV-12", …]      cards in Ready (moved to In Progress here)
+ *                           rework=[{issue,prs,comment}, …]  cards sent back to In Progress with PRs open
  *                           mentions=[{issue,comment,reply}, …]  comments that say @claude
  *                           milestone=["GRV-40", …] new bugs with no milestone
  *                         and approves the open PRs of every card in Approved.
  *   node board.mjs pr     On a pull_request event: a PR that closes a card
- *                         puts it in QA (or Ready for review when it changes the
+ *                         puts it in QA (or Ready For Review when it changes the
  *                         security rules); the PR that completes a card merging
  *                         puts it in QA; the PR that closes a card merging puts
  *                         it in Done.
@@ -123,10 +123,10 @@ const MILESTONE_WINDOW_MS = 6 * 60 * 60 * 1000;
 const latest = (comments, test) =>
   comments.filter(test).sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
 
-/** The last time the card entered In progress, or null. */
+/** The last time the card entered In Progress, or null. */
 const enteredInProgress = (issue) =>
   issue.history
-    .filter((h) => h.toState?.name === "In progress")
+    .filter((h) => h.toState?.name.toLowerCase() === "in progress")
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0] ?? null;
 
 async function pollReady() {
@@ -134,10 +134,10 @@ async function pollReady() {
   for (const card of await linear.list({ state: "Ready" })) {
     if (offBoard(card)) continue;
     // Leave Ready first: the next poll must not see this card again.
-    await linear.setState(card.identifier, "In progress");
+    await linear.setState(card.identifier, "In Progress");
     const c = await linear.comment(card.identifier, `${PICKUP_SHIP}\n\n${PLACEHOLDER}`);
     ship.push({ issue: card.identifier, comment: c.id });
-    console.log(`${card.identifier}: Ready → In progress; shipping`);
+    console.log(`${card.identifier}: Ready → In Progress; shipping`);
   }
   return ship;
 }
@@ -151,7 +151,7 @@ async function pollApproved(index) {
 }
 
 /**
- * A card moved to In progress while its PRs are open was sent back for more
+ * A card moved to In Progress while its PRs are open was sent back for more
  * work (from QA, review or Blocked), unless it just came from Ready (that is
  * /ship starting), a run has already announced itself on it since the move,
  * or an `@claude` comment on one of its PRs in the last 15 minutes means a
@@ -161,7 +161,7 @@ async function pollRework(index) {
   const rework = [];
   const now = Date.now();
   for (const card of await linear.list({
-    state: "In progress",
+    state: "In Progress",
     history: true,
     comments: true,
   })) {
@@ -169,7 +169,7 @@ async function pollRework(index) {
     const prs = index.prs.filter((p) => refersTo(p.body, card.identifier));
     if (!prs.length) continue;
     const moved = enteredInProgress(card);
-    if (!moved || moved.fromState?.name === "Ready") continue;
+    if (!moved || moved.fromState?.name.toLowerCase() === "ready") continue;
     const announced = latest(
       card.comments,
       (c) => c.body.startsWith(PICKUP) && c.createdAt > moved.createdAt,
@@ -278,7 +278,7 @@ async function pr() {
   // A PR that closes a card puts it in QA (its preview is QA'd), unless it
   // changes the security rules: those never get a preview, so the QA bot never
   // sees them, and the card goes straight to review.
-  const target = changesRules(p.number) ? "Ready for review" : "QA";
+  const target = changesRules(p.number) ? "Ready For Review" : "QA";
   for (const id of closedBy(p.body)) await move(id, target);
 }
 
