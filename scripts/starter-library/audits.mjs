@@ -14,6 +14,8 @@
 // under a band of dense hits and is exactly the useful dynamics section 10 keeps.
 // What fails is a missing measurement (`validate.mjs`), never a quiet sound.
 
+import { SKETCH_STEPS_PER_DB } from "./dsp.mjs";
+
 /**
  * How far, in LU, an asset's integrated loudness may sit from the median of its
  * role band before it is reported as an outlier for a person to audition.
@@ -42,6 +44,22 @@ export const MIN_LOUDNESS_BAND = 3;
  * metadata, not a fault. Every detected synthesized sound measures within ±9.
  */
 export const TUNING_TOLERANCE_CENTS = 50;
+
+/**
+ * When two audio assets are near duplicates: all three distances inside their
+ * limits at once. Calibrated on the synthesized library, where deliberate
+ * variations of one voice (kicks a few parameters apart, the same sub at two
+ * notes) sit just outside at least one limit, while a copy that was only
+ * re-gained, re-encoded or trimmed by a few percent sits well inside all three.
+ */
+export const NEAR_DUPLICATE = {
+  /** Lengths within 10% of each other (|ln ratio| ≤ ln 1.1). */
+  maxDurationRatio: 1.1,
+  /** Mean absolute difference of the 48-bin `peaks` envelopes, as a share of full scale. */
+  maxEnvelopeDistance: 0.03,
+  /** Mean absolute difference of the spectral sketches, in dB per band. */
+  maxSpectralDistanceDb: 1,
+};
 
 /** What `measureTuning` (`dsp.mjs`) can say about a sound's pitch. */
 export const TUNING_STATUSES = ["detected", "undetectable", "gliding"];
@@ -128,14 +146,16 @@ export function auditLoudness(assets, { toleranceLu = LOUDNESS_OUTLIER_LU } = {}
 export function validateLibraryAudio(packManifests) {
   const assets = packManifests.flatMap((pm) => pm.assets).filter((asset) => asset.audio);
   const loudness = auditLoudness(assets);
+  const duplicates = auditDuplicates(assets);
   const measured = assets.filter((asset) => Number.isFinite(asset.audio.loudnessLufs));
   const summary = [
     `loudness:            ${measured.length} assets measured (BS.1770-4), ${loudness.warnings.length} outside ±${LOUDNESS_OUTLIER_LU} LU of their role band (for review)`,
     formatTuningSummary(assets),
+    `duplicates:          ${duplicates.exact.length} byte-identical pair(s) across packs, ${duplicates.near.length} near-duplicate pair(s) for review`,
   ];
   return {
-    errors: [...loudness.errors],
-    warnings: [...loudness.warnings],
+    errors: [...loudness.errors, ...duplicates.errors],
+    warnings: [...loudness.warnings, ...duplicates.warnings],
     summary,
   };
 }
@@ -158,4 +178,99 @@ function formatTuningSummary(assets) {
     ...detected.map((asset) => Math.abs(asset.audio.tuningCents)),
   );
   return `tuning:              ${tonal.length} pitched assets, ${detected.length} detected (widest ±${widest} cents, ${beyond} beyond ±${TUNING_TOLERANCE_CENTS}), ${count("undetectable")} undetectable, ${count("gliding")} gliding`;
+}
+
+/** Mean absolute difference of two equal-length numeric arrays. */
+function meanDistance(a, b) {
+  let sum = 0;
+  for (let i = 0; i < a.length; i++) sum += Math.abs(a[i] - b[i]);
+  return sum / a.length;
+}
+
+/**
+ * How far apart two assets' fingerprints are, or `null` when either has no
+ * fingerprint to compare (no `peaks` or no `spectralSketch`). The per-asset
+ * validator is what requires the sketch; this only compares what is there.
+ */
+export function fingerprintDistance(a, b) {
+  const sketchA = a.audio?.spectralSketch;
+  const sketchB = b.audio?.spectralSketch;
+  if (!sketchA || !sketchB || sketchA.length !== sketchB.length) return null;
+  if (!a.peaks || !b.peaks || a.peaks.length !== b.peaks.length) return null;
+  return {
+    durationRatio:
+      Math.max(a.audio.durationSeconds, b.audio.durationSeconds) /
+      Math.min(a.audio.durationSeconds, b.audio.durationSeconds),
+    envelope: meanDistance(a.peaks, b.peaks) / 255,
+    spectralDb: meanDistance(sketchA, sketchB) / SKETCH_STEPS_PER_DB,
+  };
+}
+
+export function isNearDuplicate(distance, limits = NEAR_DUPLICATE) {
+  return (
+    distance !== null &&
+    distance.durationRatio <= limits.maxDurationRatio &&
+    distance.envelope <= limits.maxEnvelopeDistance &&
+    distance.spectralDb <= limits.maxSpectralDistanceDb
+  );
+}
+
+/**
+ * Section 10: "Identify near duplicates using audio fingerprints and human
+ * review." Two halves:
+ *
+ * - **Exact.** Byte-identical masters (same SHA-256). Inside one pack that is
+ *   already an error (`validate.mjs`). Across packs it is how two packs share
+ *   one stored object, so it is reported, not failed — but it is one sound,
+ *   and section 17 counts unique assets.
+ * - **Near.** Every pair whose envelope, spectrum and length all match within
+ *   `NEAR_DUPLICATE`, within or across packs. Reported for a person to hear:
+ *   a fingerprint cannot tell a lazy copy from two deliberately close
+ *   variations, which is exactly the review section 10 asks for. A
+ *   byte-identical pair is reported once, as exact.
+ *
+ * @returns {{ errors: string[], warnings: string[], exact: object[], near: object[] }}
+ */
+export function auditDuplicates(assets, { limits = NEAR_DUPLICATE } = {}) {
+  const warnings = [];
+  const exact = [];
+  const near = [];
+
+  const bySha = groupBy(
+    assets.filter((asset) => asset.files?.master?.sha256),
+    (asset) => asset.files.master.sha256,
+  );
+  // Every cross-pack pair in a group, not only each member against the first:
+  // with copies in three packs, or two in one pack and a third elsewhere, every
+  // pair that spans two packs is its own shared object to account for.
+  for (const group of bySha.values()) {
+    for (let i = 0; i < group.length; i++) {
+      for (let j = i + 1; j < group.length; j++) {
+        const [a, b] = [group[i], group[j]];
+        if (a.pack?.id === b.pack?.id) continue; // validate.mjs fails it
+        exact.push({ a: a.id, b: b.id });
+        warnings.push(
+          `${b.id}: byte-identical to ${a.id} in another pack; it is one sound, counted once`,
+        );
+      }
+    }
+  }
+
+  for (let i = 0; i < assets.length; i++) {
+    for (let j = i + 1; j < assets.length; j++) {
+      const a = assets[i];
+      const b = assets[j];
+      if (a.files?.master?.sha256 && a.files.master.sha256 === b.files?.master?.sha256) {
+        continue;
+      }
+      const distance = fingerprintDistance(a, b);
+      if (!isNearDuplicate(distance, limits)) continue;
+      near.push({ a: a.id, b: b.id, ...distance });
+      warnings.push(
+        `${a.id} and ${b.id} are near duplicates (envelope ${(distance.envelope * 100).toFixed(1)}% apart, spectrum ${distance.spectralDb.toFixed(2)} dB apart, lengths within ${((distance.durationRatio - 1) * 100).toFixed(0)}%); listen to both and keep one unless they are distinct on purpose`,
+      );
+    }
+  }
+
+  return { errors: [], warnings, exact, near };
 }

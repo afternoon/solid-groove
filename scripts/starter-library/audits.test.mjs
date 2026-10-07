@@ -3,7 +3,9 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  auditDuplicates,
   auditLoudness,
+  fingerprintDistance,
   LOUDNESS_OUTLIER_LU,
   MIN_LOUDNESS_BAND,
   TUNING_TOLERANCE_CENTS,
@@ -15,6 +17,9 @@ import {
   kWeight,
   measureTuning,
   SAMPLE_RATE,
+  SKETCH_BANDS,
+  SKETCH_MAX,
+  spectralSketch,
   whiteNoise,
 } from "./dsp.mjs";
 import { measureDelivered } from "./manifest.mjs";
@@ -384,6 +389,144 @@ describe("the tuning audit on a delivered master", () => {
     ]);
     expect(summary.join("\n")).toContain(
       "4 pitched assets, 2 detected (widest ±7 cents, 0 beyond ±50), 1 undetectable, 1 gliding",
+    );
+  });
+});
+
+describe("spectral sketch", () => {
+  it("is 32 bands in half-dB steps below the loudest, floored 40 dB down", () => {
+    const sketch = spectralSketch(tone(() => A3, 0.5));
+    expect(sketch).toHaveLength(SKETCH_BANDS);
+    expect(Math.min(...sketch)).toBe(0);
+    expect(sketch.every((value) => Number.isInteger(value) && value <= SKETCH_MAX)).toBe(
+      true,
+    );
+  });
+
+  it("does not change with level", () => {
+    const loud = tone(() => A3, 0.5);
+    const quiet = loud.map((value) => value * 0.25);
+    expect(spectralSketch(quiet)).toEqual(spectralSketch(loud));
+  });
+
+  it("tells a low sound from a high one", () => {
+    const low = spectralSketch(tone(() => 60, 0.5));
+    const high = spectralSketch(tone(() => 3000, 0.5));
+    expect(low.indexOf(0)).toBeLessThan(high.indexOf(0));
+  });
+
+  it("puts silence at the floor of every band", () => {
+    expect(spectralSketch(new Float32Array(4096))).toEqual(
+      new Array(SKETCH_BANDS).fill(SKETCH_MAX),
+    );
+  });
+});
+
+describe("duplicate audio", () => {
+  /** A delivered asset, measured from its bytes as the build measures it. */
+  function delivered(id, samples, { pack = "pak_a", sha256 } = {}) {
+    const bytes = encodeWav(samples);
+    const measured = measureDelivered(
+      { id, type: "one-shot", pack: { id: pack }, audio: { rootNote: null } },
+      bytes,
+    );
+    return {
+      ...measured,
+      audio: { ...measured.audio, durationSeconds: samples.length / SAMPLE_RATE },
+      files: { master: { sha256: sha256 ?? `${id}-sha` } },
+    };
+  }
+
+  const original = tone(() => A3, 0.8, { decay: 0.3 });
+
+  it("flags a re-gained, slightly trimmed copy as a near duplicate", () => {
+    // The violating fixture: the same sound 6 dB down with 3% of its tail cut.
+    const copy = original
+      .slice(0, Math.round(original.length * 0.97))
+      .map((value) => value * 0.5);
+    const { warnings, near } = auditDuplicates([
+      delivered("sg-one-shot-tonal-key-0001", original),
+      delivered("sg-one-shot-tonal-key-0002", copy, { pack: "pak_b" }),
+    ]);
+    expect(near).toHaveLength(1);
+    expect(warnings[0]).toMatch(
+      /^sg-one-shot-tonal-key-0001 and sg-one-shot-tonal-key-0002 are near duplicates/,
+    );
+  });
+
+  it("leaves a different sound alone, however similar its shape", () => {
+    // The same envelope a fifth higher: a different note, not a copy.
+    const fifth = tone(() => A3 * 1.5, 0.8, { decay: 0.3 });
+    const result = auditDuplicates([delivered("a", original), delivered("b", fifth)]);
+    expect(result.near).toEqual([]);
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("leaves a different envelope alone, whatever its spectrum", () => {
+    const longer = tone(() => A3, 0.8, { decay: 3 });
+    expect(
+      auditDuplicates([delivered("a", original), delivered("b", longer)]).near,
+    ).toEqual([]);
+  });
+
+  it("reports byte-identical audio across packs once, as exact", () => {
+    const { warnings, exact, near, errors } = auditDuplicates([
+      delivered("a", original, { pack: "pak_a", sha256: "same" }),
+      delivered("b", original, { pack: "pak_b", sha256: "same" }),
+    ]);
+    expect(errors).toEqual([]);
+    expect(exact).toEqual([{ a: "a", b: "b" }]);
+    expect(near).toEqual([]);
+    expect(warnings).toEqual([
+      "b: byte-identical to a in another pack; it is one sound, counted once",
+    ]);
+  });
+
+  it("reports every cross-pack pair of a byte-identical group, not only pairs with its first member", () => {
+    // Two copies in one pack and a third elsewhere: the in-pack pair is the
+    // per-pack validator's, and *both* in-pack copies pair with the third.
+    const { exact } = auditDuplicates([
+      delivered("a", original, { pack: "pak_a", sha256: "same" }),
+      delivered("b", original, { pack: "pak_a", sha256: "same" }),
+      delivered("c", original, { pack: "pak_b", sha256: "same" }),
+    ]);
+    expect(exact).toEqual([
+      { a: "a", b: "c" },
+      { a: "b", b: "c" },
+    ]);
+    // One copy in each of three packs: three pairs.
+    const three = auditDuplicates([
+      delivered("a", original, { pack: "pak_a", sha256: "same" }),
+      delivered("b", original, { pack: "pak_b", sha256: "same" }),
+      delivered("c", original, { pack: "pak_c", sha256: "same" }),
+    ]);
+    expect(three.exact).toEqual([
+      { a: "a", b: "b" },
+      { a: "a", b: "c" },
+      { a: "b", b: "c" },
+    ]);
+    expect(three.near).toEqual([]);
+  });
+
+  it("leaves a byte-identical pair inside one pack to the per-pack validator", () => {
+    const { warnings } = auditDuplicates([
+      delivered("a", original, { sha256: "same" }),
+      delivered("b", original, { sha256: "same" }),
+    ]);
+    expect(warnings).toEqual([]);
+  });
+
+  it("compares nothing it has no fingerprint for", () => {
+    expect(fingerprintDistance({ audio: {} }, { audio: {} })).toBeNull();
+  });
+
+  it("counts both kinds in the library summary", () => {
+    const { summary } = validateLibraryAudio([
+      { assets: [delivered("a", original, { pack: "pak_a", sha256: "same" })] },
+      { assets: [delivered("b", original, { pack: "pak_b", sha256: "same" })] },
+    ]);
+    expect(summary.join("\n")).toContain(
+      "1 byte-identical pair(s) across packs, 0 near-duplicate pair(s) for review",
     );
   });
 });

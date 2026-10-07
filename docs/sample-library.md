@@ -471,6 +471,7 @@ Each asset record should support a shape equivalent to:
     "rootNote": "C1",
     "tuningCents": -3,
     "tuningStatus": "detected",
+    "spectralSketch": [80, 80, 41, 12, 0, 9, 22 /* … 32 bands in all */],
     "bpm": null,
     "bars": null,
     "loopable": false
@@ -534,7 +535,7 @@ Manifest validation fails CI when an asset is missing its checksum, rights evide
 - Preserve natural or designed tails unless silence is clearly accidental.
 - Detect and review root note and tuning for tonal drums, basses, stabs, and instruments. The build measures each declared root's settled pitch and fails one more than 50 cents off (section 15.12).
 - Record choke relationships for open/closed hats and similar pairs.
-- Identify near duplicates using audio fingerprints and human review.
+- Identify near duplicates using audio fingerprints and human review. The build fingerprints every master and reports close pairs for a person to hear (section 15.12).
 
 ### Loops
 
@@ -803,7 +804,7 @@ scripts/starter-library/
   manifest.mjs      section 9 manifest records; merges every acquired bundle
   validate.mjs      per-asset and collection-level rules; the CI gate
   audit.mjs         the release audit over the shipped bytes (section 15.11)
-  audits.mjs        library-wide audio audits and their thresholds: loudness, tuning (section 15.12)
+  audits.mjs        library-wide audio audits and their thresholds: loudness, tuning, duplicates (section 15.12)
   acquire.mjs       CLI: plan, pin, ingest
   manage.mjs        CLI + local review UI server (section 15.7)
   managePage.mjs    the review page served by library:manage
@@ -1006,6 +1007,13 @@ Measured across the whole library with every acquired source ingested (476 audio
 - `undetectable` and `gliding` are not faults. The detector cannot judge them, so they stay with the section 11 listening review, and the build prints how many there are so "no tuning errors" is never read as "every root was checked".
 
 Across the whole library with every acquired source ingested, 94 assets declare a pitch and none is beyond the tolerance: 65 are detected, all within ±9 cents, 27 are undetectable and 2 glide. Of those, the synthesized library's 77 are 49 detected (within ±9 cents), 26 undetectable (mostly the modal struck, chord, stab and reese voices, plus one short sub, one bass stab and one pluck) and 2 gliding (a short tom and a modal mallet). The acquired 17 (the pitched FreePats synth banks and Karoryfer's Caveman Cosmonaut; VCSL, the percussion banks and the drum-machine kits declare no root) are 16 detected within ±5 cents and one undetectable FreePats stab. The subharmonic check changes none of these readings; it is there for a harmonic-dominant timbre the library does not yet hold.
+
+**Duplicate audio.** Two halves, both run across every pack:
+
+- *Exact*: byte-identical masters, by SHA-256. Inside one pack this has always failed. Across packs it is how two packs share one stored object, so it is a warning, not a failure, but it is one sound and section 17 counts unique assets.
+- *Near*: every master carries a fingerprint in two parts: the 48-bin `peaks` envelope it already had, and `audio.spectralSketch`, its long-term power spectrum in 32 log-spaced bands from 20 Hz to 16 kHz (`spectralSketch` in `dsp.mjs`; 8192-point Hann frames), each band in half-dB steps below the loudest and floored 40 dB down. Neither part changes with level. Two masters are near duplicates when their lengths are within 10%, their envelopes differ by at most 3% of full scale on average, and their sketches by at most 1 dB per band on average. A copy that was only re-gained, re-encoded or trimmed by a few percent sits well inside all three. Each pair is a warning that names both assets, because a fingerprint cannot tell a lazy copy from two deliberately close variations; that is the human review section 10 asks for. A missing or malformed sketch fails.
+
+Across the whole library with every acquired source ingested (476 audio assets), no master is byte-identical to another and four pairs are reported. Three are among FreePats' synthesizer-percussion cymbals: `sg-one-shot-drums-cymbal-8005`, `-8006` and `-8007` ("Electric Percussion Cymbal 01 01" to "01 03", from `Cymbal01-01.flac` to `-03.flac`), which pair with each other within 0.8% in envelope and 0.84 dB in spectrum, most likely round-robin takes of one hit. The fourth is synthesized: `sg-one-shot-drums-kick-0001` ("Rounded Club Kick") and `sg-one-shot-drums-kick-0004` ("Soft Rounded Kick"), two sine-sweep kicks a few parameters apart. The next-closest pair, the tight and clicky house kicks (`-0002` and `-0009`), sits just outside the envelope limit; every other synthesized pair is clearly outside at least one limit. Whether to keep each flagged pair, the cymbals and the kicks, is the section 11 listening review's call: `-0001` is also the starter kick a new project is built with.
 
 ## 16. Pack marketplace
 
