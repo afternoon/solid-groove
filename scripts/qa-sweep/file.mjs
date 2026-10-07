@@ -48,7 +48,7 @@ import {
 
 const env = process.env;
 const DRY_RUN = process.argv.includes("--dry-run") || env.QA_SWEEP_DRY_RUN === "true";
-const REPO = env.GITHUB_REPOSITORY ?? "afternoon/solid-groove";
+const REPO = env.GITHUB_REPOSITORY ?? "trygroove/groove";
 const ARTIFACTS = env.QA_SWEEP_ARTIFACTS ?? "tmp/qa-sweep/artifacts";
 const PUBLISH_DIR = "tmp/qa-sweep/publish";
 const RUN_URL = env.GITHUB_RUN_ID

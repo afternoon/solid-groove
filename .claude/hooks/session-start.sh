@@ -84,16 +84,16 @@ NOTICE
 # including the `blocked_by` reads and edits that only REST offers. So probe a
 # real REST call, never `gh auth status`, and say exactly what works.
 if command -v gh >/dev/null 2>&1; then
-	if timeout 10 gh api repos/afternoon/solid-groove --silent >/dev/null 2>&1; then
+	if timeout 10 gh api repos/trygroove/groove --silent >/dev/null 2>&1; then
 		cat <<'NOTICE'
 GitHub CLI: `gh api` (REST) works in this session; use it. Ignore `gh auth
 status`: it reports the token as invalid here, but that is wrong for REST.
 GraphQL is blocked (HTTP 403), and the porcelain commands are built on it:
 `gh pr create/list/view/edit`, `gh issue view/list` all fail. Use REST instead:
-  gh api repos/afternoon/solid-groove/issues/<n>/dependencies/blocked_by
-  gh api -X POST repos/afternoon/solid-groove/issues/<n>/dependencies/blocked_by -F issue_id=<blocking issue's numeric id>
-  gh api -X POST repos/afternoon/solid-groove/pulls -f title=... -f head=... -f base=... -f body=...
-  gh api repos/afternoon/solid-groove/pulls/<n>   (and /issues/<n>, /issues/<n>/comments, /issues/<n>/labels)
+  gh api repos/trygroove/groove/issues/<n>/dependencies/blocked_by
+  gh api -X POST repos/trygroove/groove/issues/<n>/dependencies/blocked_by -F issue_id=<blocking issue's numeric id>
+  gh api -X POST repos/trygroove/groove/pulls -f title=... -f head=... -f base=... -f body=...
+  gh api repos/trygroove/groove/pulls/<n>   (and /issues/<n>, /issues/<n>/comments, /issues/<n>/labels)
 or the GitHub MCP tools (create_pull_request takes a `base`).
 NOTICE
 	else

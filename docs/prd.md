@@ -6,7 +6,7 @@ This document holds the *why* and the *for whom*: the vision, the product princi
 
 **It does not specify features.** The sections that did — core experience, functional requirements, interaction requirements, technical architecture, success measures, the delivery plan, the workstream split, and the test strategy — were removed once the product was up and running and the work moved to iteration. From here:
 
-- **What to build** is a [GitHub issue](https://github.com/afternoon/solid-groove/issues). The issue body is the specification; there is no requirement here for it to satisfy.
+- **What to build** is a [GitHub issue](https://github.com/trygroove/groove/issues). The issue body is the specification; there is no requirement here for it to satisfy.
 - **The product behavior a test must hold to** is a registered flow in [`docs/core-flows.md`](./core-flows.md).
 - **How the code is arranged** is [`CLAUDE.md`](../CLAUDE.md) and the documents it links — [persistence](./persistence.md), [shortcuts](./shortcuts.md), the [ADRs](./adr), and the [sample library plan](./sample-library.md).
 - **Which tests run, and what "done" means** is [`docs/testing.md`](./testing.md) and `CLAUDE.md`'s definition of done.

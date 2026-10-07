@@ -5,8 +5,8 @@
 | Status | Accepted |
 | Date | 2026-08-27 |
 | Decides | Which parts of a user's project may be sent to the AI provider, and the disclosure copy that describes it |
-| Supersedes | The draft disclosure copy in `AI-006` ([#95](https://github.com/afternoon/solid-groove/issues/95)), including its "no notes, no project contents beyond the project ID" claim |
-| Affects | `DEC-005` ([#34](https://github.com/afternoon/solid-groove/issues/34)), `AI-006` ([#95](https://github.com/afternoon/solid-groove/issues/95)), `AI-001` ([#69](https://github.com/afternoon/solid-groove/issues/69)), `src/projection/assistantContextProjection.ts`, `src/projection/projectAnalysisProjection.ts` |
+| Supersedes | The draft disclosure copy in `AI-006` ([#95](https://github.com/trygroove/groove/issues/95)), including its "no notes, no project contents beyond the project ID" claim |
+| Affects | `DEC-005` ([#34](https://github.com/trygroove/groove/issues/34)), `AI-006` ([#95](https://github.com/trygroove/groove/issues/95)), `AI-001` ([#69](https://github.com/trygroove/groove/issues/69)), `src/projection/assistantContextProjection.ts`, `src/projection/projectAnalysisProjection.ts` |
 
 ## Context
 

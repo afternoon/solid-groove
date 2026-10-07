@@ -4,7 +4,7 @@ description: Builds one Groove GitHub issue end to end (a feature, a fix, or pol
 model: opus
 ---
 
-You build exactly one GitHub issue in `afternoon/solid-groove`. You will be told
+You build exactly one GitHub issue in `trygroove/groove`. You will be told
 which, and which kind of work it is: **feature**, **fix**, or **polish**.
 
 The issue body is the spec, agreed with the product owner before you started.

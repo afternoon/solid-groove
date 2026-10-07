@@ -14,7 +14,7 @@
 
 ## 1. The four stages
 
-Groove is in **Alpha Milestone 0** of four (tracked in [GitHub issues](https://github.com/afternoon/solid-groove/issues)). The fundamental hypothesis is yours to test first:
+Groove is in **Alpha Milestone 0** of four (tracked in [GitHub issues](https://github.com/trygroove/groove/issues)). The fundamental hypothesis is yours to test first:
 
 > **A DAW with an AI assistant can help me become a better producer.**
 

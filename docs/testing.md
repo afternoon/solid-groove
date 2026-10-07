@@ -457,7 +457,7 @@ None of `checks`, `browser-emulator`, or `emulator` touch the production Firebas
 | Status | Implemented (`FND-001b`) |
 | Scope | Firebase Hosting deploy pipeline, `firebase.json` hosting config, the release-SHA stamp, and the hosted post-deploy smoke test |
 
-Related: [PRD 10 Security and privacy](./prd.md#10-non-functional-requirements), [`OPS-001`](https://github.com/afternoon/solid-groove/issues)
+Related: [PRD 10 Security and privacy](./prd.md#10-non-functional-requirements), [`OPS-001`](https://github.com/trygroove/groove/issues)
 
 ### The single hosted environment
 
@@ -490,7 +490,7 @@ Once the project and its secrets exist, `deploy`:
 3. Marks the release deployed in Sentry (`sentry-cli releases deploys … new --env alpha`), after the deploy succeeded so a release that never shipped is never recorded as live. Skipped when the Sentry variables are unset. See "Source maps and release registration" below.
 4. Installs Chromium and runs `bun run smoke:hosted` against the **public origin** — `site.config.mjs`'s `SITE_ORIGIN` (`https://trygroove.app`), resolved by the job rather than written into it, so the domain lives in one place (ADR 0008). A failing smoke test fails the job — the deploy is not considered successful until it passes (PRD OPS-01). Targeting the public origin means DNS, certificate and CDN failures fail the deploy too, not only Hosting ones; the Firebase-issued `https://$FIREBASE_PROJECT_ID.web.app` subdomain still serves the same build and is how you isolate Hosting from DNS when diagnosing one.
 
-Required GitHub Actions configuration, all of it scoped to the **`prod` environment** (`afternoon/solid-groove` → Settings → Environments → `prod`), named but never set by this task. Setting any of these at repository scope instead has no effect on the `deploy` job, which reads them through `environment: prod`:
+Required GitHub Actions configuration, all of it scoped to the **`prod` environment** (`trygroove/groove` → Settings → Environments → `prod`), named but never set by this task. Setting any of these at repository scope instead has no effect on the `deploy` job, which reads them through `environment: prod`:
 
 | Name | Kind | Purpose |
 | --- | --- | --- |
@@ -651,7 +651,7 @@ In Sentry, the issue should show:
     ```sh
     bunx sentry-cli releases files "<release-sha>" list --org "$SENTRY_ORG" --project "$SENTRY_PROJECT"
     ```
-    Or read the `deploy` job log: `[sentry-vite-plugin] Info: Successfully uploaded source maps to Sentry`, preceded by a *Source Map Upload Report* pairing each `.js` with its `.map` and a shared **debug id**. Matching debug IDs are what symbolication actually resolves on — URLs and release names are not consulted. Verified present for release `9e109fee` in [run 31104650815](https://github.com/afternoon/solid-groove/actions/runs/31104650815).
+    Or read the `deploy` job log: `[sentry-vite-plugin] Info: Successfully uploaded source maps to Sentry`, preceded by a *Source Map Upload Report* pairing each `.js` with its `.map` and a shared **debug id**. Matching debug IDs are what symbolication actually resolves on — URLs and release names are not consulted. Verified present for release `9e109fee` in [run 31104650815](https://github.com/trygroove/groove/actions/runs/31104650815).
 - `area`, `error_code`, `fatal`, and `browser_*` tags, and a **redacted** message;
 - **no** `request`, `user`, `extra`, or `server_name`, and no console breadcrumbs.
 
@@ -676,23 +676,23 @@ The first must return JavaScript. The second must return the SPA shell — `<!DO
 
 ### What has been verified against the hosted environment
 
-`OPS-001` ([issue #68](https://github.com/afternoon/solid-groove/issues/68)) ran on **2026-08-05** against release **`8336d9d`** on the production project `groove-35c07` (`https://groove-35c07.web.app`), and the error-monitoring items were re-checked the same day against release **`e15ce13`** once [#174](https://github.com/afternoon/solid-groove/issues/174) was fixed. What follows is what was observed, not what the procedure says should happen. Anything not listed as verified below is either outstanding or descoped, and must not be cited as evidence.
+`OPS-001` ([issue #68](https://github.com/trygroove/groove/issues/68)) ran on **2026-08-05** against release **`8336d9d`** on the production project `groove-35c07` (`https://groove-35c07.web.app`), and the error-monitoring items were re-checked the same day against release **`e15ce13`** once [#174](https://github.com/trygroove/groove/issues/174) was fixed. What follows is what was observed, not what the procedure says should happen. Anything not listed as verified below is either outstanding or descoped, and must not be cited as evidence.
 
 **Verified.**
 
-- **Deploy from CI on merge to `main`** — [run 31007337948](https://github.com/afternoon/solid-groove/actions/runs/31007337948) shipped Hosting, Firestore rules and indexes, and Storage rules in one `firebase deploy`. Every step green. The site loads and its `ReleaseBadge` shows the deployed commit SHA.
-- **Post-deploy smoke test** — passed against the hosted URL in that same run: app load, anonymous session start, project open, and audio start after a user gesture. It has also been shown to *fail* a deploy for real: [run 31000409583](https://github.com/afternoon/solid-groove/actions/runs/31000409583) went red when release `d65077c` shipped without its Firebase client config, which is what caught that defect (fixed in #169).
+- **Deploy from CI on merge to `main`** — [run 31007337948](https://github.com/trygroove/groove/actions/runs/31007337948) shipped Hosting, Firestore rules and indexes, and Storage rules in one `firebase deploy`. Every step green. The site loads and its `ReleaseBadge` shows the deployed commit SHA.
+- **Post-deploy smoke test** — passed against the hosted URL in that same run: app load, anonymous session start, project open, and audio start after a user gesture. It has also been shown to *fail* a deploy for real: [run 31000409583](https://github.com/trygroove/groove/actions/runs/31000409583) went red when release `d65077c` shipped without its Firebase client config, which is what caught that defect (fixed in #169).
 - **Rollback drill, performed** — rolled back to Hosting version `ed1256`, confirmed with the smoke test while rolled back, then rolled forward to version `53042d`. The `firestore.rules` revision restored alongside it was commit `8336d9d2`.
 - **Analytics opt-out, both directions** — collection toggled off in the Privacy disclosure (no further events observed in GA4), then back on (collection resumed). The toggle is symmetric in practice, not just by construction.
 - **OPS-02 events arriving from the deployed build** — `session_start`, `first_visit`, `page_view`, `feature_first_use`, and `clip_edited` observed in GA4 with their expected parameters.
 - **No source map is publicly fetchable** — confirmed by request against the deployed chunks. Note the check must compare response *bodies*, not status codes; see "4. No source map is public" above for why a `200` here proves nothing.
-- **Error monitoring initializes and delivers from the deployed build** — on release `e15ce13`, an uncaught error dispatched through the app's own global handler reached Sentry's ingest endpoint with **HTTP 200**, alongside the Release Health session envelope. Checked in a *hidden* tab specifically, which is where it used to fail: `window.__SENTRY__` is live, the `sentrySink-*` chunk is fetched, and `globalThis.__sgMonitoring` reads `"started"`. This supersedes the [#174](https://github.com/afternoon/solid-groove/issues/174) defect recorded here against `8336d9d`, whose cause was `afterFirstPaint` waiting on a `requestAnimationFrame` that a hidden document never fires (fixed in [#176](https://github.com/afternoon/solid-groove/pull/176)).
+- **Error monitoring initializes and delivers from the deployed build** — on release `e15ce13`, an uncaught error dispatched through the app's own global handler reached Sentry's ingest endpoint with **HTTP 200**, alongside the Release Health session envelope. Checked in a *hidden* tab specifically, which is where it used to fail: `window.__SENTRY__` is live, the `sentrySink-*` chunk is fetched, and `globalThis.__sgMonitoring` reads `"started"`. This supersedes the [#174](https://github.com/trygroove/groove/issues/174) defect recorded here against `8336d9d`, whose cause was `afterFirstPaint` waiting on a `requestAnimationFrame` that a hidden document never fires (fixed in [#176](https://github.com/trygroove/groove/pull/176)).
 
 **Descoped.**
 
 - **Computing the primary success measure from real events** is deferred to post-alpha (`DEC-011`, PRD section 16). The four events it would use still ship and are still covered by automated tests; what is deferred is defining and acting on the measure. This is a decision, not a gap.
 - **Inspecting a delivered error in the Sentry UI** is deferred to post-alpha (`DEC-012`). Delivery itself is verified above: an uncaught error reaches ingest with HTTP 200 from the deployed build, so a crash in front of a real user *is* reported. What is deferred is confirming what the resulting issue looks like — the release SHA on it, a **symbolicated** stack naming `src/` files, the expected tags, a redacted message, one-issue-per-error, and a crash-free session rate under *Releases → Health*. Each is a property of the Sentry console rather than of the app, and every one is already covered by unit tests against a fake SDK (`src/monitoring/sentrySink.test.ts`, `scrub.test.ts`).
-  - The half that fails silently in CI *is* confirmed: source maps uploaded for release `9e109fee` with debug IDs paired to every chunk ([run 31104650815](https://github.com/afternoon/solid-groove/actions/runs/31104650815)). Symbolication resolves on those debug IDs, so the remaining risk is narrow.
+  - The half that fails silently in CI *is* confirmed: source maps uploaded for release `9e109fee` with debug IDs paired to every chunk ([run 31104650815](https://github.com/trygroove/groove/actions/runs/31104650815)). Symbolication resolves on those debug IDs, so the remaining risk is narrow.
   - **The residual risk, stated plainly:** if scrubbing were misconfigured in a way the unit tests do not model, a real error could carry user content into Sentry before anyone notices. That is the one item here worth revisiting early, and it is why this is recorded as accepted rather than dismissed.
 - **Internal-traffic exclusion** is deferred to post-alpha (`DEC-012`). `?internal=1` persistence is unit-tested, but the `internal` user property has not been confirmed in GA4 from the deployed build, and internal traffic has not been shown to be excluded. The effect is that alpha-period measures may be inflated by the team's own sessions — which matters for *reading* the numbers, not for whether the product works, and the primary measure those numbers feed is itself deferred (`DEC-011`). Re-verify alongside it.
 

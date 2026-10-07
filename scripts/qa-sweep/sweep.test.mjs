@@ -381,12 +381,12 @@ describe("planFiling", () => {
 describe("screenshotUrl", () => {
   it("stays well under the 150 characters a PR body link survives", () => {
     const url = screenshotUrl({
-      repo: "afternoon/solid-groove",
+      repo: "trygroove/groove",
       issue: 1234,
       id: "9999-15",
     });
     expect(url).toBe(
-      "https://raw.githubusercontent.com/afternoon/solid-groove/refs/heads/claude/walkthroughs/1234/9999-15/1.png",
+      "https://raw.githubusercontent.com/trygroove/groove/refs/heads/claude/walkthroughs/1234/9999-15/1.png",
     );
     expect(url.length).toBeLessThan(150);
   });
@@ -394,7 +394,7 @@ describe("screenshotUrl", () => {
 
 describe("issue and comment text", () => {
   const ctx = {
-    runUrl: "https://github.com/afternoon/solid-groove/actions/runs/1",
+    runUrl: "https://github.com/trygroove/groove/actions/runs/1",
     build: "abc123",
     siteUrl: "https://trygroove.app",
     flows: [{ id: "CF-001", title: "A visitor reaches a playing loop" }],

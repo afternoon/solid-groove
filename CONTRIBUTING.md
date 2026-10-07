@@ -9,7 +9,7 @@ day-to-day loop of checks before you open a pull request.
 | Drive the app by hand against a real backend | "Running against the Firebase Emulator" below |
 | Know which test suite covers what, and how CI gates | [`docs/testing.md`](./docs/testing.md) |
 | Know the stack, code style, and architecture boundaries | [`CLAUDE.md`](./CLAUDE.md) |
-| Know what to build and what "done" means | The [GitHub issues](https://github.com/afternoon/solid-groove/issues) and [`docs/core-flows.md`](./docs/core-flows.md) |
+| Know what to build and what "done" means | The [GitHub issues](https://github.com/trygroove/groove/issues) and [`docs/core-flows.md`](./docs/core-flows.md) |
 | Know what the product is for, and what it will not do | [`docs/prd.md`](./docs/prd.md) |
 
 ## Setup

@@ -5,7 +5,7 @@
 | Status | Accepted |
 | Date | 2026-08-27 |
 | Decides | Which AI provider and model the private alpha's assistant calls, and the per-user and organization-wide limits that bound what it can spend |
-| Affects | `DEC-005` ([#34](https://github.com/afternoon/solid-groove/issues/34)), `AI-001` ([#69](https://github.com/afternoon/solid-groove/issues/69)), `REL-002` ([#74](https://github.com/afternoon/solid-groove/issues/74)) |
+| Affects | `DEC-005` ([#34](https://github.com/trygroove/groove/issues/34)), `AI-001` ([#69](https://github.com/trygroove/groove/issues/69)), `REL-002` ([#74](https://github.com/trygroove/groove/issues/74)) |
 
 ## Context
 

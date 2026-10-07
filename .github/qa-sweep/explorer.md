@@ -90,7 +90,7 @@ not need to clean up yourself, and you may create as many projects as you need.
    Take one screenshot that shows the problem (the viewport at the moment it is
    wrong) and save it as `tmp/qa-sweep/out/shots/<short-name>.png`.
 4. **Check it is not already filed.** Search open issues for it, for example
-   `gh api "search/issues?q=repo:afternoon/solid-groove+is:issue+is:open+tempo+field"`
+   `gh api "search/issues?q=repo:trygroove/groove+is:issue+is:open+tempo+field"`
    with a few words from the symptom, and read any likely match. If the same bug
    is already open, set `duplicateOf` to that issue's number: the filing step
    will comment on it instead of opening another.
