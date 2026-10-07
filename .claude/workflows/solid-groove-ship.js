@@ -39,7 +39,7 @@ const ENV = `## Your worktree and environment
 
 const TRIAGE_SCHEMA = {
   type: 'object',
-  required: ['kind', 'title', 'slug', 'unclear', 'question', 'changesUi', 'existingPr'],
+  required: ['kind', 'title', 'slug', 'unclear', 'question', 'changesUi', 'existingPr', 'waitFor'],
   properties: {
     kind: { type: 'string', enum: ['feature', 'fix', 'polish'] },
     title: { type: 'string', description: 'What the work does, in a few words, for PR titles' },
@@ -48,6 +48,7 @@ const TRIAGE_SCHEMA = {
     question: { type: 'string', description: 'The one question that unblocks it, if unclear; else empty' },
     changesUi: { type: 'boolean' },
     existingPr: { type: 'string', description: 'URL of an open PR that already closes or completes this issue, else empty' },
+    waitFor: { type: 'array', items: { type: 'string' }, description: 'Open PRs (as "#n") whose changes this work would likely conflict with, else empty' },
   },
 }
 
@@ -114,6 +115,7 @@ Read the issue body and every comment. Decide:
 - **kind**: \`feature\` (new capability: one PR, or a few in sequence when a part can land first), \`fix\` (something is wrong), or \`polish\` (a small enhancement or tweak). The issue's own label does not decide it. Behaviour that works as coded but is not what the issue wants is a fix or polish, never a reason to stop.
 - **unclear**: true only if two reasonable readings would build materially different things and nothing in the issue, its comments, a core flow or the code decides. Terse is not unclear; a missing cause is not unclear (finding it is the job). If unclear, post the single question as an issue comment, written so a one-line answer unblocks it, and add the \`status:blocked\` label (the board removes the old status).
 - **existingPr**: an open PR that already closes or completes #${issue}, if any.
+- **waitFor**: the open PRs this work would likely conflict with. List them (\`gh pr list --repo trygroove/groove --state open --json number,title,body\`) and look at each one's changed files (\`gh api repos/trygroove/groove/pulls/<n>/files --jq '.[].filename'\`) against the files and modules this issue will touch. A likely conflict is the same file, or the same module where both change behaviour; a PR in another area is not one. If there are any, hold off: comment on the issue naming the PRs and the files they share, say the product owner should move the issue to Ready again once they have landed, and add the \`status:backlog\` label (the board removes the old status). Two changes landing at once in one area is how merge conflicts start.
 
 Read only enough code to answer. Do not change anything else.`,
   { label: `triage #${issue}`, schema: TRIAGE_SCHEMA, effort: 'medium' },
@@ -126,6 +128,10 @@ if (t.existingPr) {
 if (t.unclear) {
   log(`#${issue} is unclear; asked on the issue: ${t.question}`)
   return { issue, stopped: 'unclear', question: t.question }
+}
+if (t.waitFor?.length) {
+  log(`#${issue} would likely conflict with ${t.waitFor.join(', ')}; holding off until they land.`)
+  return { issue, stopped: 'wait-for', waitFor: t.waitFor }
 }
 log(`#${issue} is ${t.kind}: ${t.title}`)
 

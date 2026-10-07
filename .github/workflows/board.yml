@@ -118,7 +118,7 @@ jobs:
 
             Follow `.claude/skills/ship/SKILL.md`, with one change for this environment: do NOT use the Workflow tool. This is a headless run that ends the moment your turn ends, so a background workflow would be killed before it does anything. Instead run the stages in `.claude/workflows/solid-groove-ship.js` yourself, in order (triage, build, review for features only, land), giving each stage's prompt to the Agent tool with `run_in_background: false` and waiting for its result before starting the next. Read the agent briefs in `.claude/agents/` the same way the workflow does.
 
-            Do not end your turn until the pull requests are open, or the issue is labelled `status:blocked` with a comment saying why. Before you report a PR, confirm it exists with `gh pr view`. Never report a result you have not seen. Use the `gh` CLI for GitHub (GH_TOKEN is set).
+            Do not end your turn until the pull requests are open, or the issue is labelled `status:blocked` with a comment saying why, or triage held it off (a comment naming the open PRs it would conflict with, and `status:backlog`). Before you report a PR, confirm it exists with `gh pr view`. Never report a result you have not seen. Use the `gh` CLI for GitHub (GH_TOKEN is set).
 
             Keep the issue informed through comment ${{ steps.announce.outputs.comment }}, which this run already posted on the issue. Edit it in place (`gh api --method PATCH repos/${{ github.repository }}/issues/comments/${{ steps.announce.outputs.comment }} -f body=...`), keeping its first line and run link: as soon as you have read the issue, replace the placeholder with a short plan as a Markdown checklist; tick items off as each is done; and when you finish, end it with a summary of what changed and links to the PRs, or why you stopped. Do not post separate progress comments.
           claude_args: |
@@ -138,6 +138,9 @@ jobs:
           labels=$(gh issue view "$ISSUE" --repo "$GITHUB_REPOSITORY" --json labels --jq '.labels[].name')
           if echo "$labels" | grep -qx 'status:blocked'; then
             echo "Issue was moved to Blocked by the run; nothing to check."; exit 0
+          fi
+          if echo "$labels" | grep -qx 'status:backlog'; then
+            echo "Triage held the issue off until the PRs it would conflict with land; nothing to check."; exit 0
           fi
           # Open, or merged in the last six hours: a safe PR can merge on its own
           # before this check runs.

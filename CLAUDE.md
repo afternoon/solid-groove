@@ -87,7 +87,7 @@ Status is a `status:*` label on the issue, and the pinned **Board** issue lists 
 | Column | Label | Moved there by |
 | --- | --- | --- |
 | Backlog | `status:backlog` | Opening an issue |
-| Ready | `status:ready` | The product owner, once the spec is agreed. **This starts `/ship`** in Actions and moves the card on to In progress |
+| Ready | `status:ready` | The product owner, once the spec is agreed and nothing still landing is in its way (see below). **This starts `/ship`** in Actions and moves the card on to In progress |
 | In progress | `status:in-progress` | `/ship` starting; a failed QA; the product owner sending it back |
 | Blocked | `status:blocked` | `/ship` stopping on an unclear issue or a failed run; QA failing twice |
 | QA | `status:qa` | The PR that completes the issue merging (QA'd on production); a PR that closes it opening (QA'd on its preview) |
@@ -96,6 +96,8 @@ Status is a `status:*` label on the issue, and the pinned **Board** issue lists 
 | Done | (closed) | The QA bot passing it on production, or a PR that closes it merging |
 
 The Backlog column is grouped by milestone, and every issue has one: `.github/workflows/milestone.yml` puts a new bug on the milestone of the area it is in and anything else on Backlog. Milestones are listed by title (`M1`, `M2`, …, numbers compared as numbers), with Backlog last. Milestones can be added, renamed and renumbered freely: the scripts read them live, and the only name they rely on is `Backlog` (any case), the catch-all. An issue labelled `needs-shaping` has open questions (listed in a comment on it) to settle in a shaping session before it can go to Ready; the board shows that label, and `human-input-required`, after the issue's number on its line, and lists those issues first in their milestone. A PR that changes `firestore.rules` or `storage.rules` gets no preview; like any gated PR, it moves its issue to Ready for review. If an issue ever carries two `status:*` labels, the next board render keeps the later stage (Blocked always wins).
+
+**Avoiding merge pile-ups.** Before moving an issue to Ready, look at the open PRs and the In progress cards. If the new work would touch the same files, or the same module where both change behaviour, leave it in Backlog until that work has merged: two changes landing at once in one area is how merge conflicts start. `/ship` makes the same check when it starts: if an open PR is likely to conflict, it holds off, comments on the issue naming the PRs it waits for, and puts the card back in Backlog. Move it to Ready again once they have landed.
 
 The QA bot ([`docs/qa-bot.md`](./docs/qa-bot.md) holds its instructions) reports on the issue's card. Most work it tests on production after it has merged: on a pass it closes the issue; on a fail it comments the findings on the issue starting with `@claude` (which starts a fix in a new PR) and adds `status:in-progress`, or `status:blocked` after the second failure. A PR labelled `deploy-preview` it tests on the preview instead: a pass adds `status:review`, a fail comments on the PR the same way. An agent working an issue keeps its card current the same way.
 

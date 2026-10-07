@@ -26,7 +26,9 @@ without asking questions. See `CLAUDE.md`, "Shape, then ship".
    an expected or summarised result. Then tell the user in a few lines:
    - the PRs it opened (full URLs), and the kind of work it treated the issue as;
    - any assumptions or open review findings that ended up in a PR body;
-   - or, if it stopped, why (an unclear issue posts its question on the issue;
+   - or, if it stopped, why (an issue likely to conflict with an open PR is held
+     off: the PRs it waits for are named on the issue and the card goes back to
+     Backlog, to be moved to Ready again once they land; an unclear issue posts its question on the issue;
      answer there or in this session and re-run `/ship`; a run that stopped at
      a gated PR continues from what has landed when `/ship` runs again after
      that PR merges).
