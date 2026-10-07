@@ -44,7 +44,16 @@ export const APP_FEATURE_KEYS = [
   "sign_out",
   // The admin page's batch approval of the alpha allowlist (#854).
   "allowlist_admin",
+  // The home page's second version (#1135): a visitor's first call to action
+  // on it, of any kind.
+  "landing_v2",
 ] as const;
+
+/**
+ * Where a home-page call to action sits (#1135), as `landing_cta_click`'s
+ * `placement`, so conversion can be compared by place on the page.
+ */
+export const LANDING_CTA_PLACEMENTS = ["header", "hero", "close"] as const;
 
 export const APP_EVENTS = {
   app_opened: {
@@ -55,10 +64,23 @@ export const APP_EVENTS = {
 
   landing_cta_click: {
     phase: 1,
-    owners: ["LOOP-001b"],
+    owners: ["LOOP-001b", "#1135"],
     // `start_free` was guest start, retired by #854 and kept so its history
-    // stays readable; `log_in` is the Sign in button.
-    params: { cta_id: enumParam(["start_free", "log_in", "request_access"]) },
+    // stays readable; `log_in` is the Sign in button; `see_inside` is the
+    // hero's anchor down to the studio (#1135). `placement` is where on the
+    // page it sat (#1135), so `cta_id` keeps meaning what it always has.
+    params: {
+      cta_id: enumParam(["start_free", "log_in", "request_access", "see_inside"]),
+      placement: enumParam(LANDING_CTA_PLACEMENTS),
+    },
+  },
+
+  // The home page's hero video started (#1135), once per page view. It never
+  // plays under reduced motion, so this also says how many visitors saw it.
+  landing_video_play: {
+    phase: 1,
+    owners: ["#1135"],
+    params: {},
   },
 
   anon_session_created: {

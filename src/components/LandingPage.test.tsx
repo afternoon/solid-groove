@@ -50,6 +50,8 @@ function setup(
     /** Shortened where a test waits the restore budget out. */
     sessionRestoreTimeoutMs?: number;
     analyticsTransport?: ReturnType<typeof createRecordingTransport>;
+    /** Defaults to true, so a test never asks jsdom to play a video. */
+    prefersReducedMotion?: boolean;
   } = {},
 ) {
   navigate.mockReset();
@@ -79,88 +81,165 @@ function setup(
       loadAuthService={() => Promise.resolve({ signInWithGoogle, onAuthStateChanged })}
       reportError={reportError}
       sessionRestoreTimeoutMs={options.sessionRestoreTimeoutMs}
+      prefersReducedMotion={() => options.prefersReducedMotion ?? true}
     />
   ));
   return { transport, signInWithGoogle, onAuthStateChanged, unsubscribe, reportError };
 }
 
-/** The header's Sign in; the hero repeats it. */
-const signIn = () => screen.getAllByRole("button", { name: "Sign in" })[0];
+/** The header's Sign in, the page's one sign-in control. */
+const signIn = () => screen.getByRole("button", { name: "Sign in" });
+
+const requestInvites = () => screen.getAllByRole("link", { name: "Request an invite" });
 
 describe("LandingPage (PRD PRJ-06)", () => {
-  describe("what the page says", () => {
-    it("states the product promise", () => {
+  describe("what the page says (#1135)", () => {
+    it("leads with the headline", () => {
       setup();
-      expect(
-        screen.getByRole("heading", { level: 1, name: /bring a loop/i }),
-      ).toHaveTextContent(/leave with a track/i);
+      expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
+        "Finish the tracks you start.",
+      );
     });
 
-    it("says it runs in the browser with nothing to install", () => {
+    it("says what Groove is, the AI producer, and the payoff, in that order", () => {
+      setup();
+      const lede = screen.getByText(/music studio in your browser with an AI producer/i);
+      expect(lede.textContent).toMatch(
+        /music studio in your browser.*AI producer.*learn the skills for your next track/s,
+      );
+    });
+
+    it("says the alpha is invite-only and runs in the browser", () => {
       setup();
       expect(
-        screen.getByText(/music studio that runs in your browser/i),
+        screen.getByText("Invite-only alpha · runs in your browser"),
       ).toBeInTheDocument();
-      expect(screen.getByText(/the alpha is invite-only/i)).toHaveTextContent(
-        /nothing to install/i,
-      );
-    });
-
-    it("names the browsers it is tested in, and Safari's weaker status", () => {
-      setup();
-      const support = screen.getByText(/Chrome, Edge and Firefox/);
-      expect(support).toHaveTextContent(/test every release/i);
-      expect(support).toHaveTextContent(/Safari should work/i);
-    });
-
-    it("states the private-alpha status honestly", () => {
-      setup();
-      expect(screen.getAllByText(/private alpha/i).length).toBeGreaterThan(0);
-      expect(screen.getByText(/early build, shared privately/i)).toHaveTextContent(
-        /features change, and things break/i,
-      );
-    });
-
-    // #854: the alpha is invite-only, so the page says so rather than offering
-    // a start with no account that no longer exists.
-    it("says the alpha is invite-only, and offers no start without an account", () => {
-      setup();
-      expect(screen.getByText(/the alpha is invite-only/i)).toBeInTheDocument();
+      expect(
+        screen.getByText(/small batches/i, { selector: ".landing-hint" }),
+      ).toHaveTextContent(/nothing to install/i);
       expect(screen.queryByText(/no account/i)).not.toBeInTheDocument();
-      expect(screen.queryByRole("link", { name: /start/i })).not.toBeInTheDocument();
-      expect(screen.queryByText(/kept for 180 days/i)).not.toBeInTheDocument();
     });
 
-    // PRD PRJ-06: the page "does not advertise capabilities beyond the current
-    // milestone". The unshipped capabilities are named only under the heading
-    // that says they are not here yet.
-    it("lists unshipped capabilities as still being built, not as features", () => {
+    // PRD PRJ-06: the AI producer has not shipped, so the page never shows it
+    // as if it had: a badge with its date, and a captioned design study.
+    it("labels the AI producer as coming, and its picture as a design study", () => {
       setup();
-      const pending = screen
-        .getByRole("heading", { name: /still being built/i })
-        .closest(".landing-column");
-      expect(pending).not.toBeNull();
-      for (const capability of [
-        /AI producer/i,
-        /arrangement timeline/i,
-        /sound library/i,
-        /export/i,
-      ]) {
-        expect(pending?.textContent).toMatch(capability);
+      expect(screen.getByText("Coming in October")).toBeInTheDocument();
+      const study = screen.getByRole("img", { name: /design study of the AI producer/i });
+      expect(study.closest("figure")).toHaveTextContent(
+        "Design study. The AI producer arrives in October.",
+      );
+    });
+
+    // PRD PRJ-06 again, as a guard: every block of copy that names the AI
+    // producer says when it arrives, so a new sentence cannot present it as
+    // shipped. Two blocks are exempt, each for a stated reason: the hero lede,
+    // whose wording the spec dictates, and the AI section's own heading and
+    // lede, which sit under its "Coming in October" badge.
+    it("dates every mention of the AI producer", () => {
+      setup();
+      const main = screen.getByRole("main");
+      const blocks = main.querySelectorAll("h1, h2, h3, p, li, figcaption, dt, dd");
+      const mentions = [...blocks].filter(
+        (block) =>
+          /AI producer/i.test(block.textContent ?? "") &&
+          // The innermost block only: a list item is checked through its <p>.
+          !block.querySelector("h1, h2, h3, p, li, figcaption, dt, dd"),
+      );
+      expect(mentions.length).toBeGreaterThan(3);
+      for (const block of mentions) {
+        if (block.matches(".landing-hero .landing-lede")) continue;
+        const section = block.closest("section");
+        const underBadge =
+          section?.querySelector(".landing-badge")?.textContent === "Coming in October" &&
+          !block.closest("li, figure");
+        if (underBadge) continue;
+        expect(block.textContent).toContain("October");
       }
+    });
+
+    it("shows the studio today in four rows, each with a real screenshot", () => {
+      setup();
+      const section = screen
+        .getByRole("heading", { level: 2, name: "In the studio today." })
+        .closest("section");
+      expect(section).toHaveAttribute("id", "inside");
+      const rows = section?.querySelectorAll("article") ?? [];
+      expect(rows).toHaveLength(4);
+      for (const row of rows) {
+        const image = row.querySelector("img");
+        expect(image?.getAttribute("src")).toMatch(/^\/landing\/\w+\.jpg$/);
+        expect(image?.getAttribute("alt")).toBeTruthy();
+      }
+    });
+
+    it("drops the old working-now and still-being-built lists", () => {
+      setup();
+      expect(screen.queryByText(/still being built/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/working now/i)).not.toBeInTheDocument();
+    });
+
+    it("answers the six questions, one of them about phones", () => {
+      setup();
+      const faq = screen
+        .getByRole("heading", { level: 2, name: "Questions, answered." })
+        .closest("section");
+      expect(faq?.querySelectorAll("dt")).toHaveLength(6);
+      expect(faq).toHaveTextContent(/Does it work on my phone\?/);
+    });
+
+    it("names no price anywhere", () => {
+      setup();
+      expect(screen.getByRole("main").textContent).not.toMatch(
+        /\$|£|€|\bfree\b|price|per month/i,
+      );
+    });
+
+    it("shows the hero video decoratively, with a poster, and never autoplays from markup", () => {
+      setup({ prefersReducedMotion: true });
+      const video = document.querySelector("video");
+      // Hidden on its frame: Biome counts a bare video as focusable.
+      expect(video?.closest("[aria-hidden='true']")).not.toBeNull();
+      expect(video).toHaveAttribute("poster", "/landing/hero-poster.jpg");
+      expect(video).not.toHaveAttribute("autoplay");
+      expect(video?.querySelector("source")).toHaveAttribute("src", "/landing/hero.webm");
     });
   });
 
-  describe("entry points (#854: Request access and Sign in)", () => {
-    it("points every Request access control at the request-access form", () => {
+  describe("the hero video (#1135)", () => {
+    it("plays it, muted, once the page is in", async () => {
+      const play = vi
+        .spyOn(HTMLMediaElement.prototype, "play")
+        .mockImplementation(() => Promise.resolve());
+      setup({ prefersReducedMotion: false });
+
+      await waitFor(() => expect(play).toHaveBeenCalledTimes(1));
+      expect(document.querySelector("video")?.muted).toBe(true);
+      play.mockRestore();
+    });
+
+    it("leaves the poster up when the visitor prefers reduced motion", async () => {
+      const play = vi
+        .spyOn(HTMLMediaElement.prototype, "play")
+        .mockImplementation(() => Promise.resolve());
+      setup({ prefersReducedMotion: true });
+
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      expect(play).not.toHaveBeenCalled();
+      play.mockRestore();
+    });
+  });
+
+  describe("entry points (#854: Request an invite and Sign in)", () => {
+    it("points every Request an invite link at the request-access form", () => {
       setup();
-      const links = screen.getAllByRole("link", { name: "Request access" });
+      const links = requestInvites();
       // The header, the hero and the closing section.
       expect(links).toHaveLength(3);
       for (const link of links) expect(link).toHaveAttribute("href", requestAccessUrl);
     });
 
-    it("leaves Request access to the browser, and signs nobody in", async () => {
+    it("leaves Request an invite to the browser, and signs nobody in", async () => {
       const { signInWithGoogle } = setup();
 
       const event = new MouseEvent("click", { bubbles: true, cancelable: true });
@@ -173,7 +252,7 @@ describe("LandingPage (PRD PRJ-06)", () => {
         },
         { once: true },
       );
-      screen.getAllByRole("link", { name: "Request access" })[0].dispatchEvent(event);
+      requestInvites()[0].dispatchEvent(event);
 
       expect(cancelledByThePage).toBe(false);
       expect(navigate).not.toHaveBeenCalled();
@@ -187,15 +266,6 @@ describe("LandingPage (PRD PRJ-06)", () => {
 
       await waitFor(() => expect(signInWithGoogle).toHaveBeenCalledTimes(1));
       await waitFor(() => expect(navigate).toHaveBeenCalledWith("/projects"));
-    });
-
-    it("offers Sign in in the hero as well as the header", async () => {
-      const { signInWithGoogle } = setup();
-      expect(screen.getAllByRole("button", { name: "Sign in" })).toHaveLength(2);
-
-      await userEvent.click(screen.getAllByRole("button", { name: "Sign in" })[1]);
-
-      await waitFor(() => expect(signInWithGoogle).toHaveBeenCalledTimes(1));
     });
 
     // #308: a returning visitor who was already signed in went through Google's
@@ -260,32 +330,29 @@ describe("LandingPage (PRD PRJ-06)", () => {
       expect(signIn()).toBeEnabled();
     });
 
-    it("shows Signing in… on both buttons while a sign-in is in flight", async () => {
+    it("shows Signing in… while a sign-in is in flight", async () => {
       setup({ signInWithGoogle: () => new Promise(() => {}) });
 
       await userEvent.click(signIn());
 
-      await waitFor(() =>
-        expect(screen.getAllByRole("button", { name: "Signing in…" })).toHaveLength(2),
-      );
-      for (const button of screen.getAllByRole("button", { name: "Signing in…" })) {
-        expect(button).toBeDisabled();
-      }
+      const busy = await screen.findByRole("button", { name: "Signing in…" });
+      expect(busy).toBeDisabled();
     });
   });
 
   describe("analytics (PRD OPS-02)", () => {
-    it("emits landing_cta_click once per Request access activation", () => {
+    it("emits landing_cta_click once per Request an invite, with its placement", () => {
       const { transport } = setup();
-      document.addEventListener("click", (event) => event.preventDefault(), {
-        once: true,
-      });
+      document.addEventListener("click", (event) => event.preventDefault());
 
-      screen.getAllByRole("link", { name: "Request access" })[1].click();
+      for (const link of requestInvites()) link.click();
 
       const events = transport.named("landing_cta_click");
-      expect(events).toHaveLength(1);
-      expect(events[0]?.params.cta_id).toBe("request_access");
+      expect(events.map((event) => event.params)).toEqual([
+        expect.objectContaining({ cta_id: "request_access", placement: "header" }),
+        expect.objectContaining({ cta_id: "request_access", placement: "hero" }),
+        expect.objectContaining({ cta_id: "request_access", placement: "close" }),
+      ]);
       expect(events[0]?.params.surface).toBe("landing");
     });
 
@@ -296,7 +363,49 @@ describe("LandingPage (PRD PRJ-06)", () => {
 
       const events = transport.named("landing_cta_click");
       expect(events).toHaveLength(1);
-      expect(events[0]?.params.cta_id).toBe("log_in");
+      expect(events[0]?.params).toMatchObject({ cta_id: "log_in", placement: "header" });
+    });
+
+    it("counts See what's inside as its own call to action", () => {
+      const { transport } = setup();
+      document.addEventListener("click", (event) => event.preventDefault(), {
+        once: true,
+      });
+
+      screen.getByRole("link", { name: "See what's inside" }).click();
+
+      const events = transport.named("landing_cta_click");
+      expect(events).toHaveLength(1);
+      expect(events[0]?.params).toMatchObject({
+        cta_id: "see_inside",
+        placement: "hero",
+      });
+    });
+
+    it("logs feature_first_use for landing_v2 once, on the first call to action", () => {
+      const { transport } = setup();
+      document.addEventListener("click", (event) => event.preventDefault());
+
+      screen.getByRole("link", { name: "See what's inside" }).click();
+      for (const link of requestInvites()) link.click();
+
+      const firstUse = transport
+        .named("feature_first_use")
+        .filter((event) => event.params.feature === "landing_v2");
+      expect(firstUse).toHaveLength(1);
+    });
+
+    it("logs landing_video_play once per page view, however often it resumes", () => {
+      const { transport } = setup();
+      const video = document.querySelector("video");
+      if (!video) throw new Error("no hero video");
+
+      video.dispatchEvent(new Event("play"));
+      video.dispatchEvent(new Event("play"));
+
+      const events = transport.named("landing_video_play");
+      expect(events).toHaveLength(1);
+      expect(events[0]?.params.surface).toBe("landing");
     });
 
     it("counts the intent even when the sign-in it starts fails", async () => {
@@ -332,6 +441,7 @@ describe("LandingPage (PRD PRJ-06)", () => {
             })
           }
           reportError={vi.fn()}
+          prefersReducedMotion={() => true}
         />
       ));
 
@@ -356,9 +466,15 @@ describe("LandingPage (PRD PRJ-06)", () => {
   });
 
   describe("accessibility (PRD section 10)", () => {
-    it("uses one h1 and labelled landmarks", () => {
+    it("uses one h1, an h2 per section, and labelled landmarks", () => {
       setup();
       expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
+      // Who it's for, the AI producer, the studio, where it fits, how it
+      // works, the FAQ and the closing call to action.
+      expect(screen.getAllByRole("heading", { level: 2 })).toHaveLength(7);
+      for (const image of screen.getAllByRole("img")) {
+        expect(image).toHaveAccessibleName();
+      }
       expect(screen.getByRole("main")).toBeInTheDocument();
       expect(
         screen.getByRole("navigation", { name: /get started/i }),
@@ -368,10 +484,14 @@ describe("LandingPage (PRD PRJ-06)", () => {
 
     it("gives every call to action a real accessible name", () => {
       setup();
-      // Request access is a link because it leads somewhere; Sign in is a
+      // Request an invite is a link because it leads somewhere; Sign in is a
       // button because it opens a provider popup and goes nowhere on its own.
-      expect(screen.getAllByRole("link", { name: "Request access" })).toHaveLength(3);
-      expect(screen.getAllByRole("button", { name: "Sign in" })).toHaveLength(2);
+      expect(requestInvites()).toHaveLength(3);
+      expect(screen.getAllByRole("button", { name: "Sign in" })).toHaveLength(1);
+      expect(screen.getByRole("link", { name: "See what's inside" })).toHaveAttribute(
+        "href",
+        "#inside",
+      );
     });
 
     it("announces a failed sign-in to assistive technology", async () => {

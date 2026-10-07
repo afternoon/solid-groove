@@ -60,7 +60,7 @@ test.describe("a seeded registered session", { tag: "@sanity" }, () => {
 
     await expect(page).toHaveURL(/\/$/);
     await expect(
-      page.getByRole("heading", { level: 1, name: /Bring a loop/ }),
+      page.getByRole("heading", { level: 1, name: /Finish the tracks you start/ }),
     ).toBeVisible();
     await expect(page.getByRole("button", { name: "New Project" })).toHaveCount(0);
   });

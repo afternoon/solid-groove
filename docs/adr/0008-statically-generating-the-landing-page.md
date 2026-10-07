@@ -38,6 +38,8 @@ ADR 0005 anticipated this being asked later. It adopted `@solidjs/vite-plugin`'s
 
 7. **No `og:image`.** The alpha has no artwork that is true to what it ships, and the design mock shows capabilities it has not built, which `PRJ-06` forbids advertising. A text-only `summary` card is honest; a large-image card with nothing to show is not. Adding one is a later, deliberate change.
 
+   *Amended by #1135:* that later change is made. The image is a 1200×630 still of the real app, recorded with the home page's video by `bun run landing:capture`, so the card shows only what the alpha ships, and the card is `summary_large_image`. The head also carries `SoftwareApplication` and `FAQPage` JSON-LD, each `data-landing="true"`, and `scripts/verify-landing-static.mjs` checks the image, the structured data and the video's assets in the built `index.html` and their absence from `app.html`.
+
 ## What this does not decide
 
 - **It does not enable SSR.** `ssr: true` would turn on hydratable transforms app-wide, require every route's module graph to be server-safe, and ship a server bundle to run. None of that is needed to put one static page in front of visitors, and all of it would have to be operated.
