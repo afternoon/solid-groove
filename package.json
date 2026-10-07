@@ -84,6 +84,8 @@
     "walkthrough:capture": "CAPTURE_WALKTHROUGH=1 firebase emulators:exec --only firestore,auth,storage,functions --project demo-solid-groove \"playwright test --config=tests/e2e/emulator/playwright.config.ts --project=chromium --workers=1 flows\"",
     "prescreenshots": "bun run samples && bun run functions:build",
     "screenshots": "node scripts/screenshots.mjs",
+    "prelanding:capture": "bun run samples && bun run functions:build",
+    "landing:capture": "CAPTURE_LANDING=1 firebase emulators:exec --only firestore,auth,storage,functions --project demo-solid-groove \"playwright test --config=tests/e2e/emulator/playwright.config.ts --project=chromium --workers=1 landing.screens\"",
     "walkthrough:publish": "node scripts/walkthrough/publish.mjs",
     "typecheck": "tsc --noEmit",
     "check": "tsc --noEmit && biome check && bun run verify:no-solid-1",

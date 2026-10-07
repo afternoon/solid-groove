@@ -133,6 +133,24 @@ any video, since Playwright records no audio track — is evidence that a sound
 reached a speaker. A walkthrough proves the UI reached the state the flow
 asserts. Audible behavior is checked by hand on the preview channel.
 
+### The home page's pictures
+
+The video and stills on `/` (#1135) are the real app, recorded by
+`tests/e2e/emulator/landing.screens.spec.ts`, the one `*.screens.spec.ts` that
+is kept. It seeds a demo song (`support/landingDemoHarness.ts`), drives the
+editor against the emulator, and writes `public/landing/`. When the editor
+changes enough that the home page no longer shows it, re-record and commit the
+result:
+
+```sh
+bun run landing:capture
+```
+
+It skips itself in every other run, so the gating suites never rewrite
+`public/`. The video is VP8 WebM, trimmed with the ffmpeg build Playwright
+installs for recording, so it needs nothing beyond `bun run
+test:browser:install`.
+
 ## Unit and component tests
 
 ```sh
