@@ -82,8 +82,17 @@
   gap: 8px;
 }
 
+/*
+ * The document controls never give up their own width (#1031). An equal share
+ * of the spare width is all they take while it holds them, so the transport
+ * stays centred; below that (around 1000px) they keep their full size and the
+ * project's side gives way instead, its name ellipsizing. Held to half, they
+ * were squeezed to bare cells at ~800px and their labels ran over each other
+ * and off the right edge.
+ */
 .editor-header-end {
   justify-content: flex-end;
+  min-width: max-content;
 }
 
 .editor-header .project-name {
@@ -96,6 +105,9 @@
 }
 
 .editor-header .project-name-button {
+  /* A block, not the header's flex cell, so a long name ellipsizes at its
+     end rather than being clipped from both sides (#1031). */
+  display: block;
   max-width: 100%;
   font: inherit;
   text-overflow: ellipsis;
@@ -354,6 +366,16 @@
   color: var(--color-danger);
 }
 
+/* The reason is held to one short line (#1031): the document controls keep
+   their whole width, so a longer reason would push them off the window. The
+   recovery group's title carries the whole of it. */
+.editor-header .save-recovery-message {
+  max-width: 24ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .editor-header .save-retry-button {
   font-size: var(--font-size-small);
   color: inherit;
@@ -539,4 +561,38 @@
 .editor-header .assistant-button[aria-pressed="true"]:hover {
   background: var(--color-accent-dim);
   color: var(--color-on-accent);
+}
+
+/* Below 1000px a failed save shows "Save failed" and Retry, and its reason
+   only on hover (#1031): there is no room for it beside the document
+   controls. It stays in the alert, so a screen reader still announces it. */
+@media (max-width: 1000px) {
+  .editor-header .save-recovery-message {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+}
+
+/* Below 900px the Assistant button is its icon alone (#1031), so the
+   project's name keeps some room beside the full-width document controls.
+   Its label stays as the button's accessible name. */
+@media (max-width: 900px) {
+  .editor-header .assistant-button {
+    padding: 0 4px;
+  }
+
+  .editor-header .assistant-button-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
 }
