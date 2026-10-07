@@ -41,16 +41,19 @@ If you truly cannot reproduce it at any layer, return `unreproduced` with what y
 tried, instead of shipping a speculative fix.
 
 **Feature.**
-- Plan the PRs first. One PR is the default; stack only a big change (about
-  400 changed lines is the sign, not a cap) where a reader would want to review
-  parts separately (a refactor and the feature on it, a schema change and its
-  UI). Stack only real dependencies and keep the stack as short as they allow;
-  put a pure refactor or move at the bottom so it can land early. Tests ship
-  with the code they cover. Never mix a behaviour change into a pure move.
+- Plan the PRs first. One PR is the default; about 400 changed lines is the
+  sign a change wants splitting, not a cap. When a part can land on its own and
+  the rest builds on it, ship the issue as a **sequence** of PRs, each opened
+  after the one before has merged: a catalog, schema or pure refactor change
+  first and the feature on it; a core flow at `test.fixme` before its
+  implementation. Keep the sequence as short as the dependencies allow; parts
+  that do not depend on each other belong in separate issues. Every piece
+  leaves `main` working on its own. Tests ship with the code they cover. Never
+  mix a behaviour change into a pure move.
 - If the feature adds a user journey worth guarding for the life of the product,
   write its core flow (see `docs/core-flows.md`, "Anatomy of a flow") as the
-  **first branch of the stack**: the register entry plus
-  `tests/e2e/emulator/flows/<ID>.spec.ts` marked `test.fixme`. The last branch
+  **first piece**: the register entry plus
+  `tests/e2e/emulator/flows/<ID>.spec.ts` marked `test.fixme`. The last piece
   removes the `fixme` and makes it pass. Most features do not need a new flow;
   most do need unit and component tests.
 - Never weaken an existing flow's assertions to fit. If a journey genuinely
@@ -58,8 +61,18 @@ tried, instead of shipping a speculative fix.
 
 ## Branches
 
-- Branch from `origin/main`: `claude/<issue>-<slug>`, and for later stack
-  branches `claude/<issue>-<slug>-2`, `-3`, … each off the previous branch.
+- Name the branches `claude/<issue>-<slug>` and, for a later piece,
+  `claude/<issue>-<slug>-2`, `-3`, … Branch the first from `origin/main`. Build
+  a later piece on the branch before it (it needs that code), knowing its PR
+  opens against `main` only after the earlier piece has merged: the Land stage
+  merges `origin/main` into it then. So each piece's diff against the piece
+  before it must stand on its own, and its PR's base is always `main`.
+- If earlier PRs for this issue have already merged (a `/ship` run stopped at a
+  gated piece and was started again), start from the "Handoff from /ship"
+  comment that run left on the issue: it lists the remaining pieces, their
+  branches, the assumptions and the checks. Build only what remains, from
+  `origin/main`, and reuse a pushed branch whose content is still right
+  (merge `origin/main` into it rather than rebuilding it).
 - Every branch is green on its own commit: `bun run typecheck`, `bun run check`,
   `bun run test`, plus `bun run test:browser:emulator:chromium` when you
   touched browser behaviour. Push every branch. Do **not** open PRs; the
@@ -68,8 +81,9 @@ tried, instead of shipping a speculative fix.
   so every branch must leave `main` working: the app may be unfinished, but
   nothing that worked before breaks. A branch that touches a gated path (see
   CLAUDE.md, "Merging") waits for the product owner instead, so keep such
-  changes in their own branch where you can, at the bottom of the stack.
-- Never merge one stack branch into another: keep the stack linear (a native GitHub stack only merges that way). Do not force-push a branch that has an open PR. Do not commit `package-lock.json`.
+  changes in their own piece where you can, landed first.
+- Never rebase or force-push a pushed branch, and never base a PR on another
+  PR's branch. Do not commit `package-lock.json`.
 
 ## Screenshots: required whenever any UI changed
 
@@ -92,7 +106,7 @@ needs a concrete reason.
 
 ## Report
 
-Return the branches in stack order with one-line purposes, what you built,
+Return the branches in landing order with one-line purposes, what you built,
 assumptions you made, the commands you ran and their real results, whether UI
 changed, the screenshot Markdown, and (for a fix) the root cause and the
 verbatim red output. Report what happened, not what should have happened.

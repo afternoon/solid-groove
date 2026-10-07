@@ -83,8 +83,8 @@ outcome, so every flow ends by reloading the page, and the mock backend is a
 fresh, empty store on every page load. What makes them different is their role,
 not their runner —
 
-- they are written **before** the implementation, as the first PR in the stack of
-  the feature that adds the journey;
+- they are written **before** the implementation, in their own PR, the first the
+  feature that adds the journey lands;
 - they start at an entrypoint a person actually arrives at, never a deep link
   into seeded state; and
 - their assertions are not weakened to fit an implementation.
@@ -290,7 +290,7 @@ cross-browser coverage.
 | A local machine | whatever `bun run test:browser:install` fetched (chromium, firefox, webkit), plus Chrome and Edge if they are installed | The same as CI, for the browsers that are there |
 | A container that cannot reach `cdn.playwright.dev` (Claude Code on the web) | chromium only | A pre-flight. Says nothing about Firefox or WebKit |
 
-The full browser matrix does **not** run per push: on a busy day, ten stacked
+The full browser matrix does **not** run per push: on a busy day, ten open
 PRs queued well over a hundred browser jobs, and a sample of a day's runs found
 every real catch in Chromium, with the other browsers adding only flakes. Per
 push, CI runs the emulator suite's **`@sanity` subset** in Chromium

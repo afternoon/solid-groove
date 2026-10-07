@@ -1,0 +1,50 @@
+name: Conflicts
+
+# Every PR targets `main` and merges on its own once CI is green, so the one
+# thing that can leave a PR stranded is `main` moving under it. When `main`
+# moves, this checks every open PR against it (`.github/scripts/conflicts.sh`):
+# one that no longer merges cleanly is labelled `merge-conflict` and handed to
+# @claude, who merges `main` into the branch (never a rebase, never a
+# force-push). A PR that still merges cleanly is left alone: the merge queue
+# tests it on top of `main` anyway. A push to a flagged PR that resolves the
+# conflict clears the label.
+#
+# RESTACK_TOKEN: a fine-grained PAT (this repo; Contents, Pull requests and
+# Issues read/write). Optional, but without it this falls back to GITHUB_TOKEN,
+# and GitHub deliberately triggers no workflows from GITHUB_TOKEN activity: the
+# @claude comment would not start claude.yml. The name is historical (it came
+# in with the retired restack workflow); every workflow here shares it.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [synchronize]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  conflicts:
+    if: >-
+      github.event_name != 'pull_request' ||
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    # Serialise per PR or per push of main, never cancel: each run applies one
+    # event's rule.
+    concurrency:
+      group: conflicts-${{ github.event.pull_request.number || github.ref_name }}
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ secrets.RESTACK_TOKEN || github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          sparse-checkout: .github/scripts
+      - env:
+          MODE: ${{ github.event_name == 'pull_request' && 'pushed' || 'main' }}
+          PR: ${{ github.event.pull_request.number }}
+        run: bash .github/scripts/conflicts.sh "$MODE" "$PR"

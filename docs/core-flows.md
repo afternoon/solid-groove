@@ -41,7 +41,7 @@ principle** in the PRD — a flow that requires the product to behave against it
 own principles is wrong, and the principle wins. And where a flow and an issue
 disagree about the same behavior, the flow wins: it is the frozen contract the
 implementation is measured against, and an issue that needs different behavior
-changes the flow in the same stack, and says so.
+changes the flow in the same PR, and says so.
 
 ## Who edits this file
 
@@ -60,15 +60,15 @@ built.
 
 ## Lifecycle of a flow
 
-1. **Specified.** The first PR in the feature's stack adds the entry here with a
-   fresh ID and `tests/e2e/emulator/flows/<ID>.spec.ts`, marked `test.fixme`
+1. **Specified.** The feature's first PR, its own and landed before the
+   implementation, adds the entry here with a fresh ID and `tests/e2e/emulator/flows/<ID>.spec.ts`, marked `test.fixme`
    because the implementation does not exist yet. It merges green, because a
    `fixme` test does not fail.
 2. **Live.** The PR that completes the feature removes the `test.fixme` in the
    same diff that makes it pass.
 
 `bun run verify:core-flows` enforces the 1:1 mapping between the IDs in this file
-and the spec files, and reports any flow still parked at `fixme` so a stack cannot
+and the spec files, and reports any flow still parked at `fixme` so a feature cannot
 quietly land with its flow permanently skipped.
 
 ## Which suite a flow belongs in

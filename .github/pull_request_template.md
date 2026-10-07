@@ -6,9 +6,9 @@
 
 ## What & why
 
-<!-- What this PR changes and why. In a stack, say "i of N, builds on #<prev>". -->
+<!-- What this PR changes and why. In a sequence of PRs for one issue, say "i of N, follows #<prev>". -->
 
-Closes #<!-- issue number; use Refs on a mid-stack PR -->
+Closes #<!-- issue number; Refs on an earlier PR of a sequence, Completes on the last -->
 
 ## Screenshots
 

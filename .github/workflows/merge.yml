@@ -2,13 +2,11 @@ name: Merge
 
 # Lands PRs through the merge queue (`.github/scripts/merge.mjs`):
 #
-#  - a safe PR (no gated path) is queued as soon as it sits on main and is not a
-#    draft or labelled `hold`: when it opens, is pushed, or restack moves it onto
-#    main because the PR under it merged
+#  - a safe PR (no gated path) is queued as soon as it opens or is pushed, unless
+#    it is a draft or labelled `hold`
 #  - a gated PR is labelled `needs-approval` and waits; adding `status:approved`
 #    to its issue (the board's Approved column) approves every open PR for the
-#    issue and the PRs stacked under them, and adding it to one PR approves that
-#    PR and the PRs under it
+#    issue, and adding it to one PR approves that PR
 #
 # Queue failures go back to the agent through ci-failure.yml. A push to an
 # approved PR re-queues it without a new approval; remove the label to stop that.
