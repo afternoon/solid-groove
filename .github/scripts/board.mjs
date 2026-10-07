@@ -5,7 +5,9 @@
  *
  *   node board.mjs poll   Every five minutes. Reads the columns and writes to
  *                         $GITHUB_OUTPUT the work each one asks for:
- *                           ship=["GRV-12", …]      cards in Ready (moved to In Progress here)
+ *                           ship=["GRV-12", …]      cards in Ready with no open blocker, at most
+ *                                                   SHIP_PER_POLL (4) of them in priority order
+ *                                                   (moved to In Progress here)
  *                           rework=[{issue,prs,comment}, …]  cards sent back to In Progress with PRs open
  *                           mentions=[{issue,comment,reply}, …]  comments that say @claude
  *                           milestone=["GRV-40", …] new bugs with no milestone
@@ -31,6 +33,8 @@ import { approvalOfIssue, approve, openPrs, refersTo } from "./merge.mjs";
 
 const REPO = process.env.GITHUB_REPOSITORY;
 const RUN_URL = process.env.RUN_URL ?? "";
+/** Builds a poll may start: the rest of Ready waits for the next poll. */
+const SHIP_PER_POLL = Number(process.env.SHIP_PER_POLL ?? 4);
 
 /** The first line of the comment a run leaves on a card when it starts. */
 export const PICKUP = "**Picking this up";
@@ -128,7 +132,22 @@ const enteredInProgress = (issue) =>
 
 async function pollReady() {
   const ship = [];
-  for (const card of await linear.list({ state: "Ready" })) {
+  for (const card of linear.startOrder(await linear.list({ state: "Ready" }))) {
+    if (ship.length >= SHIP_PER_POLL) {
+      console.log(
+        `${card.identifier}: Ready; waiting, ${SHIP_PER_POLL} builds started this poll`,
+      );
+      continue;
+    }
+    // A card blocked by work that has not merged stays in Ready, and starts on
+    // the first poll after its last blocker reaches QA.
+    const blockers = linear.openBlockers(card);
+    if (blockers.length) {
+      console.log(
+        `${card.identifier}: Ready; waiting on ${blockers.map((b) => `${b.identifier} (${b.state.name})`).join(", ")}`,
+      );
+      continue;
+    }
     // Leave Ready first: the next poll must not see this card again.
     await linear.setState(card.identifier, "In Progress");
     const c = await linear.comment(card.identifier, `${PICKUP_SHIP}\n\n${PLACEHOLDER}`);
