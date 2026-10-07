@@ -8,12 +8,13 @@ name: QA sweep
 #   plan     picks the flows (a weekly rotation, or the ones asked for) and
 #            resolves the budget: agents per run and new issues per run.
 #   explore  one job per flow. The agent's QA account signed in (slot n is
-#            testuser<n>, #1055), the agent (read-only: it reports, it never
+#            testuser<n>, #1055), the open Linear issues listed for it to check
+#            duplicates against, the agent (read-only: it reports, it never
 #            files), then the account's projects deleted whatever the agent
 #            did, and its report uploaded.
-#   file     the only job that writes to GitHub: new `Bug: …` issues up to the
-#            cap, comments on open issues seen again, screenshots, and the run
-#            summary on the pinned "QA sweep" issue.
+#   file     the only job that writes to Linear: new `Bug: …` issues up to the
+#            cap, comments on open issues seen again, screenshots (pushed to
+#            GitHub), and the run summary as a Linear project update.
 #
 # Budget: the `agents` and `issues` inputs, else the QA_SWEEP_MAX_AGENTS and
 # QA_SWEEP_MAX_ISSUES repository variables, else 5 and 15. Clamped to 10 and 50
@@ -77,9 +78,10 @@ jobs:
     name: Walk ${{ matrix.flow.id }}
     runs-on: ubuntu-latest
     timeout-minutes: 120
-    # Read-only on purpose: an agent can search issues for duplicates but can
-    # file, comment or push nothing. The `file` job does every write, which is
-    # what makes the issue cap hold whatever an agent does.
+    # Read-only on purpose: an agent gets a list of the open issues to check
+    # duplicates against but no Linear key, so it can file, comment or push
+    # nothing. The `file` job does every write, which is what makes the issue
+    # cap hold whatever an agent does.
     permissions:
       contents: read
       issues: read
@@ -103,6 +105,12 @@ jobs:
         env:
           QA_SWEEP_SLOT: ${{ matrix.flow.slot }}
           QA_SIGN_IN_SERVICE_ACCOUNT: ${{ secrets.QA_SIGN_IN_SERVICE_ACCOUNT }}
+      - name: List the open issues, for duplicate checks
+        # The Linear key is this step's env and nothing else's: the agent reads
+        # the list, never the API.
+        run: mkdir -p tmp/qa-sweep && node .github/scripts/linear.mjs list --json > tmp/qa-sweep/open-issues.json
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
       - name: Walk and explore ${{ matrix.flow.id }}
         # A step timeout, not just the job's: the steps after this one must
         # still run, or the account's projects are never deleted.
@@ -151,9 +159,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      issues: write
     env:
       GH_TOKEN: ${{ secrets.RESTACK_TOKEN || github.token }}
+      LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
     steps:
       - uses: actions/checkout@v4
         with:

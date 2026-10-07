@@ -222,8 +222,9 @@ address to the allowlist. Running it again changes nothing. It never grants
 ### 4. Check it
 
 Actions → QA sweep → Run workflow with `dry_run` on. The run walks a flow as
-`testuser1` and reports a real build SHA on the pinned QA sweep issue. The
-next deploy's smoke test creates and plays a project as `testuser0`.
+`testuser1` and reports a real build SHA in the run's job summary (a dry
+run posts no project update). The next deploy's smoke test creates and
+plays a project as `testuser0`.
 
 ### Rotating or revoking
 

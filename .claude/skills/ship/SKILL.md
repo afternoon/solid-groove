@@ -1,6 +1,6 @@
 ---
 name: ship
-description: Ship one Groove GitHub issue unattended, whether it is a feature, a fix or polish. Triages the kind of work, builds it, reviews features, and opens ready-for-review PRs with screenshots and a preview deploy. Use when asked to ship, build, implement or fix an issue, e.g. "/ship #123", "ship 123", "fix #123", "implement #123".
+description: Ship one Groove Linear issue unattended, whether it is a feature, a fix or polish. Triages the kind of work, builds it, reviews features, and opens ready-for-review PRs with screenshots and a preview deploy. Use when asked to ship, build, implement or fix an issue, e.g. "/ship GRV-123", "ship GRV-123", "fix GRV-123", "implement GRV-123".
 ---
 
 # Ship an issue
@@ -8,10 +8,12 @@ description: Ship one Groove GitHub issue unattended, whether it is a feature, a
 The issue's spec was agreed in an interactive shape session, so this runs
 without asking questions. See `CLAUDE.md`, "Shape, then ship".
 
-1. **Resolve the issue number** from the argument (`#123`, `123`, or an issue
-   URL). If none was given, ask for one.
+1. **Resolve the issue identifier** from the argument (`GRV-123`, `grv-123`,
+   a bare `123` meaning `GRV-123`, or a Linear issue URL). If none was given,
+   ask for one. `LINEAR_API_KEY` must be set: the stages read and comment on
+   the card with `node .github/scripts/linear.mjs`.
 2. **Run the workflow**: call the Workflow tool with
-   `{ name: "solid-groove-ship", args: { issue: <n> } }`. Do not build anything
+   `{ name: "solid-groove-ship", args: { issue: "GRV-123" } }`. Do not build anything
    yourself; the workflow does triage, build, review (features only) and landing.
    Landing opens the PRs one at a time, each against `main` once the one before
    it has merged, so a run with several PRs takes as long as those merges.
@@ -29,11 +31,11 @@ without asking questions. See `CLAUDE.md`, "Shape, then ship".
    - the PRs it opened (full URLs), and the kind of work it treated the issue as;
    - any assumptions or open review findings that ended up in a PR body;
    - or, if it stopped, why (an issue likely to conflict with an open PR is held
-     off: the PRs it waits for are named on the issue and the card goes back to
-     Backlog, to be moved to Ready again once they land; an unclear issue posts its question on the issue;
-     answer there or in this session and re-run `/ship`; a run that stopped at
-     a gated PR continues from what has landed when `/ship` runs again after
-     that PR merges).
+     off: the PRs it waits for are named on the card and the card goes back to
+     Backlog, to be moved to Ready again once they land; an unclear issue posts
+     its question on the card and moves it to Blocked; answer there or in this
+     session and re-run `/ship`; a run that stopped at a gated PR continues
+     from what has landed when `/ship` runs again after that PR merges).
 4. **Watch the PRs** if `subscribe_pr_activity` is available: subscribe to each
    one and drive it to green (CI fixes, QA findings, merge conflicts) as the
    events arrive.

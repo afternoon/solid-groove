@@ -23,7 +23,7 @@ Try it at **[trygroove.app](https://trygroove.app)**.
 | [`CLAUDE.md`](./CLAUDE.md) | Stack, project structure, commands, and code style |
 | [`docs/prd.md`](./docs/prd.md) | Product principles — vision, target user, goals and non-goals, sample licensing, and privacy. Not a feature specification |
 | [`docs/core-flows.md`](./docs/core-flows.md) | The user journeys that must work end to end, each with a Playwright spec |
-| [GitHub issues](https://github.com/trygroove/groove/issues) | What to build: scope and acceptance criteria, one issue per task. `CLAUDE.md` describes how work is tracked and landed |
+| [Linear board](https://linear.app/ben2/project/groove-f835b9ea1a25) | What to build: scope and acceptance criteria, one issue per task (team `GRV`). `CLAUDE.md` describes how work is tracked and landed; [`docs/linear.md`](./docs/linear.md) how the board drives the automation |
 | [`docs/sample-library.md`](./docs/sample-library.md) | Sound library plan, licensing policy, and the shipped starter library |
 | [`docs/testing.md`](./docs/testing.md) | Which test suite to run, and how |
 

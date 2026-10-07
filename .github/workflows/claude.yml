@@ -5,24 +5,19 @@ on:
     types: [created]
   pull_request_review_comment:
     types: [created]
-  # `assigned` is deliberately absent. The gate below can only match `@claude`
-  # in the issue body or title, and assigning an issue changes neither, so
-  # listening for it produced a trigger that could never fire — you assign the
-  # issue and wait on silence. Tag `@claude` in a comment instead. Reinstating
-  # assignment-to-run means gating on `github.event.assignee.login`, which is a
-  # deliberate change, not a missing `types` entry.
-  issues:
-    types: [opened]
+  # Issues live in Linear, so there is no `issues` trigger here: an `@claude`
+  # comment on a Linear card is picked up by board.yml's poll, which starts a
+  # run on it. `issue_comment` is kept for comments on pull requests (GitHub
+  # delivers those as issue comments too).
   pull_request_review:
     types: [submitted]
 
 jobs:
   claude:
     if: |
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
+      (github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
-      (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude'))
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -71,5 +66,8 @@ jobs:
           claude_args: |
             --model opus
             --max-turns 120
-            --append-system-prompt "When you push a branch for an issue, open its pull request yourself before you finish (gh pr create, ready for review, not draft, following CLAUDE.md 'Landing work'), then confirm it exists with gh pr view. Never end with only a 'Create PR' link."
+            --append-system-prompt "Issues live in Linear: read a card with node .github/scripts/linear.mjs issue GRV-<n> (LINEAR_API_KEY is set) and refer to it as GRV-<n> in PR titles and bodies. When you push a branch for a card, open its pull request yourself before you finish (gh pr create, ready for review, not draft, following CLAUDE.md 'Landing work'), then confirm it exists with gh pr view. Never end with only a 'Create PR' link."
             --allowedTools "Read,Write,Edit,MultiEdit,Glob,Grep,LS,TodoWrite,NotebookEdit,WebFetch,WebSearch,Bash,Bash(bun:*),Bash(bunx:*),Bash(node:*),Bash(npx:*),Bash(tsc:*),Bash(git:*),Bash(gh:*),Bash(ls:*),Bash(cat:*),Bash(cp:*),Bash(mv:*),Bash(mkdir:*),Bash(rm:*),Bash(echo:*),Bash(grep:*),Bash(find:*),Bash(sed:*),Bash(chmod:*)"
+        env:
+          # The cards live in Linear; a run that reads or moves one needs the key.
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
