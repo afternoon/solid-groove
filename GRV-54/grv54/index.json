@@ -1,0 +1,14 @@
+{
+  "id": "grv54",
+  "title": "Space on a focused button",
+  "steps": [
+    {
+      "file": "01-the-mixer-with-the-bd-strip-s-mute-butto.png",
+      "caption": "The mixer with the BD strip's mute button focused"
+    },
+    {
+      "file": "02-space-mutes-bd-playback-has-not-started.png",
+      "caption": "Space mutes BD; playback has not started"
+    }
+  ]
+}
