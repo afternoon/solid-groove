@@ -69,6 +69,11 @@ export function createEditingHarness(
     transport,
     gestures,
     getProject: () => project,
+    /** Swap the project under the controller, as an undo, a redo or a remote
+     * edit does; the caller reconciles, as the view's projection effect does. */
+    setProject: (next: Project) => {
+      project = next;
+    },
     placementId: () => project.song.placements[0].id,
   };
 }
