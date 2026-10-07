@@ -75,6 +75,26 @@ function videoDuration(path: string): number {
   return Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3]);
 }
 
+/**
+ * Hides the app's own chrome that is not the product: the release-SHA badge
+ * and the floating Privacy control. Both sit in a corner of every editor
+ * screen, and on the home page they would read as part of the pictures.
+ * An init script, so it survives every navigation the capture makes.
+ */
+async function hideAppChrome(target: Page | BrowserContext): Promise<void> {
+  await target.addInitScript(() => {
+    const css =
+      ".release-badge, .telemetry-disclosure:not(.telemetry-disclosure-inline) { display: none !important; }";
+    const install = () => {
+      const style = document.createElement("style");
+      style.textContent = css;
+      document.head.append(style);
+    };
+    if (document.head) install();
+    else document.addEventListener("DOMContentLoaded", install, { once: true });
+  });
+}
+
 async function seedDemo(page: Page, label: string): Promise<string> {
   const session = await seedRegisteredSession(page, { label });
   // The dashboard first, so the SDK has restored the session before the
@@ -155,6 +175,7 @@ test.describe("landing page assets", () => {
 
   test("stills", async ({ page }, testInfo) => {
     await page.setViewportSize(VIEWPORT);
+    await hideAppChrome(page);
     const projectId = await seedDemo(page, `landing-stills-${testInfo.project.name}`);
     await openProject(page, projectId);
     await zoomToSong(page);
@@ -215,6 +236,7 @@ test.describe("landing page assets", () => {
         viewport: VIEWPORT,
         recordVideo: { dir: VIDEO_TMP, size: VIEWPORT },
       });
+      await hideAppChrome(context);
       const page = await context.newPage();
       const startedAt = Date.now();
       const at = () => (Date.now() - startedAt) / 1000;
