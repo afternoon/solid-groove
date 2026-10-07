@@ -30,10 +30,12 @@ jobs:
         github.event.action == 'synchronize'
       ))
     runs-on: ubuntu-latest
-    # One at a time, never cancelled: an approval and the pushes it causes can
-    # arrive together.
+    # One run per issue or PR at a time, never cancelled. Not one group for the
+    # whole repo: GitHub keeps only the newest pending run in a group and
+    # cancels the rest, so when several PRs moved at once, every approval but
+    # the last was dropped and those PRs were never queued.
     concurrency:
-      group: merge
+      group: merge-${{ github.event.issue.number || github.event.pull_request.number }}
       cancel-in-progress: false
     env:
       # Not GITHUB_TOKEN: a merge made by it triggers no workflows, so `main`
