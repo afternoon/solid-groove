@@ -1,0 +1,14 @@
+{
+  "id": "g66-after",
+  "title": "Projects at 390px (after)",
+  "steps": [
+    {
+      "file": "01-after-the-heading-reads-in-full-and-each.png",
+      "caption": "After: the heading reads in full and each row's actions fit the screen"
+    },
+    {
+      "file": "02-after-renaming-a-row-at-390px-keeps-save.png",
+      "caption": "After: renaming a row at 390px keeps Save and Cancel on screen"
+    }
+  ]
+}
