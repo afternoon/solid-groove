@@ -1,8 +1,10 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { cleanup, render, screen, within } from "@solidjs/testing-library";
 import { createSignal, For, flush } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { addDevice, CommandHistory, insertChain, setParameter } from "../commands";
-import { createDevice, type DeviceTypeId } from "../domain/devices";
+import { createDevice, type DeviceTypeId, deviceTypes } from "../domain/devices";
 import { createPianoRollFixtureProject } from "../domain/fixtures";
 import { createSeededIdFactory } from "../domain/ids";
 import { clickAndFlush, fireAndFlush } from "../testing/events";
@@ -52,6 +54,28 @@ function renderChain(
   const card = (index: number) => within(screen.getAllByRole("listitem")[index]);
   const types_ = () => devices().map((device) => device.type);
   return { history, devices, card, types: types_, trackId, copyId };
+}
+
+/**
+ * The selectors in `DeviceCard.css` that style a bypassed card, split by what
+ * they do: dimming text (they reassign a colour token) or fading the drawing
+ * (they set an opacity). jsdom does not apply the stylesheet, so a test asks
+ * whether these selectors reach the elements they are meant to.
+ */
+function bypassSelectors(): { dim: string[]; fade: string[] } {
+  const css = readFileSync(join(__dirname, "DeviceCard.css"), "utf8").replace(
+    /\/\*[\s\S]*?\*\//g,
+    "",
+  );
+  const dim: string[] = [];
+  const fade: string[] = [];
+  for (const [, selector, body] of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    if (!selector.includes(".bypassed")) continue;
+    const selectors = selector.split(",").map((part) => part.trim());
+    if (body.includes("--color-text:")) dim.push(...selectors);
+    if (body.includes("opacity:")) fade.push(...selectors);
+  }
+  return { dim, fade };
 }
 
 describe("DeviceCard", () => {
@@ -104,6 +128,35 @@ describe("DeviceCard", () => {
     fireAndFlush(() => history.undo());
     expect(devices()[0].bypassed).toBe(true);
   });
+
+  // GRV-64: the dimming rules matched only `.device-card-body`, which the EQ's
+  // faceplate replaces, so a bypassed EQ looked exactly like an active one.
+  it.each(deviceTypes().map((definition) => definition.type))(
+    "recedes a bypassed %s's body and well, but not its header (GRV-64)",
+    (type) => {
+      const { card } = renderChain([type]);
+      const article = screen.getByRole("article");
+      const { dim, fade } = bypassSelectors();
+      const dimmed = (element: Element) =>
+        dim.some((selector) => element.closest(selector) !== null);
+      const faded = (element: Element) =>
+        fade.some((selector) => element.matches(selector));
+      const sliders = card(0).getAllByRole("slider");
+      const drawings = [...article.querySelectorAll(".well-screen > svg")];
+
+      // Active, nothing recedes.
+      expect(sliders.filter(dimmed)).toEqual([]);
+      expect(drawings.filter(faded)).toEqual([]);
+
+      clickAndFlush(card(0).getByRole("button", { name: /^Bypass / }));
+      expect(article).toHaveClass("bypassed");
+      expect(sliders.filter((slider) => !dimmed(slider))).toEqual([]);
+      expect(drawings.filter((drawing) => !faded(drawing))).toEqual([]);
+      // The header, and the way back in, stay at full strength.
+      expect(dimmed(card(0).getByRole("heading"))).toBe(false);
+      expect(dimmed(card(0).getByRole("button", { name: /^Bypass / }))).toBe(false);
+    },
+  );
 
   it("offers its actions as named icon buttons, with no reorder arrows", () => {
     const { card } = renderChain(["overdrive", "reverb"]);

@@ -118,8 +118,11 @@
 /* A bypassed device is out of the signal but not gone: its controls recede,
    while its header — and the way back in — stays at full strength. Its text
    recedes to the dimmed-text grey rather than fading, so it still reads at
-   AA (#76); only its well's drawing fades. */
-.device-card.bypassed .device-card-body {
+   AA (#76); only its well's drawing fades. The body is whatever follows the
+   header, not one class: the EQ draws its own faceplate in place of
+   `.device-card-body` (LOOP-022), and a rule naming that wrapper missed it
+   (GRV-64). */
+.device-card.bypassed > :not(.device-card-head) {
   --color-foreground-bright: var(--color-foreground-muted);
   --color-text: var(--color-foreground-muted);
   --color-text-primary: var(--color-foreground-muted);
@@ -129,6 +132,6 @@
   color: var(--color-foreground-muted);
 }
 
-.device-card.bypassed .device-card-body > .well .well-screen > svg {
+.device-card.bypassed > :not(.device-card-head) .well-screen > svg {
   opacity: var(--muted-opacity);
 }
