@@ -3,11 +3,11 @@ name: CI failure
 # Acts on a red CI run so nobody has to notice it first. See
 # `.github/scripts/ci-failure.sh`; in short:
 #
-#  - a merge-queue run fails -> the PR goes back to @claude to fix, and its issue
-#                               back to In progress; the fix re-queues it
+#  - a merge-queue run fails -> the PR goes back to @claude to fix, and its card
+#                               (Linear) back to In progress; the fix re-queues it
 #  - CI fails on main        -> the PR that broke it is reverted through the queue
-#                               and an issue is filed to land it again (or, when
-#                               the cause is unclear, a bug is filed)
+#                               and a Linear issue is filed to land it again (or,
+#                               when the cause is unclear, a bug is filed)
 #
 # The daily browser pass is not handled here: browser-pass-report in ci.yml
 # files its own bug.
@@ -37,6 +37,7 @@ jobs:
       # RESTACK_TOKEN so the @claude comment starts claude.yml, and the revert PR
       # gets CI and its label starts merge.yml (GITHUB_TOKEN triggers neither).
       GH_TOKEN: ${{ secrets.RESTACK_TOKEN || github.token }}
+      LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -52,7 +53,9 @@ jobs:
           BRANCH: ${{ github.event.workflow_run.head_branch }}
           SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
-          cp .github/scripts/ci-failure.sh "$RUNNER_TEMP/ci-failure.sh"
+          # Copied out of the checkout, with the Linear client beside it, so the
+          # revert's branch switching cannot change the script under it.
+          cp .github/scripts/ci-failure.sh .github/scripts/linear.mjs "$RUNNER_TEMP/"
           if [ "$EVENT" = merge_group ]; then
             bash "$RUNNER_TEMP/ci-failure.sh" queue "$RUN" "$BRANCH"
           else

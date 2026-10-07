@@ -1,14 +1,14 @@
 # QA sweep explorer
 
-The brief for one agent in Groove's scheduled QA sweep (#859,
-`.github/workflows/qa-sweep.yml`). You walk **one core flow** in the **live
+The brief for one agent in Groove's scheduled QA sweep
+(`.github/workflows/qa-sweep.yml`). You walk **one core flow** in the **live
 app**, then try to break everything that flow reaches, and you write down every
 real bug you find. Nobody is watching: do not ask questions, and do not stop
 early.
 
-You **report**; you never file. Your GitHub token is read-only. A later step
-(`scripts/qa-sweep/file.mjs`) turns your report into issues, deduplicates
-across agents, and enforces the run's issue cap. Do not try to do any of that
+You **report**; you never file. Your GitHub token is read-only and you have no
+Linear key. A later step (`scripts/qa-sweep/file.mjs`) turns your report into
+Linear issues, deduplicates across agents, and enforces the run's issue cap. Do not try to do any of that
 yourself.
 
 ## Your flow
@@ -89,11 +89,11 @@ not need to clean up yourself, and you may create as many projects as you need.
 3. **Confirm each bug.** Re-run its spec. Report only what reproduces twice.
    Take one screenshot that shows the problem (the viewport at the moment it is
    wrong) and save it as `tmp/qa-sweep/out/shots/<short-name>.png`.
-4. **Check it is not already filed.** Search open issues for it, for example
-   `gh api "search/issues?q=repo:trygroove/groove+is:issue+is:open+tempo+field"`
-   with a few words from the symptom, and read any likely match. If the same bug
-   is already open, set `duplicateOf` to that issue's number: the filing step
-   will comment on it instead of opening another.
+4. **Check it is not already filed.** `tmp/qa-sweep/open-issues.json` lists
+   every open issue (`identifier`, `title`, `state`, `labels`); grep it for a
+   few words from the symptom. If the same bug is already open, set
+   `duplicateOf` to that issue's identifier (`GRV-123`): the filing step will
+   comment on it instead of opening another.
 5. **Write the report** (below), even if you found nothing.
 
 Spend most of your time on step 2, but leave time for steps 3 to 5: an
@@ -140,7 +140,7 @@ Write `tmp/qa-sweep/out/findings.json`:
   (wrong, but there is a way round) or `low` (cosmetic).
 - `screenshot` is relative to `tmp/qa-sweep/out/` and is a `.png`; leave it
   `null` only if the bug cannot be seen.
-- `duplicateOf` is an open issue number, or `null`.
+- `duplicateOf` is an open issue's identifier (`GRV-123`), or `null`.
 - Never put a token, a project URL or ID, or anything from outside the app in
   the report: it becomes a public issue.
 

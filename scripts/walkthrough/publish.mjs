@@ -27,8 +27,8 @@
  * working around it.
  *
  * Usage:
- *   bun run walkthrough:publish -- --issue 123
- *   bun run walkthrough:publish -- --issue 123 --dry-run
+ *   bun run walkthrough:publish -- --issue GRV-123
+ *   bun run walkthrough:publish -- --issue GRV-123 --dry-run
  */
 
 import { execFileSync } from "node:child_process";
@@ -68,8 +68,10 @@ function parseArgs(argv) {
     else if (argv[i] === "--dry-run") args.dryRun = true;
     else fail(`unknown argument ${argv[i]}`);
   }
-  if (!args.issue || !/^\d+$/.test(args.issue))
-    fail("--issue <number> is required; it is the directory the images are filed under.");
+  if (!args.issue || !/^[A-Za-z0-9][A-Za-z0-9-]*$/.test(args.issue))
+    fail(
+      "--issue <GRV-123> is required; it is the directory the images are filed under.",
+    );
   return args;
 }
 
@@ -162,7 +164,7 @@ function publish({ issue, dryRun }, flows) {
       return;
     }
 
-    git(["commit", "--message", `Walkthrough screenshots for #${issue}`], {
+    git(["commit", "--message", `Walkthrough screenshots for ${issue}`], {
       cwd: worktree.path,
     });
 

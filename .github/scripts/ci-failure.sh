@@ -5,12 +5,14 @@
 #
 #   queue <run-id> <queue-branch>  A merge-queue run failed. GitHub has already
 #                                  taken the PR out of the queue; hand it back to
-#                                  @claude to fix, and move its issue back to In
-#                                  progress. A push re-queues it (merge.yml).
+#                                  @claude to fix, and move its card (Linear) back
+#                                  to In progress. A push re-queues it (merge.yml).
 #   main <run-id> <sha>            CI failed on main after <sha> landed. If <sha>
 #                                  is the squash of a PR and main was green before
-#                                  it, revert it through the queue and file an
-#                                  issue to land it again. Otherwise file a bug.
+#                                  it, revert it through the queue and file a
+#                                  Linear issue to land it again. Otherwise file a bug.
+#
+# Needs LINEAR_API_KEY, and `linear.mjs` beside this script.
 #
 # Only the gate jobs count on main: a failed deploy is infrastructure (a missing
 # role or API), and reverting code would not fix it.
@@ -25,11 +27,19 @@ gates='^(typecheck, check, unit \+ component tests|browser sanity \(chromium\)|f
 footer=$'\n---\n_Posted by the CI-failure workflow (`.github/workflows/ci-failure.yml`)._'
 
 log() { echo "ci-failure: $*" >&2; }
+linear() { node "$(dirname "${BASH_SOURCE[0]}")/linear.mjs" "$@"; }
+team="${LINEAR_TEAM:-GRV}"
 
-# The issue a PR body closes, completes or refers to, if any.
+# The Linear card a PR body closes, completes or refers to (`GRV-12`), if any.
 issue_of() {
 	gh api "repos/$repo/pulls/$1" --jq .body |
-		grep -oiE '\b(close[sd]?|fix(e[sd])?|resolve[sd]?|refs?|completes?) #[0-9]+' | grep -oE '[0-9]+' | head -1 || true
+		grep -oiE "\b(close[sd]?|fix(e[sd])?|resolve[sd]?|refs?|completes?) $team-[0-9]+" |
+		grep -oiE "$team-[0-9]+" | head -1 | tr '[:lower:]' '[:upper:]' || true
+}
+
+# File a Linear issue: $1 title, $2 label, body on stdin. Prints its identifier.
+file_linear() {
+	linear create --title "$1" --label "$2" --body-file - | jq -r .identifier
 }
 
 failed_gates() {
@@ -40,7 +50,7 @@ failed_gates() {
 # File a bug for a red main that is not reverted automatically. $1 says why not.
 file_bug() {
 	log "not reverting ($1); filing a bug"
-	gh issue create --repo "$repo" --label bug --title "Bug: CI is red on main" --body-file - <<EOF
+	file_linear "Bug: CI is red on main" bug <<EOF
 CI failed on \`main\` after "$subject" landed, and it was not reverted automatically: $1. $run_url
 
 Failing jobs:
@@ -65,7 +75,7 @@ $footer
 EOF
 	issue="$(issue_of "$pr")"
 	if [ -n "$issue" ]; then
-		gh issue edit "$issue" --repo "$repo" --add-label "status:in-progress" >/dev/null
+		linear state "$issue" "In progress" >/dev/null || log "could not move $issue to In progress"
 	fi
 	log "#$pr handed back to @claude"
 	;;
@@ -104,13 +114,13 @@ main)
 
 	title="$(gh api "repos/$repo/pulls/$pr" --jq .title)"
 	issue="$(issue_of "$pr")"
-	reland="$(gh issue create --repo "$repo" --label bug --title "Re-land #$pr: $title" --body-file - <<EOF
-#$pr turned CI red on \`main\` and was reverted automatically: $run_url
+	reland="$(file_linear "Re-land #$pr: $title" bug <<EOF
+https://github.com/$repo/pull/$pr turned CI red on \`main\` and was reverted automatically: $run_url
 
 Failing jobs:
 $(sed 's/^/- /' <<<"$failed")
 
-Land the change again with the failure fixed: bring back #$pr's diff on a branch from \`main\`, reproduce the failure, fix it, and open one PR.${issue:+ The original issue is #$issue.}
+Land the change again with the failure fixed: bring back that PR's diff on a branch from \`main\`, reproduce the failure, fix it, and open one PR.${issue:+ The original card is $issue.}
 $footer
 EOF
 )"
@@ -121,12 +131,12 @@ Reverts #$pr automatically: CI failed on \`main\` after it landed, and \`main\` 
 Failing jobs:
 $(sed 's/^/- /' <<<"$failed")
 
-Landing it again is tracked in $reland. This PR is labelled \`status:approved\`, so it merges through the queue once its checks pass.
+Landing it again is tracked in Linear as $reland. This PR is labelled \`status:approved\`, so it merges through the queue once its checks pass.
 $footer
 EOF
 )"
 	gh pr edit "$revert" --repo "$repo" --add-label status:approved >/dev/null
-	gh pr comment "$pr" --repo "$repo" --body "CI failed on \`main\` after this landed ($run_url), so it is being reverted in $revert. Re-landing is tracked in $reland.$footer" >/dev/null
+	gh pr comment "$pr" --repo "$repo" --body "CI failed on \`main\` after this landed ($run_url), so it is being reverted in $revert. Re-landing is tracked in Linear as $reland.$footer" >/dev/null
 	log "reverting #$pr in $revert; re-land in $reland"
 	;;
 *)

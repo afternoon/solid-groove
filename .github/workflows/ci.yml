@@ -463,23 +463,22 @@ jobs:
           path: playwright-report/
           retention-days: 7
 
-  # The daily pass reports to the board, not to a red run nobody opens: a
-  # failure opens (or comments on) one bug, and tests that only passed on a
-  # retry open (or comment on) one flaky-tests issue.
+  # The daily pass reports to the board (Linear), not to a red run nobody
+  # opens: a failure opens (or comments on) one bug, and tests that only
+  # passed on a retry open (or comment on) one flaky-tests issue.
   browser-pass-report:
     name: report the daily browser pass
     needs: [browser-emulator]
     if: ${{ always() && github.event_name == 'schedule' }}
     runs-on: ubuntu-latest
-    permissions:
-      issues: write
     env:
-      # The PAT, so opening an issue triggers milestone.yml and the board;
-      # issues opened with GITHUB_TOKEN start no workflows.
-      GH_TOKEN: ${{ secrets.RESTACK_TOKEN || github.token }}
+      LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       FAILED: ${{ contains(needs.*.result, 'failure') }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts
       - uses: actions/download-artifact@v4
         with:
           pattern: flaky-*
@@ -487,15 +486,14 @@ jobs:
           path: flaky
       - name: Open or update the issues
         run: |
+          linear() { node .github/scripts/linear.mjs "$@"; }
           # $1 title, $2 body for a new issue, $3 comment on an open one.
           file_issue() {
-            n=$(gh api "repos/$GITHUB_REPOSITORY/issues?state=open&labels=bug&per_page=100" \
-              --jq "[.[] | select(.title == \"$1\")][0].number // empty")
-            if [ -n "$n" ]; then
-              gh api "repos/$GITHUB_REPOSITORY/issues/$n/comments" -f body="$3" --jq .html_url
+            id=$(linear list --label bug --json | jq -r --arg t "$1" '[.[] | select(.title == $t)][0].identifier // empty')
+            if [ -n "$id" ]; then
+              linear comment "$id" --body "$3" | jq -r .url
             else
-              gh api "repos/$GITHUB_REPOSITORY/issues" -f title="$1" -f body="$2" \
-                -f 'labels[]=bug' -f 'labels[]=status:backlog' --jq .html_url
+              linear create --title "$1" --label bug --body "$2" | jq -r .url
             fi
           }
           if [ "$FAILED" = true ]; then

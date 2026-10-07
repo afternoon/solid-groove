@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * File one QA sweep run's findings (#859). The only part of the sweep that
- * writes to GitHub: the agents themselves run with a read-only token.
+ * File one QA sweep run's findings. The only part of the sweep that writes to
+ * Linear: the agents themselves have no Linear key and a read-only GitHub token.
  *
  *   node scripts/qa-sweep/file.mjs [--dry-run]
  *
@@ -12,13 +12,14 @@
  *
  *   1. plans the filing (`planFiling`): new issues up to $QA_SWEEP_ISSUES,
  *      re-seen open issues, and what fell over the cap;
- *   2. finds or creates the pinned "QA sweep" issue;
+ *   2. finds or creates the "QA sweep" log issue (label `qa-sweep`);
  *   3. publishes the screenshots with `scripts/walkthrough/publish.mjs`;
  *   4. opens each new `Bug: …` issue and comments on each re-seen one;
- *   5. posts the run summary on the pinned issue.
+ *   5. posts the run summary on the log issue.
  *
- * `--dry-run` (or QA_SWEEP_DRY_RUN=true) writes nothing to GitHub and prints
- * what it would have written.
+ * `--dry-run` (or QA_SWEEP_DRY_RUN=true) writes nothing to Linear and prints
+ * what it would have written. Needs LINEAR_API_KEY (except for a dry run
+ * without it) and, for the screenshots, a GitHub token that can push.
  */
 
 import { execFileSync } from "node:child_process";
@@ -32,6 +33,7 @@ import {
   writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
+import * as linear from "../../.github/scripts/linear.mjs";
 import { SITE_ORIGIN } from "../../site.config.mjs";
 import {
   describeError,
@@ -55,16 +57,6 @@ const RUN_URL = env.GITHUB_RUN_ID
   ? `${env.GITHUB_SERVER_URL ?? "https://github.com"}/${REPO}/actions/runs/${env.GITHUB_RUN_ID}`
   : "local run";
 const RUN_ID = env.GITHUB_RUN_NUMBER ?? "local";
-
-const gh = (args, input) =>
-  execFileSync("gh", args, {
-    encoding: "utf8",
-    input,
-    stdio: [input === undefined ? "ignore" : "pipe", "pipe", "inherit"],
-  }).trim();
-const ghJson = (args, input) => JSON.parse(gh(args, input));
-const post = (path, body) =>
-  ghJson(["api", "--method", "POST", path, "--input", "-"], JSON.stringify(body));
 
 const readJson = (path) => {
   try {
@@ -96,57 +88,22 @@ function collect(flows) {
   return { reports, cleanup, build };
 }
 
-function openIssues() {
-  return ghJson([
-    "api",
-    "--paginate",
-    "--slurp",
-    `repos/${REPO}/issues?state=open&per_page=100`,
-  ])
-    .flat()
-    .filter((i) => !i.pull_request && !i.labels.some((l) => l.name === LOG_LABEL))
-    .map((i) => ({ number: i.number, title: i.title }));
+async function openIssues() {
+  return (await linear.list({ open: true }))
+    .filter((i) => !i.labels.includes(LOG_LABEL))
+    .map((i) => ({ id: i.identifier, title: i.title }));
 }
 
-/** The pinned issue the summaries go on: the open one labelled `qa-sweep`, or a new one. */
-function logIssue() {
-  const labels = ghJson([
-    "api",
-    `repos/${REPO}/labels?per_page=100`,
-    "--paginate",
-    "--slurp",
-  ])
-    .flat()
-    .map((l) => l.name);
-  if (!labels.includes(LOG_LABEL))
-    post(`repos/${REPO}/labels`, {
-      name: LOG_LABEL,
-      color: "000000",
-      description: "The pinned QA sweep log",
-    });
-  const existing = ghJson([
-    "api",
-    `repos/${REPO}/issues?state=open&labels=${LOG_LABEL}&per_page=10`,
-  ]).filter((i) => !i.pull_request);
-  if (existing.length > 0) return existing[0].number;
-  const created = post(`repos/${REPO}/issues`, {
+/** The issue the summaries go on: the open one labelled `qa-sweep`, or a new one. */
+async function logIssue() {
+  const existing = await linear.list({ open: true, labels: [LOG_LABEL] });
+  if (existing.length > 0) return existing[0].identifier;
+  const created = await linear.create({
     title: LOG_TITLE,
     body: logIssueBody(),
     labels: [LOG_LABEL],
   });
-  try {
-    gh([
-      "api",
-      "graphql",
-      "-f",
-      "query=mutation($id:ID!){pinIssue(input:{issueId:$id}){issue{number}}}",
-      "-f",
-      `id=${created.node_id}`,
-    ]);
-  } catch {
-    console.warn(`Could not pin #${created.number}; pin it by hand.`);
-  }
-  return created.number;
+  return created.identifier;
 }
 
 /**
@@ -190,7 +147,7 @@ function publishScreenshots(findings, issue) {
     finding.screenshotUrl = screenshotUrl({ repo: REPO, issue, id });
 }
 
-function main() {
+async function main() {
   const flows = JSON.parse(env.QA_SWEEP_FLOWS_JSON ?? "[]");
   const limits = {
     agents: Number(env.QA_SWEEP_AGENTS ?? flows.length),
@@ -204,9 +161,9 @@ function main() {
   // so nothing is filed; the summary still goes out and lists them as not filed.
   let open = [];
   let canFile = true;
-  if (!(DRY_RUN && !env.GH_TOKEN)) {
+  if (!(DRY_RUN && !env.LINEAR_API_KEY)) {
     try {
-      open = openIssues();
+      open = await openIssues();
     } catch (error) {
       failures.push({ what: "listing open issues", error: describeError(error) });
       canFile = false;
@@ -216,20 +173,29 @@ function main() {
   if (!canFile) for (const finding of plan.file) finding.failed = true;
   const ctx = { runUrl: RUN_URL, build, siteUrl: SITE_ORIGIN, flows };
 
-  let log = 0;
+  let log = "";
   if (!DRY_RUN) {
     try {
-      log = logIssue();
+      log = await logIssue();
     } catch (error) {
       failures.push({ what: "finding the QA sweep issue", error: describeError(error) });
     }
   }
   if (canFile) {
-    // Screenshots are published under the log issue's number; without it the
-    // findings are still filed, just with no picture.
+    // Screenshots are published under the log issue's identifier; without it
+    // the findings are still filed, just with no picture.
     if (DRY_RUN || log)
-      publishScreenshots([...plan.file, ...plan.reseen.flatMap((r) => r.findings)], log);
-    failures.push(...fileFindings({ plan, ctx, repo: REPO, post, dryRun: DRY_RUN }));
+      publishScreenshots(
+        [...plan.file, ...plan.reseen.flatMap((r) => r.findings)],
+        log || "qa-sweep",
+      );
+    const write = {
+      create: async ({ title, body }) => ({
+        id: (await linear.create({ title, body, labels: ["bug"] })).identifier,
+      }),
+      comment: (id, body) => linear.comment(id, body),
+    };
+    failures.push(...(await fileFindings({ plan, ctx, write, dryRun: DRY_RUN })));
   }
 
   const summary = () =>
@@ -250,11 +216,11 @@ function main() {
   if (DRY_RUN) console.log(`\n=== would post on the QA sweep issue\n${summary()}`);
   else if (log) {
     try {
-      post(`repos/${REPO}/issues/${log}/comments`, { body: summary() });
-      console.log(`Posted the run summary on #${log}.`);
+      await linear.comment(log, summary());
+      console.log(`Posted the run summary on ${log}.`);
     } catch (error) {
       failures.push({
-        what: `posting the summary on #${log}`,
+        what: `posting the summary on ${log}`,
         error: describeError(error),
       });
     }
@@ -262,7 +228,7 @@ function main() {
   // The job summary always gets it, with every failed write listed.
   if (env.GITHUB_STEP_SUMMARY) appendFileSync(env.GITHUB_STEP_SUMMARY, `${summary()}\n`);
 
-  for (const f of failures) console.error(`GitHub write failed, ${f.what}: ${f.error}`);
+  for (const f of failures) console.error(`Linear write failed, ${f.what}: ${f.error}`);
   // The summary says which; the red run is so somebody looks.
   const unclean = flows.filter((f) => !cleanup.find((c) => c.flow === f.id)?.ok);
   if (unclean.length > 0)
@@ -272,4 +238,7 @@ function main() {
   if (unclean.length > 0 || failures.length > 0) process.exitCode = 1;
 }
 
-main();
+main().catch((error) => {
+  console.error(error.message);
+  process.exit(1);
+});

@@ -1,92 +1,99 @@
 name: Board
 
-# The task board: `status:*` labels on issues plus one pinned "Board" issue
-# that lists them by column. See `.github/scripts/board.mjs` for the rules and
-# CLAUDE.md, "The board", for the columns.
+# The task board is Linear (team GRV, the Groove project). This workflow is
+# what makes moving a card there do something; see `.github/scripts/board.mjs`
+# for the rules and CLAUDE.md, "The board", for the columns.
 #
-#  - Adding a `status:*` label removes the issue's other status labels.
-#  - A new issue starts in Backlog; a closed one is Done.
-#  - A PR that closes an issue moves it to QA (its preview is QA'd). The PR that
-#    completes an issue (`Completes #n`) moves it to QA when it merges (production
-#    is QA'd, and a pass closes the issue).
-#  - Moving an issue to Ready moves it to In progress and runs /ship on it.
-#  - Moving an issue back to In progress while its PRs are open (sent back
-#    from QA, review or blocked) runs an agent that reworks those PRs.
+# Linear cannot call GitHub Actions directly, and the product side is kept
+# apart from the dev side on purpose (an outage in one must not take the other
+# down), so this polls: every five minutes `poll` reads the columns and starts
+# whatever they ask for, in this same run:
+#
+#  - a card in Ready is moved to In progress and /ship runs on it;
+#  - a card in Approved has its open PRs approved and queued (merge.mjs);
+#  - a card moved back to In progress while its PRs are open (sent back from
+#    QA, review or Blocked) gets a rework agent on those PRs;
+#  - a comment on a card that says @claude starts a Claude run on it;
+#  - a new bug with no milestone gets one from a short Claude run.
+#
+# A `pull_request` event moves the card the PR names: see `board.mjs pr`.
 #
 # Uses RESTACK_TOKEN (the fine-grained PAT conflicts.yml describes) so its label
-# changes trigger other workflows; it falls back to GITHUB_TOKEN.
+# changes trigger other workflows; it falls back to GITHUB_TOKEN. LINEAR_API_KEY
+# is a personal API key for the Linear workspace (docs/linear.md).
 on:
-  issues:
-    types: [opened, reopened, closed, labeled, unlabeled]
+  schedule:
+    - cron: "*/5 * * * *"
   pull_request:
     types: [opened, ready_for_review, closed]
-  schedule:
-    # Daily, so "Done this week" ages out even on quiet days.
-    - cron: "17 6 * * *"
   workflow_dispatch:
 
 permissions:
   contents: read
-  issues: write
-  pull-requests: read
+  pull-requests: write
+
+env:
+  LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+  RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
 
 jobs:
-  status:
-    # Never react to the Board issue itself: rewriting it would trigger another render.
-    if: >-
-      (github.event_name == 'issues' || github.event_name == 'pull_request') &&
-      !contains(github.event.issue.labels.*.name, 'board')
+  pr:
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
-    # Per issue/PR and never cancelled: each run applies one event's rule.
+    # Per PR and never cancelled: each run applies one event's rule.
     concurrency:
-      group: board-status-${{ github.event.issue.number || github.event.pull_request.number }}
+      group: board-pr-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ secrets.RESTACK_TOKEN || github.token }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts
+      - run: node .github/scripts/board.mjs pr
+
+  poll:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    # One poll at a time; a queued one replaces an older queued one.
+    concurrency:
+      group: board-poll
       cancel-in-progress: false
     outputs:
-      ship: ${{ steps.status.outputs.ship }}
-      rework: ${{ steps.status.outputs.rework }}
-      rework_prs: ${{ steps.status.outputs.rework_prs }}
+      ship: ${{ steps.poll.outputs.ship }}
+      rework: ${{ steps.poll.outputs.rework }}
+      mentions: ${{ steps.poll.outputs.mentions }}
+      milestone: ${{ steps.poll.outputs.milestone }}
     env:
       GH_TOKEN: ${{ secrets.RESTACK_TOKEN || github.token }}
     steps:
       - uses: actions/checkout@v4
         with:
           sparse-checkout: .github/scripts
-      - id: status
-        run: node .github/scripts/board.mjs status
-
-  render:
-    needs: status
-    # Runs after status, or on its own for schedule/dispatch (status skipped).
-    if: >-
-      always() && needs.status.result != 'failure' &&
-      !contains(github.event.issue.labels.*.name, 'board')
-    runs-on: ubuntu-latest
-    # Only the latest render matters.
-    concurrency:
-      group: board-render
-      cancel-in-progress: true
-    env:
-      GH_TOKEN: ${{ secrets.RESTACK_TOKEN || github.token }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          sparse-checkout: .github/scripts
-      - run: node .github/scripts/board.mjs render
+      - id: poll
+        run: node .github/scripts/board.mjs poll
 
   ship:
-    needs: status
-    if: needs.status.outputs.ship != ''
+    needs: poll
+    if: needs.poll.outputs.ship != '[]' && needs.poll.outputs.ship != ''
     runs-on: ubuntu-latest
     timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        card: ${{ fromJSON(needs.poll.outputs.ship) }}
     concurrency:
-      group: ship-${{ needs.status.outputs.ship }}
+      group: ship-${{ matrix.card.issue }}
       cancel-in-progress: false
     permissions:
       contents: write
       pull-requests: write
-      issues: write
       id-token: write
       actions: read
+    env:
+      GH_TOKEN: ${{ secrets.RESTACK_TOKEN || github.token }}
+      ISSUE: ${{ matrix.card.issue }}
+      COMMENT: ${{ matrix.card.comment }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -97,141 +104,111 @@ jobs:
       - uses: ./.github/actions/claude-env
       - name: Install Chromium for screenshots and browser tests
         run: bunx playwright install --with-deps chromium
-      - name: Say on the issue that the run has started
-        id: announce
-        env:
-          GH_TOKEN: ${{ secrets.RESTACK_TOKEN || github.token }}
-          ISSUE: ${{ needs.status.outputs.ship }}
-          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          body=$(printf '%s\n\n%s' "**Picking this up.** ([/ship run]($RUN))" "_Reading the issue and working out a plan; this comment will show it and track progress._")
-          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE/comments" -f body="$body" --jq .id)
-          echo "comment=$id" >> "$GITHUB_OUTPUT"
-      - name: Ship the issue
+      - name: Ship the card
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.RESTACK_TOKEN || github.token }}
           show_full_output: true
           prompt: |
-            Ship GitHub issue #${{ needs.status.outputs.ship }}, unattended. It was moved to Ready on the board.
+            Ship Linear issue ${{ matrix.card.issue }}, unattended. It was moved to Ready on the board.
 
             Follow `.claude/skills/ship/SKILL.md`, with one change for this environment: do NOT use the Workflow tool. This is a headless run that ends the moment your turn ends, so a background workflow would be killed before it does anything. Instead run the stages in `.claude/workflows/solid-groove-ship.js` yourself, in order (triage, build, review for features only, land), giving each stage's prompt to the Agent tool with `run_in_background: false` and waiting for its result before starting the next. Read the agent briefs in `.claude/agents/` the same way the workflow does.
 
-            Do not end your turn until the pull requests are open, or the issue is labelled `status:blocked` with a comment saying why, or triage held it off (a comment naming the open PRs it would conflict with, and `status:backlog`). Before you report a PR, confirm it exists with `gh pr view`. Never report a result you have not seen. Use the `gh` CLI for GitHub (GH_TOKEN is set).
+            Do not end your turn until the pull requests are open, or the card is in Blocked with a comment saying why, or triage held it off (a comment naming the open PRs it would conflict with, and the card back in Backlog). Before you report a PR, confirm it exists with `gh pr view`. Never report a result you have not seen. Use the `gh` CLI for GitHub (GH_TOKEN is set) and `node .github/scripts/linear.mjs` for Linear (LINEAR_API_KEY is set).
 
-            Keep the issue informed through comment ${{ steps.announce.outputs.comment }}, which this run already posted on the issue. Edit it in place (`gh api --method PATCH repos/${{ github.repository }}/issues/comments/${{ steps.announce.outputs.comment }} -f body=...`), keeping its first line and run link: as soon as you have read the issue, replace the placeholder with a short plan as a Markdown checklist; tick items off as each is done; and when you finish, end it with a summary of what changed and links to the PRs, or why you stopped. Do not post separate progress comments.
+            Keep the card informed through the comment ${{ matrix.card.comment }}, which this run already posted on it. Edit it in place (`node .github/scripts/linear.mjs edit-comment ${{ matrix.card.comment }} --body-file <file>`), keeping its first line and run link: as soon as you have read the issue, replace the placeholder with a short plan as a Markdown checklist; tick items off as each is done; and when you finish, end it with a summary of what changed and links to the PRs, or why you stopped. Do not post separate progress comments.
           claude_args: |
             --model opus
             --max-turns 400
             --allowedTools "Read,Write,Edit,MultiEdit,Glob,Grep,LS,TodoWrite,WebFetch,WebSearch,Task,Agent,Skill,ToolSearch,Bash"
-        env:
-          GH_TOKEN: ${{ secrets.RESTACK_TOKEN || github.token }}
       - name: Check the run actually produced a PR
         # The agent's own report is not evidence: an earlier run ended its turn
         # early and described PRs that did not exist. Trust only GitHub.
-        id: verify
-        env:
-          GH_TOKEN: ${{ secrets.RESTACK_TOKEN || github.token }}
-          ISSUE: ${{ needs.status.outputs.ship }}
         run: |
-          labels=$(gh issue view "$ISSUE" --repo "$GITHUB_REPOSITORY" --json labels --jq '.labels[].name')
-          if echo "$labels" | grep -qx 'status:blocked'; then
-            echo "Issue was moved to Blocked by the run; nothing to check."; exit 0
+          state=$(node .github/scripts/linear.mjs issue "$ISSUE" --json | jq -r .state.name)
+          if [ "$state" = Blocked ]; then
+            echo "Card was moved to Blocked by the run; nothing to check."; exit 0
           fi
-          if echo "$labels" | grep -qx 'status:backlog'; then
-            echo "Triage held the issue off until the PRs it would conflict with land; nothing to check."; exit 0
+          if [ "$state" = Backlog ]; then
+            echo "Triage held the card off until the PRs it would conflict with land; nothing to check."; exit 0
           fi
           # Open, or merged in the last six hours: a safe PR can merge on its own
           # before this check runs.
           prs=$(gh pr list --repo "$GITHUB_REPOSITORY" --state all --search "$ISSUE in:body" --json number,body,state,mergedAt \
-            --jq "[.[] | select(.state == \"OPEN\" or (.mergedAt != null and (now - (.mergedAt | fromdate)) < 21600)) | select(.body | test(\"(?i)(close[sd]?|fix(e[sd])?|resolve[sd]?|completes?|refs?) #$ISSUE\\\\b\"))] | length")
-          if [ "$prs" -gt 0 ]; then echo "Found $prs PR(s) for #$ISSUE."; exit 0; fi
-          # A run that ships an issue as several PRs in sequence opens them one at
+            --jq "[.[] | select(.state == \"OPEN\" or (.mergedAt != null and (now - (.mergedAt | fromdate)) < 21600)) | select(.body | test(\"(?i)(close[sd]?|fix(e[sd])?|resolve[sd]?|completes?|refs?) $ISSUE\\\\b\"))] | length")
+          if [ "$prs" -gt 0 ]; then echo "Found $prs PR(s) for $ISSUE."; exit 0; fi
+          # A run that ships a card as several PRs in sequence opens them one at
           # a time, so an earlier `Refs` PR counts: it is the run's real output.
-          echo "No open or just-merged PR closes, completes or refers to #$ISSUE."; exit 1
+          echo "No open or just-merged PR closes, completes or refers to $ISSUE."; exit 1
       - name: Move the card to Blocked if the run failed
         if: failure() || cancelled()
-        env:
-          GH_TOKEN: ${{ secrets.RESTACK_TOKEN || github.token }}
-          ISSUE: ${{ needs.status.outputs.ship }}
-          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body "The unattended /ship run stopped before finishing: $RUN"
-          gh issue edit "$ISSUE" --repo "$GITHUB_REPOSITORY" --add-label status:blocked --remove-label status:in-progress
+          node .github/scripts/linear.mjs comment "$ISSUE" --body "The unattended /ship run stopped before finishing: $RUN_URL"
+          node .github/scripts/linear.mjs state "$ISSUE" Blocked
 
   rework:
-    needs: status
-    if: needs.status.outputs.rework != ''
+    needs: poll
+    if: needs.poll.outputs.rework != '[]' && needs.poll.outputs.rework != ''
     runs-on: ubuntu-latest
     timeout-minutes: 180
-    # Shares /ship's group: never rework an issue while it is being built.
+    strategy:
+      fail-fast: false
+      matrix:
+        card: ${{ fromJSON(needs.poll.outputs.rework) }}
+    # Shares /ship's group: never rework a card while it is being built.
     concurrency:
-      group: ship-${{ needs.status.outputs.rework }}
+      group: ship-${{ matrix.card.issue }}
       cancel-in-progress: false
     permissions:
       contents: write
       pull-requests: write
-      issues: write
       id-token: write
       actions: read
+    env:
+      GH_TOKEN: ${{ secrets.RESTACK_TOKEN || github.token }}
+      ISSUE: ${{ matrix.card.issue }}
+      PRS: ${{ matrix.card.prs }}
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-          # Push as the PAT's user: a github-actions[bot] push leaves the PR's
-          # CI and preview waiting for manual approval.
           token: ${{ secrets.RESTACK_TOKEN || github.token }}
       - uses: ./.github/actions/claude-env
       - name: Install Chromium for screenshots and browser tests
         run: bunx playwright install --with-deps chromium
       - id: start
         run: echo "at=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
-      - name: Say on the issue that the run has started
-        id: announce
-        env:
-          GH_TOKEN: ${{ secrets.RESTACK_TOKEN || github.token }}
-          ISSUE: ${{ needs.status.outputs.rework }}
-          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          body=$(printf '%s\n\n%s' "**Picking this up again: it was sent back while its PRs were open.** ([rework run]($RUN))" "_Reading the issue and working out a plan; this comment will show it and track progress._")
-          id=$(gh api "repos/$GITHUB_REPOSITORY/issues/$ISSUE/comments" -f body="$body" --jq .id)
-          echo "comment=$id" >> "$GITHUB_OUTPUT"
-      - name: Rework the issue's PRs
+      - name: Rework the card's PRs
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.RESTACK_TOKEN || github.token }}
           show_full_output: true
           prompt: |
-            GitHub issue #${{ needs.status.outputs.rework }} was sent back to In progress on the board while its PRs were open: ${{ needs.status.outputs.rework_prs }} (the PR that closes or completes it; an earlier PR of the same issue says `Refs #${{ needs.status.outputs.rework }}`, so find any of those still open too). Find out why and do the work. This is a headless run: nobody will answer questions, and it ends when your turn ends, so do not use the Workflow tool or background agents.
+            Linear issue ${{ matrix.card.issue }} was sent back to In progress on the board while its PRs were open: ${{ matrix.card.prs }} (GitHub PR numbers; the PR that closes or completes it, and any earlier PR of the same card that says `Refs ${{ matrix.card.issue }}`). Find out why and do the work. This is a headless run: nobody will answer questions, and it ends when your turn ends, so do not use the Workflow tool or background agents.
 
             1. If a Claude run is already handling this (an `@claude` comment on one of those PRs in the last 20 minutes, or an in-progress run of the "Claude Code" workflow on one of them: `gh run list --workflow claude.yml --status in_progress`), stop and do nothing.
-            2. Read the issue body and every comment on the issue, and on each PR its comments, reviews and review threads. The feedback is whatever the product owner (afternoon) or the QA report said after the PRs were last pushed. If it changes the spec, the issue body and comments are the authority.
+            2. Read the card (`node .github/scripts/linear.mjs issue ${{ matrix.card.issue }}`: its body and every comment), and on each PR its comments, reviews and review threads. The feedback is whatever the product owner or the QA report said after the PRs were last pushed. If it changes the spec, the card's body and comments are the authority.
             3. Fix it on the existing PR branches, following CLAUDE.md ("Landing work", "Definition of done") and `.claude/agents/solid-groove-implementer.md`. This is not a fresh build: do not open new PRs unless the feedback asks for more work than the open PRs cover. Never rebase or force-push a branch with an open PR; if a push is rejected, `git pull` (a merge, not a rebase) and push again. Run `bun run typecheck`, `bun run check`, `bun run test` and any browser suite you touched before pushing. A UI change needs updated screenshots in the PR body.
-            4. Reply on each piece of feedback (the review thread, or one comment on the PR) saying what changed, and resolve threads you fixed.
-            5. Move the card: `status:qa` if the closing PR has the `deploy-preview` label (the push redeploys it for QA); `status:review` if any of the PRs is labelled `needs-approval`; otherwise leave it in In progress, because merge.yml queues the pushed PRs and the card moves to QA when the PR that completes the issue merges.
+            4. Reply on each piece of feedback (the review thread, a comment on the PR, or a reply on the Linear comment) saying what changed, and resolve threads you fixed.
+            5. Move the card (`node .github/scripts/linear.mjs state ${{ matrix.card.issue }} "<column>"`): `QA` if the closing PR has the `deploy-preview` label (the push redeploys it for QA); `Ready for review` if any of the PRs is labelled `needs-approval`; otherwise leave it in In progress, because merge.yml queues the pushed PRs and the card moves to QA when the PR that completes it merges.
 
-            Stop only if two reasonable readings of the feedback would build materially different things: then comment the one question on the issue and add `status:blocked`. Use the `gh` CLI for GitHub (GH_TOKEN is set). Never report a push you have not seen land.
+            Stop only if two reasonable readings of the feedback would build materially different things: then comment the one question on the card and move it to Blocked. Use the `gh` CLI for GitHub (GH_TOKEN is set) and `node .github/scripts/linear.mjs` for Linear (LINEAR_API_KEY is set). Never report a push you have not seen land.
 
-            Keep the issue informed through comment ${{ steps.announce.outputs.comment }}, which this run already posted on the issue. Edit it in place (`gh api --method PATCH repos/${{ github.repository }}/issues/comments/${{ steps.announce.outputs.comment }} -f body=...`), keeping its first line and run link: as soon as you have read the issue, replace the placeholder with a short plan as a Markdown checklist; tick items off as each is done; and when you finish, end it with a summary of what changed and links to the PRs, or why you stopped. Do not post separate progress comments.
+            Keep the card informed through the comment ${{ matrix.card.comment }}, which this run already posted on it. Edit it in place (`node .github/scripts/linear.mjs edit-comment ${{ matrix.card.comment }} --body-file <file>`), keeping its first line and run link: as soon as you have read the card, replace the placeholder with a short plan as a Markdown checklist; tick items off as each is done; and when you finish, end it with a summary of what changed and links to the PRs, or why you stopped. Do not post separate progress comments.
           claude_args: |
             --model opus
             --max-turns 300
             --allowedTools "Read,Write,Edit,MultiEdit,Glob,Grep,LS,TodoWrite,WebFetch,WebSearch,Task,Agent,Skill,ToolSearch,Bash"
-        env:
-          GH_TOKEN: ${{ secrets.RESTACK_TOKEN || github.token }}
       - name: Check the run did something
-        # Trust only GitHub: a push to one of the PRs, or the card moved on.
+        # Trust only GitHub and Linear: a push to one of the PRs, or the card moved on.
         env:
-          GH_TOKEN: ${{ secrets.RESTACK_TOKEN || github.token }}
-          ISSUE: ${{ needs.status.outputs.rework }}
-          PRS: ${{ needs.status.outputs.rework_prs }}
           SINCE: ${{ steps.start.outputs.at }}
         run: |
-          labels=$(gh issue view "$ISSUE" --repo "$GITHUB_REPOSITORY" --json labels --jq '.labels[].name')
-          if ! echo "$labels" | grep -qx 'status:in-progress'; then
-            echo "Card moved on: $(echo "$labels" | grep '^status:')"; exit 0
+          state=$(node .github/scripts/linear.mjs issue "$ISSUE" --json | jq -r .state.name)
+          if [ "$state" != "In progress" ]; then
+            echo "Card moved on: $state"; exit 0
           fi
           for pr in $PRS; do
             last=$(gh pr view "$pr" --repo "$GITHUB_REPOSITORY" --json commits --jq '.commits[-1].committedDate')
@@ -247,10 +224,87 @@ jobs:
           echo "No push to $PRS and the card is still In progress."; exit 1
       - name: Move the card to Blocked if the run failed
         if: failure() || cancelled()
-        env:
-          GH_TOKEN: ${{ secrets.RESTACK_TOKEN || github.token }}
-          ISSUE: ${{ needs.status.outputs.rework }}
-          RUN: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          gh issue comment "$ISSUE" --repo "$GITHUB_REPOSITORY" --body "The unattended rework run stopped before finishing: $RUN"
-          gh issue edit "$ISSUE" --repo "$GITHUB_REPOSITORY" --add-label status:blocked --remove-label status:in-progress
+          node .github/scripts/linear.mjs comment "$ISSUE" --body "The unattended rework run stopped before finishing: $RUN_URL"
+          node .github/scripts/linear.mjs state "$ISSUE" Blocked
+
+  mention:
+    needs: poll
+    if: needs.poll.outputs.mentions != '[]' && needs.poll.outputs.mentions != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        card: ${{ fromJSON(needs.poll.outputs.mentions) }}
+    # One run per comment; it waits for a /ship or rework run on the same card.
+    concurrency:
+      group: ship-${{ matrix.card.issue }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+      actions: read
+    env:
+      GH_TOKEN: ${{ secrets.RESTACK_TOKEN || github.token }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RESTACK_TOKEN || github.token }}
+      - uses: ./.github/actions/claude-env
+      - name: Do what the comment asks
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.RESTACK_TOKEN || github.token }}
+          show_full_output: true
+          prompt: |
+            A comment on Linear issue ${{ matrix.card.issue }} mentions @claude: comment ${{ matrix.card.comment }}. Read the card and every comment on it (`node .github/scripts/linear.mjs issue ${{ matrix.card.issue }}`), find that comment, and do what it asks, in the context of the card and of CLAUDE.md. A QA report listing findings means: fix them on a new branch from `main` and open one PR (title `Fix ${{ matrix.card.issue }}: <what was broken>`, body with `Completes ${{ matrix.card.issue }}`, following CLAUDE.md "Landing work"); a question means answer it on the card; an instruction means carry it out. This is a headless run: nobody will answer questions, and it ends when your turn ends, so do not use the Workflow tool or background agents.
+
+            When you push a branch, open its pull request yourself before you finish (`gh pr create`, ready for review, not draft), then confirm it exists with `gh pr view`. Never end with only a "Create PR" link. Run `bun run typecheck`, `bun run check` and `bun run test` before pushing, and the browser suite you touched. Use the `gh` CLI for GitHub (GH_TOKEN is set) and `node .github/scripts/linear.mjs` for Linear (LINEAR_API_KEY is set).
+
+            Keep the card informed through the reply ${{ matrix.card.reply }}, which this run already posted under that comment. Edit it in place (`node .github/scripts/linear.mjs edit-comment ${{ matrix.card.reply }} --body-file <file>`), keeping its first line and run link: replace the placeholder with a short plan as a Markdown checklist, tick items off, and end it with what changed and links to any PR, or your answer. Do not post separate progress comments.
+          claude_args: |
+            --model opus
+            --max-turns 120
+            --allowedTools "Read,Write,Edit,MultiEdit,Glob,Grep,LS,TodoWrite,NotebookEdit,WebFetch,WebSearch,Task,Agent,Skill,ToolSearch,Bash"
+
+  milestone:
+    needs: poll
+    if: needs.poll.outputs.milestone != '[]' && needs.poll.outputs.milestone != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        issue: ${{ fromJSON(needs.poll.outputs.milestone) }}
+    concurrency:
+      group: milestone-${{ matrix.issue }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            CLAUDE.md
+            .github/scripts
+      - name: Put the bug on the milestone of its area
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
+          prompt: |
+            Linear issue ${{ matrix.issue }} is a bug with no milestone. Give it the milestone of the area it is in. Do nothing else: no comments, no labels, no other edits. Use `node .github/scripts/linear.mjs` (LINEAR_API_KEY is set).
+
+            1. Read the card: `node .github/scripts/linear.mjs issue ${{ matrix.issue }} --json`. If it now has a milestone, stop.
+            2. List the milestones (`node .github/scripts/linear.mjs milestones`) and, for each, the titles of its issues (`node .github/scripts/linear.mjs list --all --json`, grouped by `milestone`), to see which area each one covers.
+            3. Pick the milestone whose area the bug is in: the one where the feature it breaks was built or is being built. Sign-in, accounts, onboarding, accessibility, cross-browser, security, performance and reliability bugs belong to the hardening milestone unless they are plainly part of another milestone's feature. A bug in a feature planned for a later milestone goes on that milestone. If nothing fits, use the hardening milestone.
+            4. Set it: `node .github/scripts/linear.mjs milestone ${{ matrix.issue }} "<milestone name>"`.
+          claude_args: |
+            --model sonnet
+            --max-turns 15
+            --allowedTools "Bash(node .github/scripts/linear.mjs:*)"
