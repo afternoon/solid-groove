@@ -28,7 +28,7 @@
 
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { requestAccessUrl, SITE_ORIGIN } from "../site.config.mjs";
+import { requestAccessUrl, SITE_IMAGE, SITE_ORIGIN } from "../site.config.mjs";
 
 const dir = process.argv[2] ?? "dist/client";
 const failures = [];
@@ -48,19 +48,20 @@ const index = read("index.html");
 const landingMarkers = [
   ['id="landing-headline"', "the hero headline"],
   ['class="landing-hero"', "the hero section"],
-  ['class="landing-list"', "the shipped-capabilities list"],
-  ["landing-list-pending", "the still-being-built list"],
+  ['class="landing-hero-video"', "the hero video"],
+  ['id="inside"', "the studio section"],
+  ['class="landing-faq"', "the FAQ"],
   ['class="landing-footer"', "the footer"],
 ];
 for (const [marker, what] of landingMarkers) {
   if (!index.includes(marker)) fail(`index.html is missing ${what} (${marker}).`);
 }
-// The three Request access calls to action (#854: the alpha is invite-only,
+// The three Request an invite calls to action (#854: the alpha is invite-only,
 // so asking to be let in is the front door), each a real link to the form.
 const requestAccessLinks = index.split(`href="${requestAccessUrl}"`).length - 1;
 if (requestAccessLinks !== 3) {
   fail(
-    `index.html has ${requestAccessLinks} Request access links to ${requestAccessUrl}, expected 3.`,
+    `index.html has ${requestAccessLinks} Request an invite links to ${requestAccessUrl}, expected 3.`,
   );
 }
 for (const marker of [
@@ -68,9 +69,56 @@ for (const marker of [
   'name="description"',
   'rel="canonical"',
   'property="og:title"',
-  'name="twitter:card"',
+  'property="og:image"',
+  'name="twitter:card" content="summary_large_image"',
+  'name="twitter:image"',
 ]) {
   if (!index.includes(marker)) fail(`index.html is missing ${marker}.`);
+}
+if (!index.includes(`content="${SITE_ORIGIN}${SITE_IMAGE.path}"`)) {
+  fail(
+    `index.html does not name ${SITE_ORIGIN}${SITE_IMAGE.path} as its link-preview image.`,
+  );
+}
+
+// The structured data (#1135): a SoftwareApplication and the FAQPage, each
+// valid JSON.
+const jsonLd = [
+  ...index.matchAll(
+    /<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g,
+  ),
+].map((match) => match[1]);
+const ldTypes = [];
+for (const body of jsonLd) {
+  try {
+    ldTypes.push(JSON.parse(body)["@type"]);
+  } catch {
+    fail("index.html carries JSON-LD that does not parse.");
+  }
+}
+for (const type of ["SoftwareApplication", "FAQPage"]) {
+  if (!ldTypes.includes(type)) fail(`index.html has no ${type} JSON-LD.`);
+}
+
+// The assets the prerendered page points at (#1135), each shipped beside it:
+// the video, its poster, the stills, and the link-preview image.
+const assetPaths = new Set(
+  [
+    ...index.matchAll(
+      /(?:src|poster|content)="(?:https?:\/\/[^/"]+)?(\/landing\/[^"]+)"/g,
+    ),
+  ].map((match) => match[1]),
+);
+for (const required of [
+  "/landing/hero.webm",
+  "/landing/hero-poster.jpg",
+  SITE_IMAGE.path,
+]) {
+  if (!assetPaths.has(required)) fail(`index.html does not reference ${required}.`);
+}
+for (const path of assetPaths) {
+  if (!existsSync(join(dir, path)))
+    fail(`${path} is referenced by index.html but not built.`);
 }
 if (!index.includes(`href="${SITE_ORIGIN}/"`)) {
   fail(`index.html does not name ${SITE_ORIGIN} as its canonical URL.`);
@@ -82,8 +130,11 @@ for (const marker of [
   "data-landing",
   "landing-hero",
   "landing-headline",
+  "/landing/",
+  "application/ld+json",
   'rel="canonical"',
   "og:title",
+  "og:image",
   "twitter:card",
 ]) {
   if (shell.includes(marker)) fail(`app.html still contains ${marker}.`);

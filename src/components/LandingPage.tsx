@@ -2,26 +2,26 @@ import { Title } from "@solidjs/meta";
 import { useNavigate } from "@solidjs/router";
 // Type-only, so nothing of Firebase reaches the landing path's bundle.
 import type { User } from "firebase/auth";
-import { createSignal } from "solid-js";
+import { createSignal, onSettled } from "solid-js";
 import { SITE_TITLE } from "../../site.config.mjs";
 import { isNotOnAllowlistError, NOT_ON_ALLOWLIST_PATH } from "../access/allowlist";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import type { AuthService } from "../auth/authService";
 import { reportError as defaultReportError } from "../monitoring/errorReporting";
-import LandingPageContent from "./LandingPageContent";
+import LandingPageContent, { type LandingCtaPlacement } from "./LandingPageContent";
 import TelemetryDisclosure from "./TelemetryDisclosure";
 
 /**
- * The public marketing landing page (PRD `PRJ-06`, task `LOOP-001b`).
+ * The public home page (PRD `PRJ-06`; task `LOOP-001b`, rebuilt by #1135).
  *
- * The product's front door. Design reference:
- * `docs/design/mocks/04-landing-page.png`. The mock is directional — it shows a
- * full marketing site with a tour, pricing, and capabilities the alpha has not
- * built — so this page keeps the mock's structure and visual language and
- * carries only claims that are true today.
+ * The product's front door: in three seconds it says what Groove is, who it is
+ * for and what it solves, and every path leads to the request-access form. It
+ * is drawn in the app's own system (`docs/design.md`), louder, and carries
+ * only claims that are true today, plus the AI producer labelled with when it
+ * arrives.
  *
  * This module is the page's *behaviour*: the analytics it emits, the sign-in it
- * runs, and where it navigates. The markup and the copy live in
+ * runs, where it navigates, and whether its hero video plays. The markup and the copy live in
  * `LandingPageContent.tsx`, which has no imports of its own beyond Solid, so
  * the prerendered document shell can render the same tree without dragging any
  * of the below onto the server.
@@ -55,6 +55,36 @@ export interface LandingPageProps {
    * so the fallback can be proven without waiting out the real budget.
    */
   sessionRestoreTimeoutMs?: number;
+  /**
+   * Whether the visitor has asked for reduced motion. Overridden in tests;
+   * defaults to the `prefers-reduced-motion` media query.
+   */
+  prefersReducedMotion?: () => boolean;
+}
+
+/** `prefers-reduced-motion: reduce`, or `false` where it cannot be asked. */
+function systemPrefersReducedMotion(): boolean {
+  return (
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(prefers-reduced-motion: reduce)").matches
+  );
+}
+
+/**
+ * Starts the hero video, unless the visitor would rather not have motion.
+ *
+ * The markup never autoplays (see `LandingPageContent`), so the prerendered
+ * page, a visitor with no script and a visitor with reduced motion all see the
+ * poster, and none of them downloads the video (`preload="none"`). A refused
+ * `play()` — a browser that blocks even muted autoplay, a data-saver mode —
+ * leaves the poster up, which is the same page.
+ */
+function playHeroVideo(video: HTMLVideoElement, reducedMotion: boolean): void {
+  if (reducedMotion) return;
+  // Set as a property too: autoplay without a gesture is only allowed muted,
+  // and the property is what the browser checks.
+  video.muted = true;
+  void video.play()?.catch(() => {});
 }
 
 /**
@@ -110,14 +140,49 @@ export default function LandingPage(props: LandingPageProps) {
   const navigate = useNavigate();
 
   /**
-   * PRD `OPS-02`: `landing_cta_click` "a visitor activates a landing-page call
-   * to action". The Request access controls are plain links to the form, so
-   * this counts the activation and leaves the navigation to the browser,
-   * whichever tab it opens in.
+   * `feature_first_use` for `landing_v2` (#1135): the first call to action a
+   * visitor takes on this version of the page, of any kind. Once per browser;
+   * `logFeatureFirstUse` keeps the marker.
    */
-  const requestAccess = () => {
-    analytics.log("landing_cta_click", { cta_id: "request_access" });
+  const firstUse = () => {
+    analytics.logFeatureFirstUse("landing_v2");
   };
+
+  /**
+   * PRD `OPS-02`: `landing_cta_click` "a visitor activates a landing-page call
+   * to action", with where on the page it sat (#1135). The Request an invite
+   * controls are plain links to the form, so this counts the activation and
+   * leaves the navigation to the browser, whichever tab it opens in.
+   */
+  const requestAccess = (placement: LandingCtaPlacement) => {
+    analytics.log("landing_cta_click", { cta_id: "request_access", placement });
+    firstUse();
+  };
+
+  /** The hero's "See what's inside" anchor; the browser does the scrolling. */
+  const seeInside = () => {
+    analytics.log("landing_cta_click", { cta_id: "see_inside", placement: "hero" });
+    firstUse();
+  };
+
+  /**
+   * `landing_video_play`, once per page view (#1135). A looping video does not
+   * fire `play` again as it wraps, but a browser that pauses an off-screen
+   * video and resumes it does, so the page counts the first one only.
+   */
+  let videoPlayLogged = false;
+  const heroVideoPlayed = () => {
+    if (videoPlayLogged) return;
+    videoPlayLogged = true;
+    analytics.log("landing_video_play");
+  };
+  const prefersReducedMotion = props.prefersReducedMotion ?? systemPrefersReducedMotion;
+  let heroVideo: HTMLVideoElement | undefined;
+  // Once the page is in the document, so `play()` acts on the video a visitor
+  // can see.
+  onSettled(() => {
+    if (heroVideo) playHeroVideo(heroVideo, prefersReducedMotion());
+  });
 
   /**
    * The path for someone who has been invited.
@@ -142,7 +207,8 @@ export default function LandingPage(props: LandingPageProps) {
    */
   const logIn = async () => {
     if (busy()) return;
-    analytics.log("landing_cta_click", { cta_id: "log_in" });
+    analytics.log("landing_cta_click", { cta_id: "log_in", placement: "header" });
+    firstUse();
     setBusy(true);
     setLoginError(null);
     try {
@@ -187,6 +253,11 @@ export default function LandingPage(props: LandingPageProps) {
         loginError={loginError()}
         onRequestAccess={requestAccess}
         onLogIn={() => void logIn()}
+        onSeeInside={seeInside}
+        heroVideoRef={(video) => {
+          heroVideo = video;
+        }}
+        onHeroVideoPlay={heroVideoPlayed}
         disclosure={<TelemetryDisclosure placement="inline" />}
       />
     </>

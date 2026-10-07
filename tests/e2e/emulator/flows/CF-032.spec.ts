@@ -43,7 +43,7 @@ test.describe("CF-032", () => {
     // 1. Open the landing page.
     await page.goto("/");
     await expect(
-      page.getByRole("heading", { level: 1, name: /Bring a loop/ }),
+      page.getByRole("heading", { level: 1, name: /Finish the tracks you start/ }),
     ).toBeVisible();
     await step("Open the landing page");
 
@@ -76,7 +76,7 @@ test.describe("CF-032", () => {
     await page.goto("/projects");
     await expect(page).toHaveURL(/\/$/);
     await expect(
-      page.getByRole("heading", { level: 1, name: /Bring a loop/ }),
+      page.getByRole("heading", { level: 1, name: /Finish the tracks you start/ }),
     ).toBeVisible();
 
     // 6. Go back, and follow Request access. The request-access form opens.

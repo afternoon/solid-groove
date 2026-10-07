@@ -80,7 +80,7 @@ test.describe("CF-001", { tag: "@sanity" }, () => {
     // 1. Open the landing page.
     await page.goto("/");
     await expect(
-      page.getByRole("heading", { level: 1, name: /Bring a loop/ }),
+      page.getByRole("heading", { level: 1, name: /Finish the tracks you start/ }),
     ).toBeVisible();
     await step("Open the landing page");
 

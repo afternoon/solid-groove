@@ -23,18 +23,31 @@ export const SITE_NAME = "Groove";
  * Also set as the route's title once the client mounts (see `LandingPage`), so
  * a crawler that executes JavaScript and one that does not read the same thing.
  */
-export const SITE_TITLE = "Groove — a music studio in your browser";
+export const SITE_TITLE = "Groove — Finish the tracks you start";
 
 /**
  * The `<meta name="description">` and the link-preview description.
  *
- * Kept to one sentence and under 160 characters, which is roughly where search
- * results and unfurls truncate. It carries no claim the alpha has not shipped
- * (PRD `PRJ-06`) — the AI producer is described as what the studio is built
- * around, which is what the page's own lede says.
+ * Kept under 160 characters, which is roughly where search results and
+ * unfurls truncate. It says what the page's headline and lede say (#1135):
+ * what Groove is, the AI producer beside you, and the payoff of finishing
+ * tracks. The page itself labels the AI producer as arriving in October.
  */
 export const SITE_DESCRIPTION =
-  "A music studio that runs in your browser, built around an AI producer that proposes real, editable changes you can hear and undo.";
+  "A music studio in your browser with an AI producer beside you. It suggests real changes and explains why they work, so you finish the tracks you start.";
+
+/**
+ * The link-preview image (#1135): a 1200×630 still of the real app, recorded
+ * with the home page's video by `bun run landing:capture`, served from
+ * `public/`. A path, so `SITE_ORIGIN` stays the one place the domain lives.
+ */
+export const SITE_IMAGE = {
+  path: "/landing/og.jpg",
+  width: 1200,
+  height: 630,
+  type: "image/jpeg",
+  alt: "The Groove editor: a song of four tracks laid out in named sections on the arrangement.",
+};
 
 /**
  * The tab title inside the app.
@@ -58,7 +71,7 @@ export function pageTitle(page) {
 
 /**
  * Where someone who is not on the alpha list asks to be let in (#854): the
- * request-access form. The landing page's Request access button and the "not
+ * request-access form. The landing page's Request an invite links and the "not
  * on the alpha list" page both link here, and nowhere else writes it down.
  */
 export const requestAccessUrl = "https://tally.so/r/Zjqyea";

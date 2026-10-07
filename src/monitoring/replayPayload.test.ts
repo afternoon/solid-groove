@@ -359,6 +359,13 @@ describe("the OPS-03 content rule against the replay payload (ADR 0002 decision 
       // It names no person and carries no token.
       "requestAccessUrl",
       "REQUEST_ACCESS_HREF",
+      // The home page's own pictures (#1135): `ASSETS` is the literal
+      // "/landing" and `row.image` a file name from the page's own constant
+      // `STUDIO_ROWS`; `INSIDE_ID` is the literal "inside", an in-page
+      // anchor. Our own static files, never a user's asset or a token.
+      "ASSETS",
+      "row.image",
+      "INSIDE_ID",
     ];
     const offenders: string[] = [];
     for (const file of sourceFiles()) {

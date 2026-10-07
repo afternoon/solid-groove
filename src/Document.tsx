@@ -1,5 +1,16 @@
-import { SITE_DESCRIPTION, SITE_NAME, SITE_ORIGIN, SITE_TITLE } from "../site.config.mjs";
+import {
+  SITE_DESCRIPTION,
+  SITE_IMAGE,
+  SITE_NAME,
+  SITE_ORIGIN,
+  SITE_TITLE,
+} from "../site.config.mjs";
 import LandingPageContent from "./components/LandingPageContent";
+import {
+  faqPageJsonLd,
+  jsonLdScript,
+  softwareApplicationJsonLd,
+} from "./components/landingStructuredData";
 
 /**
  * The document shell, and with it the statically generated landing page
@@ -49,9 +60,13 @@ import LandingPageContent from "./components/LandingPageContent";
  *
  * Inlined and parser-blocking on purpose: it must run before the browser paints,
  * or a visitor opening a project would see the marketing page flash first. It is
- * the only inline script in the document, and it reads nothing but the path.
+ * the only inline script the document executes, and it reads nothing but the
+ * path. (The two JSON-LD blocks below are data, which a browser never runs.)
  */
 const REMOVE_WHEN_NOT_LANDING = `if(location.pathname!=="/"){var e=document.getElementById("landing-static");if(e)e.remove()}`;
+
+/** The link-preview image, as an absolute URL: unfurlers do not resolve paths. */
+const SITE_IMAGE_URL = `${SITE_ORIGIN}${SITE_IMAGE.path}`;
 
 export default function Document() {
   return (
@@ -67,13 +82,40 @@ export default function Document() {
         <meta data-landing="true" property="og:title" content={SITE_TITLE} />
         <meta data-landing="true" property="og:description" content={SITE_DESCRIPTION} />
         <meta data-landing="true" property="og:url" content={`${SITE_ORIGIN}/`} />
-        {/* No `og:image`: the alpha has no artwork that is true to what it
-            ships, and the design mock shows capabilities it has not built
-            (PRD `PRJ-06`). A text-only card is honest; `summary_large_image`
-            with nothing to show is not. */}
-        <meta data-landing="true" name="twitter:card" content="summary" />
+        {/* A still of the real app (#1135), recorded with the hero video by
+            `bun run landing:capture`, so the card shows what the alpha ships
+            (PRD `PRJ-06`). */}
+        <meta data-landing="true" property="og:image" content={SITE_IMAGE_URL} />
+        <meta data-landing="true" property="og:image:type" content={SITE_IMAGE.type} />
+        <meta
+          data-landing="true"
+          property="og:image:width"
+          content={String(SITE_IMAGE.width)}
+        />
+        <meta
+          data-landing="true"
+          property="og:image:height"
+          content={String(SITE_IMAGE.height)}
+        />
+        <meta data-landing="true" property="og:image:alt" content={SITE_IMAGE.alt} />
+        <meta data-landing="true" name="twitter:card" content="summary_large_image" />
         <meta data-landing="true" name="twitter:title" content={SITE_TITLE} />
         <meta data-landing="true" name="twitter:description" content={SITE_DESCRIPTION} />
+        <meta data-landing="true" name="twitter:image" content={SITE_IMAGE_URL} />
+        <meta data-landing="true" name="twitter:image:alt" content={SITE_IMAGE.alt} />
+        {/* Structured data (#1135): what the product is, and the page's FAQ
+            exactly as the page shows it. `innerHTML` for the same reason as
+            the script below: Solid's SSR would escape a text child. */}
+        <script
+          data-landing="true"
+          type="application/ld+json"
+          innerHTML={jsonLdScript(softwareApplicationJsonLd())}
+        />
+        <script
+          data-landing="true"
+          type="application/ld+json"
+          innerHTML={jsonLdScript(faqPageJsonLd())}
+        />
       </head>
       <body>
         <div id="landing-static" data-landing="true">

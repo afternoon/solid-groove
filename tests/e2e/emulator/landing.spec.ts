@@ -7,24 +7,62 @@ import { test as signedInTest } from "./support/test";
 // playing loop; these pin the page's own claims, its keyboard reach and its
 // single analytics disclosure, which no flow asserts. Moved here from the
 // retired mock-backend suite's `smoke.spec.ts`. #854 made the alpha
-// invite-only, so its two entry points are Request access and Sign in, and a
-// visitor here has no session.
+// invite-only, so its two entry points are Request an invite and Sign in, and
+// a visitor here has no session. #1135 rebuilt the page around the headline
+// "Finish the tracks you start." and a hero video.
 test.describe("landing page", () => {
-  test("states the promise, the alpha status, and the supported browsers", async ({
-    page,
-  }) => {
+  test("states the promise, the alpha status, and how to get in", async ({ page }) => {
     await page.goto("/");
 
     await expect(
-      page.getByRole("heading", { level: 1, name: /Bring a loop/ }),
+      page.getByRole("heading", { level: 1, name: /Finish the tracks you start/ }),
     ).toBeVisible();
-    await expect(page.getByText(/music studio that runs in your browser/i)).toBeVisible();
-    await expect(page.getByText("Private alpha · browser-based")).toBeVisible();
-    await expect(page.getByText(/Chrome, Edge and Firefox/)).toBeVisible();
+    await expect(page.getByText(/music studio in your browser/i).first()).toBeVisible();
     await expect(
-      page.getByRole("link", { name: "Request access" }).first(),
+      page.getByText("Invite-only alpha · runs in your browser"),
     ).toBeVisible();
-    await expect(page.getByRole("button", { name: "Sign in" }).first()).toBeVisible();
+    await expect(page.getByText(/Chrome, Edge and Firefox/)).toBeVisible();
+    await expect(page.getByText("Coming in October")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Request an invite" })).toHaveCount(3);
+    await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
+  });
+
+  // #1135: the hero video is decorative, carries a poster, and starts on its
+  // own only when the visitor has not asked for reduced motion.
+  test("plays the hero video, muted, unless motion is reduced", async ({ page }) => {
+    await page.goto("/");
+    const video = page.locator("video.landing-hero-video");
+    await expect(page.locator(".landing-hero-media")).toHaveAttribute(
+      "aria-hidden",
+      "true",
+    );
+    await expect(video).toHaveAttribute("poster", "/landing/hero-poster.jpg");
+    await expect
+      .poll(() => video.evaluate((element: HTMLVideoElement) => !element.paused))
+      .toBe(true);
+    expect(await video.evaluate((element: HTMLVideoElement) => element.muted)).toBe(true);
+  });
+
+  test("leaves the poster up under reduced motion", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto("/");
+    await expect(
+      page.getByRole("heading", { level: 1, name: /Finish the tracks you start/ }),
+    ).toBeVisible();
+    const video = page.locator("video.landing-hero-video");
+    await page.waitForTimeout(500);
+    expect(await video.evaluate((element: HTMLVideoElement) => element.paused)).toBe(
+      true,
+    );
+  });
+
+  test("See what's inside goes to the studio section", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("link", { name: "See what's inside" }).click();
+    await expect(page).toHaveURL(/#inside$/);
+    await expect(
+      page.getByRole("heading", { level: 2, name: "In the studio today." }),
+    ).toBeInViewport();
   });
 
   // PRD section 10: "Interactive controls have accessible names, visible
@@ -36,7 +74,7 @@ test.describe("landing page", () => {
     );
     await page.goto("/");
 
-    const cta = page.getByRole("link", { name: "Request access" }).first();
+    const cta = page.getByRole("link", { name: "Request an invite" }).first();
     // The unfocused baseline, so the assertions below cannot be satisfied by
     // a ring that was always there.
     expect(await cta.evaluate((element) => getComputedStyle(element).outlineStyle)).toBe(
@@ -87,7 +125,7 @@ test.describe("landing page", () => {
     // copy exists, and the error screen if it never does), so counting mid
     // hand-over would be counting the loading state, not the page.
     await expect(
-      page.getByRole("heading", { level: 1, name: /Bring a loop/ }),
+      page.getByRole("heading", { level: 1, name: /Finish the tracks you start/ }),
     ).toBeVisible();
 
     // One control for one preference: the app-chrome copy stands down while

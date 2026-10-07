@@ -25,13 +25,13 @@ import { qaSignInUnavailable, signInAsQaAccount } from "./qaSession";
 // Every first page load carries `?internal=1`, so smoke traffic is excluded
 // from the product's measures (`src/shared/internalTraffic.ts`).
 test.describe("hosted alpha smoke test", () => {
-  test("loads the landing page with Request access and Sign in", async ({ page }) => {
+  test("loads the landing page with Request an invite and Sign in", async ({ page }) => {
     await page.goto("/?internal=1");
     await expect(
-      page.getByRole("heading", { level: 1, name: /Bring a loop/ }),
+      page.getByRole("heading", { level: 1, name: /Finish the tracks you start/ }),
     ).toBeVisible();
     await expect(
-      page.getByRole("link", { name: "Request access" }).first(),
+      page.getByRole("link", { name: "Request an invite" }).first(),
     ).toHaveAttribute("href", requestAccessUrl);
     await expect(page.getByRole("button", { name: "Sign in" }).first()).toBeEnabled();
   });
@@ -43,7 +43,7 @@ test.describe("hosted alpha smoke test", () => {
     await page.goto("/projects?internal=1");
     await expect.poll(() => new URL(page.url()).pathname).toBe("/");
     await expect(
-      page.getByRole("heading", { level: 1, name: /Bring a loop/ }),
+      page.getByRole("heading", { level: 1, name: /Finish the tracks you start/ }),
     ).toBeVisible();
   });
 
