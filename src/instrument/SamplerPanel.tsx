@@ -181,8 +181,8 @@ export default function SamplerPanel(props: SamplerPanelProps): JSX.Element {
         value={value()}
         displayValue={formatInstrumentValue(definition, value())}
         onInput={(next) => control.input(next)}
-        onCommit={(next) => {
-          control.commit(next);
+        onCommit={(next, settle) => {
+          control.commit(next, settle);
           analytics().logFeatureFirstUse("sampler");
         }}
       />

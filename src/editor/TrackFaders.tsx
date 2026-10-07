@@ -97,8 +97,8 @@ export function DbFader(props: DbFaderProps): JSX.Element {
             );
       }}
       onInput={(position) => control.input(position)}
-      onCommit={(position) => {
-        control.commit(position);
+      onCommit={(position, settle) => {
+        control.commit(position, settle);
         props.onCommit?.();
       }}
     />

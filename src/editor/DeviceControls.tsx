@@ -195,7 +195,7 @@ function DeviceSlider(props: {
         displayValue={formatDeviceValue(props.definition, props.value)}
         disabled={props.derived}
         onInput={(next) => control.input(next)}
-        onCommit={(next) => control.commit(next)}
+        onCommit={(next, settle) => control.commit(next, settle)}
       />
     </div>
   );

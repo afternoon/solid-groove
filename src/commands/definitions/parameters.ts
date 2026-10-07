@@ -21,6 +21,7 @@ import {
   SONG_ENTITY,
   sendControl,
 } from "../controlAddress";
+import { summarizeParameterChoice } from "../parameterChoices";
 import { findTrack, replaceTrack, withSong } from "../projectEdits";
 import {
   applied,
@@ -446,7 +447,11 @@ export const parameterSetCommand = defineCommand<ParameterSetPayload>({
     if (isUnresolved(resolution)) {
       return `Set ${payload.target.parameterId}`;
     }
-    return `Set ${resolution.definition.label} to ${formatParameterValue(resolution.definition, payload.value)}`;
+    const { definition } = resolution;
+    return (
+      summarizeParameterChoice(definition, payload.value) ??
+      `Set ${definition.label} to ${formatParameterValue(definition, payload.value)}`
+    );
   },
   apply(project, payload) {
     const resolution = resolveParameter(project, payload.target);

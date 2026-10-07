@@ -1,6 +1,7 @@
 import { type JSX, Portal, Show } from "@solidjs/web";
 import { type Accessor, createEffect, createSignal } from "solid-js";
 import { parameterControl, SONG_ENTITY } from "../commands/controlAddress";
+import type { ControlSettle } from "../commands/controlGesture";
 import { control } from "../controls/control";
 import { SONG_SWING } from "../domain/parameters";
 import { ariaBool } from "../shared/aria";
@@ -13,7 +14,7 @@ export interface SwingButtonProps {
   /** The song's swing, 50-75 (%). */
   readonly swing: Accessor<number>;
   onInput(value: number): void;
-  onCommit(value: number): void;
+  onCommit(value: number, settle: ControlSettle): void;
 }
 
 /**

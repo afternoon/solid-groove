@@ -127,8 +127,8 @@ function SendLevel(props: {
       value={props.level}
       displayValue={formatInstrumentValue(TRACK_SEND_LEVEL, props.level)}
       onInput={(value) => control.input(value)}
-      onCommit={(value) => {
-        control.commit(value);
+      onCommit={(value, settle) => {
+        control.commit(value, settle);
         props.onCommit();
       }}
     />

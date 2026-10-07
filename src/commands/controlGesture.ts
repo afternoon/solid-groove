@@ -1,6 +1,20 @@
 import type { TransactionResult } from "./execute";
-import type { Gesture, GestureOptions } from "./history";
+import type { Gesture, GestureOptions, GestureRun } from "./history";
 import type { RawCommandInput } from "./types";
+
+/**
+ * How a control's change settled. A `release` ends a drag, a typed value or a
+ * reset: one undo step of its own. A `nudge` is one arrow-key step, and a quick
+ * run of them on the same control is one undo step together (GRV-63).
+ */
+export type ControlSettle = "release" | "nudge";
+
+/**
+ * The longest pause between two nudges that still counts as one run. Long
+ * enough to tap an arrow a few times deliberately, short enough that coming
+ * back to a control later is a new step.
+ */
+export const NUDGE_RUN_MS = 1000;
 
 /**
  * Drives one continuous control — a fader, a pan, an instrument slider —
@@ -10,7 +24,9 @@ import type { RawCommandInput } from "./types";
  * applies live inside it, and the `change` the browser fires on release closes
  * it — so the whole drag is one history entry, one revision, one save, and at
  * most one analytics event, however many pointer moves it took. A keyboard
- * arrow fires `input` then `change`, so it is one gesture per press.
+ * arrow fires `input` then `change`, so it is one gesture per press; a press
+ * settles as a `nudge`, and a quick run of nudges joins one history entry
+ * (`GestureRun`), so holding or tapping an arrow is one undo step too.
  *
  * Applying every step live is the behaviour, not an optimization: a control
  * painted from project state sits frozen under the pointer, and the audio
@@ -29,6 +45,8 @@ export function createControlGesture(props: {
   command(value: number): RawCommandInput;
 }) {
   let gesture: Gesture | undefined;
+  /** This control's own run: nudges to another control never join it. */
+  const run: GestureRun = { key: {}, withinMs: NUDGE_RUN_MS };
 
   /**
    * Opens this control's gesture, or gives up and lets the caller fall back to
@@ -62,12 +80,12 @@ export function createControlGesture(props: {
         props.dispatch(command);
       }
     },
-    commit(value: number): void {
+    commit(value: number, settle: ControlSettle = "release"): void {
       // The final `input` already applied this exact value inside the gesture;
       // closing it is all that is left. With no gesture open (a `change` with
       // no preceding `input`) the value still has to land.
       if (gesture?.active) {
-        gesture.commit();
+        gesture.commit(settle === "nudge" ? { run } : undefined);
       } else {
         props.dispatch(props.command(value));
       }

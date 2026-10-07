@@ -680,7 +680,7 @@ function PanControl(props: FaderProps): JSX.Element {
       value={props.value}
       displayValue={formatPan(props.value)}
       onInput={(value) => control.input(value)}
-      onCommit={(value) => control.commit(value)}
+      onCommit={(value, settle) => control.commit(value, settle)}
     />
   );
 }

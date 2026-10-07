@@ -1,6 +1,7 @@
 import type { JSX } from "@solidjs/web";
 import { createMemo } from "solid-js";
 import type { ControlAddress } from "../commands/controlAddress";
+import type { ControlSettle } from "../commands/controlGesture";
 import { control as controlRef } from "../controls/control";
 import { clampParameterValue, type ParameterDefinition } from "../domain/parameters";
 import "./FillSlider.css";
@@ -27,8 +28,11 @@ export interface FillSliderProps {
   readonly displayValue: string;
   /** Called with a coerced, in-range value while dragging. */
   onInput(value: number): void;
-  /** Called once when the drag/keyboard gesture commits. */
-  onCommit(value: number): void;
+  /**
+   * Called once when the drag/keyboard gesture commits: a `release` for a drag,
+   * a typed value or a reset, a `nudge` for one arrow-key step.
+   */
+  onCommit(value: number, settle: ControlSettle): void;
   /**
    * A unique element id for the input. Required when more than one slider for
    * the same parameter is on screen — a mixer has one volume fader per track.
@@ -166,7 +170,7 @@ export default function FillSlider(props: FillSliderProps): JSX.Element {
     entry.removeAttribute("aria-invalid");
     const value = coerce(parsed);
     props.onInput(value);
-    props.onCommit(value);
+    props.onCommit(value, "release");
     revert();
   };
 
@@ -181,7 +185,45 @@ export default function FillSlider(props: FillSliderProps): JSX.Element {
     if (target === undefined) return;
     const value = coerce(target);
     props.onInput(value);
-    props.onCommit(value);
+    props.onCommit(value, "release");
+  };
+
+  /**
+   * One drag or arrow press commits once. A browser ends a drag with both
+   * `pointerup` and `change` (Chromium in that order, Firefox the other way
+   * round), and a commit is not idempotent: with the gesture already closed,
+   * the second one lands the value again as an undo step of its own (GRV-63).
+   * So a pointer release commits only a slider that moved, and a `change`
+   * right after one is the same release, not a new edit.
+   */
+  let pointerDown = false;
+  let moved = false;
+  let releasedByPointer = false;
+
+  const input = (raw: number) => {
+    moved = true;
+    releasedByPointer = false;
+    props.onInput(coerce(raw));
+  };
+
+  const release = (raw: number) => {
+    pointerDown = false;
+    if (!moved) return;
+    moved = false;
+    releasedByPointer = true;
+    props.onCommit(coerce(raw), "release");
+  };
+
+  const change = (raw: number) => {
+    if (releasedByPointer) {
+      releasedByPointer = false;
+      return;
+    }
+    moved = false;
+    // With no pointer down, the change came from the keyboard: one nudge.
+    const settle = pointerDown ? "release" : "nudge";
+    pointerDown = false;
+    props.onCommit(coerce(raw), settle);
   };
 
   const coerce = (raw: number): number => {
@@ -245,22 +287,23 @@ export default function FillSlider(props: FillSliderProps): JSX.Element {
           step={scale().step ?? "any"}
           value={props.value}
           disabled={props.disabled}
-          onInput={(event) => props.onInput(coerce(event.currentTarget.valueAsNumber))}
+          onPointerDown={() => {
+            pointerDown = true;
+            releasedByPointer = false;
+          }}
+          onInput={(event) => input(event.currentTarget.valueAsNumber)}
           // `change` settles a drag or a keyboard nudge, but it does not fire
           // at all when a drag ends somewhere the input never hears about —
           // released off-element, or the panel unmounted mid-drag by a track
           // switch. That left the gesture open forever, and the next control
           // touched anywhere in the editor threw "a gesture is already in
           // progress" out of its own `input` handler and locked up. Pointer
-          // up/cancel close the same gesture; extra commits are a safe no-op.
-          onChange={(event) => props.onCommit(coerce(event.currentTarget.valueAsNumber))}
+          // up/cancel close the same gesture, and `release`/`change` see to it
+          // that the two together commit once.
+          onChange={(event) => change(event.currentTarget.valueAsNumber)}
           onDblClick={reset}
-          onPointerUp={(event) =>
-            props.onCommit(coerce(event.currentTarget.valueAsNumber))
-          }
-          onPointerCancel={(event) =>
-            props.onCommit(coerce(event.currentTarget.valueAsNumber))
-          }
+          onPointerUp={(event) => release(event.currentTarget.valueAsNumber)}
+          onPointerCancel={(event) => release(event.currentTarget.valueAsNumber)}
         />
       </div>
       <label class="fill-slider-label" for={id()}>
