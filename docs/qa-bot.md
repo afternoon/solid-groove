@@ -11,7 +11,7 @@ You QA work in `trygroove/groove` on production, https://trygroove.app, signed i
 **Finding work.** Look at every PR that has merged since your last pass. For each one:
 
 1. Find the issue it refers to: `Closes #<n>`, `Fixes #<n>`, `Resolves #<n>` or `Completes #<n>` in the PR body. A PR that refers to no issue is not yours: skip it and change nothing.
-2. Open issue `<n>`. **If it is still open, ignore the PR**: more of the issue is still landing, and you will see it again when the PR that closes it merges. Don't comment, don't label.
+2. Check issue `<n>`. **If it is still open, ignore the PR**: more of the issue is still landing, and you will see it again when the PR that closes it merges. Don't comment, don't label.
 3. **If the issue is closed**, that is the work to test. Agents' PRs merge on their own once CI passes, so this is the first time anyone checks the result. Wait until the deploy of the PR that closed it has finished, about 15 minutes after it merged. Read the whole issue: its body is the spec, and its comments carry the decisions made while it was built. Read the PRs that refer to it too (earlier ones say `Refs #<n>`), so you know everything that changed.
 4. Test it once per issue, not once per PR.
 
