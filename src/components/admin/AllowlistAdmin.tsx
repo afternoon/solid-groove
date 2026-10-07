@@ -1,4 +1,4 @@
-import { For, type JSX, Show } from "@solidjs/web";
+import { For, type JSX, Match, Show, Switch } from "@solidjs/web";
 import { createSignal, onSettled } from "solid-js";
 import type { AccessRepository } from "../../access/accessRepository";
 import {
@@ -9,8 +9,10 @@ import {
   parseEmailBatch,
   type SignInAttempt,
 } from "../../access/allowlist";
+import type { RevokeAccessResult } from "../../access/revokeAccess";
 import { getAccessRepository } from "../../accessRepositoryClient";
 import { type Analytics, analytics as defaultAnalytics } from "../../analytics/analytics";
+import ConfirmDialog from "../ConfirmDialog";
 import DataTable from "../DataTable";
 import TapeLoader from "../TapeLoader";
 import "./AllowlistAdmin.css";
@@ -31,13 +33,22 @@ const dateFormat = new Intl.DateTimeFormat(undefined, {
 
 const formatTime = (ms: number) => dateFormat.format(new Date(ms));
 
+/** What the last write did, shown under the approve box until the next one. */
+type Outcome =
+  | { kind: "approval"; report: ApprovalReport }
+  | { kind: "revocation"; result: RevokeAccessResult };
+
 /**
  * The admin page's body (#854): approve any number of addresses in one go,
- * approve a refused sign-in in one click, and take an address off the list.
+ * approve a refused sign-in in one click, take an address off the list, and
+ * revoke an account's access (#1147): off the list and signed out, after a
+ * confirmation.
  *
  * Every approval goes through `approveEmails`, the same function the
  * `allowlist:add` script runs, so a paste here and a file there come to the
- * same addresses. Analytics carries counts only, never an address.
+ * same addresses. A revocation goes to the `revokeAccess` callable, the only
+ * thing that can end another account's sessions. Analytics carries counts
+ * and flags only, never an address.
  */
 export default function AllowlistAdmin(props: AllowlistAdminProps): JSX.Element {
   const repository = props.repository ?? getAccessRepository;
@@ -50,8 +61,10 @@ export default function AllowlistAdmin(props: AllowlistAdminProps): JSX.Element 
   const [attempts, setAttempts] = createSignal<SignInAttempt[]>([]);
   const [text, setText] = createSignal("");
   const [busy, setBusy] = createSignal(false);
-  const [report, setReport] = createSignal<ApprovalReport | null>(null);
+  const [outcome, setOutcome] = createSignal<Outcome | null>(null);
   const [actionError, setActionError] = createSignal<string | null>(null);
+  /** The address whose revocation is waiting to be confirmed. */
+  const [revoking, setRevoking] = createSignal<string | null>(null);
 
   const refresh = async () => {
     const store = await repository();
@@ -78,7 +91,7 @@ export default function AllowlistAdmin(props: AllowlistAdminProps): JSX.Element 
 
   /** Shows what an approval wrote and logs it: counts only, never an address. */
   const recordApproval = (source: "paste" | "attempt", result: ApprovalReport) => {
-    setReport(result);
+    setOutcome({ kind: "approval", report: result });
     analytics.log("allowlist_approved", {
       source,
       added_count: result.added.length,
@@ -171,6 +184,34 @@ export default function AllowlistAdmin(props: AllowlistAdminProps): JSX.Element 
     }
   };
 
+  /** Runs the confirmed revocation; the dialog closes whatever happens. */
+  const revoke = async (email: string) => {
+    if (busy()) return;
+    setBusy(true);
+    setActionError(null);
+    try {
+      let result: RevokeAccessResult;
+      try {
+        result = await (await repository()).revoke(email);
+      } catch (error) {
+        console.error("Error revoking access:", error);
+        setActionError(`Couldn't revoke access for ${email}. Try again.`);
+        return;
+      } finally {
+        setRevoking(null);
+      }
+      setOutcome({ kind: "revocation", result });
+      analytics.log("access_revoked", {
+        was_listed: result.wasListed,
+        sessions_ended: result.sessionsEnded,
+      });
+      analytics.logFeatureFirstUse("allowlist_admin");
+      await refreshAfterWrite("Revoked");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const onSubmit = (event: SubmitEvent) => {
     event.preventDefault();
     void approve("paste", text());
@@ -208,7 +249,7 @@ export default function AllowlistAdmin(props: AllowlistAdminProps): JSX.Element 
             </button>
           </div>
         </form>
-        <Show when={report()}>{(result) => <ApprovalSummary report={result()} />}</Show>
+        <Show when={outcome()}>{(last) => <OutcomeSummary outcome={last()} />}</Show>
         <Show when={actionError()}>
           <p class="allowlist-error" role="alert">
             {actionError()}
@@ -273,6 +314,10 @@ export default function AllowlistAdmin(props: AllowlistAdminProps): JSX.Element 
             <h2 id="allowlist-listed-heading" class="allowlist-section-title">
               On the allowlist ({allowlist().length})
             </h2>
+            <p class="allowlist-hint">
+              Remove refuses the next sign-in. Revoke also signs the account out
+              everywhere, within the hour.
+            </p>
             <Show
               when={allowlist().length > 0}
               fallback={<p class="allowlist-empty">Nobody is on the allowlist yet.</p>}
@@ -283,7 +328,7 @@ export default function AllowlistAdmin(props: AllowlistAdminProps): JSX.Element 
                 columns={[
                   { label: "Email" },
                   { label: "Added", width: "200px" },
-                  { label: "Action", width: "120px", hideLabel: true },
+                  { label: "Actions", width: "200px", hideLabel: true },
                 ]}
               >
                 <For each={allowlist()} keyed={(entry) => entry.email}>
@@ -292,14 +337,24 @@ export default function AllowlistAdmin(props: AllowlistAdminProps): JSX.Element 
                       <td class="allowlist-email">{entry().email}</td>
                       <td>{formatTime(entry().addedAt)}</td>
                       <td>
-                        <button
-                          type="button"
-                          disabled={busy()}
-                          aria-label={`Remove ${entry().email}`}
-                          onClick={() => void remove(entry().email)}
-                        >
-                          Remove
-                        </button>
+                        <div class="allowlist-row-actions">
+                          <button
+                            type="button"
+                            disabled={busy()}
+                            aria-label={`Remove ${entry().email}`}
+                            onClick={() => void remove(entry().email)}
+                          >
+                            Remove
+                          </button>
+                          <button
+                            type="button"
+                            disabled={busy()}
+                            aria-label={`Revoke ${entry().email}`}
+                            onClick={() => setRevoking(entry().email)}
+                          >
+                            Revoke
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   )}
@@ -309,7 +364,50 @@ export default function AllowlistAdmin(props: AllowlistAdminProps): JSX.Element 
           </section>
         </Show>
       </Show>
+
+      <Show when={revoking()}>
+        {(email) => (
+          <ConfirmDialog
+            title={`Revoke access for ${email()}?`}
+            message="Takes the address off the allowlist and signs the account out everywhere, within the hour. You can approve it again later."
+            confirmLabel="Revoke"
+            busy={busy()}
+            onConfirm={() => void revoke(email())}
+            onCancel={() => setRevoking(null)}
+          />
+        )}
+      </Show>
     </div>
+  );
+}
+
+function OutcomeSummary(props: { outcome: Outcome }): JSX.Element {
+  return (
+    <Switch>
+      <Match when={props.outcome.kind === "approval" && props.outcome}>
+        {(last) => <ApprovalSummary report={last().report} />}
+      </Match>
+      <Match when={props.outcome.kind === "revocation" && props.outcome}>
+        {(last) => <RevocationSummary result={last().result} />}
+      </Match>
+    </Switch>
+  );
+}
+
+/** What revoking did (#1147): the list, then the sessions. The address is the admin's to see. */
+function describeRevocation(result: RevokeAccessResult): string {
+  const list = result.wasListed ? "off the allowlist" : "was not on the allowlist";
+  const sessions = result.sessionsEnded
+    ? "signed out everywhere within the hour"
+    : "no account has signed in with it, so there was nothing to sign out";
+  return `Revoked ${result.email}: ${list}, and ${sessions}.`;
+}
+
+function RevocationSummary(props: { result: RevokeAccessResult }): JSX.Element {
+  return (
+    <output class="allowlist-report">
+      <p class="allowlist-counts">{describeRevocation(props.result)}</p>
+    </output>
   );
 }
 

@@ -115,6 +115,104 @@ describe("AllowlistAdmin (#854)", () => {
     expect(await repository.listAllowlist()).toEqual([]);
   });
 
+  it("revokes an address after a confirmation: off the list, signed out, reported and logged (#1147)", async () => {
+    const repository = createInMemoryAccessRepository({
+      allowlist: [{ email: "ada@example.com", addedAt: 1 }],
+      accounts: ["ada@example.com"],
+    });
+    const { transport } = renderAdmin(repository);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Revoke ada@example.com" }),
+    );
+
+    const dialog = await screen.findByRole("alertdialog", {
+      name: "Revoke access for ada@example.com?",
+    });
+    expect(dialog).toHaveTextContent("signs the account out everywhere");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Revoke" }));
+
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Revoked ada@example.com: off the allowlist, and signed out everywhere within the hour.",
+    );
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(
+      await screen.findByText("Nobody is on the allowlist yet."),
+    ).toBeInTheDocument();
+    expect(await repository.listAllowlist()).toEqual([]);
+
+    expect(transport.named("access_revoked")).toEqual([
+      expect.objectContaining({
+        params: expect.objectContaining({ was_listed: true, sessions_ended: true }),
+      }),
+    ]);
+    const everyValue = transport.events.flatMap((event) => Object.values(event.params));
+    expect(everyValue.some((value) => String(value).includes("@"))).toBe(false);
+  });
+
+  it("says when a revoked address had no account to sign out", async () => {
+    renderAdmin(
+      createInMemoryAccessRepository({
+        allowlist: [{ email: "grace@example.com", addedAt: 1 }],
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Revoke grace@example.com" }),
+    );
+    fireEvent.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", {
+        name: "Revoke",
+      }),
+    );
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      "Revoked grace@example.com: off the allowlist, and no account has signed in with it, so there was nothing to sign out.",
+    );
+  });
+
+  it("changes nothing when the revocation is cancelled", async () => {
+    const repository = createInMemoryAccessRepository({
+      allowlist: [{ email: "ada@example.com", addedAt: 1 }],
+    });
+    const { transport } = renderAdmin(repository);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Revoke ada@example.com" }),
+    );
+    fireEvent.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", {
+        name: "Cancel",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText("ada@example.com")).toBeInTheDocument();
+    expect(await repository.listAllowlist()).toHaveLength(1);
+    expect(transport.named("access_revoked")).toEqual([]);
+  });
+
+  it("says a failed revocation can be retried, and keeps the row", async () => {
+    const repository = createInMemoryAccessRepository({
+      allowlist: [{ email: "ada@example.com", addedAt: 1 }],
+    });
+    repository.revoke = vi.fn().mockRejectedValue(new Error("permission-denied"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    renderAdmin(repository);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Revoke ada@example.com" }),
+    );
+    fireEvent.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", {
+        name: "Revoke",
+      }),
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Couldn't revoke access for ada@example.com. Try again.",
+    );
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Revoke ada@example.com" })).toBeEnabled();
+  });
+
   it("logs one allowlist_approved per approval, with counts and never an address", async () => {
     const { transport } = renderAdmin(
       createInMemoryAccessRepository({

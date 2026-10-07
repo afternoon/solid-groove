@@ -69,6 +69,7 @@ describe("event names", () => {
     // row to the PRD table means adding it here in the same change.
     expect([...ANALYTICS_EVENT_NAMES].sort()).toEqual(
       [
+        "access_revoked",
         "account_upgraded",
         "allowlist_approved",
         "anon_session_created",
