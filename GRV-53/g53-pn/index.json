@@ -1,0 +1,22 @@
+{
+  "id": "g53-pn",
+  "title": "Panel offsets and backgrounds",
+  "steps": [
+    {
+      "file": "01-before.png",
+      "caption": "Before: the Instrument view starts 5px lower than the arrangement, with a grey frame around the rack"
+    },
+    {
+      "file": "02-after.png",
+      "caption": "After: the Instrument view starts where the arrangement does, the rail and rack meeting edge to edge"
+    },
+    {
+      "file": "03-before.png",
+      "caption": "Before: the Mixer view starts 5px lower and the desk is inset in a grey frame"
+    },
+    {
+      "file": "04-after.png",
+      "caption": "After: the Mixer desk runs edge to edge from the arrangement's top"
+    }
+  ]
+}

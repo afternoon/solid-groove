@@ -1,0 +1,14 @@
+{
+  "id": "g53-dk",
+  "title": "Clip view behind the dock",
+  "steps": [
+    {
+      "file": "01-before.png",
+      "caption": "Before: the clip view's background stops above the view dock"
+    },
+    {
+      "file": "02-after.png",
+      "caption": "After: the clip view's background runs on behind the dock"
+    }
+  ]
+}

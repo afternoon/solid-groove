@@ -1,0 +1,14 @@
+{
+  "id": "g53-tb",
+  "title": "Library toolbar height",
+  "steps": [
+    {
+      "file": "01-before.png",
+      "caption": "Before: on the Library view the header toolbar is squeezed to 27px and sits higher than on the other views"
+    },
+    {
+      "file": "02-after.png",
+      "caption": "After: the Library view's toolbar is 40px, the same as every other view"
+    }
+  ]
+}

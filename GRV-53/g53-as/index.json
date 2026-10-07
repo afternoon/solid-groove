@@ -1,0 +1,14 @@
+{
+  "id": "g53-as",
+  "title": "Assistant borders",
+  "steps": [
+    {
+      "file": "01-before.png",
+      "caption": "Before: the docked assistant has a grey edge, a grey composer rule and a ring round the input"
+    },
+    {
+      "file": "02-after.png",
+      "caption": "After: the only rule is the composer's top border, in the editor's black"
+    }
+  ]
+}
