@@ -36,7 +36,12 @@ import { LIBRARY_SAMPLE_MIME } from "../library/assetDrag";
 import type { PreviewEngine } from "../library/audition";
 import { loadPadSampleCommands, toLibrarySample } from "../library/insertion";
 import { LibraryClient } from "../library/libraryClient";
-import { type LibraryAsset, packAssets, parsePackManifest } from "../library/manifest";
+import {
+  type LibraryAsset,
+  PACK_INDEX_PATH,
+  packAssets,
+  parsePackManifest,
+} from "../library/manifest";
 import type { InMemoryProjectRepository } from "../persistence/inMemoryProjectRepository";
 import { systemClock } from "../shared/clock";
 import { detectPlatform, shortcutLabel } from "../shortcuts";
@@ -56,6 +61,7 @@ import {
 import type { UserLibraryAccount } from "../userLibrary/useUserLibrary";
 import { LAYOUT_STORAGE_KEY } from "./assistant/assistantPanelLayout";
 import { editorViewFromPath, editorViewPath } from "./editorViews";
+import { createStarterProject } from "./starterProject";
 import { NEW_TRACK_KINDS } from "./trackCreation";
 import { focusedValueField } from "./valueFieldFocus";
 
@@ -3987,5 +3993,69 @@ describe("EditorView personal sounds (#282)", () => {
         .readAudio(packAudioPath(OWNER, PACK, SOUND))
         .catch((error: { reason: string }) => error.reason),
     ).toBe("not_found");
+  });
+});
+
+/**
+ * A factory pack the published library withdraws (#78): the project still
+ * opens, and says which of its sounds went with the pack and what they leave
+ * silent, rather than failing or quietly playing nothing.
+ */
+describe("EditorView withdrawn factory packs", () => {
+  /** The committed library, with `slug` taken out of its pack index. */
+  function libraryWithout(slug: string | null): LibraryClient {
+    const serve = fixtureFetcher();
+    return new LibraryClient(async (path) => {
+      const document = await serve(path);
+      if (path !== PACK_INDEX_PATH || slug === null) return document;
+      const index = document as { packs: { slug: string }[] };
+      return { ...index, packs: index.packs.filter((pack) => pack.slug !== slug) };
+    });
+  }
+
+  async function openStarter(libraryClient: LibraryClient) {
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createStarterProject("owner-1", () => 0.5);
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("starter project failed to create");
+    renderEditor(project.metadata.id, { libraryClient });
+    await screen.findByTestId("arrangement-view-ready");
+    return project;
+  }
+
+  it("names the sound, track and clip a withdrawn pack takes down", async () => {
+    const project = await openStarter(libraryWithout("core-electronic-drums"));
+    const [kick] = project.song.assets;
+    const report = await screen.findByRole("region", { name: "Missing sounds" });
+    expect(report).toHaveTextContent(
+      "A sound this project uses is missing from your library.",
+    );
+    expect(report).toHaveTextContent(
+      `${kick.name} was in a library pack that is no longer available. Track: BD. Clip: Four on the floor.`,
+    );
+    // The project is reported on, not rewritten: it is still the one saved.
+    const loaded = await repository.loadProject(project.metadata.id);
+    if (!loaded.ok) throw new Error("expected the project to load");
+    expect(loaded.value.song.assets).toEqual(project.song.assets);
+  });
+
+  it("reports nothing while the library still lists the pack", async () => {
+    await openStarter(libraryWithout(null));
+    await screen.findByRole("navigation", { name: "Views" });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    flush();
+    expect(screen.queryByRole("region", { name: "Missing sounds" })).toBeNull();
+  });
+
+  it("reports nothing when the library index cannot be read", async () => {
+    await openStarter(
+      new LibraryClient(async () => {
+        throw new Error("offline");
+      }),
+    );
+    await screen.findByRole("navigation", { name: "Views" });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    flush();
+    expect(screen.queryByRole("region", { name: "Missing sounds" })).toBeNull();
   });
 });
