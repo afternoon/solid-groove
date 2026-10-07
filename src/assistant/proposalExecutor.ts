@@ -40,6 +40,12 @@ import { type ProposalIssue, type ValidProposal, validateProposal } from "./prop
 export interface ProposalTarget {
   /** The committed project. */
   readonly project: Project;
+  /**
+   * True while a continuous gesture is open. The history folds anything
+   * executed then into the gesture, so a proposal waits for it to finish
+   * rather than becoming part of someone's drag.
+   */
+  readonly gestureActive: boolean;
   /** Undo entries, oldest first; only the newest one's correlation ID is read. */
   readonly entries: readonly { readonly correlationId: string }[];
   execute(
@@ -75,6 +81,8 @@ export type ProposalRefusal =
   | "stale"
   /** Something was committed after the proposal, so undoing it is not exact. */
   | "not_latest"
+  /** A gesture is open; try again once it ends. */
+  | "busy"
   /** The kernel refused (cannot happen for a proposal that dry-ran cleanly). */
   | "failed";
 
@@ -144,6 +152,7 @@ class Handle implements ProposalHandle {
   apply(): ProposalActionResult {
     if (this.#status !== "pending") return refuse("not_pending");
     const { target, analytics, clock } = this.options;
+    if (target.gestureActive) return refuse("busy");
     const result = target.execute(this.proposal.commands, {
       actor: "assistant",
       correlationId: this.id,
@@ -187,6 +196,7 @@ class Handle implements ProposalHandle {
   undo(): ProposalActionResult {
     if (this.#status !== "applied") return refuse("not_applied");
     const { target, analytics, clock } = this.options;
+    if (target.gestureActive) return refuse("busy");
     const newest = target.entries[target.entries.length - 1];
     if (newest?.correlationId !== this.id) return refuse("not_latest");
     const result = target.undo();

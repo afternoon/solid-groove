@@ -258,6 +258,22 @@ describe("applying, cancelling and undoing", () => {
     expect(handle.status).toBe("applied");
   });
 
+  it("waits for an open gesture rather than joining it", () => {
+    const handle = propose();
+    const gesture = history.beginGesture();
+    gesture.apply(setTrackFlag(fx.trackBId, "muted", true));
+    expect(handle.apply()).toMatchObject({ ok: false, reason: "busy" });
+    expect(handle.status).toBe("pending");
+    gesture.cancel();
+    expect(handle.apply().ok).toBe(true);
+    expect(history.entries).toHaveLength(1);
+
+    const second = history.beginGesture();
+    expect(handle.undo()).toMatchObject({ ok: false, reason: "busy" });
+    second.cancel();
+    expect(handle.undo().ok).toBe(true);
+  });
+
   it("cancels without changing anything", () => {
     const handle = propose();
     expect(handle.cancel()).toEqual({ ok: true, result: null });
