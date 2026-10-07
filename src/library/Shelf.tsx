@@ -109,7 +109,12 @@ export default function Shelf(props: {
               onClick={() => props.onFamily(entry.key)}
             >
               <b class="shelf-family-name">{entry.label}</b>{" "}
-              <small class="shelf-family-count">{entry.count}</small>
+              <small
+                class="shelf-family-count"
+                data-unit={entry.count === 1 ? "sound" : "sounds"}
+              >
+                {entry.count}
+              </small>
             </button>
           )}
         </For>

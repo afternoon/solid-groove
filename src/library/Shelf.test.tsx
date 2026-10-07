@@ -1,7 +1,9 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { cleanup, render, screen } from "@solidjs/testing-library";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import Shelf, { allLabel } from "./Shelf";
-import type { ShelfFamily } from "./shelf";
+import type { ShelfEntry, ShelfFamily } from "./shelf";
 
 afterEach(() => {
   cleanup();
@@ -10,13 +12,16 @@ afterEach(() => {
 
 const chosen = "kick";
 
-function renderShelf(family: ShelfFamily = "drums") {
+function renderShelf(
+  family: ShelfFamily = "drums",
+  families: readonly ShelfEntry<ShelfFamily>[] = [
+    { key: "drums", label: "Drums", count: 27 },
+    { key: "fx", label: "FX", count: 4 },
+  ],
+) {
   render(() => (
     <Shelf
-      families={[
-        { key: "drums", label: "Drums", count: 27 },
-        { key: "fx", label: "FX", count: 4 },
-      ]}
+      families={families}
       family={family}
       roles={[
         { key: "kick", label: "Kick", count: 24 },
@@ -44,6 +49,31 @@ describe("Shelf (LIB-010)", () => {
     expect(tile.querySelector(".shelf-family-name")).toHaveTextContent("Drums");
     expect(tile.querySelector(".shelf-family-count")).toHaveTextContent("27");
     expect(tile).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("draws one sound as '1 sound', like the list's own count (GRV-49)", () => {
+    renderShelf("fx", [
+      { key: "drums", label: "Drums", count: 27 },
+      { key: "fx", label: "FX", count: 1 },
+      { key: "loops", label: "Loops", count: 0 },
+    ]);
+    const unit = (name: RegExp) =>
+      screen
+        .getByRole("tab", { name })
+        .querySelector(".shelf-family-count")
+        ?.getAttribute("data-unit");
+
+    expect(unit(/^FX/)).toBe("sound");
+    expect(unit(/^Drums/)).toBe("sounds");
+    expect(unit(/^Loops/)).toBe("sounds");
+    // jsdom draws no `::after`, so pin that the stylesheet draws the tile's
+    // word from that attribute rather than a fixed plural.
+    const css = readFileSync(
+      resolve(process.cwd(), "src/library/SoundsView.css"),
+      "utf8",
+    );
+    const rule = css.match(/\.shelf-family-count::after\s*\{([^}]*)\}/)?.[1] ?? "";
+    expect(rule).toMatch(/content:\s*" " attr\(data-unit\);/);
   });
 
   it("boxes All's key before its label, and gives a category no digit (UI-002)", () => {
