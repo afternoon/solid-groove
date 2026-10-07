@@ -4,6 +4,7 @@ import {
   DEFAULT_FIRESTORE_EMULATOR_HOST,
   DEFAULT_STORAGE_EMULATOR_HOST,
   EMULATOR_PROJECT_ID,
+  firestoreSettings,
   placeholderFirebaseConfig,
   resolveDevBackend,
   resolveEmulatorHosts,
@@ -98,5 +99,16 @@ describe("resolveEmulatorHosts", () => {
       auth: "127.0.0.1:9099",
       storage: DEFAULT_STORAGE_EMULATOR_HOST,
     });
+  });
+});
+
+describe("firestoreSettings", () => {
+  it("long-polls against the emulator, so WebKit receives every stream message (GRV-67)", () => {
+    const hosts = resolveEmulatorHosts({}, "emulator");
+    expect(firestoreSettings(hosts)).toEqual({ experimentalForceLongPolling: true });
+  });
+
+  it("leaves the real project on the SDK's default transport", () => {
+    expect(firestoreSettings(resolveEmulatorHosts({}, "project"))).toEqual({});
   });
 });
