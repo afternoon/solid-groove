@@ -79,6 +79,11 @@
  */
 .editor-header {
   display: flex;
+  /* The header never gives up its height to the view under it (GRV-53). A
+     view whose content is taller than the room left (the Library) used to
+     squeeze it: flex items shrink by default, so it was 27px there and 40px
+     everywhere else. */
+  flex: none;
   align-items: center;
   gap: var(--size-divider);
   box-sizing: border-box;
@@ -417,18 +422,14 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow: hidden;
-  /* Runs to the bottom of the window rather than stopping at the padded edge,
-     so the grid continues to the end of the view instead of leaving a dead
-     band under it. The dock floats over that lowest strip, which is why the
-     arrangement keeps `BELOW_TRACKS_CLEARANCE_PX` of empty timeline below the
-     last track — the strip under the dock is never a track.
-
-     The negative margin alone is what does it. This used to pair it with an
-     equal `padding-bottom`, which put the dead band straight back: the panel
-     reached the bottom of the window, but its content box — where the
-     arrangement actually is — still stopped a dock's height short, so the
-     grid ended in a black strip with the dock floating below it. */
-  margin-bottom: calc(-1 * var(--view-dock-clearance));
+  /* It fills the view, which runs on under the dock (`.editor-body > *`
+     below), so the grid continues to the bottom of the window instead of
+     leaving a dead band under it. The dock floats over that lowest strip,
+     which is why the arrangement keeps `BELOW_TRACKS_CLEARANCE_PX` of empty
+     timeline below the last track — the strip under the dock is never a
+     track. Nothing here pads that strip back out: a `padding-bottom` once put
+     the dead band straight back, the grid ending in a black strip with the
+     dock floating below it. */
 }
 
 .track-editor {
@@ -460,6 +461,23 @@
   margin-right: var(--assistant-dock-space);
 }
 
+/*
+ * Every view's frame is the arrangement's (GRV-53): it starts under the
+ * header's gap, runs edge to edge, and carries on under the dock to the
+ * bottom of the window, so its background is what the dock floats over. A
+ * view that needs its last control clear of the dock pads itself by
+ * `--view-dock-clearance` inside that. Written once here, for the view the
+ * body holds, rather than once per view: the empty screen was the one that
+ * did not and stopped a dock's height short of the window's foot.
+ */
+.editor-body > * {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+  margin-bottom: calc(-1 * var(--view-dock-clearance));
+}
+
 /* A working window over a view (a jumbo dialog) stops
    at the docked assistant's edge too, so nothing is under the column. A modal
    dialog (Export, the library) does not: it covers the whole window, the
@@ -473,11 +491,6 @@
    instrument controls exist to be given. Both scroll inside themselves. */
 .instrument-view,
 .mixer-view {
-  flex: 1 1 auto;
-  min-width: 0;
-  min-height: 0;
-  box-sizing: border-box;
-  padding: var(--size-divider);
   background-color: var(--color-background-secondary);
 }
 
@@ -519,7 +532,11 @@
   position: sticky;
   top: 0;
   z-index: 50;
-  margin: calc(-1 * var(--size-divider)) calc(-1 * var(--size-divider)) 0;
+  /* Its padding covers the gutters around it while the view scrolls under
+     it; the negative margins take that padding back out of the flow, so the
+     view starts where the arrangement does (GRV-53). */
+  margin: calc(-1 * var(--size-divider)) calc(-1 * var(--size-divider))
+    calc(-1 * var(--size-divider));
   padding: var(--size-divider);
   /* The padding goes around the header's height, not inside it, so the
      header row is as tall here as in the arrangement. */
@@ -531,7 +548,9 @@
 .editor-mixer .mixer-view {
   display: flex;
   flex-direction: column;
-  padding-bottom: 0;
+  /* The document runs to the window's foot here, so there is no clearance to
+     take back. */
+  margin-bottom: 0;
   overflow: visible;
 }
 

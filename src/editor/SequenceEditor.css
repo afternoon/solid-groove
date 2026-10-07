@@ -8,7 +8,8 @@
   gap: var(--size-divider);
   min-width: 0;
   min-height: 0;
-  margin-bottom: calc(-1 * var(--view-dock-clearance));
+  /* The editor runs the view on under the dock (EditorView.css); this keeps
+     the editor's last row clear of it. */
   padding: var(--size-divider) var(--size-divider) var(--view-dock-clearance);
   box-sizing: border-box;
   background-color: var(--color-background-secondary);

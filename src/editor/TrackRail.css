@@ -3,11 +3,10 @@
    instrument off the page. Its rows are the shared TrackHeader (#447), and
    the column is laid to land where the arrangement's does once its toolbars
    are taken away, so switching views moves no track under the pointer:
-   - it reaches out over the view's frame to the editor's edge, as the
-     arrangement's column does;
+   - it starts at the view's top-left corner, where the arrangement's column
+     does (GRV-53);
    - it starts a ruler below the view, as the arrangement's rows start below
-     its ruler (and the ruler's hairline), less the header gap this view
-     keeps and the arrangement does not;
+     its ruler (and the ruler's hairline);
    - its rows are the arrangement's rows, hairline included, with no gap. */
 
 .track-rail {
@@ -20,10 +19,10 @@
   height: calc(
     var(--editor-height, 100vh) -
     var(--editor-header-height) -
-    3 *
+    2 *
     var(--size-divider)
   );
-  margin: calc(-1 * var(--size-divider)) 0 0 calc(-1 * var(--size-divider));
+  margin: 0;
   padding: 0;
   overflow-y: auto;
   background-color: var(--color-background-well);
@@ -51,7 +50,7 @@
   content: "";
   box-sizing: border-box;
   flex: none;
-  height: calc(var(--track-ruler-height) + 1px - var(--size-divider));
+  height: calc(var(--track-ruler-height) + 1px);
   background-color: var(--color-background-secondary);
   border-bottom: 1px solid var(--color-background-tertiary);
 }

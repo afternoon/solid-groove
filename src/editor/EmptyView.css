@@ -8,7 +8,9 @@
   justify-content: center;
   gap: 12px;
   min-height: 0;
-  padding: 32px var(--size-divider);
+  /* It runs on under the dock with the view it stands in for
+     (EditorView.css); the clearance keeps it centred in what is left. */
+  padding: 32px var(--size-divider) calc(32px + var(--view-dock-clearance, 0px));
   background-color: var(--color-background-secondary);
   text-align: center;
 }
