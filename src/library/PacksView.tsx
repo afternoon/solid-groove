@@ -6,14 +6,17 @@ import { ariaBool } from "../shared/aria";
 import type { ShortcutActionId } from "../shortcuts";
 import { AuditionController, type PreviewEngine } from "./audition";
 import type { LibraryClient } from "./libraryClient";
+import type { LibraryAssetType } from "./manifest";
 import PackCover from "./PackCover";
 import {
+  categoriesLabel,
   coverCategoryLine,
   familyChoices,
   heardSounds,
   type PackCatalogEntry,
-  packCategories,
+  packCounts,
   packHasFamily,
+  scopeEntry,
   watchPackCatalog,
 } from "./packCatalog";
 import type { ShelfFamily } from "./shelf";
@@ -28,6 +31,11 @@ export interface PacksViewProps {
   readonly analytics?: Analytics;
   /** Pack IDs the project holds, for the "In project" tag. */
   readonly projectPackIds: readonly string[];
+  /**
+   * The asset types the library was opened for. A pack's cover, counts, family
+   * filter and "Hear it" speak only of these, as its shelf shows only these (GRV-48).
+   */
+  readonly assetTypes?: readonly LibraryAssetType[];
   /** Key badge text for a registry action, from the registry. */
   keyLabel?(action: ShortcutActionId): string | undefined;
   onOpenPack(slug: string): void;
@@ -41,7 +49,10 @@ export interface PacksViewProps {
  */
 export default function PacksView(props: PacksViewProps): JSX.Element {
   const analytics = props.analytics ?? defaultAnalytics;
-  const [entries, setEntries] = createSignal<readonly PackCatalogEntry[]>([]);
+  const [loaded, setLoaded] = createSignal<readonly PackCatalogEntry[]>([]);
+  const entries = createMemo(() =>
+    loaded().map((entry) => scopeEntry(entry, props.assetTypes)),
+  );
   const [family, setFamily] = createSignal<ShelfFamily | null>(null);
   const [hearing, setHearing] = createSignal<string | null>(null);
 
@@ -57,7 +68,7 @@ export default function PacksView(props: PacksViewProps): JSX.Element {
 
   onSettled(() => {
     analytics.logFeatureFirstUse("pack_browser");
-    const cancel = watchPackCatalog(props.client, setEntries);
+    const cancel = watchPackCatalog(props.client, setLoaded);
     return () => {
       cancel();
     };
@@ -147,9 +158,9 @@ export default function PacksView(props: PacksViewProps): JSX.Element {
                   </PackCover>
                   <b class="pack-name">{entry().pack.name}</b>
                   <span class="pack-meta">
-                    {entry().pack.publisher} · {entry().pack.assetCount} sounds
-                    <Show when={entry().assets}>
-                      {(assets) => <> · {packCategories(assets()).length} categories</>}
+                    {entry().pack.publisher} · {packCounts(entry()).sounds} sounds
+                    <Show when={packCounts(entry()).categories}>
+                      {(categories) => <> · {categoriesLabel(categories())}</>}
                     </Show>
                   </span>
                   <span class="pack-mix">{coverCategoryLine(entry().assets ?? [])}</span>

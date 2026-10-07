@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_AUTH_EMULATOR_HOST,
   DEFAULT_FIRESTORE_EMULATOR_HOST,
+  DEFAULT_FUNCTIONS_EMULATOR_HOST,
   DEFAULT_STORAGE_EMULATOR_HOST,
   EMULATOR_PROJECT_ID,
   placeholderFirebaseConfig,
@@ -66,6 +67,7 @@ describe("resolveEmulatorHosts", () => {
       firestore: DEFAULT_FIRESTORE_EMULATOR_HOST,
       auth: DEFAULT_AUTH_EMULATOR_HOST,
       storage: DEFAULT_STORAGE_EMULATOR_HOST,
+      functions: DEFAULT_FUNCTIONS_EMULATOR_HOST,
     });
   });
 
@@ -86,6 +88,7 @@ describe("resolveEmulatorHosts", () => {
       firestore: "127.0.0.1:9999",
       auth: DEFAULT_AUTH_EMULATOR_HOST,
       storage: DEFAULT_STORAGE_EMULATOR_HOST,
+      functions: DEFAULT_FUNCTIONS_EMULATOR_HOST,
     });
   });
 
@@ -97,6 +100,7 @@ describe("resolveEmulatorHosts", () => {
       firestore: DEFAULT_FIRESTORE_EMULATOR_HOST,
       auth: "127.0.0.1:9099",
       storage: DEFAULT_STORAGE_EMULATOR_HOST,
+      functions: DEFAULT_FUNCTIONS_EMULATOR_HOST,
     });
   });
 });

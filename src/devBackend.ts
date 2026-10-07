@@ -38,6 +38,7 @@ export const DEFAULT_FIRESTORE_EMULATOR_HOST = "127.0.0.1:8080";
 export const DEFAULT_AUTH_EMULATOR_HOST = "127.0.0.1:9099";
 /** Where personal packs upload their audio in emulator mode (#282). */
 export const DEFAULT_STORAGE_EMULATOR_HOST = "127.0.0.1:9199";
+export const DEFAULT_FUNCTIONS_EMULATOR_HOST = "127.0.0.1:5001";
 
 /**
  * The emulator's project ID, matching `bun run firebase:emulator` and both
@@ -111,14 +112,17 @@ export function placeholderFirebaseConfig(backend: DevBackend = devBackend): {
 export function resolveEmulatorHosts(
   env: Record<string, string | undefined> = import.meta.env,
   backend: DevBackend = devBackend,
-): { firestore: string; auth: string; storage: string } | null {
+): { firestore: string; auth: string; storage: string; functions: string } | null {
   const firestore = env.VITE_FIRESTORE_EMULATOR_HOST;
   const auth = env.VITE_AUTH_EMULATOR_HOST;
   const storage = env.VITE_STORAGE_EMULATOR_HOST;
-  if (backend !== "emulator" && !firestore && !auth && !storage) return null;
+  const functions = env.VITE_FUNCTIONS_EMULATOR_HOST;
+  if (backend !== "emulator" && !firestore && !auth && !storage && !functions)
+    return null;
   return {
     firestore: firestore || DEFAULT_FIRESTORE_EMULATOR_HOST,
     auth: auth || DEFAULT_AUTH_EMULATOR_HOST,
     storage: storage || DEFAULT_STORAGE_EMULATOR_HOST,
+    functions: functions || DEFAULT_FUNCTIONS_EMULATOR_HOST,
   };
 }

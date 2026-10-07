@@ -313,6 +313,95 @@ describe("text entry", () => {
   });
 });
 
+describe("a focused control (GRV-54)", () => {
+  function control(html: string): HTMLElement {
+    const host = document.createElement("div");
+    host.innerHTML = html;
+    return host.firstElementChild as HTMLElement;
+  }
+
+  const PRESSABLE = [
+    "<button>Mute</button>",
+    '<input type="checkbox">',
+    '<input type="radio">',
+    '<input type="submit">',
+    "<summary>More</summary>",
+    '<div role="button" tabindex="0"></div>',
+    '<div role="switch" tabindex="0"></div>',
+    '<div role="radio" tabindex="0"></div>',
+    '<div role="checkbox" tabindex="0"></div>',
+    '<div role="menuitem" tabindex="0"></div>',
+    '<div role="tab" tabindex="0"></div>',
+  ];
+
+  it.each(PRESSABLE)(
+    "keeps Space for %s, which presses it, and leaves playback alone",
+    (html) => {
+      const play = vi.fn();
+      const { press } = setup({ handlers: { "transport.play_stop": { run: play } } });
+      const space = keyEvent(" ", { target: control(html) });
+
+      expect(press(space).rejected).toBe("focused_control");
+      expect(play).not.toHaveBeenCalled();
+      // The browser's default is what presses the control.
+      expect(space.defaultPrevented).toBe(false);
+    },
+  );
+
+  it("keeps Enter for a focused button or link too", () => {
+    const open = vi.fn();
+    const { press } = setup({
+      handlers: { "arrangement.open_clip": { run: open } },
+      contexts: ["editor", "arrangement"],
+    });
+
+    expect(press(keyEvent("Enter", { target: control("<button></button>") })).ran).toBe(
+      false,
+    );
+    expect(press(keyEvent("Enter", { target: control('<a href="/x"></a>') })).ran).toBe(
+      false,
+    );
+    expect(open).not.toHaveBeenCalled();
+  });
+
+  it("still plays on Space from a fader, which Space does not press", () => {
+    const play = vi.fn();
+    const { press } = setup({ handlers: { "transport.play_stop": { run: play } } });
+
+    press(keyEvent(" ", { target: control('<input type="range">') }));
+    press(keyEvent(" ", { target: control('<div role="slider" tabindex="0"></div>') }));
+    expect(play).toHaveBeenCalledTimes(2);
+  });
+
+  it("leaves every other key a shortcut on a focused button", () => {
+    const metronome = vi.fn();
+    const resume = vi.fn();
+    const { press } = setup({
+      handlers: {
+        "transport.metronome": { run: metronome },
+        "transport.continue": { run: resume },
+      },
+    });
+    const button = control("<button></button>");
+
+    expect(press(keyEvent("o", { target: button })).ran).toBe(true);
+    expect(press(keyEvent(" ", { shiftKey: true, target: button })).ran).toBe(true);
+    expect(metronome).toHaveBeenCalledTimes(1);
+    expect(resume).toHaveBeenCalledTimes(1);
+  });
+
+  it("lets a mapping that decides about focused controls itself through", () => {
+    const audition = vi.fn();
+    const { press } = setup({
+      handlers: { "library.audition": { run: audition } },
+      contexts: ["library"],
+    });
+
+    expect(press(keyEvent(" ", { target: control("<button></button>") })).ran).toBe(true);
+    expect(audition).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("contexts", () => {
   it("does not fire an editor shortcut while a modal is open", () => {
     const play = vi.fn();

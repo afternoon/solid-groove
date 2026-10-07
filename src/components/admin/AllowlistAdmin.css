@@ -121,6 +121,13 @@
   padding: 6px 14px;
 }
 
+/* Remove and Revoke side by side (#1147). */
+.allowlist-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .allowlist-email {
   overflow: hidden;
   text-overflow: ellipsis;

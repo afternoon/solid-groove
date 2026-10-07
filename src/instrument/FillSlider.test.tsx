@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@solidjs/testing-library";
 import { createSignal, flush } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { deviceTypeDefinition } from "../domain/devices";
 import { SYNTH_FILTER_CUTOFF } from "../domain/parameters";
 import FillSlider from "./FillSlider";
 import { formatInstrumentValue } from "./formatValue";
@@ -64,6 +65,32 @@ describe("FillSlider value field (#447)", () => {
     expect(onCommit).not.toHaveBeenCalled();
     expect(field).toHaveAttribute("aria-invalid", "true");
     expect(field.value).toBe("1 kHz");
+  });
+
+  it("reads a bare time as ms whatever unit the field shows (GRV-59)", () => {
+    const time = deviceTypeDefinition("delay")?.parameters.find(
+      (p) => p.id === "delay.time",
+    );
+    if (!time) throw new Error("no delay.time");
+    const onCommit = vi.fn();
+    const [value, setValue] = createSignal(2);
+    render(() => (
+      <FillSlider
+        definition={time}
+        value={value()}
+        displayValue={formatInstrumentValue(time, value())}
+        onInput={setValue}
+        onCommit={onCommit}
+      />
+    ));
+    const field = screen.getByLabelText("Time value") as HTMLInputElement;
+    expect(field.value).toBe("2 s");
+
+    field.value = "750";
+    fireEvent.change(field);
+    expect(onCommit).toHaveBeenLastCalledWith(0.75);
+    flush();
+    expect(field.value).toBe("750 ms");
   });
 
   it("reads the text with the caller's parser when the slider has its own space", () => {

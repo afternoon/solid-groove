@@ -130,7 +130,7 @@ jobs:
           if [ "$state" = Blocked ]; then
             echo "Card was moved to Blocked by the run; nothing to check."; exit 0
           fi
-          if [ "$state" = Backlog ]; then
+          if [ "$state" = Backlog ] || [ "$state" = Ready ]; then
             echo "Triage held the card off until the PRs it would conflict with land; nothing to check."; exit 0
           fi
           # Open, or merged in the last six hours: a safe PR can merge on its own
