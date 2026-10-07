@@ -1,9 +1,9 @@
 import { For, type JSX, Show } from "@solidjs/web";
 import { createMemo, createSignal, onSettled } from "solid-js";
-import type { Analytics } from "../analytics/analytics";
+import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import { loadEveryAsset } from "../library/allAssets";
 import type { PreviewEngine } from "../library/audition";
-import type { FavouriteMarks } from "../library/favourites";
+import type { FavouriteMarks, SoundKey } from "../library/favourites";
 import { type LibraryClient, sharedLibraryClient } from "../library/libraryClient";
 import MyPacks from "../library/MyPacks";
 import type {
@@ -13,6 +13,10 @@ import type {
 } from "../library/manifest";
 import PackBanner from "../library/PackBanner";
 import PacksView from "../library/PacksView";
+import {
+  createRecentlyHeardStore,
+  type RecentlyHeardStore,
+} from "../library/recentlyHeard";
 import SimilarSoundsView from "../library/SimilarSoundsView";
 import SoundsView, { type SoundsPlace } from "../library/SoundsView";
 import { type SlotAudition, slotPreviewEngine } from "../library/slotAudition";
@@ -51,8 +55,8 @@ const PLACES: readonly RailItem[] = [
   { id: "favourites", label: "Favourites", action: "library.favourites" },
 ];
 
-/** Recently viewed sits below the project's packs, so it is not in `PLACES`. */
-const RECENT: RailItem = { id: "recent", label: "Recently viewed" };
+/** Recently heard sits below the project's packs, so it is not in `PLACES`. */
+const RECENT: RailItem = { id: "recent", label: "Recently heard" };
 
 /**
  * What the `library` shortcut context drives. The host (`EditorView`) holds
@@ -144,6 +148,11 @@ export interface LibraryModalProps {
    * Favourites place. Unset (nobody signed in) leaves the hearts disabled.
    */
   readonly favourites?: Favourites;
+  /**
+   * Where this device keeps the sounds it has heard (#815). Defaults to the
+   * browser's storage; injected in tests.
+   */
+  readonly recentlyHeard?: RecentlyHeardStore;
 }
 
 /** How long a committed insert stays marked on the slot's readout. */
@@ -266,8 +275,9 @@ function InsertNoticeView(props: {
  * The library window (`UI-001`, `LIB-010`): a header naming what it inserts
  * into (`UI-002`) with **In the slot** and **Hearing** readouts, a rail of places to look, and a footer with
  * one large Insert button. Hearing a sound selects it and inserting is a second
- * step, so browsing never edits the project. Views other than All sounds are
- * placeholders until they land. It is the view on `4` (`UI-002`), not a
+ * step, so browsing never edits the project. All sounds, Favourites and
+ * Recently heard (#815) are one sounds view over different lists of sounds.
+ * It is the view on `4` (`UI-002`), not a
  * window: `EditorView` hands it the `library` shortcut context.
  */
 export default function LibraryModal(props: LibraryModalProps): JSX.Element {
@@ -278,10 +288,22 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   // Why the last insert did not land, or the upgrade it is waiting on (#892).
   const [notice, setNotice] = createSignal<InsertNotice | null>(null);
   const [inserting, setInserting] = createSignal(false);
-  /** A new selection clears whatever the footer said about the last one. */
+  // Recently heard (#815): every sound heard here goes on this device's list.
+  // The place shows the list as it stood when it was chosen, so hearing one of
+  // its sounds does not move the row under the pointer or the arrow keys.
+  const recentStore = props.recentlyHeard ?? createRecentlyHeardStore();
+  const [recentShown, setRecentShown] = createSignal<readonly SoundKey[]>(
+    recentStore.load(),
+  );
+  /**
+   * A new selection clears whatever the footer said about the last one. Every
+   * view selects the sound it auditions, so this is also where hearing one is
+   * remembered; Browse packs' Hear it plays a pack and selects nothing.
+   */
   function setSelected(asset: LibraryAsset | null): void {
     if (asset !== selected()) setNotice(null);
     setSelectedSound(asset);
+    if (asset) recentStore.record({ packId: asset.packId, assetId: asset.id });
   }
   // Every view auditions through this one engine, so each is heard in the slot.
   const previewEngine = props.slotAudition
@@ -303,7 +325,10 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   const showsSounds = createMemo(
     () =>
       similarOf() === null &&
-      (view() === "all" || view() === "favourites" || packScope() !== null),
+      (view() === "all" ||
+        view() === "favourites" ||
+        view() === "recent" ||
+        packScope() !== null),
   );
   // The rail's *In this project*: the project's pack dependencies and shelf.
   const [indexed, setIndexed] = createSignal<readonly LibraryPackSummary[]>([]);
@@ -416,6 +441,12 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
     keepFocus(() => {
       setSimilarOf(null);
       closePack();
+      if (next === "recent") {
+        setRecentShown(recentStore.load());
+        (props.analytics ?? defaultAnalytics).logFeatureFirstUse(
+          "library_recently_heard",
+        );
+      }
       setView(next);
     });
   }
@@ -445,7 +476,18 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
 
   // The place the sounds view lists, when it is not every sound.
   const soundsPlace = (): SoundsPlace | null => {
-    if (packScope() !== null || view() !== "favourites") return null;
+    if (packScope() !== null) return null;
+    if (view() === "recent") {
+      return {
+        key: "recent",
+        label: RECENT.label,
+        sounds: recentShown(),
+        showsMissing: false,
+        empty:
+          "Nothing heard yet. Sounds you audition on this device show up here, the last one heard first.",
+      };
+    }
+    if (view() !== "favourites") return null;
     const favourites = props.favourites;
     const loading =
       favourites !== undefined && !favourites.loaded() && !favourites.failed();
@@ -455,15 +497,12 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
       sounds: favourites?.list() ?? [],
       showsMissing: favourites?.loaded() ?? false,
       empty: loading
-        ? { title: "Loading your favourites…", hint: "" }
-        : {
-            title: "No favourites yet.",
-            hint: `Press the heart on a sound${
-              keyOf("library.like")
-                ? `, or ${keyOf("library.like")} on the one you're hearing,`
-                : ""
-            } to keep it here. Your favourites follow you to every project.`,
-          },
+        ? "Loading your favourites…"
+        : `No favourites yet. Press the heart on a sound${
+            keyOf("library.like")
+              ? `, or ${keyOf("library.like")} on the one you're hearing,`
+              : ""
+          } to keep it here. Your favourites follow you to every project.`,
     };
   };
 
@@ -897,9 +936,6 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
               favourites={marks()}
             />
           </div>
-          <Show when={similarOf() === null && view() === "recent"}>
-            <p class="library-modal-empty">{RECENT.label} will appear here.</p>
-          </Show>
         </div>
       </div>
     </ViewFrame>

@@ -577,11 +577,3 @@
   grid-template-columns: 18px minmax(0, 1fr);
   color: var(--color-foreground);
 }
-
-.sounds-empty b {
-  color: var(--color-foreground-bright);
-}
-
-.sounds-empty p + p {
-  margin-top: 6px;
-}

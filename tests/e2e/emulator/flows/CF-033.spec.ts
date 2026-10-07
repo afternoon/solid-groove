@@ -46,9 +46,7 @@ import { expect, test } from "../support/test";
  */
 
 test.describe("CF-033", () => {
-  // `test.fixme` until #815's recently heard lands: the PR that builds it
-  // removes this marker in the same diff that makes the flow pass.
-  test.fixme("a producer finds a sound they heard earlier", async ({ page }) => {
+  test("a producer finds a sound they heard earlier", async ({ page }) => {
     const step = walkthrough(page, {
       id: "CF-033",
       title: "A producer finds a sound they heard earlier",

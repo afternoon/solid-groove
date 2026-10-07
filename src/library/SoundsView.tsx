@@ -40,7 +40,7 @@ export interface SoundsPlace {
   /** Whether a sound that no longer resolves is listed as missing. */
   readonly showsMissing: boolean;
   /** What the place says while it holds nothing, and how to fill it. */
-  readonly empty: { readonly title: string; readonly hint: string };
+  readonly empty: string;
 }
 
 const MISSING_REASONS: Record<MissingFavouriteReason, string> = {
@@ -369,10 +369,7 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
           </Show>
           <Show when={placeEmpty()}>
             <div class="sounds-empty">
-              <p>
-                <b>{props.place?.empty.title}</b>
-              </p>
-              <p>{props.place?.empty.hint}</p>
+              <p>{props.place?.empty}</p>
             </div>
           </Show>
           <Show when={!placeEmpty()}>
