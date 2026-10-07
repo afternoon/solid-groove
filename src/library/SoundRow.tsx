@@ -1,5 +1,5 @@
 import { type JSX, Show } from "@solidjs/web";
-import { HiOutlineHeart } from "solid-icons/hi";
+import { HiOutlineHeart, HiSolidHeart } from "solid-icons/hi";
 import { PlayIcon, StopIcon } from "../components/icons";
 import { ariaBool } from "../shared/aria";
 import { writeLibrarySampleDrag } from "./assetDrag";
@@ -39,8 +39,8 @@ export function SimilarIcon(props: { size?: number }): JSX.Element {
 /**
  * One compact sound row (LIB-010): play state, waveform, name over
  * `pack · role`, character tags in their own column, and length. Clicking
- * selects and auditions it. The heart is inert until favourites land, and the
- * two circles open similar sounds. The row is also a drag handle onto an
+ * selects and auditions it. The heart favourites it (#815), pressed while it is
+ * one, and the two circles open similar sounds. The row is also a drag handle onto an
  * instrument (#225), never the only way in.
  */
 export default function SoundRow(props: {
@@ -59,6 +59,10 @@ export default function SoundRow(props: {
    * own keys (`S`, `L`) do what the icon buttons do.
    */
   tabbable: boolean;
+  /** Whether the sound is a favourite: the heart is pressed and filled. */
+  favourite?: boolean;
+  /** Toggles the favourite. Unset leaves the heart disabled (no one signed in). */
+  onFavourite?: () => void;
   onSelect: () => void;
   onSimilar: () => void;
 }): JSX.Element {
@@ -125,12 +129,16 @@ export default function SoundRow(props: {
       </button>
       <button
         type="button"
-        class="sound-row-icon"
+        class={["sound-row-icon", { "sound-row-favourite": props.favourite === true }]}
         tabindex={-1}
         aria-label={`Favourite ${props.asset.name}`}
-        disabled
+        aria-pressed={ariaBool(props.favourite ?? false)}
+        disabled={!props.onFavourite}
+        onClick={() => props.onFavourite?.()}
       >
-        <HiOutlineHeart size={15} />
+        <Show when={props.favourite} fallback={<HiOutlineHeart size={15} />}>
+          <HiSolidHeart size={15} />
+        </Show>
       </button>
       <button
         type="button"

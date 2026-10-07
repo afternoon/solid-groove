@@ -25,6 +25,8 @@ import { createFactoryContext } from "../domain/factories";
 import type { PlacementId } from "../domain/ids";
 import type { PreviewEngine } from "../library/audition";
 import { type LibraryClient, sharedLibraryClient } from "../library/libraryClient";
+import { useFavourites } from "../library/useFavourites";
+import type { FavouritesRepository } from "../persistence/favouritesRepository";
 import { getProjectRepository } from "../projectRepositoryClient";
 import type { ArrangementSelection } from "../selection";
 import ShortcutGuide from "../shortcuts/ShortcutGuide";
@@ -107,6 +109,8 @@ export interface EditorViewProps {
   readonly libraryAccount?: UserLibraryAccount | null;
   /** Injected in tests; Firestore and Cloud Storage (or memory) otherwise. */
   readonly userLibraryRepository?: () => Promise<UserLibraryRepository>;
+  /** Injected in tests; Firestore (or memory) otherwise. */
+  readonly favouritesRepository?: () => Promise<FavouritesRepository>;
 }
 
 /** Mints IDs for tracks the arrangement creates. A module singleton. */
@@ -186,6 +190,14 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     account: () => props.libraryAccount ?? null,
     analytics: props.analytics,
     repository: loadUserLibrary,
+  });
+  // The producer's favourite sounds (#815), held here like their packs so the
+  // Library view opens with them already loaded. Favourites are per user, a
+  // guest's included: an anonymous uid owns its favourites as it owns projects.
+  const favourites = useFavourites({
+    uid: () => props.libraryAccount?.uid ?? null,
+    repository: props.favouritesRepository,
+    analytics: props.analytics,
   });
   // A personal sound has no URL: playback and audition read its bytes from
   // where it is stored, as the signed-in user, through the same repository.
@@ -450,6 +462,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                               fix={viewFix}
                               onFix={(view) => selectView(view, "empty_screen")}
                               userLibrary={userLibrary}
+                              favourites={favourites}
                             />
                           </Match>
                           <Match when={props.view === "mixer"}>

@@ -162,6 +162,11 @@
   color: var(--color-foreground);
 }
 
+/* A favourite's heart is filled, and the brightest thing on its row (#815). */
+.sound-row-favourite {
+  color: var(--color-foreground-bright);
+}
+
 .sound-row-icon:hover {
   background: var(--color-background-hover);
   color: var(--color-foreground-bright);
@@ -564,4 +569,19 @@
 .role-jumps .filter-label {
   float: none;
   margin-left: 0;
+}
+
+/* A favourite whose sound no longer resolves (#815): a warning and why, with
+   only its heart left to take it out. */
+.sound-row-missing .sound-row-main {
+  grid-template-columns: 18px minmax(0, 1fr);
+  color: var(--color-foreground);
+}
+
+.sounds-empty b {
+  color: var(--color-foreground-bright);
+}
+
+.sounds-empty p + p {
+  margin-top: 6px;
 }
