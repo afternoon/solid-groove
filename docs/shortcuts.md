@@ -232,6 +232,15 @@ override recorded on the entry:
   `<select>` receive normal typing; single-letter and `Space` mappings never
   leak into them. `Escape` is the one mapping marked `textEntry: "allowed"`,
   because a modal has to close from its own search box.
+- **A focused control keeps the keys that press it.** With a button, toggle,
+  checkbox, radio, tab, menu item or `<summary>` focused (or the ARIA role of
+  one), a plain `Space` is the control's, as it is in any browser, and so is a
+  plain `Enter` on a button or link: the shortcut stands down and the browser
+  presses the control, so `Space` mutes a focused **M** button rather than
+  starting playback. Every other key, `Shift+Space` included, still fires from
+  a focused control. A fader is not pressed by `Space`, so `Space` still plays
+  from one. A mapping whose handler decides about focused controls itself (the
+  Library's `Space` and `Enter`) is marked `focusedControl: "allowed"`.
 - **Deterministic context resolution.** A shortcut fires only if one of its
   declared contexts is active. A registry test proves no two mappings can match
   the same event in the same context, so dispatch is never ambiguous.

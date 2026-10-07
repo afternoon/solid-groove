@@ -1,5 +1,5 @@
 import type { AccessRepository } from "./access/accessRepository";
-import { isMockBackend } from "./devBackend";
+import { isMockBackend, resolveEmulatorHosts } from "./devBackend";
 
 /**
  * The admin page's `AccessRepository` (#854), chosen the way the other
@@ -21,9 +21,14 @@ async function createAccessRepository(): Promise<AccessRepository> {
     );
     return createInMemoryAccessRepository();
   }
-  const [{ FirestoreAccessRepository }, { db }] = await Promise.all([
-    import("./access/firestoreAccessRepository"),
-    import("./firebaseConfig"),
-  ]);
-  return new FirestoreAccessRepository(db);
+  const [{ FirestoreAccessRepository }, { createRevokeAccessCall }, { app, db }] =
+    await Promise.all([
+      import("./access/firestoreAccessRepository"),
+      import("./access/firebaseRevokeAccess"),
+      import("./firebaseConfig"),
+    ]);
+  return new FirestoreAccessRepository(
+    db,
+    createRevokeAccessCall(app, resolveEmulatorHosts()?.functions ?? null),
+  );
 }

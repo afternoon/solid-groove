@@ -81,7 +81,9 @@ export const LIBRARY_SHORTCUTS: readonly ShortcutDefinition[] = [
     "Space",
     // No `preventDefault: false`: the press must not also reach the focused
     // button, which is the Close button when the library opens (#860). A
-    // focused control keeps Space through the handler's `isEnabled` instead.
+    // focused control keeps Space through the handler's `isEnabled` instead,
+    // so the controller lets this one past a focused button (GRV-54).
+    { focusedControl: "allowed" },
   ),
   libraryKey(
     "library.insert",
@@ -97,7 +99,9 @@ export const LIBRARY_SHORTCUTS: readonly ShortcutDefinition[] = [
     {
       // The library owns Enter (UI-002, #860): the browser's default would
       // also press the focused sound row, re-auditioning instead of
-      // inserting. Any other focused control keeps its own Enter.
+      // inserting. Any other focused control keeps its own Enter, through
+      // the handler's `isEnabled` rather than the controller (GRV-54).
+      focusedControl: "allowed",
       ableton: { kind: "follows", abletonKeys: "Enter" },
     },
   ),

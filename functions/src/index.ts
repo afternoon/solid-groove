@@ -18,6 +18,10 @@
  * its model provider: `src/assistant/gateway.ts` decides everything, and the
  * provider's API key is a Secret Manager secret bound to that function alone.
  *
+ * A callable, `revokeAccess` (#1147), lets an admin take an address off the
+ * allowlist and end its account's sessions in one go, which needs the Admin
+ * SDK; `src/access/revokeAccess.ts` decides.
+ *
  * Every kind of user data (packs today, recordings and presets later) is a
  * folder under `users/{uid}/`, so a new kind is counted as soon as it is added
  * to `USER_DATA_KINDS` — nothing here changes.
@@ -28,6 +32,7 @@
  * `functions/package.json`.
  */
 import { initializeApp } from "firebase-admin/app";
+import { type Auth, getAuth } from "firebase-admin/auth";
 import { type Firestore, getFirestore, type Transaction } from "firebase-admin/firestore";
 import { getStorage } from "firebase-admin/storage";
 import { logger } from "firebase-functions";
@@ -50,11 +55,13 @@ import {
   signInAttemptDocPath,
 } from "../../src/access/allowlist";
 import { alertBlockedSignIn } from "../../src/access/blockedSignInAlert";
+import type { RevokeAccessStore } from "../../src/access/revokeAccess";
 import { gateSignIn, type SignInGateStore } from "../../src/access/signInGate";
 import {
   ASSISTANT_API_KEY_SECRET,
   ASSISTANT_CALL_LIMITS,
 } from "../../src/assistant/config";
+import { CLOUD_FUNCTIONS_REGION } from "../../src/shared/cloudFunctions";
 import type { VersionedPack } from "../../src/userData/packVersions";
 import { withdrawRefusedSound } from "../../src/userData/refusedSound";
 import {
@@ -73,13 +80,15 @@ import {
 import { createAnthropicProvider } from "./anthropicProvider";
 import { createAssistantHandler } from "./assistantHandler";
 import { firestoreGuardStores } from "./assistantStores";
+import { createRevokeAccessHandler } from "./revokeAccessHandler";
 
 /**
  * Where the functions run. A Storage trigger has to run in the default
  * bucket's location, and production's bucket is in `us-east1`; the deploy
- * refuses any other region. A bucket elsewhere means changing this one value.
+ * refuses any other region. A bucket elsewhere means changing the one value
+ * in `src/shared/cloudFunctions.ts`, which the browser's calls read too.
  */
-setGlobalOptions({ region: "us-east1", maxInstances: 10 });
+setGlobalOptions({ region: CLOUD_FUNCTIONS_REGION, maxInstances: 10 });
 
 initializeApp();
 
@@ -261,6 +270,43 @@ export const allowlistBlockedSignInAlert = onDocumentWritten(
       logger,
     });
   },
+);
+
+/** The revocation's store over the Admin SDK, which the rules do not apply to. */
+function adminRevokeStore(db: Firestore, auth: Auth): RevokeAccessStore {
+  return {
+    async unlist(email) {
+      const ref = db.doc(allowlistDocPath(email));
+      if (!(await ref.get()).exists) return false;
+      await ref.delete();
+      return true;
+    },
+    async endSessions(email) {
+      let uid: string;
+      try {
+        uid = (await auth.getUserByEmail(email)).uid;
+      } catch (error) {
+        if ((error as { code?: unknown }).code === "auth/user-not-found") return false;
+        throw error;
+      }
+      await auth.revokeRefreshTokens(uid);
+      return true;
+    },
+  };
+}
+
+/**
+ * An admin revoking an account's access (#1147): the address comes off the
+ * allowlist and the account's refresh tokens are revoked, so its sessions end
+ * at their next token refresh (within the hour) and its next sign-in meets
+ * the gate. A callable, so Firebase verifies the caller's ID token before the
+ * handler runs; the shared decision then refuses anyone without the `admin`
+ * claim, and an admin revoking their own address. Nothing logged here names
+ * the address. The export's name is what the browser calls
+ * (`REVOKE_ACCESS_CALLABLE` in `src/access/revokeAccess.ts`).
+ */
+export const revokeAccess = onCall(
+  createRevokeAccessHandler(() => adminRevokeStore(getFirestore(), getAuth())),
 );
 
 /** The provider's API key, readable by `assistantTurn` and nothing else. */

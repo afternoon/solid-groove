@@ -112,6 +112,16 @@ export const APP_EVENTS = {
     },
   },
 
+  // An admin revoking an account's access (#1147): the address taken off the
+  // allowlist and its sessions ended, through the `revokeAccess` callable.
+  // Whether it was still listed and whether an account had it; never the
+  // address.
+  access_revoked: {
+    phase: 1,
+    owners: ["#1147"],
+    params: { was_listed: boolParam(), sessions_ended: boolParam() },
+  },
+
   account_upgraded: {
     phase: 1,
     owners: ["LOOP-001"],

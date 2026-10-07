@@ -60,11 +60,6 @@ const OWN_ARROWS =
 const focusKeepsArrows = (): boolean =>
   document.activeElement?.matches(OWN_ARROWS) ?? false;
 
-/** A focused control that Enter already presses, so a clip must not take it. */
-const PRESSES_ENTER = 'button, a[href], [role="button"], [role="link"], summary';
-const focusPressesEnter = (): boolean =>
-  document.activeElement?.matches(PRESSES_ENTER) ?? false;
-
 /**
  * Installs the editor's PRD `KEY-01` shortcut mapping: which actions this
  * slice implements, what each does, and which contexts are active.
@@ -353,11 +348,11 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
       },
     },
     // Enter on the arrangement's one selected clip opens it (UI-002), the
-    // keyboard's double-click.
+    // keyboard's double-click. A focused button keeps its own Enter: the
+    // controller stands the key down there (GRV-54).
     "arrangement.open_clip": {
       run: () => openSelectedClip()?.(),
-      isEnabled: () =>
-        arrangementFocused() && !focusPressesEnter() && openSelectedClip() !== undefined,
+      isEnabled: () => arrangementFocused() && openSelectedClip() !== undefined,
     },
     // Up/Down walk the selected track in the arrangement and instrument views.
     // Plain arrows only: Alt+Up/Down stay `device.move_*` (exact-modifier
