@@ -405,7 +405,11 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   function holdFocusOnDoubleClick(event: MouseEvent): void {
     if (event.detail < 2 || performance.now() - placeChangedAt > DOUBLE_CLICK_MS) return;
     const target = event.target;
-    if (target instanceof Element && target.closest(PRESS_FOCUSES) !== null) return;
+    // Only a focusable control inside the library takes the press: the
+    // editor's own focusable containers around it (#76's focus home) are
+    // ancestors of everything, so matching them would never hold focus.
+    const focusable = target instanceof Element ? target.closest(PRESS_FOCUSES) : null;
+    if (focusable !== null && main?.contains(focusable)) return;
     event.preventDefault();
   }
 

@@ -1168,6 +1168,10 @@ export default function ArrangementView(props: ArrangementViewProps) {
     <div
       class="arrangement-view"
       data-testid="arrangement-view-ready"
+      // Where the editor puts focus it lost (#76): inside the arrangement, so
+      // its keys (select all, Enter, Escape) keep working from there.
+      data-focus-home
+      tabindex={-1}
       data-pixels-per-tick={pixelsPerTick()}
       {...VERTICAL_SCALE}
     >

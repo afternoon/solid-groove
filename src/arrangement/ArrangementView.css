@@ -198,6 +198,7 @@
    while it has focus the arrangement it speaks for wears the focus ring. A
    frame laid over the body rather than an outline on it: the sticky canvases
    paint over their container's own outline. */
+.arrangement-view:focus-visible .arrangement-body::after,
 .arrangement-view:has(.arrangement-clip-list:focus-visible) .arrangement-body::after {
   content: "";
   position: absolute;
@@ -205,4 +206,10 @@
   z-index: 3;
   border: 2px solid var(--color-accent);
   pointer-events: none;
+}
+
+/* Focus the editor rescued into the arrangement (#76) wears the same frame
+   as the clip list's, for the same reason. */
+.arrangement-view:focus {
+  outline: none;
 }
