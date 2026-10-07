@@ -257,7 +257,7 @@ async function poll() {
 async function move(identifier, state) {
   const card = await linear.issue(identifier, { comments: false });
   if (!card) return console.log(`${identifier}: no such card`);
-  if (card.state.type === "completed" || card.state.type === "canceled")
+  if (["completed", "canceled", "duplicate"].includes(card.state.type))
     return console.log(`${identifier}: already ${card.state.name}`);
   await linear.setState(identifier, state);
   console.log(`${identifier}: → ${state}`);

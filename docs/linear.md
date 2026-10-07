@@ -52,7 +52,7 @@ yours. Do not start a comment of your own with those words.
 
 The team's workflow states, in order, are the board's columns: Backlog, Ready,
 In progress, Blocked, QA, Ready for review, Approved, Done (completed),
-Canceled and Duplicate (canceled). Their names are a contract:
+Canceled (canceled) and Duplicate (duplicate). Their names are a contract:
 `.github/scripts/linear.mjs` lists them in `STATES`, and a renamed column
 breaks the poll. The set is per team, which is why Groove has a team of its
 own.
@@ -65,7 +65,7 @@ Leave it in Backlog; the poll and the sweep ignore it.
 
 ## Labels
 
-Team labels carry over from GitHub: `bug`, `polish`, `refactor`, `contract`,
+Team labels carry over from GitHub: `bug` (Linear's built-in `Bug`; the scripts match labels ignoring case), `polish`, `refactor`, `contract`,
 `decision`, `documentation`, `needs-shaping`, `human-input-required`,
 `parked`, `qa-sweep`. `status:*` labels no longer exist: the column is the
 status. On GitHub, `status:approved`, `needs-approval`, `hold`,

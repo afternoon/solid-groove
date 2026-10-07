@@ -53,7 +53,14 @@ async function setupStates() {
   const byName = new Map(existing.map((s) => [s.name.toLowerCase(), s]));
   for (const [from, to] of RENAMES) {
     const s = byName.get(from);
-    if (!s || byName.has(to.toLowerCase())) continue;
+    // "In Progress" → "In progress" only changes case, so the target name is
+    // the state itself and does not count as already taken.
+    if (
+      !s ||
+      s.name === to ||
+      (from !== to.toLowerCase() && byName.has(to.toLowerCase()))
+    )
+      continue;
     say(`rename state "${s.name}" → "${to}"`);
     if (!DRY)
       await linear.gql(
@@ -71,7 +78,8 @@ async function setupStates() {
         console.warn(
           `state "${s.name}" is type ${s.type}, expected ${wanted.type}; Linear cannot change a state's type, so leave it or recreate it by hand`,
         );
-      if (s.position !== position) {
+      // Linear's Duplicate state is reserved: it refuses any update.
+      if (s.position !== position && s.type !== "duplicate") {
         say(`reorder state "${s.name}" to ${position}`);
         if (!DRY)
           await linear.gql(
@@ -154,7 +162,12 @@ async function setupMilestones() {
     return;
   }
   const have = new Set((await linear.milestones()).map((m) => m.name.toLowerCase()));
-  for (const title of titles.filter((t) => t.trim().toLowerCase() !== "backlog")) {
+  // Created in number order (M2 before M10), which is the order Linear lists them.
+  const number = (t) => Number(/\d+/.exec(t)?.[0] ?? Number.POSITIVE_INFINITY);
+  const ordered = titles
+    .filter((t) => t.trim().toLowerCase() !== "backlog")
+    .sort((a, b) => number(a) - number(b));
+  for (const title of ordered) {
     if (have.has(title.toLowerCase())) continue;
     say(`create milestone "${title}"`);
     if (!DRY) await linear.milestoneNamed(title, { create: true });

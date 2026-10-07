@@ -69,7 +69,7 @@ export const STATES = [
   },
   { name: "Done", type: "completed", color: "#5e6ad2", about: "QA passed on production" },
   { name: "Canceled", type: "canceled", color: "#95a2b3", about: "Not doing it" },
-  { name: "Duplicate", type: "canceled", color: "#95a2b3", about: "Filed twice" },
+  { name: "Duplicate", type: "duplicate", color: "#95a2b3", about: "Filed twice" },
 ];
 
 /** Issues that are records, not cards: the poller and the sweep leave them alone. */
@@ -306,7 +306,7 @@ function normalise(i) {
 /**
  * Issues in the team, filtered. `state` is a name or list of names; `labels`
  * must all be present; `noMilestone` keeps only issues with no project
- * milestone; `open` (default) excludes completed and canceled states.
+ * milestone; `open` (default) excludes completed, canceled and duplicate states.
  */
 export async function list({
   state,
@@ -319,11 +319,13 @@ export async function list({
 } = {}) {
   const filter = { team: { key: { eq: TEAM_KEY } } };
   if (state) filter.state = { name: { in: [].concat(state) } };
-  else if (open) filter.state = { type: { nin: ["completed", "canceled"] } };
+  else if (open) filter.state = { type: { nin: ["completed", "canceled", "duplicate"] } };
   // One `some` per wanted label: `every` would mean "every label the issue
   // carries is in this set", which is not what an agent asking for `bug` means.
   if (wanted.length)
-    filter.and = wanted.map((name) => ({ labels: { some: { name: { eq: name } } } }));
+    filter.and = wanted.map((name) => ({
+      labels: { some: { name: { eqIgnoreCase: name } } },
+    }));
   if (noMilestone) filter.projectMilestone = { null: true };
   if (createdAfter) filter.createdAt = { gt: createdAfter };
   const nodes = await paginate(

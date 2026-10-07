@@ -115,16 +115,28 @@ export function rewriteRefs(text, map, repo = REPO) {
 
 const when = (iso) => iso.slice(0, 10);
 
+/**
+ * GitHub's `<img src="…">` (how a pasted screenshot arrives) as a Markdown
+ * image: Linear does not take raw HTML, and mangles the src into a link.
+ */
+export const imagesToMarkdown = (text) =>
+  text.replace(/<img\b[^>]*>/gi, (tag) => {
+    const src = /\bsrc="([^"]+)"/i.exec(tag)?.[1];
+    if (!src) return tag;
+    const alt = /\balt="([^"]*)"/i.exec(tag)?.[1] ?? "";
+    return `![${alt}](${src})`;
+  });
+
 /** The description: the body, the comments folded in, the footer. Refs rewritten later. */
 function describe(issue, notes) {
-  const out = [issue.body?.trim() || "_(no description on GitHub)_"];
+  const out = [imagesToMarkdown(issue.body?.trim() || "_(no description on GitHub)_")];
   if (notes.length) {
     out.push("", "---", "", "## Notes from GitHub", "");
     for (const c of notes)
       out.push(
         `**${c.user?.login ?? "someone"}, ${when(c.created_at)}:**`,
         "",
-        c.body?.trim() || "_(empty)_",
+        imagesToMarkdown(c.body?.trim() || "_(empty)_"),
         "",
       );
   }
