@@ -40,6 +40,25 @@ describe("PackBanner", () => {
     expect(meta).toHaveTextContent(drums.description);
   });
 
+  it("counts only the sounds and categories the pack's shelf shows (GRV-48)", async () => {
+    // The drum fixture: five one-shot kicks, a drum loop, and a kit preset.
+    render(() => (
+      <PackBanner
+        client={new LibraryClient(fixtureFetcher())}
+        slug={drums.slug}
+        projectPackIds={[]}
+        assetTypes={["one-shot"]}
+      />
+    ));
+    // Opened from a pad: the shelf holds the kicks alone.
+    expect(await screen.findByText(/5 sounds in 1 category\. /)).toBeVisible();
+    cleanup();
+
+    // Opened for anything: the loop as well, but never the preset.
+    renderBanner(drums.slug, []);
+    expect(await screen.findByText(/6 sounds in 2 categories\. /)).toBeVisible();
+  });
+
   it("says In this project for a pack the project has", async () => {
     renderBanner(drums.slug, [drums.id]);
     expect(await screen.findByText("In this project")).toBeVisible();

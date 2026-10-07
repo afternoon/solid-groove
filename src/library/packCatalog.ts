@@ -1,11 +1,17 @@
 import type { LibraryClient } from "./libraryClient";
-import { hasAudio, type LibraryAsset, type LibraryPackSummary } from "./manifest";
+import {
+  hasAudio,
+  type LibraryAsset,
+  type LibraryAssetType,
+  type LibraryPackSummary,
+} from "./manifest";
 import {
   familyLabel,
   roleLabel,
   SHELF_FAMILIES,
   type ShelfFamily,
   shelfFamilyOf,
+  shelfRoles,
 } from "./shelf";
 
 /**
@@ -21,6 +27,62 @@ export interface PackCatalogEntry {
 
 /** How many category names a cover spells out before "+N more". */
 export const COVER_CATEGORY_LIMIT = 3;
+
+/**
+ * The sounds of a pack the shelf can show: those of the types the library was
+ * opened for (a pad takes one-shots, a loop track loops), and never one outside
+ * the shelf's families, such as a preset. What a pack advertises is counted
+ * over these, so a count never promises sounds the pack's shelf hides (GRV-48).
+ */
+export function shelfSounds(
+  assets: readonly LibraryAsset[],
+  assetTypes?: readonly LibraryAssetType[],
+): LibraryAsset[] {
+  return assets.filter(
+    (asset) =>
+      (!assetTypes || assetTypes.includes(asset.type)) && shelfFamilyOf(asset) !== null,
+  );
+}
+
+/** A pack entry with only the sounds its shelf shows in this scope. */
+export function scopeEntry(
+  entry: PackCatalogEntry,
+  assetTypes?: readonly LibraryAssetType[],
+): PackCatalogEntry {
+  return {
+    pack: entry.pack,
+    assets: entry.assets && shelfSounds(entry.assets, assetTypes),
+  };
+}
+
+/**
+ * How many category chips the shelf offers across these sounds: each family's
+ * own roles, so a role two families share ("stab") counts once per family.
+ */
+export function shelfCategoryCount(assets: readonly LibraryAsset[]): number {
+  return packFamilies(assets).reduce(
+    (total, family) => total + shelfRoles(assets, family).length,
+    0,
+  );
+}
+
+/** "1 category", "4 categories". */
+export function categoriesLabel(count: number): string {
+  return `${count} ${count === 1 ? "category" : "categories"}`;
+}
+
+/**
+ * The sounds and categories a pack advertises in a scope. Until its manifest
+ * loads only the index's total is known, and no category count at all.
+ */
+export function packCounts(
+  entry: PackCatalogEntry,
+  assetTypes?: readonly LibraryAssetType[],
+): { readonly sounds: number; readonly categories: number | null } {
+  if (!entry.assets) return { sounds: entry.pack.assetCount, categories: null };
+  const shown = shelfSounds(entry.assets, assetTypes);
+  return { sounds: shown.length, categories: shelfCategoryCount(shown) };
+}
 
 /** The pack's initials: the typographic stand-in for cover art. */
 export function packInitials(name: string): string {

@@ -2,8 +2,15 @@ import { type JSX, Show } from "@solidjs/web";
 import { HiSolidXMark } from "solid-icons/hi";
 import { createMemo, createSignal, onSettled } from "solid-js";
 import type { LibraryClient } from "./libraryClient";
+import type { LibraryAssetType } from "./manifest";
 import PackCover from "./PackCover";
-import { type PackCatalogEntry, packCategories, watchPackCatalog } from "./packCatalog";
+import {
+  categoriesLabel,
+  type PackCatalogEntry,
+  packCounts,
+  scopeEntry,
+  watchPackCatalog,
+} from "./packCatalog";
 import "./PackBanner.css";
 
 /**
@@ -18,13 +25,19 @@ export default function PackBanner(props: {
   readonly client: LibraryClient;
   readonly slug: string;
   readonly projectPackIds: readonly string[];
+  /** The asset types the library was opened for: the counts are of these alone (GRV-48). */
+  readonly assetTypes?: readonly LibraryAssetType[];
   onClose?(): void;
   /** Handed the banner once it renders: it is focusable but not a tab stop. */
   onBanner?(banner: HTMLElement): void;
 }): JSX.Element {
   const [entries, setEntries] = createSignal<readonly PackCatalogEntry[]>([]);
   onSettled(() => watchPackCatalog(props.client, setEntries));
-  const entry = createMemo(() => entries().find((e) => e.pack.slug === props.slug));
+  // Only what the pack's shelf shows in this scope, so the counts match it.
+  const entry = createMemo(() => {
+    const found = entries().find((e) => e.pack.slug === props.slug);
+    return found && scopeEntry(found, props.assetTypes);
+  });
   const inProject = () => {
     const found = entry();
     return found !== undefined && props.projectPackIds.includes(found.pack.id);
@@ -44,9 +57,9 @@ export default function PackBanner(props: {
             <h3 class="pack-banner-name">{found().pack.name}</h3>
             <p>
               {found().pack.publisher} · v{found().pack.version} ·{" "}
-              {found().pack.assetCount} sounds
-              <Show when={found().assets}>
-                {(assets) => <> in {packCategories(assets()).length} categories</>}
+              {packCounts(found()).sounds} sounds
+              <Show when={packCounts(found()).categories}>
+                {(categories) => <> in {categoriesLabel(categories())}</>}
               </Show>
               . {found().pack.description}
             </p>
