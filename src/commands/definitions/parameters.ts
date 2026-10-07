@@ -401,6 +401,21 @@ function expectParameter(
   return build(definition);
 }
 
+/**
+ * The definition `target` resolves to in `project`, or undefined when it does
+ * not resolve (a missing entity, a parameter the target does not have). For a
+ * caller that must check a value against the range before the command clamps
+ * it — the assistant refuses an out-of-range value rather than have it clamped
+ * (GRV-4, PRD AI-03).
+ */
+export function parameterDefinitionAt(
+  project: Project,
+  target: ParameterTarget,
+): ParameterDefinition | undefined {
+  const resolution = resolveParameter(project, target);
+  return isUnresolved(resolution) ? undefined : resolution.definition;
+}
+
 const UNIT_SUFFIX: Record<ParameterDefinition["unit"], string> = {
   bars: " bars",
   bpm: " BPM",

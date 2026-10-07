@@ -194,9 +194,27 @@ export class EditorSession {
    * Dispatches one command, or an atomic multi-command transaction. While a
    * preview is open the edit goes to the committed project, and that makes
    * the preview stale; it is never edited into the preview.
+   *
+   * `options` is for a caller that commits on someone else's behalf: the
+   * assistant's proposal executor (GRV-4) names its actor, its correlation ID
+   * and the revision the proposal was validated against.
    */
-  dispatch(commands: RawCommandInput | readonly RawCommandInput[]): TransactionResult {
-    return this.execute(commands);
+  dispatch(
+    commands: RawCommandInput | readonly RawCommandInput[],
+    options: TransactionOptions = {},
+  ): TransactionResult {
+    return this.execute(commands, options);
+  }
+
+  /** True while a continuous gesture is open on the history. */
+  get gestureActive(): boolean {
+    return this.history.gestureActive;
+  }
+
+  /** The newest undo entry's correlation ID, or null with nothing to undo. */
+  get latestCorrelationId(): string | null {
+    const { entries } = this.history;
+    return entries[entries.length - 1]?.correlationId ?? null;
   }
 
   /**
@@ -297,9 +315,9 @@ export class EditorSession {
 
   /**
    * `actor` is who invoked the undo, not who authored the entry being undone
-   * (`history.undo()` already replays the entry's own actor for that). Only
-   * `"user"` is reachable today — an assistant-invoked undo is `AI-003`'s
-   * `assistant_proposal_undone`, a distinct catalog event, not this one.
+   * (`history.undo()` already replays the entry's own actor for that).
+   * `"assistant"` is the proposal executor undoing an applied proposal
+   * (GRV-4), which logs `assistant_proposal_undone` alongside this.
    *
    * An open preview is cancelled first (it ends `stale`, reason `undo`), then
    * the undo acts on the committed history. While a gesture is open the

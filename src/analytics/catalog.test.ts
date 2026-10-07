@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 // The delivered factory pack set, the source of truth `pack_id` is pinned
 // against — see the cross-reference test below.
 import { PACKS } from "../../scripts/starter-library/packs.mjs";
+import { PROPOSAL_CAPABILITIES } from "../assistant/tools";
 import { CAPABILITY_IDS } from "../browser/capabilities";
 import { COMMAND_TYPES } from "../commands/registry";
 import { SCALE_IDS } from "../domain/musicalKey";
@@ -13,6 +14,7 @@ import {
   ANALYTICS_EVENTS,
   type AnalyticsEventDefinition,
   type AnalyticsParam,
+  ASSISTANT_PROPOSAL_CAPABILITIES,
   BROWSER_CAPABILITY_IDS,
   COMMAND_IDS,
   DEVICE_OPERATIONS,
@@ -288,6 +290,30 @@ describe("catalog cross-references", () => {
   it("pins exactly the detected browser capabilities as browser_capability_missing's capability", () => {
     // A capability probe added without an analytics decision fails here.
     expect([...BROWSER_CAPABILITY_IDS]).toEqual([...CAPABILITY_IDS]);
+  });
+
+  it("pins exactly the assistant's capability keys as the proposal events' capability", () => {
+    // A tool family added to the assistant's tool set without an analytics
+    // decision fails here (GRV-4).
+    expect([...ASSISTANT_PROPOSAL_CAPABILITIES].sort()).toEqual(
+      [...PROPOSAL_CAPABILITIES].sort(),
+    );
+    for (const event of [
+      "assistant_proposal_shown",
+      "assistant_proposal_applied",
+      "assistant_proposal_cancelled",
+      "assistant_proposal_undone",
+    ] as const) {
+      const params = ANALYTICS_EVENTS[event].params;
+      expect([...declaredValues(params.capability)].sort(), event).toEqual(
+        [...PROPOSAL_CAPABILITIES].sort(),
+      );
+      expect(params.command_count_bucket, event).toEqual({
+        kind: "bucket",
+        scale: "command_count",
+        optional: false,
+      });
+    }
   });
 
   it("pins exactly the registered shortcut actions as shortcut_used's action_id", () => {

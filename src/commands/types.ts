@@ -140,6 +140,12 @@ export interface CommandDefinition<Payload> {
 export interface RegisteredCommand {
   readonly type: string;
   readonly version: number;
+  /**
+   * The payload schema, for describing the payload to something outside the
+   * kernel — the assistant's tool definitions (GRV-4) are generated from it.
+   * Validate with `parsePayload`, not by parsing against this directly.
+   */
+  readonly schema: ZodType<unknown>;
   parsePayload(input: unknown): PayloadParseResult;
   summarize(payload: unknown, project: Project): string;
   apply(project: Project, payload: unknown): CommandApplyResult;
@@ -164,6 +170,7 @@ export function eraseCommand<Payload>(
   return {
     type: definition.type,
     version: definition.version,
+    schema: definition.schema,
     parsePayload(input) {
       const result = definition.schema.safeParse(input);
       if (result.success) {
