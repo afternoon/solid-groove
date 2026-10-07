@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
 import { createRecordingTransport } from "../analytics/transport";
+import { INTERNAL_TRAFFIC_STORAGE_KEY } from "../shared/internalTraffic";
 import { memoryStorage } from "../testing/storage";
 
 afterEach(() => {
@@ -47,14 +48,21 @@ async function renderAuthProvider() {
     storage: memoryStorage(),
   });
 
+  const internalTrafficStorage = memoryStorage();
   const { AuthProvider } = await import("./AuthProvider");
   render(() => (
-    <AuthProvider analytics={analytics}>
+    <AuthProvider analytics={analytics} internalTrafficStorage={internalTrafficStorage}>
       <div>child</div>
     </AuthProvider>
   ));
 
-  return { fake, transport };
+  return { fake, transport, internalTrafficStorage };
+}
+
+/** Lets the auth store's effects run after `emit`. */
+async function settle() {
+  await Promise.resolve();
+  await Promise.resolve();
 }
 
 describe("AuthProvider", () => {
@@ -81,5 +89,50 @@ describe("AuthProvider", () => {
 
     expect(fake.service.signInWithGoogle).not.toHaveBeenCalled();
     expect(transport.named("anon_session_created")).toHaveLength(0);
+  });
+
+  // The team's and the test accounts' sessions are internal traffic, so they
+  // stay out of the product's measures without anyone typing `?internal=1`.
+  describe("internal traffic", () => {
+    it.each([
+      "bpgodfrey@gmail.com",
+      "groovetestuser1@gmail.com",
+      "testuser0@qa.trygroove.app",
+    ])("marks the browser internal when %s signs in, and persists it", async (email) => {
+      const { fake, transport, internalTrafficStorage } = await renderAuthProvider();
+
+      fake.emit({ uid: "user_team", email, isAnonymous: false });
+      await settle();
+
+      expect(transport.userProperties.internal).toBe("true");
+      expect(transport.userProperties.account_type).toBe("registered");
+      expect(internalTrafficStorage.getItem(INTERNAL_TRAFFIC_STORAGE_KEY)).toBe("true");
+    });
+
+    it("leaves a cohort account's session as it was", async () => {
+      const { fake, transport, internalTrafficStorage } = await renderAuthProvider();
+
+      fake.emit({
+        uid: "user_cohort",
+        email: "producer@example.com",
+        isAnonymous: false,
+      });
+      await settle();
+
+      expect(transport.userProperties.internal).toBe("false");
+      expect(internalTrafficStorage.getItem(INTERNAL_TRAFFIC_STORAGE_KEY)).toBeNull();
+    });
+
+    it("keeps the browser marked after the internal account signs out", async () => {
+      const { fake, transport, internalTrafficStorage } = await renderAuthProvider();
+
+      fake.emit({ uid: "user_team", email: "bpgodfrey@gmail.com", isAnonymous: false });
+      await settle();
+      fake.emit(null);
+      await settle();
+
+      expect(transport.userProperties.internal).toBe("true");
+      expect(internalTrafficStorage.getItem(INTERNAL_TRAFFIC_STORAGE_KEY)).toBe("true");
+    });
   });
 });

@@ -1,11 +1,73 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { memoryStorage } from "../testing/storage";
+import { QA_ACCOUNTS } from "../access/qaAccounts";
+import { hostileStorage, memoryStorage } from "../testing/storage";
 import {
   INTERNAL_TRAFFIC_STORAGE_KEY,
+  isInternalAccount,
   isInternalTraffic,
+  markInternalTraffic,
   parseInternalTrafficParam,
   syncInternalTraffic,
 } from "./internalTraffic";
+
+describe("isInternalAccount", () => {
+  it("counts the product owner as internal", () => {
+    expect(isInternalAccount("bpgodfrey@gmail.com")).toBe(true);
+  });
+
+  it.each(["groovetestuser1@gmail.com", "groovetestuser2@gmail.com"])(
+    "counts the hands-on test account %s as internal",
+    (email) => {
+      expect(isInternalAccount(email)).toBe(true);
+    },
+  );
+
+  it("counts every account in the QA pool as internal", () => {
+    for (const account of QA_ACCOUNTS) {
+      expect(isInternalAccount(account.email)).toBe(true);
+    }
+  });
+
+  it("ignores case and surrounding whitespace, as addresses do", () => {
+    expect(isInternalAccount(" GrooveTestUser1@Gmail.com ")).toBe(true);
+  });
+
+  it.each([
+    "producer@example.com",
+    "groovetestuser1@example.com",
+    "notgroovetestuser1@gmail.com",
+    "someone@qa.trygroove.app.evil.com",
+    "",
+  ])("does not count %j as internal", (email) => {
+    expect(isInternalAccount(email)).toBe(false);
+  });
+
+  it("treats no address (signed out, or a guest) as not internal", () => {
+    expect(isInternalAccount(null)).toBe(false);
+    expect(isInternalAccount(undefined)).toBe(false);
+  });
+});
+
+describe("markInternalTraffic", () => {
+  it("persists the flag so a later load reads as internal from the start", () => {
+    const storage = memoryStorage();
+    markInternalTraffic(storage);
+    expect(storage.getItem(INTERNAL_TRAFFIC_STORAGE_KEY)).toBe("true");
+    expect(syncInternalTraffic({ search: "" }, storage)).toBe(true);
+  });
+
+  it("is cleared by ?internal=0 like a flag set from the URL", () => {
+    const storage = memoryStorage();
+    markInternalTraffic(storage);
+    expect(syncInternalTraffic({ search: "?internal=0" }, storage)).toBe(false);
+    expect(isInternalTraffic(storage)).toBe(false);
+  });
+
+  it("never throws when storage does", () => {
+    expect(() => markInternalTraffic(hostileStorage())).not.toThrow();
+    expect(() => markInternalTraffic(null)).not.toThrow();
+  });
+});
 
 describe("parseInternalTrafficParam", () => {
   it("treats a missing param as no claim", () => {

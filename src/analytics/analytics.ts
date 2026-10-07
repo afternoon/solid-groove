@@ -101,11 +101,20 @@ export class Analytics {
     this.flushUserProperties();
   }
 
-  /** Re-reads the persisted internal-traffic flag set by `FND-001b`. */
+  /** Re-reads the persisted internal-traffic flag (`src/shared/internalTraffic.ts`). */
   refreshInternalTraffic(storage?: Storage): void {
-    const next = storage ? isInternalTraffic(storage) : safeIsInternal();
-    if (next === this.internal) return;
-    this.internal = next;
+    this.setInternalTraffic(storage ? isInternalTraffic(storage) : safeIsInternal());
+  }
+
+  /**
+   * Marks this session as internal (team or test) traffic, or not.
+   * `AuthProvider` calls it when an internal account signs in, so the sessions
+   * of a browser the flag was not yet persisted in are still marked from the
+   * sign-in onwards.
+   */
+  setInternalTraffic(internal: boolean): void {
+    if (internal === this.internal) return;
+    this.internal = internal;
     this.userPropertiesSent = false;
     this.flushUserProperties();
   }

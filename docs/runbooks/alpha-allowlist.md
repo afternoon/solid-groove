@@ -245,5 +245,7 @@ QA account" above):
 - **The scheduled QA sweep** (`tests/e2e/hosted/qa-sweep/`) signs each agent
   in as its own QA account, `testuser1`…`testuser10`, and deletes that
   account's projects when the agent is done.
-- **Every page load either makes carries `?internal=1`**, so the QA accounts
-  never count in the product's measures (`src/shared/internalTraffic.ts`).
+- **The QA accounts are internal traffic** by address (`isInternalAccount` in
+  `src/shared/internalTraffic.ts` names every account on their domain), and
+  the suites' first page load carries `?internal=1` as well, so they never
+  count in the product's measures.
