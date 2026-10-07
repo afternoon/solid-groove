@@ -6,8 +6,8 @@ import { dock, pressView, type ViewName } from "./support/views";
  * The editor holds together at 200% zoom and in a small window (#76).
  *
  * Browser zoom shrinks the CSS viewport: 200% on a 1280x720 window is a
- * 640x360 one. Below its minimum (960x600, a 1920x1200 screen at 200%) the
- * editor stops shrinking and the document scrolls instead, so no control runs
+ * 640x360 one. Below its minimum (768x600; a 1920x1200 screen at 200% is
+ * 960x600, above it) the editor stops shrinking and the document scrolls instead, so no control runs
  * into another and nothing is out of reach. With reduced motion asked for,
  * nothing animates.
  */
@@ -48,7 +48,7 @@ test.describe("resilient layout", () => {
     await newProject(page);
 
     const editor = await page.locator("main.editor").boundingBox();
-    expect(editor?.width).toBeGreaterThanOrEqual(960);
+    expect(editor?.width).toBeGreaterThanOrEqual(768);
     expect(editor?.height).toBeGreaterThanOrEqual(600);
     expect(await headerCollisions(page)).toEqual([]);
 
@@ -66,18 +66,20 @@ test.describe("resilient layout", () => {
     }
   });
 
-  test("at its minimum the editor fits the window exactly, with nothing to scroll", async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 960, height: 600 });
-    await newProject(page);
-    expect(await headerCollisions(page)).toEqual([]);
-    const overflow = await page.evaluate(() => ({
-      x: document.documentElement.scrollWidth - window.innerWidth,
-      y: document.documentElement.scrollHeight - window.innerHeight,
-    }));
-    expect(overflow).toEqual({ x: 0, y: 0 });
-  });
+  for (const width of [768, 960]) {
+    test(`at ${width}x600 the editor fits the window exactly, with nothing to scroll`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 600 });
+      await newProject(page);
+      expect(await headerCollisions(page)).toEqual([]);
+      const overflow = await page.evaluate(() => ({
+        x: document.documentElement.scrollWidth - window.innerWidth,
+        y: document.documentElement.scrollHeight - window.innerHeight,
+      }));
+      expect(overflow).toEqual({ x: 0, y: 0 });
+    });
+  }
 
   test("with reduced motion asked for, nothing transitions", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });

@@ -23,13 +23,15 @@
      dock and the working windows over the views), so no view knows the panel
      exists. */
   --assistant-dock-space: 0px;
-  /* The smallest window the editor lays out in (#76): a 1920x1200 screen at
-     200% zoom. Below it the header's controls would run into each other and
-     the dock over the views, so the editor stops shrinking and the document
+  /* The smallest window the editor lays out in (#76): 768px wide, the width
+     the header is built to hold together at (#1031), so a 1920x1200 screen at
+     200% zoom (960x600) lays out with room to spare. Below it the header's
+     controls would run into each other and the dock over the views, so the
+     editor stops shrinking and the document
      scrolls instead, in both directions, with nothing lost or overlapped. The
      editor is a two-dimensional instrument panel, the kind of content WCAG
      1.4.10 lets scroll rather than reflow. */
-  --editor-min-width: 960px;
+  --editor-min-width: 768px;
   --editor-min-height: 600px;
   /* The window, or the minimum: whichever is larger. */
   --editor-height: max(100vh, var(--editor-min-height));
