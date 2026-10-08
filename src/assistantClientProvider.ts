@@ -13,8 +13,15 @@ import { isMockBackend, resolveEmulatorHosts } from "./devBackend";
 let cached: Promise<AssistantClient> | null = null;
 
 export function getAssistantClient(): Promise<AssistantClient> {
-  cached ??= createClient();
-  return cached;
+  if (cached) return cached;
+  const pending = createClient();
+  cached = pending;
+  // A failed load (a chunk that did not arrive, say) must not stick: the
+  // next caller tries again rather than inheriting the rejection forever.
+  pending.catch(() => {
+    if (cached === pending) cached = null;
+  });
+  return pending;
 }
 
 async function createClient(): Promise<AssistantClient> {
