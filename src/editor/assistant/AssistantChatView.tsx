@@ -1,5 +1,5 @@
 import type { JSX } from "@solidjs/web";
-import { For, Match, Show, Switch } from "solid-js";
+import { createEffect, For, Match, Show, Switch } from "solid-js";
 import { SendIcon, SparkIcon, StopIcon } from "../../components/icons";
 import { ERROR_HEADING, ERROR_REASSURANCE, errorMessage } from "./assistantErrorCopy";
 import type { AssistantChat } from "./useAssistantChat";
@@ -35,6 +35,20 @@ export default function AssistantChatView(props: AssistantChatViewProps): JSX.El
   const streaming = () => conversation().streaming();
   const scope = () => props.chat.scope();
 
+  // The log follows the newest entry, as a reply streams in too, unless the
+  // producer has scrolled up to read something earlier. The entries are the
+  // effect's one reactive read; the scroll is a DOM write, so it is the apply
+  // half's.
+  let log: HTMLDivElement | undefined;
+  let pinned = true;
+  const PIN_SLACK = 40;
+  createEffect(
+    () => conversation().entries(),
+    () => {
+      if (log && pinned) log.scrollTop = log.scrollHeight;
+    },
+  );
+
   function stop(): void {
     conversation().stop();
     props.focusComposer();
@@ -48,6 +62,12 @@ export default function AssistantChatView(props: AssistantChatViewProps): JSX.El
   return (
     <>
       <div
+        ref={log}
+        onScroll={(event) => {
+          const element = event.currentTarget;
+          pinned =
+            element.scrollHeight - element.scrollTop - element.clientHeight < PIN_SLACK;
+        }}
         class="assistant-panel-log"
         role="log"
         aria-live="polite"
