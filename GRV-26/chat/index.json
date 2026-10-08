@@ -1,0 +1,22 @@
+{
+  "id": "chat",
+  "title": "The assistant's conversation",
+  "steps": [
+    {
+      "file": "01-open-ready-to-type-scoped-to-the-selecte.png",
+      "caption": "Open: ready to type, scoped to the selected track, with suggestions"
+    },
+    {
+      "file": "02-a-reply-streaming-stop-replaces-send-and.png",
+      "caption": "A reply streaming: Stop replaces Send, and the header says Writing…"
+    },
+    {
+      "file": "03-stopped-widened-to-the-whole-song-and-a-.png",
+      "caption": "Stopped, widened to the whole song, and a failure with Try again"
+    },
+    {
+      "file": "04-a-proposal-as-a-placeholder-card-until-g.png",
+      "caption": "A proposal, as a placeholder card until GRV-5"
+    }
+  ]
+}
