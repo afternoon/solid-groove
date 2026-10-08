@@ -9,15 +9,19 @@ itself are in [`CLAUDE.md`](../CLAUDE.md#the-board).
 
 ## How Linear and GitHub are wired
 
-Linear cannot call GitHub Actions, and the product side is deliberately not
-coupled to the dev side (an outage in one must not take the other down), so
-nothing listens for Linear webhooks. Instead `.github/workflows/board.yml`
-**polls Linear every five minutes** (`.github/scripts/board.mjs poll`) and
-starts whatever the columns ask for. Every rule is stateless: it reads the
+`.github/workflows/board.yml` **polls Linear** (`.github/scripts/board.mjs
+poll`) and starts whatever the columns ask for. Two things start a poll: a
+small Cloudflare Worker, **the relay** (`scripts/linear/relay/worker.mjs`),
+which Linear calls the moment a card moves or someone comments `@claude`; and
+a five-minute schedule, the backstop for anything the relay misses. The relay
+only asks GitHub to run the poll; it decides nothing and passes nothing on,
+so a lost or doubled event costs at most one idle poll. It lives on
+Cloudflare, not in the production Firebase project, so the product side stays
+uncoupled from the dev side (an outage in one must not take the other down). Every rule is stateless: it reads the
 card's own column, history and comments, so a poll that runs twice does the
 work once.
 
-| You do, in Linear | Within five minutes |
+| You do, in Linear | Within a minute (with the relay; else at the next scheduled poll) |
 | --- | --- |
 | Move a card to **Ready** | It moves to In Progress, a "Picking this up" comment appears on it, and `/ship` runs on it in Actions. At most four start per poll, by priority then column order; a card blocked by work that has not reached QA waits in Ready until it has |
 | Move a card to **Approved** | Every open PR that refers to it (`Closes`, `Completes`, `Refs GRV-<n>`) is labelled `status:approved` and queued to merge |
@@ -38,10 +42,12 @@ Everything that reads or writes Linear goes through
 agents use (`node .github/scripts/linear.mjs issue GRV-12`, `comment`, `state`,
 `create`, …; run it with no arguments for the list). It needs `LINEAR_API_KEY`.
 
-**Latency.** Five minutes is the shortest schedule GitHub runs, and a busy
-hour can stretch it. If a card you moved shows no "Picking this up" comment
-after ten minutes, look at the Board workflow's runs; "Run workflow" on it
-polls at once.
+**Latency.** With the relay a poll starts within seconds of the move. The
+schedule alone is far slower: five minutes is the shortest GitHub runs, and on
+this repo scheduled runs have come hours late. If a card you moved shows no
+"Picking this up" comment after ten minutes, check the relay's deliveries
+(Linear → Settings → API → the webhook) and the Board workflow's runs;
+"Run workflow" on it polls at once.
 
 **Identity.** The key is a personal API key, so the automation's comments and
 moves appear under that person's name. The comments it writes all start with
@@ -108,6 +114,33 @@ they always did.
 
 5. **The QA bot** needs its own key and the instructions in
    [`docs/qa-bot.md`](./qa-bot.md).
+
+6. **The relay** (`scripts/linear/relay/`), once, from a machine signed in to
+   Cloudflare (`bunx wrangler login`):
+
+   1. A GitHub fine-grained token: Settings → Developer settings →
+      Fine-grained tokens, repository `trygroove/groove` only, permission
+      **Actions: Read and write**, nothing else. It can start workflows and
+      nothing more.
+   2. Deploy, then store the token:
+
+      ```sh
+      cd scripts/linear/relay
+      bunx wrangler deploy                       # prints the Worker's URL
+      bunx wrangler secret put GITHUB_TOKEN      # paste the token
+      ```
+
+   3. In Linear, Settings → API → Webhooks → New webhook: the Worker's URL,
+      team GRV, data change events **Issues** and **Comments**. Copy the
+      signing secret it shows, then `bunx wrangler secret put
+      LINEAR_WEBHOOK_SECRET` and paste it.
+   4. Check it: move a card into Ready (or comment `@claude` on one) and a
+      Board run with the event `workflow_dispatch` starts within seconds;
+      `bunx wrangler tail` shows each delivery. A delivery answered `401` has
+      the wrong secret; `502` means GitHub refused the token.
+
+   Redeploy with `bunx wrangler deploy` after changing `worker.mjs`. When the
+   token expires, make a new one and `wrangler secret put GITHUB_TOKEN` again.
 
 ## Migrating from GitHub issues
 

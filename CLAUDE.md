@@ -82,7 +82,7 @@ Work is tracked as **Linear issues** in team `GRV`, project **Groove** (`https:/
 
 ### The board
 
-The board is the team's Linear board: a card's column is its workflow state, and moving it is what starts the automation. `.github/workflows/board.yml` polls Linear every five minutes (`.github/scripts/board.mjs poll`) and acts on what it finds; GitHub events move cards the other way at once. A card is in exactly one column, always.
+The board is the team's Linear board: a card's column is its workflow state, and moving it is what starts the automation. `.github/workflows/board.yml` polls Linear (`.github/scripts/board.mjs poll`) and acts on what it finds, started within seconds of a card moving by a Cloudflare Worker that Linear calls (`scripts/linear/relay/`, see [`docs/linear.md`](./docs/linear.md)) and every five minutes by schedule as a backstop; GitHub events move cards the other way at once. A card is in exactly one column, always.
 
 | Column | Moved there by |
 | --- | --- |
