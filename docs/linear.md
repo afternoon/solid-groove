@@ -67,7 +67,9 @@ The QA sweep posts each run's summary as a **project update** on Groove
 
 Team labels carry over from GitHub: `bug` (Linear's built-in `Bug`; the scripts match labels ignoring case), `polish`, `refactor`, `contract`,
 `decision`, `documentation`, `needs-shaping`, `human-input-required`,
-`parked`. `status:*` labels no longer exist: the column is the
+`parked`, and `model:haiku`, `model:sonnet`, `model:opus`, which pin the
+model `/ship` builds a card on instead of the tier its triage picks
+(`CLAUDE.md`, "Shape, then ship"). `status:*` labels no longer exist: the column is the
 status. On GitHub, `status:approved`, `needs-approval`, `hold`,
 `deploy-preview` and `merge-conflict` are still **PR** labels, and mean what
 they always did.

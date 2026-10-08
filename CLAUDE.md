@@ -118,6 +118,8 @@ Every task runs in two phases:
 | **Fix** | Something is wrong | A regression test that fails before the fix (keep the red output for the PR body) | None |
 | **Polish** | A small enhancement or tweak | A unit test where the behaviour is testable | None |
 
+Triage also picks the **model tier** the build, its fixes and the review run on, the cheapest that fits the issue's complexity and novelty: **Haiku** for a fix or polish the spec pins down in a file or two along an existing pattern, touching no contract; **Sonnet** by default; **Opus** for novel or risky work (a new module or pattern, a contract change, real-time audio, streaming, rules or server code, a multi-PR feature). A feature never builds on Haiku and a review never runs below Sonnet; a cheaper build that cannot finish is retried once a tier up. A `model:haiku`, `model:sonnet` or `model:opus` label on the card overrides triage, and each PR body says which tier built it.
+
 Whether the issue says "bug" or "enhancement" does not matter. Behaviour that works as coded but is not what the product owner wants is still a change to make: never stop because something "is expected behaviour". Ship stops only when the issue is genuinely unclear (two reasonable readings would build materially different things) and comments the question on the issue.
 
 Quality outside features is kept by periodic code-quality and architecture sweeps that open their own cleanup issues, not by reviewing every small change.
