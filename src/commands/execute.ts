@@ -3,6 +3,7 @@ import type { Project } from "../domain/entities";
 import { withDerivedPackDependencies } from "../domain/packs";
 import { checkProjectIntegrity, type DomainIssueCode } from "../domain/parse";
 import { type Clock, systemClock } from "../shared/clock";
+import { removePack, setPackVersion } from "./definitions/packs";
 import { findCommand } from "./registry";
 import type {
   CommandActor,
@@ -246,6 +247,13 @@ export function executeTransaction(
   // consistent without a per-command rule. A transaction that did not change
   // which packs the project uses gets the identical project object back.
   const normalized = withDerivedPackDependencies(working);
+  // The shelf is maintained, not derived, but that normalization also shelves
+  // a pack the transaction started using (or moves a shelved pack to the
+  // version now used). No command did that, so no command's inverse undoes
+  // it: undo it here, last, once the inverses before it have taken back the
+  // assets that used the pack (GRV-50). A pack the user shelved on purpose was
+  // already on the shelf, so nothing here touches it.
+  inverse.push(...shelfReconciliationInverse(working, normalized));
   const committed = commitRevision
     ? {
         ...normalized,
@@ -286,6 +294,30 @@ export function executeTransaction(
     revision: committed.metadata.revision,
     timestamp,
   };
+}
+
+/**
+ * The commands that take back what `withDerivedPackDependencies` did to the
+ * pack shelf between `before` and `after`: `pack.remove` for a pack it
+ * shelved, `pack.setVersion` for a shelved pack it moved to another version.
+ */
+function shelfReconciliationInverse(before: Project, after: Project): RawCommandInput[] {
+  if (before.metadata.addedPacks === after.metadata.addedPacks) {
+    return [];
+  }
+  const previous = new Map(
+    before.metadata.addedPacks.map((entry) => [entry.packId, entry.version]),
+  );
+  const inverse: RawCommandInput[] = [];
+  for (const entry of after.metadata.addedPacks) {
+    const version = previous.get(entry.packId);
+    if (version === undefined) {
+      inverse.push(removePack(entry));
+    } else if (version !== entry.version) {
+      inverse.push(setPackVersion(entry.packId, entry.version, version));
+    }
+  }
+  return inverse;
 }
 
 function summarize(summaries: readonly string[]): string {

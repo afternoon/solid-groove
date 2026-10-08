@@ -116,9 +116,12 @@ export const packRemoveCommand = defineCommand<PackRemovePayload>({
     // A used pack must stay shelved: removing it would leave the project
     // depending on a pack that is no longer on the shelf, which is exactly the
     // drift `checkProjectIntegrity` rejects. Refuse with a named reason rather
-    // than silently dropping it.
-    const stillUsed = project.metadata.packDependencies.some(
-      (dependency) => dependency.packId === payload.pack.packId,
+    // than silently dropping it. "Used" is read off the song's assets, not the
+    // derived dependency list, which is only recomputed when the transaction
+    // ends: an undo that takes a sound back and then unshelves its pack
+    // (GRV-50) runs both in one transaction.
+    const stillUsed = project.song.assets.some(
+      (asset) => asset.packId === payload.pack.packId,
     );
     if (stillUsed) {
       return rejected(
