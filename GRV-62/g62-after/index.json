@@ -1,0 +1,10 @@
+{
+  "id": "g62-after",
+  "title": "Mixer, after the fix",
+  "steps": [
+    {
+      "file": "01-after-the-master-s-effects-stop-clear-of.png",
+      "caption": "After: the Master's effects stop clear of the dock, so every Division option can be clicked"
+    }
+  ]
+}

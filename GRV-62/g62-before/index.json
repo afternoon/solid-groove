@@ -1,0 +1,10 @@
+{
+  "id": "g62-before",
+  "title": "Mixer, before the fix",
+  "steps": [
+    {
+      "file": "01-before-selecting-master-scrolls-its-effe.png",
+      "caption": "Before: selecting Master scrolls its effects to the window's foot, so the Delay's 1/4 and 1/2 Divisions sit under the dock"
+    }
+  ]
+}
