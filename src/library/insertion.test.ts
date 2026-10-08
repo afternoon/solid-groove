@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CommandHistory, executeTransaction, removeClip } from "../commands";
+import { addPack, CommandHistory, executeTransaction, removeClip } from "../commands";
 import { packVersion } from "../domain/entities";
 import { createFactoryContext } from "../domain/factories";
 import {
@@ -508,6 +508,60 @@ describe("loadPadSampleCommands (#447)", () => {
     );
     if (!kept.ok) throw new Error(kept.issues[0].message);
     expect(padOf(kept.project)?.name).toBe("My Kick");
+  });
+});
+
+describe("undoing an insert from a pack the project does not use yet (GRV-50)", () => {
+  async function insertFromNewPack() {
+    const project = createDrumMachineFixtureProject();
+    const track = project.song.tracks.find((t) => t.instrument?.kind === "drumMachine");
+    if (track?.instrument?.kind !== "drumMachine") throw new Error("no drum machine");
+    const pad = track.instrument.pads[0];
+    const sample = toLibrarySample((await libraryAssets())[1]);
+    if (!sample) throw new Error("expected an insertable sample");
+    const shelved = { packId: sample.packId, version: sample.packVersion };
+    expect(project.metadata.addedPacks).not.toContainEqual(shelved);
+    return { project, track, pad, sample, shelved };
+  }
+
+  it("takes the pack the insert brought in back off the project, and redo returns it", async () => {
+    const { project, track, pad, sample, shelved } = await insertFromNewPack();
+    const history = new CommandHistory(project);
+
+    const result = history.execute(
+      loadPadSampleCommands(project, track.id, pad.id, sample, context()),
+    );
+    if (!result.ok) throw new Error(result.issues[0].message);
+    expect(history.project.metadata.addedPacks).toContainEqual(shelved);
+
+    const undone = history.undo();
+    if (!undone?.ok) throw new Error("undo failed");
+    expect(history.project.song.assets).toEqual(project.song.assets);
+    expect(history.project.metadata.packDependencies).toEqual(
+      project.metadata.packDependencies,
+    );
+    expect(history.project.metadata.addedPacks).toEqual(project.metadata.addedPacks);
+
+    const redone = history.redo();
+    if (!redone?.ok) throw new Error("redo failed");
+    expect(history.project.metadata.addedPacks).toContainEqual(shelved);
+  });
+
+  it("keeps a pack the user added on purpose before the insert", async () => {
+    const { project, track, pad, sample, shelved } = await insertFromNewPack();
+    const history = new CommandHistory(project);
+    const added = history.execute([addPack(shelved)]);
+    if (!added.ok) throw new Error(added.issues[0].message);
+    const withPack = history.project;
+
+    const result = history.execute(
+      loadPadSampleCommands(withPack, track.id, pad.id, sample, context()),
+    );
+    if (!result.ok) throw new Error(result.issues[0].message);
+
+    history.undo();
+    expect(history.project.metadata.addedPacks).toEqual(withPack.metadata.addedPacks);
+    expect(history.project.metadata.addedPacks).toContainEqual(shelved);
   });
 });
 

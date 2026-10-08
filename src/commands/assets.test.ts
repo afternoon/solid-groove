@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { createAsset, createPack, type Project } from "../domain";
-import { addAsset, removeAsset, setPadAsset, setSample } from ".";
+import { createAsset, createPack, type Project, packVersion } from "../domain";
+import { addAsset, addPack, removeAsset, setPadAsset, setSample } from ".";
 import { executeCommand, executeTransaction } from "./execute";
 import { CommandHistory } from "./history";
 import { findTrack } from "./projectEdits";
@@ -25,6 +25,13 @@ function apply(project: Project, command: Parameters<typeof executeCommand>[1]):
     throw new Error(`Expected success: ${result.issues[0].message}`);
   }
   return result.project;
+}
+
+/** The pack shelf as a set of `packId@version` keys. */
+function shelfOf(project: Project): string[] {
+  return project.metadata.addedPacks
+    .map((entry) => `${entry.packId}@${entry.version}`)
+    .sort();
 }
 
 /** A sound from a pack the fixture does not carry. */
@@ -85,6 +92,36 @@ describe("asset.add", () => {
     expect(
       history.project.song.assets.some((candidate) => candidate.id === asset.id),
     ).toBe(false);
+  });
+
+  it("undoes the pack shelving the add caused, and redo shelves it again (GRV-50)", () => {
+    const asset = libraryAsset();
+    const shelved = { packId: asset.packId, version: asset.packVersion };
+    const history = new CommandHistory(fixture.project);
+
+    history.execute([addAsset(asset)]);
+    expect(history.project.metadata.addedPacks).toContainEqual(shelved);
+    expect(history.undo()?.ok).toBe(true);
+    // The shelf is a set: reconciling it sorts it, so compare membership.
+    expect(shelfOf(history.project)).toEqual(shelfOf(fixture.project));
+    expect(history.redo()?.ok).toBe(true);
+    expect(history.project.metadata.addedPacks).toContainEqual(shelved);
+  });
+
+  it("puts a shelved-but-unused pack back at its own version on undo (GRV-50)", () => {
+    const asset = libraryAsset();
+    const older = { packId: asset.packId, version: packVersion("0.9.0") };
+    const history = new CommandHistory(fixture.project);
+    history.execute([addPack(older)]);
+    const withOlder = history.project;
+
+    history.execute([addAsset(asset)]);
+    expect(history.project.metadata.addedPacks).toContainEqual({
+      packId: asset.packId,
+      version: asset.packVersion,
+    });
+    expect(history.undo()?.ok).toBe(true);
+    expect(shelfOf(history.project)).toEqual(shelfOf(withOlder));
   });
 
   it("inserts at an explicit index rather than appending", () => {
