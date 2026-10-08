@@ -39,6 +39,39 @@ function renderRow(
 }
 
 describe("SoundRow", () => {
+  it("masks a personal sound's names for replay, and leaves a factory sound's alone (GRV-75)", async () => {
+    const asset = (await fixtureAssets())[0];
+    renderRow(asset);
+    renderRow({ ...asset, id: "ast_mine", name: "my kick", licence: "user-owned" });
+
+    const [factory, personal] = screen.getAllByRole("listitem");
+    expect(factory.querySelector(".sound-row-name")).not.toHaveClass("sentry-mask");
+    expect(personal.querySelector(".sound-row-name")).toHaveClass("sentry-mask");
+    expect(personal.querySelector(".sound-row-meta")).toHaveClass("sentry-mask");
+  });
+
+  it("slots the sound's own controls in before the heart (GRV-75)", async () => {
+    const asset = (await fixtureAssets())[0];
+    renderRow(asset, {
+      actions: (
+        <button type="button" aria-label="Rename sound">
+          R
+        </button>
+      ),
+    });
+
+    const row = screen.getByRole("listitem");
+    expect(row).toHaveClass("sound-row-with-actions");
+    expect(
+      screen.getAllByRole("button").map((button) => button.getAttribute("aria-label")),
+    ).toEqual([
+      `Audition ${asset.name}`,
+      "Rename sound",
+      `Favourite ${asset.name}`,
+      `Sounds like ${asset.name}`,
+    ]);
+  });
+
   it("names the sound, and says its pack, role and length", async () => {
     const asset = (await fixtureAssets()).find(
       (a) => a.type === "one-shot",

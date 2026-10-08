@@ -162,6 +162,17 @@
   color: var(--color-foreground);
 }
 
+/* A sound's own controls (a personal sound's rename and delete, GRV-75) take
+   a column of their own left of the heart: the name gives up the room, so the
+   heart and similar sounds stay where they are on every other row. */
+.sound-row-with-actions {
+  grid-template-columns: minmax(0, 1fr) 64px 32px 32px;
+}
+
+.sound-row-actions {
+  display: flex;
+}
+
 /* A favourite's heart is filled, and the brightest thing on its row (#815). */
 .sound-row-favourite {
   color: var(--color-foreground-bright);

@@ -24,7 +24,10 @@ import {
   type RecentlyHeardStore,
 } from "../library/recentlyHeard";
 import SimilarSoundsView from "../library/SimilarSoundsView";
-import SoundsView, { type SoundsPlace } from "../library/SoundsView";
+import SoundsView, {
+  type SoundsAuditioner,
+  type SoundsPlace,
+} from "../library/SoundsView";
 import { type SlotAudition, slotPreviewEngine } from "../library/slotAudition";
 import type { SoundsKeyAction } from "../library/soundKeys";
 import type { Favourites } from "../library/useFavourites";
@@ -586,8 +589,9 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   let soundsKeys: ((action: SoundsKeyAction) => void) | null = null;
   let similarKeys: ((action: SoundsKeyAction) => void) | null = null;
   let closeSoundsMenu: (() => boolean) | null = null;
-  // The sounds view's audition, which an opened personal pack's sounds play through.
-  let auditionSound: ((asset: LibraryAsset) => void) | null = null;
+  // The sounds view's audition, which an opened personal pack's sounds play
+  // through and whose play state and load errors their rows show.
+  const [auditioner, setAuditioner] = createSignal<SoundsAuditioner | null>(null);
 
   // Looked up rather than held by `ref`: the dialog reads its header prop more
   // than once, so a ref can end up naming a copy that never mounted.
@@ -957,7 +961,12 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
                     library={userLibrary()}
                     pack={pack()}
                     selectedId={selected()?.id ?? null}
-                    onAudition={(asset) => auditionSound?.(asset)}
+                    playingId={auditioner()?.playingId() ?? null}
+                    errorOf={(assetId) => auditioner()?.errorOf(assetId) ?? null}
+                    trackColor={props.trackColor}
+                    favourites={marks()}
+                    onAudition={(asset) => auditioner()?.audition(asset)}
+                    onSimilar={openSimilar}
                     isInUse={props.isInUse}
                     onClose={() => showView("all")}
                   />
@@ -1005,7 +1014,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
               extraAssets={props.userLibrary?.assets()}
               extraPacks={props.userLibrary?.summaries()}
               onAuditioner={(handler) => {
-                auditionSound = handler;
+                setAuditioner(handler);
               }}
               place={soundsPlace()}
               favourites={marks()}
