@@ -1,0 +1,10 @@
+{
+  "id": "g61-before",
+  "title": "Before: master Delay at 800px",
+  "steps": [
+    {
+      "file": "01-the-master-s-delay-at-an-800px-window-be.png",
+      "caption": "The master's Delay at an 800px window before the fix: Time/Feedback, Filter/Spread and Dry/Wet/Output labels overlap and values run together"
+    }
+  ]
+}

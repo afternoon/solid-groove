@@ -1,0 +1,14 @@
+{
+  "id": "g61-after",
+  "title": "After: master Delay at 800px",
+  "steps": [
+    {
+      "file": "01-the-master-s-delay-at-an-800px-window-th.png",
+      "caption": "The master's Delay at an 800px window: the Colour and Mix banks move to a second row, every label and value stands apart"
+    },
+    {
+      "file": "02-the-same-delay-at-a-1440px-window-one-ro.png",
+      "caption": "The same Delay at a 1440px window: one row of banks, as before"
+    }
+  ]
+}
