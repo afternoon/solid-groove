@@ -1,0 +1,14 @@
+{
+  "id": "grv75",
+  "title": "Personal pack sound rows",
+  "steps": [
+    {
+      "file": "01-a-personal-pack-s-sounds.png",
+      "caption": "A personal pack's sounds"
+    },
+    {
+      "file": "02-a-built-in-pack-s-sounds-for-comparison.png",
+      "caption": "A built-in pack's sounds, for comparison"
+    }
+  ]
+}
