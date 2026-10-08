@@ -24,7 +24,7 @@ import { createRecentlyHeardStore } from "../library/recentlyHeard";
 import { useFavourites } from "../library/useFavourites";
 import { InMemoryFavouritesRepository } from "../persistence/inMemoryFavouritesRepository";
 import { createManualClock } from "../shared/clock";
-import { clickAndFlush } from "../testing/events";
+import { clickAndFlush, fireAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
 import { createInMemoryUserLibraryRepository } from "../userLibrary/inMemoryUserLibraryRepository";
 import { addSound, newUserPack, type UserPackAsset } from "../userLibrary/userPacks";
@@ -1026,47 +1026,106 @@ describe("LibraryModal with the producer's own packs (#282)", () => {
     return { engine };
   }
 
-  it("lists My packs in the rail, and opening one shows its sounds", async () => {
-    await renderWithPack();
+  const packSounds = () => screen.getByRole("region", { name: "Pack sounds" });
+
+  async function openFieldRecordings(): Promise<HTMLElement> {
     const rail = screen.getByRole("navigation", { name: "Places" });
     const myPacks = within(rail).getByRole("region", { name: "My packs" });
     clickAndFlush(
       await within(myPacks).findByRole("button", { name: /Field Recordings/ }),
     );
+    return myPacks;
+  }
+
+  it("lists My packs in the rail, and opening one lists its sounds in the main region (GRV-52)", async () => {
+    await renderWithPack();
+    const myPacks = await openFieldRecordings();
     expect(
-      within(myPacks).getByRole("button", { name: "Audition tape kick" }),
+      within(myPacks).getByRole("button", { name: /Field Recordings/ }),
+    ).toHaveAttribute("aria-pressed", "true");
+    // The rail keeps the packs; the files are where every pack's sounds are.
+    expect(within(myPacks).queryByRole("button", { name: /^Audition / })).toBeNull();
+    const main = document.querySelector(".library-modal-main") as HTMLElement;
+    expect(within(main).getByRole("region", { name: "Pack sounds" })).toBe(packSounds());
+    expect(
+      within(packSounds()).getByRole("button", { name: "Audition tape kick" }),
     ).toBeVisible();
+    // The open pack is the place, so All sounds is not the current one.
+    expect(screen.getByRole("button", { name: /All sounds/ })).not.toHaveAttribute(
+      "aria-current",
+    );
+    expect(screen.queryByRole("list", { name: "Sounds" })).toBeNull();
+  });
+
+  it("leaves the open personal pack for another place, and for its close button", async () => {
+    await renderWithPack();
+    await openFieldRecordings();
+    clickAndFlush(screen.getByRole("button", { name: /Favourites/ }));
+    expect(screen.queryByRole("region", { name: "Pack sounds" })).toBeNull();
+    expect(screen.getByRole("button", { name: /Field Recordings/ })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+
+    await openFieldRecordings();
+    clickAndFlush(
+      within(packSounds()).getByRole("button", { name: "Back to all sounds" }),
+    );
+    expect(screen.queryByRole("region", { name: "Pack sounds" })).toBeNull();
+    expect(screen.getByRole("button", { name: /All sounds/ })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
+  });
+
+  it("uploads files dropped on the main region into the open personal pack", async () => {
+    await renderWithPack();
+    await openFieldRecordings();
+    const data = new Uint8Array(64).fill(1);
+    const file = new File([data], "room-tone.wav", { type: "audio/wav" });
+    Object.defineProperty(file, "arrayBuffer", { value: async () => data.buffer });
+    const dataTransfer = {
+      files: [file],
+      types: ["Files"],
+      items: [{ kind: "file", type: file.type }],
+      dropEffect: "none",
+    };
+    fireAndFlush(() => {
+      fireEvent.dragEnter(packSounds(), { dataTransfer });
+      fireEvent.dragOver(packSounds(), { dataTransfer });
+      fireEvent.drop(packSounds(), { dataTransfer });
+    });
+    // Each file shows its own row in the pack while it uploads, or why it could not.
+    expect(await within(packSounds()).findByText("room-tone.wav")).toBeVisible();
   });
 
   it("finds a personal sound by searching, alongside the factory sounds", async () => {
     await renderWithPack();
-    const myPacks = screen.getByRole("region", { name: "My packs" });
-    clickAndFlush(
-      await within(myPacks).findByRole("button", { name: /Field Recordings/ }),
+    await openFieldRecordings();
+    fireAndFlush(() =>
+      fireEvent.input(screen.getByRole("searchbox", { name: "Search sounds" }), {
+        target: { value: "tape" },
+      }),
     );
-    fireEvent.input(screen.getByRole("searchbox", { name: "Search sounds" }), {
-      target: { value: "tape" },
-    });
     const sounds = await screen.findByRole("list", { name: "Sounds" });
     expect(
       await within(sounds).findByRole("button", { name: "Audition tape kick" }),
     ).toBeVisible();
-    // The results are the list: an open pack in the rail stops repeating them.
-    expect(within(myPacks).queryByRole("button", { name: /^Audition / })).toBeNull();
+    // The results are the list: the open pack gives way to them.
+    expect(screen.queryByRole("region", { name: "Pack sounds" })).toBeNull();
   });
 
-  it("hears a personal sound from the rail through the library's one audition", async () => {
+  it("hears a personal sound from its pack through the library's one audition", async () => {
     const { engine } = await renderWithPack();
-    const myPacks = screen.getByRole("region", { name: "My packs" });
+    await openFieldRecordings();
     clickAndFlush(
-      await within(myPacks).findByRole("button", { name: /Field Recordings/ }),
+      within(packSounds()).getByRole("button", { name: "Audition tape kick" }),
     );
-    clickAndFlush(within(myPacks).getByRole("button", { name: "Audition tape kick" }));
     await waitFor(() =>
       expect(engine.starts.map((start) => start.asset.name)).toContain("tape kick"),
     );
     expect(
-      within(myPacks).getByRole("button", { name: "Audition tape kick" }),
+      within(packSounds()).getByRole("button", { name: "Audition tape kick" }),
     ).toHaveAttribute("aria-pressed", "true");
   });
 });

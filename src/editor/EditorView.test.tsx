@@ -3979,11 +3979,13 @@ describe("EditorView personal sounds (#282)", () => {
     clickAndFlush(
       await within(myPacks).findByRole("button", { name: /Field Recordings/ }),
     );
-    clickAndFlush(within(myPacks).getByRole("button", { name: "Delete sound" }));
-    expect(within(myPacks).getByRole("alert")).toHaveTextContent(
+    // The pack's sounds are in the main region, beside the rail (GRV-52).
+    const packSounds = screen.getByRole("region", { name: "Pack sounds" });
+    clickAndFlush(within(packSounds).getByRole("button", { name: "Delete sound" }));
+    expect(within(packSounds).getByRole("alert")).toHaveTextContent(
       /This project uses this sound/,
     );
-    clickAndFlush(within(myPacks).getByRole("button", { name: "Delete" }));
+    clickAndFlush(within(packSounds).getByRole("button", { name: "Delete" }));
 
     const report = await screen.findByRole("region", { name: "Missing sounds" });
     expect(report).toHaveTextContent(
