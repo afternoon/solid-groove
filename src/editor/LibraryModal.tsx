@@ -588,6 +588,8 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
 
   let soundsKeys: ((action: SoundsKeyAction) => void) | null = null;
   let similarKeys: ((action: SoundsKeyAction) => void) | null = null;
+  // An opened personal pack answers the list keys itself (GRV-76).
+  let personalKeys: ((action: SoundsKeyAction) => void) | null = null;
   let closeSoundsMenu: (() => boolean) | null = null;
   // The sounds view's audition, which an opened personal pack's sounds play
   // through and whose play state and load errors their rows show.
@@ -613,6 +615,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
       active.blur();
     }
     if (similarOf() !== null) similarKeys?.(action as SoundsKeyAction);
+    else if (showsPersonal()) personalKeys?.(action as SoundsKeyAction);
     else if (showsSounds()) soundsKeys?.(action as SoundsKeyAction);
   }
 
@@ -969,6 +972,9 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
                     onSimilar={openSimilar}
                     isInUse={props.isInUse}
                     onClose={() => showView("all")}
+                    onKeys={(handler) => {
+                      personalKeys = handler;
+                    }}
                   />
                 )}
               </Show>

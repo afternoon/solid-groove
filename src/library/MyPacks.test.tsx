@@ -27,6 +27,7 @@ import { type UserLibraryAccount, useUserLibrary } from "../userLibrary/useUserL
 import MyPackFiles from "./MyPackFiles";
 import MyPacks from "./MyPacks";
 import type { LibraryAsset } from "./manifest";
+import type { SoundsKeyAction } from "./soundKeys";
 
 vi.mock("../auth/authService", () => ({
   authService: { linkWithGoogle: vi.fn() },
@@ -92,6 +93,11 @@ function setUp(
   const similar: LibraryAsset[] = [];
   const favourited: string[] = [];
   const [playingId, setPlayingId] = createSignal<string | null>(null);
+  // The modal's selection, which an audition moves, as the library's own
+  // audition does when it reports the sound it started.
+  const [selectedId, setSelectedId] = createSignal<string | null>(null);
+  // The view's key handler, as the modal takes it (GRV-76).
+  let keys: ((action: SoundsKeyAction) => void) | null = null;
   function Harness() {
     const library = useUserLibrary({
       account,
@@ -116,10 +122,16 @@ function setUp(
             <MyPackFiles
               library={library}
               pack={pack()}
-              selectedId={null}
+              selectedId={selectedId()}
               playingId={playingId()}
-              onAudition={(asset) => auditioned.push(asset)}
+              onAudition={(asset) => {
+                auditioned.push(asset);
+                setSelectedId(asset.id);
+              }}
               onSimilar={(asset) => similar.push(asset)}
+              onKeys={(handler) => {
+                keys = handler;
+              }}
               favourites={{
                 isFavourite: (sound) => favourited.includes(sound.assetId),
                 toggle: (sound) => favourited.push(sound.assetId),
@@ -140,6 +152,9 @@ function setUp(
     favourited,
     setPlayingId,
     setAccount,
+    /** Press one of the library's keys, as the modal forwards it. */
+    press: (action: SoundsKeyAction) => fireAndFlush(() => keys?.(action)),
+    hasKeys: () => keys !== null,
     unmount: rendered.unmount,
   };
 }
@@ -170,6 +185,48 @@ async function addNamedPack(name: string): Promise<HTMLElement> {
   await screen.findByRole("button", { name: new RegExp(name) });
   return packItem(name);
 }
+
+/** The name an import takes from a filename: no extension, no separators. */
+const soundName = (file: string) => file.replace(".wav", "").replaceAll("-", " ");
+
+/** An open pack with three sounds in it, in the order they were added. */
+async function packOfThree(): Promise<HTMLElement> {
+  const pack = await addNamedPack("Field Recordings");
+  for (const file of ["one-kick.wav", "two-snare.wav", "three-hat.wav"]) {
+    drop(pack, [audioFile(file)]);
+    await within(files()).findByRole("button", {
+      name: `Audition ${soundName(file)}`,
+    });
+  }
+  return pack;
+}
+
+/** The open pack's sound rows, by their main button. */
+const soundMains = () => within(files()).getAllByRole("button", { name: /^Audition / });
+const nameOfMain = (main: HTMLElement) =>
+  (main.getAttribute("aria-label") ?? "").replace("Audition ", "");
+
+/** The sound the list shows selected, by name. */
+const selectedName = () =>
+  soundMains()
+    .filter((main) => main.getAttribute("aria-pressed") === "true")
+    .map(nameOfMain)[0] ?? null;
+
+/** The sounds whose row holds the list's one Tab stop. */
+const tabStops = () =>
+  soundMains()
+    .filter((main) => main.tabIndex === 0)
+    .map(nameOfMain);
+
+/** One row's `tabindex`es: its main button, then its rename and delete. */
+const rowTabbable = (name: string): number[] => {
+  const row = within(files())
+    .getByRole("button", { name: `Audition ${name}` })
+    .closest("li") as HTMLElement;
+  return [`Audition ${name}`, "Rename sound", "Delete sound"].map(
+    (label) => within(row).getByRole("button", { name: label }).tabIndex,
+  );
+};
 
 describe("My packs", () => {
   it("makes a pack with Add pack and keeps the name typed when Return is pressed", async () => {
@@ -290,6 +347,92 @@ describe("My packs", () => {
     const idle = main.querySelector(".sound-row-play")?.innerHTML;
     fireAndFlush(() => setPlayingId(favourited[0]));
     expect(main.querySelector(".sound-row-play")?.innerHTML).not.toBe(idle);
+  });
+
+  it("walks the open pack's sounds with the arrow keys, auditioning each (GRV-76)", async () => {
+    const { press, auditioned } = setUp();
+    await packOfThree();
+
+    // Down from nothing selected starts at the first sound.
+    press("library.select_next");
+    expect(auditioned.map((asset) => asset.name)).toEqual(["one kick"]);
+    expect(selectedName()).toBe("one kick");
+
+    press("library.select_next");
+    press("library.select_next");
+    expect(auditioned.map((asset) => asset.name)).toEqual([
+      "one kick",
+      "two snare",
+      "three hat",
+    ]);
+    expect(selectedName()).toBe("three hat");
+
+    // The end holds: there is nothing past the last sound to hear.
+    press("library.select_next");
+    expect(auditioned).toHaveLength(3);
+    expect(selectedName()).toBe("three hat");
+
+    press("library.select_previous");
+    expect(auditioned.map((asset) => asset.name)).toEqual([
+      "one kick",
+      "two snare",
+      "three hat",
+      "two snare",
+    ]);
+    expect(selectedName()).toBe("two snare");
+
+    // And so does the start.
+    press("library.select_previous");
+    press("library.select_previous");
+    expect(selectedName()).toBe("one kick");
+    expect(auditioned).toHaveLength(5);
+  });
+
+  it("hears the selected sound again, and opens its similar sounds, from the keys (GRV-76)", async () => {
+    const { press, auditioned, similar } = setUp();
+    await packOfThree();
+
+    // With nothing selected both keys have no sound to act on.
+    press("library.audition");
+    press("library.similar");
+    expect(auditioned).toHaveLength(0);
+    expect(similar).toHaveLength(0);
+
+    press("library.select_next");
+    press("library.audition");
+    expect(auditioned.map((asset) => asset.name)).toEqual(["one kick", "one kick"]);
+    press("library.similar");
+    expect(similar.map((asset) => asset.name)).toEqual(["one kick"]);
+  });
+
+  it("makes the open pack's list one Tab stop, which the selection moves (#880)", async () => {
+    const { press } = setUp();
+    await packOfThree();
+
+    // No selection yet: the first row holds the Tab stop, with its own
+    // rename and delete, and every other row is out of the tab order.
+    expect(tabStops()).toEqual(["one kick"]);
+    expect(rowTabbable("one kick")).toEqual([0, 0, 0]);
+    expect(rowTabbable("two snare")).toEqual([-1, -1, -1]);
+
+    press("library.select_next");
+    press("library.select_next");
+    expect(tabStops()).toEqual(["two snare"]);
+    expect(rowTabbable("one kick")).toEqual([-1, -1, -1]);
+    expect(rowTabbable("two snare")).toEqual([0, 0, 0]);
+  });
+
+  it("takes its key handler back when the pack is left (GRV-76)", async () => {
+    const { press, auditioned, hasKeys } = setUp();
+    const pack = await packOfThree();
+    expect(hasKeys()).toBe(true);
+    clickAndFlush(within(files()).getByRole("button", { name: "Back to all sounds" }));
+    expect(hasKeys()).toBe(false);
+    press("library.select_next");
+    expect(auditioned).toHaveLength(0);
+    expect(
+      within(pack).getByRole("button", { name: /Field Recordings/ }),
+    ).toHaveAttribute("aria-pressed", "false");
   });
 
   it("lists an opened pack's sounds in the main region, not in the rail (GRV-52)", async () => {

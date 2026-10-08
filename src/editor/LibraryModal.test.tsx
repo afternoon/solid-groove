@@ -982,7 +982,9 @@ describe("LibraryModal refused inserts (#892)", () => {
 });
 
 describe("LibraryModal with the producer's own packs (#282)", () => {
-  async function renderWithPack() {
+  async function renderWithPack(
+    extra: { onActions?: (a: LibraryActions | null) => void } = {},
+  ) {
     const repository = createInMemoryUserLibraryRepository();
     let pack = newUserPack("pak_mypacksmypacksmypack1" as PackId, "Field Recordings", 1);
     pack = addSound(
@@ -1019,6 +1021,7 @@ describe("LibraryModal with the producer's own packs (#282)", () => {
           onInsert={() => undefined}
           addedPackIds={[]}
           userLibrary={userLibrary}
+          onActions={extra.onActions}
         />
       );
     }
@@ -1127,6 +1130,29 @@ describe("LibraryModal with the producer's own packs (#282)", () => {
     expect(
       within(packSounds()).getByRole("button", { name: "Audition tape kick" }),
     ).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("sends the list keys to the open personal pack (GRV-76)", async () => {
+    const onActions = vi.fn();
+    const { engine } = await renderWithPack({ onActions });
+    const actions = onActions.mock.calls[0][0] as LibraryActions;
+    await openFieldRecordings();
+
+    // Down with nothing selected takes the pack's first sound, and hearing it
+    // is what selecting it means, exactly as in the Sounds list.
+    actions.press("library.select_next");
+    flush();
+    await waitFor(() =>
+      expect(engine.starts.map((start) => start.asset.name)).toContain("tape kick"),
+    );
+    const row = within(packSounds()).getByRole("button", {
+      name: "Audition tape kick",
+    });
+    expect(row).toHaveAttribute("aria-pressed", "true");
+    // The step takes focus with it, so a screen reader names the sound (#880).
+    await waitFor(() => expect(document.activeElement).toBe(row));
+    // And it is the list's one Tab stop.
+    expect(row).toHaveAttribute("tabindex", "0");
   });
 });
 

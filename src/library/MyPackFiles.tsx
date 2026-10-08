@@ -6,7 +6,7 @@ import {
   HiOutlineXMark,
   HiSolidXMark,
 } from "solid-icons/hi";
-import { createMemo, createSignal } from "solid-js";
+import { createEffect, createMemo, createSignal, onSettled } from "solid-js";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import {
   MAX_SOUND_NAME_LENGTH,
@@ -20,6 +20,8 @@ import type { LibraryAsset } from "./manifest";
 import NameForm from "./NameForm";
 import SoundPicker from "./SoundPicker";
 import SoundRow from "./SoundRow";
+import type { SoundsKeyAction } from "./soundKeys";
+import { nextIn, previousIn, revealSelectedRow, tabStopId } from "./stepping";
 import "./PackBanner.css";
 import "./MyPacks.css";
 
@@ -31,6 +33,9 @@ import "./MyPacks.css";
  * the pack's name in the rail. Each sound is the row every other pack's sounds
  * are (GRV-75): it auditions through the library, favourites, opens similar
  * sounds and drags onto the arrangement, and renames or deletes in place.
+ * The library's keys reach it too (GRV-76): the arrows walk the pack's sounds,
+ * auditioning each as it is selected, Space hears the selected one again and
+ * S opens its similar sounds — exactly as they do in every other list.
  */
 export interface MyPackFilesProps {
   readonly library: UserLibrary;
@@ -53,6 +58,8 @@ export interface MyPackFilesProps {
   isInUse?(asset: LibraryAsset): boolean;
   /** Leave the pack for all sounds. */
   onClose(): void;
+  /** Hands the modal this view's key handler, and takes it back when unmounted. */
+  onKeys(handler: ((action: SoundsKeyAction) => void) | null): void;
 }
 
 function ImportRowView(props: { row: ImportRow; library: UserLibrary }): JSX.Element {
@@ -102,6 +109,8 @@ function ImportRowView(props: { row: ImportRow; library: UserLibrary }): JSX.Ele
 function SoundItem(props: {
   asset: LibraryAsset;
   selected: boolean;
+  /** Whether this row is the list's one Tab stop, its own controls included. */
+  tabbable: boolean;
   playing: boolean;
   error: string | null;
   color?: string;
@@ -115,6 +124,10 @@ function SoundItem(props: {
 }): JSX.Element {
   const [confirming, setConfirming] = createSignal(false);
   const [editing, setEditing] = createSignal(false);
+  // Held once: the row reads it three times, and a pack can hold 500 sounds,
+  // so reading the list's shared Tab stop straight through would subscribe
+  // every one of those reads to it.
+  const tabbable = createMemo(() => props.tabbable);
   return (
     <Show
       when={confirming() || editing()}
@@ -127,18 +140,20 @@ function SoundItem(props: {
           playing={props.playing}
           error={props.error}
           color={props.color}
-          // Nothing here moves between rows with the arrow keys, so every row
-          // stays reachable with Tab.
-          tabbable={true}
+          // The arrows move between rows (GRV-76), so the list is one Tab stop.
+          tabbable={tabbable()}
           favourite={props.favourite}
           onFavourite={props.onFavourite}
           onSelect={() => props.onAudition()}
           onSimilar={() => props.onSimilar()}
           actions={
+            // Rename and delete belong to the row, so they share its Tab stop:
+            // the arrows choose a sound, then Tab reaches that sound's controls.
             <>
               <button
                 type="button"
                 class="sound-row-icon"
+                tabindex={tabbable() ? 0 : -1}
                 aria-label="Rename sound"
                 title="Rename sound"
                 onClick={() => setEditing(true)}
@@ -148,6 +163,7 @@ function SoundItem(props: {
               <button
                 type="button"
                 class="sound-row-icon"
+                tabindex={tabbable() ? 0 : -1}
                 aria-label="Delete sound"
                 title="Delete sound"
                 onClick={() => setConfirming(true)}
@@ -220,6 +236,58 @@ export default function MyPackFiles(props: MyPackFilesProps): JSX.Element {
   const count = () =>
     props.pack.assets.length === 1 ? "1 sound" : `${props.pack.assets.length} sounds`;
 
+  let list: HTMLUListElement | undefined;
+  const current = () => assets().find((asset) => asset.id === props.selectedId) ?? null;
+  // The list is one Tab stop (#880): the selected sound, or the first.
+  const tabStop = createMemo(() =>
+    tabStopId(
+      assets().map((asset) => asset.id),
+      props.selectedId,
+    ),
+  );
+
+  // Set by a step, so the selection it makes takes focus with it (#880).
+  let focusFollows = false;
+
+  /** Select the neighbouring sound, which auditions it; the ends hold. */
+  function step(direction: 1 | -1): void {
+    const from = current();
+    const target = (direction === 1 ? nextIn : previousIn)(assets(), from);
+    if (!target) return;
+    if (target === from) {
+      // At an end there is nothing new to hear, but focus still joins the row.
+      revealSelectedRow(list, true);
+      return;
+    }
+    focusFollows = true;
+    props.onAudition(target);
+  }
+
+  // The library's keys arrive from the modal, as they do for the Sounds list
+  // (GRV-76). Only the ones a pack's own list can answer are here; the shelf,
+  // genre and tempo keys belong to views that have those filters.
+  function press(action: SoundsKeyAction): void {
+    const sound = current();
+    if (action === "library.select_next") step(1);
+    else if (action === "library.select_previous") step(-1);
+    else if (action === "library.audition" && sound) props.onAudition(sound);
+    else if (action === "library.similar" && sound) props.onSimilar(sound);
+  }
+
+  onSettled(() => {
+    props.onKeys(press);
+    return () => props.onKeys(null);
+  });
+
+  // Keep the heard row on screen, and focused when a step chose it.
+  createEffect(
+    () => props.selectedId,
+    () => {
+      revealSelectedRow(list, focusFollows);
+      focusFollows = false;
+    },
+  );
+
   return (
     <section
       class="my-pack-files"
@@ -262,12 +330,13 @@ export default function MyPackFiles(props: MyPackFilesProps): JSX.Element {
       <Show when={drop.state() === "refused"}>
         <output class="my-packs-hint">Only audio files can go in a pack.</output>
       </Show>
-      <ul class="sounds-list" aria-label="Sounds in this pack">
+      <ul class="sounds-list" aria-label="Sounds in this pack" ref={list}>
         <For each={assets()} keyed={(asset) => asset.id}>
           {(asset) => (
             <SoundItem
               asset={asset()}
               selected={props.selectedId === asset().id}
+              tabbable={tabStop() === asset().id}
               playing={props.playingId === asset().id}
               error={props.errorOf?.(asset().id) ?? null}
               color={props.trackColor}
