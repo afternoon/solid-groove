@@ -84,7 +84,13 @@ export default function AssistantChatView(props: AssistantChatViewProps): JSX.El
           each={conversation().entries()}
           keyed={(entry: ConversationEntry) => entry.id}
         >
-          {(entry) => <Entry entry={entry()} onRetry={retry} />}
+          {(entry) => (
+            <Entry
+              entry={entry()}
+              canRetry={conversation().canRetry(entry())}
+              onRetry={retry}
+            />
+          )}
         </For>
       </div>
       <Show
@@ -156,6 +162,8 @@ export default function AssistantChatView(props: AssistantChatViewProps): JSX.El
 
 function Entry(props: {
   readonly entry: ConversationEntry;
+  /** Only the error that ended the conversation offers Try again. */
+  readonly canRetry: boolean;
   onRetry(): void;
 }): JSX.Element {
   return (
@@ -206,7 +214,7 @@ function Entry(props: {
             <span>
               {errorMessage(failure().error)} {ERROR_REASSURANCE}
             </span>
-            <Show when={failure().error.retryable}>
+            <Show when={props.canRetry}>
               <div>
                 <button
                   type="button"

@@ -13,7 +13,7 @@
  * `assistant_suggestion_clicked` with the suggestion's ID. Never the text of
  * a message or a reply, and nothing about what is in scope.
  */
-import { type Accessor, createSignal } from "solid-js";
+import { type Accessor, createSignal, onCleanup } from "solid-js";
 import type { Analytics } from "../../analytics/analytics";
 import type {
   AssistantClient,
@@ -39,13 +39,19 @@ export type ConversationEntry =
       readonly text: string;
       readonly scopeLabel: string;
     }
-  /** The assistant's reply: streaming, finished, or stopped part-way. */
+  /** The assistant's reply: streaming, finished, stopped or failed part-way. */
   | {
       readonly kind: "reply";
       readonly id: string;
       readonly text: string;
       readonly streaming: boolean;
       readonly stopped: boolean;
+      /**
+       * The turn failed after writing this much. It stays on screen above the
+       * error, but it is not an answer: the next turn does not resend it, and
+       * Try again replaces it.
+       */
+      readonly failed?: boolean;
     }
   /** A change the reply proposes; a placeholder until GRV-5. */
   | { readonly kind: "proposal"; readonly id: string }
@@ -56,6 +62,8 @@ export type ConversationEntry =
       readonly error: AssistantErrorDetails;
       /** What Try again resends. */
       readonly request: AssistantTurnRequest;
+      /** The failed turn's partial reply, which Try again replaces. */
+      readonly replyId?: string;
     };
 
 export interface UseAssistantConversationOptions {
@@ -78,8 +86,14 @@ export interface AssistantConversation {
   send(text: string, suggestion?: SuggestionId): boolean;
   /** Stops the reply on its way, at the gateway too. */
   stop(): void;
-  /** Resends the turn the last error ended, if it may be retried. */
+  /**
+   * Resends the turn the last error ended, if it may be retried and nothing
+   * is streaming. An earlier error, with the conversation moved on past it,
+   * cannot be retried.
+   */
   retry(): boolean;
+  /** Whether {@link retry} would resend this entry's turn now. */
+  canRetry(entry: ConversationEntry): boolean;
 }
 
 /** The most one message may say, as the gateway counts it. */
@@ -87,15 +101,22 @@ export const MAX_MESSAGE_CHARS = ASSISTANT_REQUEST_LIMITS.maxMessageChars;
 
 /**
  * The conversation so far, as the next turn resends it: every message that
- * got a reply, with that reply. A message whose turn failed with nothing
- * written is left out, so the roles always alternate; its retry resends it.
+ * got a reply, with that reply. A message whose turn failed is left out,
+ * along with whatever its reply wrote before failing, so the roles always
+ * alternate and a broken answer is never passed off as the assistant's; the
+ * retry resends the message, and its reply is the one that counts.
  */
 export function historyOf(entries: readonly ConversationEntry[]): AssistantMessage[] {
   const history: AssistantMessage[] = [];
   let pending: string | null = null;
   for (const entry of entries) {
     if (entry.kind === "message") pending = entry.text;
-    if (entry.kind === "reply" && pending !== null && entry.text.trim().length > 0) {
+    if (
+      entry.kind === "reply" &&
+      pending !== null &&
+      !entry.failed &&
+      entry.text.trim().length > 0
+    ) {
       history.push(
         { role: "user", text: pending.slice(0, MAX_MESSAGE_CHARS) },
         { role: "assistant", text: entry.text.slice(0, MAX_MESSAGE_CHARS) },
@@ -121,6 +142,9 @@ export function useAssistantConversation(
   };
   /** The turn on its way: Stop goes to it. */
   let inFlight: AssistantTurnHandle | null = null;
+  // Leaving the editor stops the reply on its way, at the gateway too, rather
+  // than leaving it to write into a conversation nobody can see.
+  onCleanup(() => inFlight?.stop());
 
   const append = (entry: ConversationEntry) =>
     setEntries((current) => [...current, entry]);
@@ -143,12 +167,20 @@ export function useAssistantConversation(
     let ended = false;
     let handle: AssistantTurnHandle | null = null;
 
-    const finishReply = (stopped: boolean) =>
+    /** Whether the reply is still in the log when the turn ends. */
+    let replyKept = false;
+    const finishReply = (ending: "done" | "stopped" | "failed") =>
       update(replyId, (entry) => {
         if (entry.kind !== "reply") return entry;
         // A reply that never wrote a word is not one, unless it was stopped.
-        if (entry.text.length === 0 && !stopped) return null;
-        return { ...entry, streaming: false, stopped };
+        if (entry.text.length === 0 && ending !== "stopped") return null;
+        replyKept = true;
+        return {
+          ...entry,
+          streaming: false,
+          stopped: ending === "stopped",
+          ...(ending === "failed" ? { failed: true } : {}),
+        };
       });
 
     const onEvent = (event: AssistantStreamEvent) => {
@@ -167,12 +199,18 @@ export function useAssistantConversation(
           append({ kind: "proposal", id: id() });
           return;
         case "error":
-          finishReply(false);
-          append({ kind: "error", id: id(), error: event.error, request });
+          finishReply("failed");
+          append({
+            kind: "error",
+            id: id(),
+            error: event.error,
+            request,
+            ...(replyKept ? { replyId } : {}),
+          });
           setStreaming(false);
           return;
         case "done":
-          finishReply(event.stopped);
+          finishReply(event.stopped ? "stopped" : "done");
           setStreaming(false);
       }
     };
@@ -233,14 +271,25 @@ export function useAssistantConversation(
     inFlight?.stop();
   }
 
+  function canRetry(entry: ConversationEntry): boolean {
+    return (
+      entry.kind === "error" &&
+      entry.error.retryable &&
+      !streaming() &&
+      entries().at(-1)?.id === entry.id
+    );
+  }
+
   function retry(): boolean {
-    if (streaming()) return false;
     const last = entries().at(-1);
-    if (last?.kind !== "error" || !last.error.retryable) return false;
-    update(last.id, () => null);
+    if (last?.kind !== "error" || !canRetry(last)) return false;
+    // The retried turn's reply takes the place of the error and of whatever
+    // the failed reply had written, so the message is answered once.
+    const stale = new Set([last.id, last.replyId]);
+    setEntries((current) => current.filter((entry) => !stale.has(entry.id)));
     startTurn(last.request);
     return true;
   }
 
-  return { entries, streaming, send, stop, retry };
+  return { entries, streaming, send, stop, retry, canRetry };
 }

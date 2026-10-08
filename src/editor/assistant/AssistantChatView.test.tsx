@@ -72,9 +72,9 @@ function renderChat(options: Options = {}) {
       </>
     );
   };
-  render(() => <Harness />);
+  const { unmount } = render(() => <Harness />);
   clickAndFlush(screen.getByRole("button", { name: "Open it" }));
-  return { client, transport, project, setSelection, setAccount };
+  return { client, transport, project, setSelection, setAccount, unmount };
 }
 
 const panel = () => screen.getByRole("region", { name: "Assistant" });
@@ -177,6 +177,14 @@ describe("the assistant's conversation", () => {
     expect(log()).toHaveAttribute("aria-busy", "false");
     expect(composer()).toHaveFocus();
     expect(button("Send")).toBeInTheDocument();
+  });
+
+  it("stops the reply on its way when the editor goes away", async () => {
+    const { client, unmount } = renderChat();
+    await send("Write a lot");
+    fireAndFlush(() => client.last().text("Here is"));
+    unmount();
+    expect(client.last().stopped).toBe(true);
   });
 
   it("will not send while a reply streams, or with nothing to say", async () => {
@@ -283,6 +291,58 @@ describe("the assistant's inline errors", () => {
     expect(log()).toHaveTextContent("Better now");
     // A retry is not a new message.
     expect(transport.named("assistant_message_sent")).toHaveLength(1);
+  });
+
+  it("replaces a reply that failed part-way, so the next turn resends only the real one", async () => {
+    const { client } = renderChat();
+    await send("Q");
+    fireAndFlush(() => client.last().text("Here is one idea. "));
+    fireAndFlush(() =>
+      client.last().fail({ code: "provider_unavailable", retryable: true }),
+    );
+    // What it wrote stays on screen above the error until Try again.
+    expect(log()).toHaveTextContent("Here is one idea.");
+    clickAndFlush(within(log()).getByRole("button", { name: "Try again" }));
+    await settle();
+    expect(client.last().request.messages).toEqual([{ role: "user", text: "Q" }]);
+    fireAndFlush(() => client.last().text("Here is one idea. Full reply."));
+    fireAndFlush(() => client.last().done());
+    const replies = log().querySelectorAll(".assistant-reply");
+    expect(replies).toHaveLength(1);
+    expect(replies[0]).toHaveTextContent("Here is one idea. Full reply.");
+
+    await send("Next");
+    expect(client.last().request.messages).toEqual([
+      { role: "user", text: "Q" },
+      { role: "assistant", text: "Here is one idea. Full reply." },
+      { role: "user", text: "Next" },
+    ]);
+  });
+
+  it("does not resend a reply that failed part-way when the producer moves on", async () => {
+    const { client } = renderChat();
+    await send("Q");
+    fireAndFlush(() => client.last().text("Half an "));
+    fireAndFlush(() => client.last().fail({ code: "timeout", retryable: true }));
+    await send("Something else");
+    expect(client.last().request.messages).toEqual([
+      { role: "user", text: "Something else" },
+    ]);
+  });
+
+  it("offers Try again only on the error that ended the conversation", async () => {
+    const { client } = renderChat();
+    await send("Help");
+    fireAndFlush(() => client.last().fail({ code: "timeout", retryable: true }));
+    expect(within(log()).getByRole("button", { name: "Try again" })).toBeInTheDocument();
+
+    await send("Something else");
+    // Not while a reply streams, and not on the old error after it.
+    expect(within(log()).queryByRole("button", { name: "Try again" })).toBeNull();
+    fireAndFlush(() => client.last().text("Sure."));
+    fireAndFlush(() => client.last().done());
+    expect(within(log()).getByRole("alert")).toBeInTheDocument();
+    expect(within(log()).queryByRole("button", { name: "Try again" })).toBeNull();
   });
 });
 

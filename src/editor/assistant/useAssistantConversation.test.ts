@@ -38,6 +38,26 @@ describe("the conversation a turn resends", () => {
     ]);
   });
 
+  it("never resends a reply that failed part-way as the answer (GRV-26)", () => {
+    expect(
+      historyOf([
+        message("1", "Q"),
+        {
+          kind: "reply",
+          id: "2",
+          text: "Here is one idea. ",
+          streaming: false,
+          stopped: false,
+          failed: true,
+        },
+        reply("3", "Here is one idea. Full reply."),
+      ]),
+    ).toEqual([
+      { role: "user", text: "Q" },
+      { role: "assistant", text: "Here is one idea. Full reply." },
+    ]);
+  });
+
   it("leaves room for the new message, in whole exchanges", () => {
     const entries = Array.from({ length: 150 }, (_, index) => [
       message(`m${index}`, `Q${index}`),
