@@ -51,7 +51,8 @@ test.describe("the assistant's conversation", { tag: "@sanity" }, () => {
     await expect(panel(page)).not.toContainText("Writing…");
 
     // Try again: a provider failure is an inline error that offers it, and
-    // the retried turn's reply takes the error's place.
+    // the retried turn's reply takes the place of the error and of what the
+    // failed turn had written.
     await composer(page).fill(`Once more [flaky] ${test.info().testId}-${Date.now()}`);
     await page.keyboard.press("Enter");
     const failure = conversation(page).getByRole("alert");
@@ -60,6 +61,9 @@ test.describe("the assistant's conversation", { tag: "@sanity" }, () => {
     await failure.getByRole("button", { name: "Try again" }).click();
     await expect(failure).toHaveCount(0);
     await expect(conversation(page).getByText(REPLY)).toHaveCount(2);
+    // The part the failed turn wrote went with the error: three replies, one
+    // per message, and none left over from the failure.
+    await expect(conversation(page).locator(".assistant-reply")).toHaveCount(3);
   });
 
   test("shows a proposal as a placeholder card", async ({ page }) => {
