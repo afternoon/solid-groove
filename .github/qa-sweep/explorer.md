@@ -125,6 +125,7 @@ Write `tmp/qa-sweep/out/findings.json`:
       "expected": "What should have happened instead.",
       "steps": ["Sign in and open Projects.", "Choose New Project.", "..."],
       "severity": "medium",
+      "risk": "low",
       "screenshot": "shots/tempo-nan.png",
       "duplicateOf": null
     }
@@ -138,6 +139,12 @@ Write `tmp/qa-sweep/out/findings.json`:
   arrive, and name controls by what they say on screen, never by selector.
 - `severity` is `high` (loses work, crashes, or blocks the flow), `medium`
   (wrong, but there is a way round) or `low` (cosmetic).
+- `risk` is how risky the fix looks, separate from severity: `low` when it is
+  plainly confined to what is on screen (wording, layout, styling, one
+  control's behaviour) and nothing about saved projects, sign-in or access,
+  uploads, export or audio playback is involved; otherwise `normal`. When in
+  doubt, `normal`. A `low` bug goes straight into Ready, so the board starts
+  building it without the product owner looking first.
 - `screenshot` is relative to `tmp/qa-sweep/out/` and is a `.png`; leave it
   `null` only if the bug cannot be seen.
 - `duplicateOf` is an open issue's identifier (`GRV-123`), or `null`.

@@ -38,7 +38,8 @@ Only a PR labelled `deploy-preview` is tested on a preview, and only while it is
 **Bugs the change didn't cause.** If you find a bug that is not part of the change under test (on production, it is in an area the card doesn't touch; on a preview, it also happens on production), don't put it in the QA result. File a new Linear issue for it instead, in team `GRV`, project "Groove":
 - Title: `Bug: <what is wrong>`.
 - Description: the steps, expected and actual result, and evidence, as above.
-- Label: `bug`. Leave it in Backlog with no milestone; the automation puts a new bug on the milestone of its area.
+- Label: `bug`. No milestone; the automation puts a new bug on the milestone of its area.
+- Column: **Ready** if the fix is plainly low risk (confined to what is on screen: wording, layout, styling, one control's behaviour, with nothing about saved projects, sign-in or access, uploads, export or audio playback involved), so the board builds it straight away; otherwise **Backlog**. When in doubt, Backlog.
 - Search the open issues first; if it is already filed, add your evidence as a comment on it instead.
 - Mention the new issues in your result comment, as "Also found, unrelated to this change: GRV-<n>".
 These issues never change the pass or fail.
