@@ -53,6 +53,15 @@ const keyOf = (asset: LibraryAsset): SoundKey => ({
   assetId: asset.id,
 });
 
+/** The Sounds view's one audition voice, as another list of sounds uses it. */
+export interface SoundsAuditioner {
+  audition(asset: LibraryAsset): void;
+  /** The sound being heard, whose row shows the stop mark. */
+  playingId(): string | null;
+  /** Why a sound could not load, or null while it can. */
+  errorOf(assetId: string): string | null;
+}
+
 export interface SoundsViewProps {
   readonly client?: LibraryClient;
   readonly previewEngine?: PreviewEngine;
@@ -98,9 +107,10 @@ export interface SoundsViewProps {
   readonly extraPacks?: readonly LibraryPackSummary[];
   /**
    * Hands the library this view's audition, so a sound listed elsewhere in the
-   * view (a personal pack in the rail) is heard through the same one voice.
+   * view (an opened personal pack) is heard through the same one voice, and
+   * its row shows the same play state and load error a row here would.
    */
-  onAuditioner?(handler: ((asset: LibraryAsset) => void) | null): void;
+  onAuditioner?(auditioner: SoundsAuditioner | null): void;
   /** Lists only this place's sounds, in its order. Unset is every sound. */
   readonly place?: SoundsPlace | null;
   /** The hearts' state and toggle. Unset leaves every heart disabled. */
@@ -292,7 +302,11 @@ export default function SoundsView(props: SoundsViewProps): JSX.Element {
   onSettled(() => {
     props.onKeys(press);
     props.onCloseMenu?.(closeGenreMenu);
-    props.onAuditioner?.((asset) => void browser.audition(asset));
+    props.onAuditioner?.({
+      audition: (asset) => void browser.audition(asset),
+      playingId: browser.auditioningId,
+      errorOf: (assetId) => browser.assetErrors().get(assetId) ?? null,
+    });
     return () => {
       props.onKeys(null);
       props.onCloseMenu?.(null);

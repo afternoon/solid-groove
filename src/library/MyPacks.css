@@ -26,8 +26,7 @@
   color: var(--color-text);
 }
 
-.my-packs-list,
-.my-packs-sounds {
+.my-packs-list {
   display: flex;
   flex-direction: column;
   gap: 1px;
@@ -125,46 +124,12 @@
   padding: 0 8px 0 28px;
 }
 
-.my-packs-sound-main {
-  display: flex;
-  flex: 1 1 auto;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  padding: 4px 0;
-  color: var(--color-text-secondary);
-  background: transparent;
-}
-
-.my-packs-sound-main:hover {
-  color: var(--color-accent);
-  background: transparent;
-}
-
-.my-packs-sound-name,
 .my-packs-import-name {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.my-packs-sound small {
-  flex: none;
-  font-size: 11px;
-  color: var(--color-foreground-muted);
-}
-
-.my-packs-sound-selected {
-  background: var(--color-accent);
-}
-
-.my-packs-sound-selected .my-packs-sound-main,
-.my-packs-sound-selected .my-packs-sound-main:hover,
-.my-packs-sound-selected small,
-.my-packs-sound-selected .my-packs-icon {
-  color: var(--color-on-accent);
 }
 
 /* A file on its way: its name over its own progress bar and Cancel. */
@@ -320,20 +285,11 @@
   height: 32px;
 }
 
-.my-pack-files-list {
-  padding: 6px 0;
-}
-
 .my-pack-files .my-packs-sound,
 .my-pack-files .my-packs-import,
 .my-pack-files .my-packs-empty {
   padding-left: 16px;
   padding-right: 16px;
-}
-
-.my-pack-files .my-packs-sound-main {
-  padding: 7px 0;
-  font-size: 13px;
 }
 
 .my-pack-files .my-packs-empty {

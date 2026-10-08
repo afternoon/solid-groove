@@ -89,6 +89,9 @@ function setUp(
     storage: memoryStorage(),
   });
   const auditioned: LibraryAsset[] = [];
+  const similar: LibraryAsset[] = [];
+  const favourited: string[] = [];
+  const [playingId, setPlayingId] = createSignal<string | null>(null);
   function Harness() {
     const library = useUserLibrary({
       account,
@@ -114,7 +117,13 @@ function setUp(
               library={library}
               pack={pack()}
               selectedId={null}
+              playingId={playingId()}
               onAudition={(asset) => auditioned.push(asset)}
+              onSimilar={(asset) => similar.push(asset)}
+              favourites={{
+                isFavourite: (sound) => favourited.includes(sound.assetId),
+                toggle: (sound) => favourited.push(sound.assetId),
+              }}
               onClose={() => setOpenId(null)}
             />
           )}
@@ -123,7 +132,16 @@ function setUp(
     );
   }
   const rendered = render(() => <Harness />);
-  return { repository, transport, auditioned, setAccount, unmount: rendered.unmount };
+  return {
+    repository,
+    transport,
+    auditioned,
+    similar,
+    favourited,
+    setPlayingId,
+    setAccount,
+    unmount: rendered.unmount,
+  };
 }
 
 /** The packs have loaded once Add pack is live. */
@@ -227,6 +245,51 @@ describe("My packs", () => {
       await within(files()).findByRole("button", { name: "Audition tape kick" }),
     );
     expect(auditioned.map((asset) => asset.name)).toEqual(["tape kick"]);
+  });
+
+  it("shows a personal sound in the standard sound row, with rename and delete left of the heart (GRV-75)", async () => {
+    const { similar, favourited, setPlayingId } = setUp();
+    const pack = await addNamedPack("Field Recordings");
+    drop(pack, [audioFile("tape-kick.wav")]);
+    const main = await within(files()).findByRole("button", {
+      name: "Audition tape kick",
+    });
+    const row = main.closest("li") as HTMLElement;
+
+    // The row built-in packs' sounds use: play state, waveform, name over
+    // `pack · role`, and length.
+    expect(row).toHaveClass("sound-row");
+    expect(main.querySelector(".sound-row-play svg")).not.toBeNull();
+    expect(main.querySelector("svg.mini-waveform")).not.toBeNull();
+    expect(main.querySelector(".sound-row-meta")).toHaveTextContent(
+      /^Field Recordings · /,
+    );
+    expect(main.querySelector(".sound-row-length")).toHaveTextContent("0.10 s");
+    // The producer named it, so replay masks it, as it did before.
+    expect(main.querySelector(".sound-row-name")).toHaveClass("sentry-mask");
+
+    // Rename and delete come before the heart and similar sounds, which keep
+    // the last two places they have on every other row.
+    expect(
+      within(row)
+        .getAllByRole("button")
+        .map((button) => button.getAttribute("aria-label")),
+    ).toEqual([
+      "Audition tape kick",
+      "Rename sound",
+      "Delete sound",
+      "Favourite tape kick",
+      "Sounds like tape kick",
+    ]);
+    clickAndFlush(within(row).getByRole("button", { name: "Favourite tape kick" }));
+    expect(favourited).toHaveLength(1);
+    clickAndFlush(within(row).getByRole("button", { name: "Sounds like tape kick" }));
+    expect(similar.map((asset) => asset.name)).toEqual(["tape kick"]);
+
+    // While it plays, its play mark is the stop mark, as on any other row.
+    const idle = main.querySelector(".sound-row-play")?.innerHTML;
+    fireAndFlush(() => setPlayingId(favourited[0]));
+    expect(main.querySelector(".sound-row-play")?.innerHTML).not.toBe(idle);
   });
 
   it("lists an opened pack's sounds in the main region, not in the rail (GRV-52)", async () => {

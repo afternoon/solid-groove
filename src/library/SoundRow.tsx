@@ -1,7 +1,9 @@
 import { type JSX, Show } from "@solidjs/web";
 import { HiOutlineHeart, HiSolidHeart } from "solid-icons/hi";
 import { PlayIcon, StopIcon } from "../components/icons";
+import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import { ariaBool } from "../shared/aria";
+import { USER_CONTENT_LICENCE } from "../userLibrary/userPacks";
 import { writeLibrarySampleDrag } from "./assetDrag";
 import { LOAD_REASON_LABELS } from "./loadReasons";
 import MiniWaveform from "./MiniWaveform";
@@ -41,7 +43,8 @@ export function SimilarIcon(props: { size?: number }): JSX.Element {
  * `pack · role`, character tags in their own column, and length. Clicking
  * selects and auditions it. The heart favourites it (#815), pressed while it is
  * one, and the two circles open similar sounds. The row is also a drag handle onto an
- * instrument (#225), never the only way in.
+ * instrument (#225), never the only way in. A personal pack's sounds use this
+ * same row (GRV-75), with their rename and delete in `actions`.
  */
 export default function SoundRow(props: {
   asset: LibraryAsset;
@@ -63,9 +66,18 @@ export default function SoundRow(props: {
   favourite?: boolean;
   /** Toggles the favourite. Unset leaves the heart disabled (no one signed in). */
   onFavourite?: () => void;
+  /**
+   * Controls of the sound's own, such as a personal sound's rename and delete
+   * (GRV-75). They sit left of the heart, in a column the name gives up, so the
+   * heart and similar sounds keep the places they have on every other row.
+   */
+  actions?: JSX.Element;
   onSelect: () => void;
   onSimilar: () => void;
 }): JSX.Element {
+  // A personal sound's name and its pack's were typed or picked by the
+  // producer, so replay masks them, as it does any other name a user wrote.
+  const personal = () => props.asset.licence === USER_CONTENT_LICENCE;
   return (
     <li
       class={[
@@ -73,6 +85,7 @@ export default function SoundRow(props: {
         {
           "sound-row-selected": props.selected,
           "sound-row-loop": props.asset.type === "loop",
+          "sound-row-with-actions": props.actions !== undefined,
         },
       ]}
       style={props.selected && props.color ? { "--waveform-fill": props.color } : {}}
@@ -100,8 +113,10 @@ export default function SoundRow(props: {
           <MiniWaveform peaks={props.asset.peaks} />
         </span>
         <span class="sound-row-text">
-          <b class="sound-row-name">{props.asset.name}</b>
-          <span class="sound-row-meta">
+          <b class={["sound-row-name", { [MASK_CONTENT]: personal() }]}>
+            {props.asset.name}
+          </b>
+          <span class={["sound-row-meta", { [MASK_CONTENT]: personal() }]}>
             {props.asset.packName} · {roleLabel(props.asset.role)}
             <Show when={props.error}>
               {" · "}
@@ -127,6 +142,9 @@ export default function SoundRow(props: {
         </Show>
         <span class="sound-row-length">{lengthLabel(props.asset)}</span>
       </button>
+      <Show when={props.actions !== undefined}>
+        <span class="sound-row-actions">{props.actions}</span>
+      </Show>
       <button
         type="button"
         class={["sound-row-icon", { "sound-row-favourite": props.favourite === true }]}
