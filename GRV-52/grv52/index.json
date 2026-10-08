@@ -1,0 +1,18 @@
+{
+  "id": "grv52",
+  "title": "Personal pack files in the main panel",
+  "steps": [
+    {
+      "file": "00-before-files-in-the-rail.png",
+      "caption": "Before: a personal pack's files were listed in the rail, under its name"
+    },
+    {
+      "file": "01-a-personal-pack-s-sounds-listed-in-the-m.png",
+      "caption": "A personal pack's sounds, listed in the main region"
+    },
+    {
+      "file": "02-dragging-audio-over-the-main-region-drop.png",
+      "caption": "Dragging audio over the main region drops it into the open pack"
+    }
+  ]
+}
