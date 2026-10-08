@@ -42,6 +42,9 @@ const LABELS = [
   "needs-shaping",
   "human-input-required",
   "parked",
+  "model:haiku",
+  "model:sonnet",
+  "model:opus",
 ];
 
 const say = (line) => console.log(`${DRY ? "[dry-run] " : ""}${line}`);

@@ -21,14 +21,16 @@ without asking questions. See `CLAUDE.md`, "Shape, then ship".
    run the same stages yourself with the Agent tool in the foreground
    (`run_in_background: false`), following `.claude/workflows/solid-groove-ship.js`
    and the agent briefs in `.claude/agents/`, with the `model` and `effort` each
-   stage names there (the landing agents run on Sonnet: the code is finished by
-   then and their work is mechanical). A headless run ends when your turn
+   stage names there (triage and the landing agents run on Sonnet; the build,
+   its fixes and the review run on the tier triage picks: Haiku, Sonnet or Opus,
+   from the issue's complexity and novelty, or a `model:<tier>` label on the card). A headless run ends when your turn
    ends, so a background workflow there is killed before it does anything.
    Never end your turn while the work is still running.
 3. **When it returns**, confirm every PR it names exists (`gh pr view <n>` or the
    GitHub MCP tools) before reporting it. Report only what you have seen, never
    an expected or summarised result. Then tell the user in a few lines:
-   - the PRs it opened (full URLs), and the kind of work it treated the issue as;
+   - the PRs it opened (full URLs), the kind of work it treated the issue as,
+     and the model tier it built on;
    - any assumptions or open review findings that ended up in a PR body;
    - or, if it stopped, why (an issue likely to conflict with an open PR is held
      off: the PRs it waits for are named on the card, their cards become its
