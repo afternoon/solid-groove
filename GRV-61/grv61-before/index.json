@@ -1,0 +1,10 @@
+{
+  "id": "grv61-before",
+  "title": "Delay panel at an 800px window, before the fix",
+  "steps": [
+    {
+      "file": "01-the-delay-on-the-master-at-an-800px-wind.png",
+      "caption": "The Delay on the master at an 800px window, before the fix"
+    }
+  ]
+}
