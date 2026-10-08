@@ -118,6 +118,9 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # A scheduled run's actor is main's last committer, the merge queue
+          # bot, which the action otherwise refuses as a non-human actor.
+          allowed_bots: github-merge-queue
           github_token: ${{ github.token }}
           show_full_output: true
           prompt: |
