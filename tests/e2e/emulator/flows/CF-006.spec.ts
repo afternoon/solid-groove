@@ -58,6 +58,14 @@ const personalPack = (page: Page): Locator =>
     .filter({ has: page.getByRole("button", { name: new RegExp(PACK_NAME) }) })
     .first();
 
+/**
+ * The opened pack's sounds. GRV-52 moved them out of the rail into the
+ * library's main region, where every pack's sounds are; the pack's name
+ * stays in the rail, and dropping on it still imports into it.
+ */
+const packSounds = (page: Page): Locator =>
+  library(page).getByRole("region", { name: "Pack sounds" });
+
 /** The sounds in a pack node, by the audition control every row carries. */
 const sounds = (within: Locator): Locator =>
   within.getByRole("button", { name: /^Audition / });
@@ -185,7 +193,8 @@ test.describe("CF-006", { tag: "@sanity" }, () => {
     await personalPack(page)
       .getByRole("button", { name: new RegExp(PACK_NAME) })
       .click();
-    await expect(sounds(personalPack(page))).toHaveCount(0);
+    await expect(packSounds(page)).toBeVisible();
+    await expect(sounds(packSounds(page))).toHaveCount(0);
     await step("Name the pack — it is listed, and empty");
 
     // 5. Drag three audio files from the desktop onto that pack. Each shows
@@ -200,11 +209,11 @@ test.describe("CF-006", { tag: "@sanity" }, () => {
     // progress indicator itself is asserted at the component layer.
     await dropAudioFiles(page, personalPack(page), FILE_NAMES);
     for (const fileName of FILE_NAMES) {
-      await expect(soundFrom(personalPack(page), fileName)).toBeVisible({
+      await expect(soundFrom(packSounds(page), fileName)).toBeVisible({
         timeout: 30_000,
       });
     }
-    await expect(sounds(personalPack(page))).toHaveCount(FILE_NAMES.length);
+    await expect(sounds(packSounds(page))).toHaveCount(FILE_NAMES.length);
     await step("Drop three files on the pack — each lands as a sound");
 
     // 6. Audition one of them from the browser, and find it by searching the
@@ -224,7 +233,7 @@ test.describe("CF-006", { tag: "@sanity" }, () => {
         : `audition not asserted in ${browserName}: AudioContext.resume() is refused here — see HARD-001`,
     });
     if (canAssertAudition) {
-      const audition = soundFrom(personalPack(page), FILE_NAMES[0]);
+      const audition = soundFrom(packSounds(page), FILE_NAMES[0]);
       await audition.click();
       await expect(audition).toHaveAttribute("aria-pressed", "true");
       await step("Audition one of the imported sounds");
@@ -244,7 +253,7 @@ test.describe("CF-006", { tag: "@sanity" }, () => {
     await personalPack(page)
       .getByRole("button", { name: new RegExp(PACK_NAME) })
       .click();
-    await expect(sounds(personalPack(page))).toHaveCount(FILE_NAMES.length);
+    await expect(sounds(packSounds(page))).toHaveCount(FILE_NAMES.length);
     await step("Reload — the pack and all three sounds are still there");
   });
 });

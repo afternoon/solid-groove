@@ -5,6 +5,7 @@ import { loadEveryAsset } from "../library/allAssets";
 import type { PreviewEngine } from "../library/audition";
 import type { FavouriteMarks, SoundKey } from "../library/favourites";
 import { type LibraryClient, sharedLibraryClient } from "../library/libraryClient";
+import MyPackFiles from "../library/MyPackFiles";
 import MyPacks from "../library/MyPacks";
 import type {
   LibraryAsset,
@@ -324,12 +325,30 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   // What the sounds list in view is called, so similar sounds' way back names it.
   const [listLabel, setListLabel] = createSignal<string | undefined>(undefined);
   const [everyAsset, setEveryAsset] = createSignal<readonly LibraryAsset[]>([]);
+  // The producer's own pack open in the main region (GRV-52), by ID; a pack
+  // deleted while open is no longer found, and the place falls back.
+  const [personalPackId, setPersonalPackId] = createSignal<string | null>(null);
+  const personalPack = createMemo(() => {
+    const id = personalPackId();
+    if (id === null) return null;
+    return props.userLibrary?.packs().find((pack) => pack.id === id) ?? null;
+  });
+  // A search lists the whole library, as it does from inside a factory pack's
+  // place, so an open personal pack gives way to the results while there is one.
+  const showsPersonal = createMemo(
+    () => similarOf() === null && personalPack() !== null && query().trim() === "",
+  );
   const showsPacks = createMemo(
-    () => similarOf() === null && view() === "packs" && packScope() === null,
+    () =>
+      similarOf() === null &&
+      personalPack() === null &&
+      view() === "packs" &&
+      packScope() === null,
   );
   const showsSounds = createMemo(
     () =>
       similarOf() === null &&
+      !showsPersonal() &&
       (view() === "all" ||
         view() === "favourites" ||
         view() === "recent" ||
@@ -355,8 +374,20 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   /** Scope the sounds view to a pack, keeping every pack's search to come back to. */
   function openPack(slug: string): void {
     keepFocus(() => {
+      setPersonalPackId(null);
       if (packScope() === null) searchOutsidePack = query();
       setPackScope(slug);
+    });
+  }
+
+  /** Open one of the producer's own packs: its sounds fill the main region. */
+  function openPersonalPack(packId: string): void {
+    if (personalPackId() === packId && similarOf() === null) return;
+    keepFocus(() => {
+      setSimilarOf(null);
+      closePack();
+      setView("all");
+      setPersonalPackId(packId);
     });
   }
 
@@ -457,6 +488,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
     keepFocus(() => {
       setSimilarOf(null);
       closePack();
+      setPersonalPackId(null);
       if (next === "recent") {
         setRecentShown(recentStore.load());
         (props.analytics ?? defaultAnalytics).logFeatureFirstUse(
@@ -531,9 +563,17 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
 
   /** Back: out of similar sounds, then an opened pack, then the grid of packs. */
   function back(): boolean {
-    if (similarOf() === null && packScope() === null && view() !== "packs") return false;
+    if (
+      similarOf() === null &&
+      packScope() === null &&
+      personalPack() === null &&
+      view() !== "packs"
+    ) {
+      return false;
+    }
     keepFocus(() => {
       if (similarOf() !== null) setSimilarOf(null);
+      else if (personalPack() !== null) setPersonalPackId(null);
       else if (packScope() !== null) closePack();
       else setView("all");
     });
@@ -546,7 +586,7 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   let soundsKeys: ((action: SoundsKeyAction) => void) | null = null;
   let similarKeys: ((action: SoundsKeyAction) => void) | null = null;
   let closeSoundsMenu: (() => boolean) | null = null;
-  // The sounds view's audition, which a personal sound in the rail plays through.
+  // The sounds view's audition, which an opened personal pack's sounds play through.
   let auditionSound: ((asset: LibraryAsset) => void) | null = null;
 
   // Looked up rather than held by `ref`: the dialog reads its header prop more
@@ -686,7 +726,8 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
   });
 
   // An opened pack is where you are, so the place that opened it is not.
-  const isCurrent = (id: LibraryView) => view() === id && packScope() === null;
+  const isCurrent = (id: LibraryView) =>
+    view() === id && packScope() === null && personalPack() === null;
   const place = (): LibraryPlace =>
     similarOf() ? "similar" : showsPacks() ? "packs" : showsSounds() ? "sounds" : "other";
 
@@ -850,10 +891,8 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
             {(userLibrary) => (
               <MyPacks
                 library={userLibrary()}
-                selectedId={selected()?.id ?? null}
-                searching={query().trim() !== ""}
-                onAudition={(asset) => auditionSound?.(asset)}
-                isInUse={props.isInUse}
+                openId={personalPack()?.id ?? null}
+                onOpen={openPersonalPack}
               />
             )}
           </Show>
@@ -908,6 +947,22 @@ export default function LibraryModal(props: LibraryModalProps): JSX.Element {
                 onClose={() => showView("all")}
                 onBanner={bannerRendered}
               />
+            )}
+          </Show>
+          <Show when={props.userLibrary}>
+            {(userLibrary) => (
+              <Show when={showsPersonal() && personalPack()}>
+                {(pack) => (
+                  <MyPackFiles
+                    library={userLibrary()}
+                    pack={pack()}
+                    selectedId={selected()?.id ?? null}
+                    onAudition={(asset) => auditionSound?.(asset)}
+                    isInUse={props.isInUse}
+                    onClose={() => showView("all")}
+                  />
+                )}
+              </Show>
             )}
           </Show>
           <Show when={showsPacks()}>

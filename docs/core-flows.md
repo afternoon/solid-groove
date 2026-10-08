@@ -343,6 +343,11 @@ The spec matches each sound by its whole name: the factory library carries a
 "Dusty Tape Kick", which a search for "tape" lists beside the producer's
 "tape kick".
 
+**Changed by GRV-52.** An opened pack's sounds are listed in the library's main
+region, where every pack's sounds are, rather than under its name in the rail.
+The spec finds them there; the steps and what they assert are unchanged, and step
+5 still drops on the pack's name in the rail.
+
 **Preconditions:** signed in to a registered account whose personal library is
 empty. Importing requires an account: a guest is offered the upgrade path instead,
 which is asserted at the component layer rather than walked here.

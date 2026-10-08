@@ -6,6 +6,7 @@ import {
   waitFor,
   within,
 } from "@solidjs/testing-library";
+import { Show } from "@solidjs/web";
 import { createSignal } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Analytics } from "../analytics/analytics";
@@ -23,6 +24,7 @@ import {
 import type { AudioDecoder } from "../userLibrary/soundAnalysis";
 import type { UserPackAsset } from "../userLibrary/userPacks";
 import { type UserLibraryAccount, useUserLibrary } from "../userLibrary/useUserLibrary";
+import MyPackFiles from "./MyPackFiles";
 import MyPacks from "./MyPacks";
 import type { LibraryAsset } from "./manifest";
 
@@ -61,9 +63,11 @@ function transfer(files: File[]) {
 
 function drop(target: Element, files: File[]): void {
   const dataTransfer = transfer(files);
-  fireEvent.dragEnter(target, { dataTransfer });
-  fireEvent.dragOver(target, { dataTransfer });
-  fireEvent.drop(target, { dataTransfer });
+  fireAndFlush(() => {
+    fireEvent.dragEnter(target, { dataTransfer });
+    fireEvent.dragOver(target, { dataTransfer });
+    fireEvent.drop(target, { dataTransfer });
+  });
 }
 
 function setUp(
@@ -97,13 +101,25 @@ function setUp(
       ids: createSeededIdFactory("my-packs"),
       clock: createManualClock(1_000),
     });
+    // The library window's two halves: the rail's packs, and the open
+    // pack's sounds in the main region (GRV-52).
+    const [openId, setOpenId] = createSignal<string | null>(null);
+    const openPack = () => library.packs().find((pack) => pack.id === openId()) ?? null;
     return (
-      <MyPacks
-        library={library}
-        selectedId={null}
-        searching={false}
-        onAudition={(asset) => auditioned.push(asset)}
-      />
+      <>
+        <MyPacks library={library} openId={openId()} onOpen={setOpenId} />
+        <Show when={openPack()}>
+          {(pack) => (
+            <MyPackFiles
+              library={library}
+              pack={pack()}
+              selectedId={null}
+              onAudition={(asset) => auditioned.push(asset)}
+              onClose={() => setOpenId(null)}
+            />
+          )}
+        </Show>
+      </>
     );
   }
   const rendered = render(() => <Harness />);
@@ -115,6 +131,8 @@ const loaded = () =>
   waitFor(() => expect(screen.getByRole("button", { name: "Add pack" })).toBeEnabled());
 
 const region = () => screen.getByRole("region", { name: "My packs" });
+/** The open pack's sounds, in the main region. */
+const files = () => screen.getByRole("region", { name: "Pack sounds" });
 const packItem = (name: RegExp | string) =>
   screen.getAllByRole("listitem").find((item) =>
     within(item).queryByRole("button", {
@@ -183,15 +201,17 @@ describe("My packs", () => {
     // One row per file, each with its own progress, while they upload.
     await waitFor(() =>
       expect(
-        within(pack).getAllByRole("progressbar", { name: "Upload progress" }),
+        within(files()).getAllByRole("progressbar", { name: "Upload progress" }),
       ).toHaveLength(2),
     );
     await waitFor(() => {
-      expect(within(pack).getAllByRole("button", { name: /^Audition / })).toHaveLength(2);
-      expect(within(pack).queryByRole("progressbar")).toBeNull();
+      expect(within(files()).getAllByRole("button", { name: /^Audition / })).toHaveLength(
+        2,
+      );
+      expect(within(files()).queryByRole("progressbar")).toBeNull();
     });
     expect(
-      within(pack).getByRole("button", { name: "Audition tape kick" }),
+      within(files()).getByRole("button", { name: "Audition tape kick" }),
     ).toBeVisible();
     expect(transport.named("sound_imported")).toHaveLength(2);
     expect(transport.named("sound_imported")[0].params).toMatchObject({
@@ -204,9 +224,118 @@ describe("My packs", () => {
     const pack = await addNamedPack("Field Recordings");
     drop(pack, [audioFile("tape-kick.wav")]);
     fireEvent.click(
-      await within(pack).findByRole("button", { name: "Audition tape kick" }),
+      await within(files()).findByRole("button", { name: "Audition tape kick" }),
     );
     expect(auditioned.map((asset) => asset.name)).toEqual(["tape kick"]);
+  });
+
+  it("lists an opened pack's sounds in the main region, not in the rail (GRV-52)", async () => {
+    setUp();
+    const pack = await addNamedPack("Field Recordings");
+    expect(screen.queryByRole("region", { name: "Pack sounds" })).toBeNull();
+    const name = within(pack).getByRole("button", { name: /Field Recordings/ });
+    expect(name).toHaveAttribute("aria-pressed", "false");
+
+    clickAndFlush(name);
+    expect(name).toHaveAttribute("aria-pressed", "true");
+    expect(
+      within(files()).getByRole("heading", { name: "Field Recordings" }),
+    ).toBeVisible();
+    expect(within(files()).getByText(/Nothing in this pack yet/)).toBeVisible();
+
+    drop(pack, [audioFile("tape-kick.wav")]);
+    expect(
+      await within(files()).findByRole("button", { name: "Audition tape kick" }),
+    ).toBeVisible();
+    // The rail stays a list of packs.
+    expect(within(region()).queryByRole("button", { name: /^Audition / })).toBeNull();
+  });
+
+  it("imports files dropped on the open pack's sounds into that pack", async () => {
+    const { transport, repository } = setUp();
+    const pack = await addNamedPack("Field Recordings");
+    await addNamedPack("Foley");
+    clickAndFlush(within(pack).getByRole("button", { name: /Field Recordings/ }));
+
+    drop(files(), [audioFile("room-tone.wav"), audioFile("door-slam.wav")]);
+
+    await waitFor(() =>
+      expect(within(files()).getAllByRole("button", { name: /^Audition / })).toHaveLength(
+        2,
+      ),
+    );
+    expect(transport.named("sound_imported").map((event) => event.params)).toEqual([
+      expect.objectContaining({ method: "drop" }),
+      expect.objectContaining({ method: "drop" }),
+    ]);
+    // Into the pack on screen: no "My Sounds", and Foley is still empty.
+    expect(screen.queryByRole("button", { name: /My Sounds/ })).toBeNull();
+    const stored = await new Promise<readonly { name: string; assets: unknown[] }[]>(
+      (resolve) => {
+        const stop = repository.watchPacks(
+          "u1",
+          (packs) => {
+            queueMicrotask(stop);
+            resolve(packs as never);
+          },
+          () => undefined,
+        );
+      },
+    );
+    expect(
+      Object.fromEntries(stored.map((entry) => [entry.name, entry.assets.length])),
+    ).toEqual({ "Field Recordings": 2, Foley: 0 });
+  });
+
+  it("refuses a drop on the open pack's sounds with no audio in it", async () => {
+    const { repository } = setUp();
+    const pack = await addNamedPack("Field Recordings");
+    clickAndFlush(within(pack).getByRole("button", { name: /Field Recordings/ }));
+    drop(files(), [audioFile("notes.txt", "text/plain")]);
+    expect(files()).toHaveAttribute("data-drop", "refused");
+    expect(within(files()).getByText("Only audio files can go in a pack.")).toBeVisible();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(repository.objects.size).toBe(0);
+  });
+
+  it("opens the pack dropped on, and My Sounds once a drop beside the packs makes it", async () => {
+    setUp();
+    const pack = await addNamedPack("Field Recordings");
+    drop(pack, [audioFile("tape-kick.wav")]);
+    expect(
+      within(files()).getByRole("heading", { name: "Field Recordings" }),
+    ).toBeVisible();
+
+    drop(region(), [audioFile("door-slam.wav")]);
+    await waitFor(() =>
+      expect(within(files()).getByRole("heading", { name: "My Sounds" })).toBeVisible(),
+    );
+    expect(
+      await within(files()).findByRole("button", { name: "Audition door slam" }),
+    ).toBeVisible();
+  });
+
+  it("adds sounds from the open pack's own Add sounds, reported as the picker", async () => {
+    const { transport } = setUp();
+    const pack = await addNamedPack("Field Recordings");
+    clickAndFlush(within(pack).getByRole("button", { name: /Field Recordings/ }));
+    const input = within(files()).getByLabelText(
+      "Choose sound files",
+    ) as HTMLInputElement;
+    const opened = vi.spyOn(input, "click");
+    clickAndFlush(within(files()).getByRole("button", { name: "Add sounds" }));
+    expect(opened).toHaveBeenCalledTimes(1);
+    Object.defineProperty(input, "files", {
+      configurable: true,
+      value: [audioFile("tape-kick.wav")],
+    });
+    fireAndFlush(() => fireEvent.change(input));
+    expect(
+      await within(files()).findByRole("button", { name: "Audition tape kick" }),
+    ).toBeVisible();
+    expect(transport.named("sound_imported")).toEqual([
+      { name: "sound_imported", params: expect.objectContaining({ method: "picker" }) },
+    ]);
   });
 
   it("makes My Sounds from files dropped beside the packs", async () => {
@@ -247,7 +376,7 @@ describe("My packs", () => {
     const pack = await addNamedPack("Field Recordings");
     drop(pack, [audioFile("notes.txt", "text/plain"), audioFile("tape-kick.wav")]);
     expect(
-      await within(pack).findByText(/Not an audio file we can import/),
+      await within(files()).findByText(/Not an audio file we can import/),
     ).toBeVisible();
     expect(transport.named("sound_import_failed")).toEqual([
       {
@@ -255,11 +384,11 @@ describe("My packs", () => {
         params: expect.objectContaining({ error_code: "unsupported_format" }),
       },
     ]);
-    clickAndFlush(within(pack).getByRole("button", { name: "Dismiss" }));
-    expect(within(pack).queryByText(/Not an audio file/)).toBeNull();
+    clickAndFlush(within(files()).getByRole("button", { name: "Dismiss" }));
+    expect(within(files()).queryByText(/Not an audio file/)).toBeNull();
     // The audio in the same drop still lands.
     expect(
-      await within(pack).findByRole("button", { name: "Audition tape kick" }),
+      await within(files()).findByRole("button", { name: "Audition tape kick" }),
     ).toBeVisible();
   });
 
@@ -270,8 +399,10 @@ describe("My packs", () => {
     expect(pack).toHaveAttribute("data-drop", "refused");
     expect(within(pack).getByText("Only audio files can go in a pack.")).toBeVisible();
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(within(pack).queryByRole("progressbar")).toBeNull();
-    expect(within(pack).queryByText(/Not an audio file/)).toBeNull();
+    // A refused drop does not open the pack either.
+    expect(screen.queryByRole("region", { name: "Pack sounds" })).toBeNull();
+    expect(screen.queryByRole("progressbar")).toBeNull();
+    expect(screen.queryByText(/Not an audio file/)).toBeNull();
     expect(transport.named("sound_import_failed")).toEqual([]);
     expect(repository.objects.size).toBe(0);
   });
@@ -288,10 +419,10 @@ describe("My packs", () => {
       configurable: true,
       value: [audioFile("tape-kick.wav")],
     });
-    fireEvent.change(input);
+    fireAndFlush(() => fireEvent.change(input));
 
     expect(
-      await within(pack).findByRole("button", { name: "Audition tape kick" }),
+      await within(files()).findByRole("button", { name: "Audition tape kick" }),
     ).toBeVisible();
     expect(transport.named("sound_imported")).toEqual([
       {
@@ -334,7 +465,7 @@ describe("My packs", () => {
     const { transport, setAccount } = setUp({ repository });
     const pack = await addNamedPack("Field Recordings");
     drop(pack, [audioFile("tape-kick.wav")]);
-    await within(pack).findByRole("button", { name: "Cancel upload" });
+    await within(files()).findByRole("button", { name: "Cancel upload" });
 
     fireAndFlush(() => setAccount({ uid: "u2", registered: true }));
     await waitFor(() => expect(screen.queryByRole("progressbar")).toBeNull());
@@ -348,7 +479,7 @@ describe("My packs", () => {
     const { transport, unmount } = setUp({ repository });
     const pack = await addNamedPack("Field Recordings");
     drop(pack, [audioFile("tape-kick.wav")]);
-    await within(pack).findByRole("button", { name: "Cancel upload" });
+    await within(files()).findByRole("button", { name: "Cancel upload" });
     unmount();
     await new Promise((resolve) => setTimeout(resolve, 0));
     expect(repository.objects.size).toBe(0);
@@ -360,10 +491,12 @@ describe("My packs", () => {
     const { transport } = setUp({ repository });
     const pack = await addNamedPack("Field Recordings");
     drop(pack, [audioFile("tape-kick.wav")]);
-    fireEvent.click(await within(pack).findByRole("button", { name: "Cancel upload" }));
-    expect(await within(pack).findByText("Cancelled.")).toBeVisible();
+    fireEvent.click(
+      await within(files()).findByRole("button", { name: "Cancel upload" }),
+    );
+    expect(await within(files()).findByText("Cancelled.")).toBeVisible();
     expect(repository.objects.size).toBe(0);
-    expect(within(pack).queryByRole("button", { name: /^Audition / })).toBeNull();
+    expect(within(files()).queryByRole("button", { name: /^Audition / })).toBeNull();
     expect(transport.named("sound_import_failed")).toEqual([]);
   });
 
@@ -376,7 +509,7 @@ describe("My packs", () => {
 
     drop(pack, [audioFile("tape-kick.wav", "audio/wav", 64)]);
 
-    expect(await within(pack).findByText(/Your library is full/)).toBeVisible();
+    expect(await within(files()).findByText(/Your library is full/)).toBeVisible();
     expect(repository.objects.size).toBe(0);
     expect(transport.named("sound_import_failed")[0].params).toMatchObject({
       error_code: "quota_exceeded",
@@ -387,13 +520,13 @@ describe("My packs", () => {
     setUp();
     const pack = await addNamedPack("Field Recordings");
     drop(pack, [audioFile("tape-kick.wav")]);
-    await within(pack).findByRole("button", { name: "Audition tape kick" });
+    await within(files()).findByRole("button", { name: "Audition tape kick" });
 
-    clickAndFlush(within(pack).getByRole("button", { name: "Delete sound" }));
-    expect(within(pack).getByRole("alert")).toHaveTextContent(/report it missing/);
-    clickAndFlush(within(pack).getByRole("button", { name: "Delete" }));
+    clickAndFlush(within(files()).getByRole("button", { name: "Delete sound" }));
+    expect(within(files()).getByRole("alert")).toHaveTextContent(/report it missing/);
+    clickAndFlush(within(files()).getByRole("button", { name: "Delete" }));
     await waitFor(() =>
-      expect(within(pack).queryByRole("button", { name: /^Audition / })).toBeNull(),
+      expect(within(files()).queryByRole("button", { name: /^Audition / })).toBeNull(),
     );
   });
 
@@ -401,18 +534,18 @@ describe("My packs", () => {
     const { repository } = setUp();
     const pack = await addNamedPack("Field Recordings");
     drop(pack, [audioFile("tape-kick.wav")]);
-    await within(pack).findByRole("button", { name: "Audition tape kick" });
+    await within(files()).findByRole("button", { name: "Audition tape kick" });
 
-    fireEvent.click(within(pack).getByRole("button", { name: "Rename sound" }));
-    const input = await within(pack).findByRole("textbox", { name: "Sound name" });
+    fireEvent.click(within(files()).getByRole("button", { name: "Rename sound" }));
+    const input = await within(files()).findByRole("textbox", { name: "Sound name" });
     expect(input).toHaveValue("tape kick");
     fireEvent.input(input, { target: { value: "Tape Kick, dusty" } });
     fireEvent.submit(input.closest("form") as HTMLFormElement);
 
     expect(
-      await within(pack).findByRole("button", { name: "Audition Tape Kick, dusty" }),
+      await within(files()).findByRole("button", { name: "Audition Tape Kick, dusty" }),
     ).toBeVisible();
-    expect(within(pack).queryByRole("textbox", { name: "Sound name" })).toBeNull();
+    expect(within(files()).queryByRole("textbox", { name: "Sound name" })).toBeNull();
     const [stored] = await new Promise<readonly { version: string }[]>((resolve) => {
       const stop = repository.watchPacks(
         "u1",
@@ -430,13 +563,13 @@ describe("My packs", () => {
     setUp();
     const pack = await addNamedPack("Field Recordings");
     drop(pack, [audioFile("tape-kick.wav")]);
-    await within(pack).findByRole("button", { name: "Audition tape kick" });
-    fireEvent.click(within(pack).getByRole("button", { name: "Rename sound" }));
-    const input = await within(pack).findByRole("textbox", { name: "Sound name" });
+    await within(files()).findByRole("button", { name: "Audition tape kick" });
+    fireEvent.click(within(files()).getByRole("button", { name: "Rename sound" }));
+    const input = await within(files()).findByRole("textbox", { name: "Sound name" });
     fireEvent.input(input, { target: { value: "Something else" } });
     fireAndFlush(() => fireEvent.blur(input));
     expect(
-      await within(pack).findByRole("button", { name: "Audition tape kick" }),
+      await within(files()).findByRole("button", { name: "Audition tape kick" }),
     ).toBeVisible();
   });
 
@@ -480,11 +613,11 @@ describe("My packs", () => {
     const pack = await addNamedPack("Field Recordings");
 
     drop(pack, [audioFile("tape-kick.wav", "audio/wav", 64)]);
-    await within(pack).findByRole("button", { name: "Audition tape kick" });
+    await within(files()).findByRole("button", { name: "Audition tape kick" });
 
     // The total still says 100 bytes free, but 64 of them are taken.
     drop(pack, [audioFile("door-slam.wav", "audio/wav", 64)]);
-    expect(await within(pack).findByText(/Your library is full/)).toBeVisible();
+    expect(await within(files()).findByText(/Your library is full/)).toBeVisible();
     expect(repository.objects.size).toBe(1);
     expect(transport.named("sound_import_failed")[0].params).toMatchObject({
       error_code: "quota_exceeded",
@@ -493,7 +626,7 @@ describe("My packs", () => {
     // Once the total counts it, the 36 bytes left are free to use.
     fireAndFlush(() => count(64));
     drop(pack, [audioFile("room-tone.wav", "audio/wav", 30)]);
-    await within(pack).findByRole("button", { name: "Audition room tone" });
+    await within(files()).findByRole("button", { name: "Audition room tone" });
     expect(repository.objects.size).toBe(2);
   });
 
@@ -535,7 +668,7 @@ describe("My packs", () => {
 
     // Room for one more: of two files dropped together, the second is refused.
     drop(pack, [audioFile("tape-kick.wav"), audioFile("door-slam.wav")]);
-    expect(await within(pack).findByText(/This pack is full/)).toBeVisible();
+    expect(await within(files()).findByText(/This pack is full/)).toBeVisible();
     await waitFor(() => expect(transport.named("sound_imported")).toHaveLength(1));
     expect(repository.objects.size).toBe(1);
     expect(transport.named("sound_import_failed")[0].params).toMatchObject({
