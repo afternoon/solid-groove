@@ -1,9 +1,18 @@
 import { describe, expect, it } from "vitest";
+import {
+  createCommandHistory,
+  type RawCommandInput,
+  setParameter,
+  setTrackFlag,
+} from "../commands";
 import { createReferenceProject } from "../domain/fixtures";
+import { TRACK_VOLUME } from "../domain/parameters";
+import { historyProposalTarget } from "../testing/historyProposalTarget";
 import {
   type CallScript,
   createScriptedAssistantProvider,
   replyEvents,
+  toolUseEvents,
 } from "../testing/scriptedAssistantProvider";
 import {
   ASSISTANT_CALL_LIMITS,
@@ -22,6 +31,8 @@ import {
 } from "./inMemoryGuardStores";
 import { buildAssistantPayload } from "./payload";
 import { ASSISTANT_PROMPT_VERSION } from "./prompt";
+import { validateProposal } from "./proposal";
+import { createProposalExecutor } from "./proposalExecutor";
 import {
   type AssistantErrorCode,
   AssistantGatewayError,
@@ -29,6 +40,13 @@ import {
   type AssistantTurnRequest,
 } from "./protocol";
 import { type AssistantTurnLog, TURN_LOG_KEYS } from "./telemetry";
+import { ASSISTANT_TOOLSET_VERSION, assistantTools, toolNameFor } from "./tools";
+
+function call(command: RawCommandInput) {
+  return { name: toolNameFor(command.type), input: command.payload };
+}
+
+const REFERENCE_REVISION = createReferenceProject().metadata.revision;
 
 const SIGNED_IN: AssistantCaller = {
   uid: "uid-secret-1234",
@@ -37,6 +55,7 @@ const SIGNED_IN: AssistantCaller = {
 
 function request(overrides: Partial<AssistantTurnRequest> = {}): AssistantTurnRequest {
   return {
+    projectRevision: REFERENCE_REVISION,
     messages: [{ role: "user", text: "Make the bass hit harder" }],
     context: buildAssistantPayload(createReferenceProject()),
     ...overrides,
@@ -121,6 +140,7 @@ describe("runAssistantTurn: a completed turn", () => {
     expect(result).toEqual({
       text: "Push the kick up 2 dB.",
       stopReason: "end_turn",
+      proposal: null,
       model: ASSISTANT_MODELS["claude-sonnet-5"].id,
       promptVersion: ASSISTANT_PROMPT_VERSION,
       requestsRemaining: 99,
@@ -147,6 +167,157 @@ describe("runAssistantTurn: a completed turn", () => {
     expect(sent.metadata.user_id).toBe(await pseudonymousUserId(SIGNED_IN.uid as string));
     expect(JSON.stringify(sent)).not.toContain(SIGNED_IN.uid);
   });
+});
+
+describe("runAssistantTurn: tools and proposals (GRV-4)", () => {
+  const project = createReferenceProject();
+  const [track] = project.song.tracks;
+  const muteCall = call(setTrackFlag(track.id, "muted", !track.mixer.muted));
+  const volumeCall = call(
+    setParameter({ scope: "track", trackId: track.id, parameterId: TRACK_VOLUME.id }, -9),
+  );
+
+  it("offers the model every assistant tool on every turn", async () => {
+    const h = harness([replyEvents(["ok"])]);
+    await run(h);
+    const sent = h.provider.requests[0];
+    expect(sent.tools.map((tool) => tool.name)).toEqual(
+      assistantTools().map((tool) => tool.name),
+    );
+    for (const tool of sent.tools) expect(tool.input_schema.type).toBe("object");
+  });
+
+  it("returns the tool calls as a proposal at the request's revision", async () => {
+    const h = harness([
+      toolUseEvents("Muting it and pulling it down.", [muteCall, volumeCall]),
+    ]);
+    const result = await run(h);
+    expect(result.stopReason).toBe("tool_use");
+    expect(result.text).toBe("Muting it and pulling it down.");
+    expect(result.proposal).toEqual({
+      baseRevision: REFERENCE_REVISION,
+      toolsetVersion: ASSISTANT_TOOLSET_VERSION,
+      calls: [
+        { id: "toolu_1", ...muteCall },
+        { id: "toolu_2", ...volumeCall },
+      ],
+    });
+    expect(h.logs[0]).toMatchObject({ outcome: "completed", stopReason: "tool_use" });
+    // The log carries none of the calls.
+    expect(JSON.stringify(h.logs)).not.toContain(track.id);
+  });
+
+  it("hands back a proposal the executor validates and applies to the open project", async () => {
+    const h = harness([toolUseEvents("Muting it.", [muteCall, volumeCall])]);
+    const result = await run(h);
+    const history = createCommandHistory(project);
+    const executor = createProposalExecutor({
+      target: historyProposalTarget(history),
+      analytics: { log() {} },
+    });
+    const proposed = executor.propose(result.proposal);
+    if (!proposed.ok) throw new Error(JSON.stringify(proposed.issues));
+    expect(proposed.handle.apply().ok).toBe(true);
+    expect(history.project.song.tracks[0].mixer.volume).toBe(-9);
+    expect(history.entries).toHaveLength(1);
+  });
+
+  it("returns a proposal the browser refuses once the project has moved on", async () => {
+    const h = harness([toolUseEvents("Muting it.", [muteCall])]);
+    const result = await run(h, request({ projectRevision: REFERENCE_REVISION + 1 }));
+    expect(result.proposal?.baseRevision).toBe(REFERENCE_REVISION + 1);
+    const validation = validateProposal(project, result.proposal);
+    expect(validation.ok ? null : validation.issues[0].code).toBe("stale_revision");
+  });
+
+  it("returns a tool call with no input as an empty object", async () => {
+    const events = toolUseEvents("Clearing it.", [{ name: "notes_clear", input: {} }]);
+    const h = harness([
+      events.map((step) =>
+        "event" in step &&
+        (step.event as { delta?: { type?: string } }).delta?.type === "input_json_delta"
+          ? {
+              event: {
+                ...(step.event as object),
+                delta: { type: "input_json_delta", partial_json: "" },
+              },
+            }
+          : step,
+      ),
+    ]);
+    const result = await run(h);
+    expect(result.proposal?.calls).toEqual([
+      { id: "toolu_1", name: "notes_clear", input: {} },
+    ]);
+  });
+
+  it("drops the tool calls of a turn cut off before it finished", async () => {
+    const events = toolUseEvents("Muting it.", [muteCall]);
+    const h = harness([
+      events.map((step) =>
+        "event" in step && (step.event as { type: string }).type === "message_delta"
+          ? {
+              event: {
+                type: "message_delta",
+                delta: { stop_reason: "max_tokens" },
+                usage: { output_tokens: 20 },
+              },
+            }
+          : step,
+      ),
+    ]);
+    const result = await run(h);
+    expect(result.stopReason).toBe("max_tokens");
+    expect(result.proposal).toBeNull();
+  });
+
+  it.each([
+    [
+      "input that is not JSON",
+      (steps: CallScript) =>
+        steps.map((step) =>
+          "event" in step &&
+          (step.event as { delta?: { type?: string } }).delta?.type === "input_json_delta"
+            ? {
+                event: {
+                  ...(step.event as object),
+                  delta: { type: "input_json_delta", partial_json: "{nope" },
+                },
+              }
+            : step,
+        ),
+    ],
+    [
+      "input that is not an object",
+      () => toolUseEvents("Clearing it.", [{ name: "notes_clear", input: [1, 2] }]),
+    ],
+    [
+      "a tool_use stop with no tool call",
+      () => replyEvents(["Muting it."], { stopReason: "tool_use" }),
+    ],
+    [
+      "a text delta inside a tool call",
+      (steps: CallScript) =>
+        steps.map((step) =>
+          "event" in step &&
+          (step.event as { delta?: { type?: string } }).delta?.type === "input_json_delta"
+            ? {
+                event: {
+                  ...(step.event as object),
+                  delta: { type: "text_delta", text: "hi" },
+                },
+              }
+            : step,
+        ),
+    ],
+  ] satisfies [string, (steps: CallScript) => CallScript][])(
+    "fails as malformed on %s",
+    async (_label, mangle) => {
+      const h = harness([mangle(toolUseEvents("Muting it.", [muteCall]))]);
+      await expectCode(run(h), "malformed_response");
+      expect(h.logs[0].failures[0]).toBe("malformed");
+    },
+  );
 });
 
 describe("runAssistantTurn: auth", () => {
@@ -293,7 +464,7 @@ describe("runAssistantTurn: malformed stream", () => {
       RETRIED,
     ],
     [
-      "a block type a text turn never has",
+      "a tool call with no ID or name",
       [
         start,
         {
@@ -316,8 +487,8 @@ describe("runAssistantTurn: malformed stream", () => {
     expect(h.logs[0].failures).toEqual(Array(calls).fill("malformed"));
   });
 
-  it.each(["tool_use", "pause_turn", "a_reason_from_the_future"])(
-    "does not retry a reply that stops for %s, which a text turn never has",
+  it.each(["pause_turn", "a_reason_from_the_future"])(
+    "does not retry a reply that stops for %s, which a turn never has",
     async (stopReason) => {
       // No text has streamed, so only the stop reason keeps this from a retry.
       const h = harness([replyEvents([], { stopReason }), replyEvents(["unused"])]);

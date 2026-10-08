@@ -11,8 +11,14 @@
  * The body is plain data in the Messages API's wire shape. The Cloud Function
  * hands it to the provider's SDK as it is, and the typecheck there holds this
  * shape to the SDK's own parameter type.
+ *
+ * Every turn offers the model the assistant's tool set (GRV-4, `tools.ts`),
+ * so it can answer a request to change the song with a proposal. The tool
+ * set's version is not on the wire (the Messages API has nowhere to put it);
+ * the gateway stamps it on the proposal it returns instead.
  */
 import type { AssistantModelProfile } from "./config";
+import type { AssistantToolDefinition } from "./tools";
 
 export interface ProviderTextBlock {
   readonly type: "text";
@@ -22,6 +28,19 @@ export interface ProviderTextBlock {
 export interface ProviderMessage {
   readonly role: "user" | "assistant";
   readonly content: string;
+}
+
+/** A tool's input schema: a JSON Schema object, as the API requires. */
+export interface ProviderToolInputSchema {
+  readonly type: "object";
+  readonly [keyword: string]: unknown;
+}
+
+/** One tool, in the Messages API's wire shape. */
+export interface ProviderTool {
+  readonly name: string;
+  readonly description: string;
+  readonly input_schema: ProviderToolInputSchema;
 }
 
 export type ProviderThinking =
@@ -34,6 +53,11 @@ export interface ProviderMessagesRequest {
   readonly stream: true;
   readonly system: readonly ProviderTextBlock[];
   readonly messages: readonly ProviderMessage[];
+  /**
+   * Mutable only because the SDK's parameter type is: the Cloud Function
+   * spreads this body into it as it is.
+   */
+  readonly tools: ProviderTool[];
   readonly thinking: ProviderThinking;
   readonly output_config?: { readonly effort: "low" | "medium" | "high" };
   /** A pseudonymous ID for the account, for the provider's abuse detection. */
@@ -43,7 +67,22 @@ export interface ProviderMessagesRequest {
 export interface ProviderRequestParts {
   readonly system: readonly ProviderTextBlock[];
   readonly messages: readonly ProviderMessage[];
+  readonly tools: readonly ProviderTool[];
   readonly pseudonymousUserId: string;
+}
+
+/** The assistant's tools in the wire shape, in the order they are offered. */
+export function providerTools(tools: readonly AssistantToolDefinition[]): ProviderTool[] {
+  return tools.map((tool) => {
+    if (tool.inputSchema.type !== "object") {
+      throw new TypeError(`Tool "${tool.name}" does not take an object`);
+    }
+    return {
+      name: tool.name,
+      description: tool.description,
+      input_schema: tool.inputSchema as ProviderToolInputSchema,
+    };
+  });
 }
 
 /** The request body for one provider call to `model`. */
@@ -57,6 +96,7 @@ export function buildProviderRequest(
     stream: true as const,
     system: parts.system,
     messages: parts.messages,
+    tools: [...parts.tools],
     metadata: { user_id: parts.pseudonymousUserId },
   };
   switch (model.thinking.kind) {

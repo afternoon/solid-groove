@@ -32,8 +32,8 @@ export interface AssistantProvider {
  * - `rejected`: the provider refused the request itself (a 4xx other than
  *   429), including a bad or missing API key. Never retried.
  * - `unsupported_stop`: a well-formed stream that ended for a reason a
- *   text-only turn never has (`tool_use`, `pause_turn`, a reason newer than
- *   this code). Asking again asks the same model the same thing, so it is
+ *   turn never has (`pause_turn`, a reason newer than this code). `tool_use`
+ *   is not one: it ends a turn that proposes changes (GRV-4). Asking again asks the same model the same thing, so it is
  *   never retried and never spends another call's quota.
  */
 export type ProviderFailureKind =
