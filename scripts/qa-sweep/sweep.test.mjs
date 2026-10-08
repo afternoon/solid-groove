@@ -209,6 +209,14 @@ describe("validateFinding", () => {
     expect(validateFinding(noSeverity).finding).toMatchObject({ severity: "medium" });
   });
 
+  it("defaults the risk to normal and rejects an unknown one", () => {
+    expect(validateFinding(valid).finding.risk).toBe("normal");
+    expect(validateFinding({ ...valid, risk: "low" }).finding.risk).toBe("low");
+    expect(validateFinding({ ...valid, risk: "none" }).problems).toContain(
+      "risk is not one of low, normal",
+    );
+  });
+
   it("requires the title to start with Bug:", () => {
     expect(validateFinding({ ...valid, title: "Tempo broken" }).problems).toContain(
       'title does not start with "Bug: "',
@@ -534,6 +542,48 @@ describe("agent text is pasted in safely", () => {
 
 describe("fileFindings", () => {
   const ctx = { runUrl: "r", build: "b", siteUrl: "s", flows: [] };
+
+  it("files a low-risk bug straight into Ready and anything else into Backlog", async () => {
+    const plan = {
+      file: [
+        { ...finding({ title: "Bug: Typo", risk: "low" }), alsoSeenIn: [] },
+        { ...finding({ title: "Bug: Lost save", risk: "normal" }), alsoSeenIn: [] },
+        { ...finding({ title: "Bug: Unrated" }), alsoSeenIn: [] },
+      ],
+      reseen: [],
+      overCap: [],
+    };
+    const created = [];
+    const write = {
+      create: ({ title, ready, body }) => {
+        created.push({
+          title,
+          ready,
+          ready_in_body: body.includes("straight into Ready"),
+        });
+        return { id: `GRV-${created.length}` };
+      },
+      comment: () => {},
+    };
+    await fileFindings({ plan, ctx, write, log: () => {} });
+    expect(created).toEqual([
+      { title: "Bug: Typo", ready: true, ready_in_body: true },
+      { title: "Bug: Lost save", ready: false, ready_in_body: false },
+      { title: "Bug: Unrated", ready: false, ready_in_body: false },
+    ]);
+  });
+
+  it("files a bug two agents rate differently with the cautious risk", () => {
+    const plan = planFiling({
+      findings: [
+        finding({ flow: "CF-001", risk: "low" }),
+        finding({ flow: "CF-002", risk: "normal" }),
+      ],
+      openIssues: [],
+      maxIssues: 5,
+    });
+    expect(plan.file.map((f) => f.risk)).toEqual(["normal"]);
+  });
   const planOf = () => ({
     file: [
       { ...finding({ title: "Bug: One" }), alsoSeenIn: [] },

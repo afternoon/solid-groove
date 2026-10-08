@@ -166,8 +166,15 @@ async function main() {
       SCREENSHOT_DIR,
     );
     const write = {
-      create: async ({ title, body }) => ({
-        id: (await linear.create({ title, body, labels: ["bug"] })).identifier,
+      create: async ({ title, body, ready }) => ({
+        id: (
+          await linear.create({
+            title,
+            body,
+            labels: ["bug"],
+            state: ready ? "Ready" : "Backlog",
+          })
+        ).identifier,
       }),
       comment: (id, body) => linear.comment(id, body),
     };

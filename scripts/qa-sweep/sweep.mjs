@@ -51,6 +51,8 @@ const MAX_STEPS = 30;
 export const MAX_BODY = 60000;
 
 const SEVERITIES = ["high", "medium", "low"];
+/** How risky the fix looks. A `low` one is filed straight into Ready, so the board builds it. */
+const RISKS = ["low", "normal"];
 
 /**
  * Agent-written text with every `@mention` broken by a zero-width space. It is
@@ -204,6 +206,10 @@ export function validateFinding(raw) {
   if (!SEVERITIES.includes(severity))
     problems.push(`severity is not one of ${SEVERITIES.join(", ")}`);
 
+  // Anything not plainly low risk waits in Backlog for the product owner.
+  const risk = raw.risk ?? "normal";
+  if (!RISKS.includes(risk)) problems.push(`risk is not one of ${RISKS.join(", ")}`);
+
   const screenshot = raw.screenshot ?? null;
   if (screenshot !== null && !isSafeScreenshotPath(screenshot))
     problems.push("screenshot is not a .png path inside the output directory");
@@ -215,7 +221,7 @@ export function validateFinding(raw) {
 
   if (problems.length > 0) return { problems };
   return {
-    finding: { title, symptom, expected, steps, severity, screenshot, duplicateOf },
+    finding: { title, symptom, expected, steps, severity, risk, screenshot, duplicateOf },
   };
 }
 
@@ -321,6 +327,8 @@ export function planFiling({ findings, openIssues, maxIssues }) {
     if (twin) {
       if (!twin.alsoSeenIn.includes(finding.flow) && twin.flow !== finding.flow)
         twin.alsoSeenIn.push(finding.flow);
+      // Two agents disagree on the risk: the cautious one wins.
+      if (finding.risk !== "low") twin.risk = finding.risk ?? "normal";
       continue;
     }
     const entry = { ...finding, alsoSeenIn: [] };
@@ -365,7 +373,7 @@ export function issueBody(finding, ctx) {
     "",
     `**Environment:** ${environmentLine(ctx)}`,
     "",
-    `**Found by:** the scheduled QA sweep ([run](${ctx.runUrl})) while walking ${seenIn}. Severity as the agent judged it: ${finding.severity}.`,
+    `**Found by:** the scheduled QA sweep ([run](${ctx.runUrl})) while walking ${seenIn}. Severity as the agent judged it: ${finding.severity}; risk of the fix: ${finding.risk ?? "normal"}${finding.risk === "low" ? ", so it was filed straight into Ready" : ""}.`,
     "",
   ];
   if (finding.screenshotUrl)
@@ -462,7 +470,7 @@ export function summaryBody({
     ...list(
       filed,
       (f) =>
-        `- ${f.id ? f.id : f.title} (${f.flow})${f.failed ? " **not filed: the write failed**" : ""}`,
+        `- ${f.id ? f.id : f.title} (${f.flow})${f.risk === "low" && !f.failed ? ", low risk: in Ready" : ""}${f.failed ? " **not filed: the write failed**" : ""}`,
     ),
     "",
     `### Issues re-seen (${reseen.length})`,
@@ -528,7 +536,9 @@ export async function fileFindings({
       continue;
     }
     const ok = await attempt(`filing "${finding.title}"`, async () => {
-      finding.id = (await write.create({ title: finding.title, body })).id;
+      finding.id = (
+        await write.create({ title: finding.title, body, ready: finding.risk === "low" })
+      ).id;
     });
     if (ok) log(`Filed ${finding.id}: ${finding.title}`);
     else finding.failed = true;
