@@ -88,8 +88,13 @@ what picks up the new key. Then disable the old key in the Anthropic console.
 
 ## Running it locally
 
-The emulator loads `assistantTurn` without a key; a call that reaches the
-provider then fails as `provider_error`. To try it against the real provider,
-put `ANTHROPIC_API_KEY=<key>` in `functions/.secret.local` (gitignored by
+The emulator loads `assistantTurn` without a key, and with no key it answers
+from a scripted provider (`src/assistant/emulatorProvider.ts`): a short reply
+streamed in pieces, or, by a marker in your message, a reply that hangs until
+you press Stop (`[hang]`), one that fails once and then works (`[flaky]`), or
+one that ends in a proposal (`[propose]`). The browser suite drives the real
+gateway that way. To try it against the real provider, put
+`ANTHROPIC_API_KEY=<key>` in `functions/.secret.local` (gitignored by
 `*.local`) and restart the emulators. The automated suites never use a key:
-they script the provider (`src/testing/scriptedAssistantProvider.ts`).
+the unit suites script the provider (`src/testing/scriptedAssistantProvider.ts`)
+and the browser suite uses the emulator's.

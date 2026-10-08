@@ -61,6 +61,11 @@ import {
   ASSISTANT_API_KEY_SECRET,
   ASSISTANT_CALL_LIMITS,
 } from "../../src/assistant/config";
+import {
+  createEmulatorAssistantProvider,
+  usesEmulatorProvider,
+} from "../../src/assistant/emulatorProvider";
+import type { AssistantProvider } from "../../src/assistant/provider";
 import { CLOUD_FUNCTIONS_REGION } from "../../src/shared/cloudFunctions";
 import type { VersionedPack } from "../../src/userData/packVersions";
 import { withdrawRefusedSound } from "../../src/userData/refusedSound";
@@ -312,6 +317,22 @@ export const revokeAccess = onCall(
 /** The provider's API key, readable by `assistantTurn` and nothing else. */
 const anthropicApiKey = defineSecret(ASSISTANT_API_KEY_SECRET);
 
+/** One for the life of the emulator, so `[flaky]` remembers its first failure. */
+let emulatorProvider: AssistantProvider | null = null;
+
+/**
+ * The real provider, or, in the emulator with no key, the scripted one the
+ * browser suite drives (`src/assistant/emulatorProvider.ts`, GRV-26).
+ */
+function assistantProvider(): AssistantProvider {
+  const apiKey = anthropicApiKey.value() ?? "";
+  if (usesEmulatorProvider(process.env, apiKey)) {
+    emulatorProvider ??= createEmulatorAssistantProvider();
+    return emulatorProvider;
+  }
+  return createAnthropicProvider({ apiKey });
+}
+
 /**
  * The assistant's gateway (#69, ADR 0006): one authenticated turn, its reply
  * streamed back as it is written. A callable, so Firebase verifies the
@@ -326,7 +347,7 @@ export const assistantTurn = onCall(
     timeoutSeconds: ASSISTANT_CALL_LIMITS.functionTimeoutSeconds,
   },
   createAssistantHandler(() => ({
-    provider: createAnthropicProvider({ apiKey: anthropicApiKey.value() }),
+    provider: assistantProvider(),
     guards: firestoreGuardStores(getFirestore()),
   })),
 );
