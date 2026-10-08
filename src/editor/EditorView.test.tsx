@@ -48,7 +48,10 @@ import { systemClock } from "../shared/clock";
 import { detectPlatform, shortcutLabel } from "../shortcuts";
 import { buildArrangementProject } from "../testing/arrangementProject";
 import { clickAndFlush, fireAndFlush } from "../testing/events";
-import { createFakeAssistantClient } from "../testing/fakeAssistantClient";
+import {
+  createFakeAssistantClient,
+  type FakeAssistantClient,
+} from "../testing/fakeAssistantClient";
 import { memoryStorage } from "../testing/storage";
 import { packAudioPath } from "../userData/userData";
 import { createInMemoryUserLibraryRepository } from "../userLibrary/inMemoryUserLibraryRepository";
@@ -3706,6 +3709,119 @@ describe("EditorView assistant panel", () => {
     press("Escape");
     expect(panel()).toHaveAttribute("data-mode", "minimised");
     expect(within(panel() as HTMLElement).getByText("Writing…")).toBeInTheDocument();
+  });
+
+  /** The editor over `project`, signed in, talking to a fake assistant. */
+  async function renderTalking(project: Project) {
+    const client = createFakeAssistantClient();
+    const transport = createRecordingTransport();
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    renderEditor(project.metadata.id, {
+      analytics: recordingAnalytics(transport),
+      account: { uid: "u1", registered: true },
+      assistantClient: async () => client,
+    });
+    await screen.findByTestId("arrangement-view-ready");
+    return { client, transport };
+  }
+
+  /** Opens the panel over what is selected, and sends `text` from it. */
+  async function openAndSend(client: FakeAssistantClient, text: string) {
+    if (!panel()) press("k", assistantChord());
+    const composer = within(panel() as HTMLElement).getByRole("textbox", {
+      name: "Message the assistant",
+    });
+    composer.focus();
+    fireAndFlush(() => fireEvent.input(composer, { target: { value: text } }));
+    press("Enter");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    return client.last().request;
+  }
+
+  const scopeChip = () =>
+    within(screen.getByRole("region", { name: "Assistant" })).getByRole("button", {
+      name: /^Scope:/,
+    });
+
+  /** A click on BD's row (the first) at bar 1 of the arrangement. */
+  async function clickBdClip(): Promise<void> {
+    const canvas = document.querySelector(".arrangement-layer-interactive");
+    if (!canvas) throw new Error("no arrangement interaction canvas rendered");
+    for (const type of ["pointerdown", "pointerup"]) {
+      const event = new MouseEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        button: 0,
+        clientX: 0.5 * 768 * INITIAL_PIXELS_PER_TICK,
+        clientY: 22 + ROW_METRICS.trackHeightPx / 2,
+      });
+      Object.defineProperty(event, "pointerId", { value: 1 });
+      fireAndFlush(() => fireEvent(canvas, event));
+    }
+    await waitFor(() =>
+      expect(screen.getByTestId("arrangement-selection-live")).toHaveTextContent(
+        "Selected clip on BD, bar 1",
+      ),
+    );
+  }
+
+  it("scopes to the clips selected in the arrangement, as a section (GRV-26)", async () => {
+    const { client, transport } = await renderTalking(createSliceFixtureProject());
+    await clickBdClip();
+    press("k", assistantChord());
+    expect(scopeChip()).toHaveAccessibleName("Scope: 1 clip");
+    const request = await openAndSend(client, "Vary this");
+    expect(request.context.selection?.countByKind).toEqual({ placement: 1 });
+    expect(transport.named("assistant_message_sent").at(-1)?.params).toMatchObject({
+      scope: "section",
+    });
+  });
+
+  it("falls back to the track on a view that does not show the selection (GRV-26)", async () => {
+    const { client, transport } = await renderTalking(createSliceFixtureProject());
+    await clickBdClip();
+    await goToView("Mixer");
+    press("k", assistantChord());
+    expect(scopeChip()).toHaveAccessibleName("Scope: BD");
+    const request = await openAndSend(client, "Mix it");
+    expect(request.context.selection?.countByKind).toEqual({ track: 1 });
+    expect(transport.named("assistant_message_sent").at(-1)?.params).toMatchObject({
+      scope: "track",
+    });
+  });
+
+  it("scopes to the notes selected in the piano roll (GRV-26)", async () => {
+    const { client, transport } = await renderTalking(createPianoRollFixtureProject());
+    const editor = await openSequenceEditor();
+    within(editor).getByRole("region", { name: /Piano roll/ });
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "a", ctrlKey: true }));
+    expect(within(editor).getByText("4 selected")).toBeInTheDocument();
+    press("k", assistantChord());
+    expect(scopeChip()).toHaveAccessibleName("Scope: 4 notes");
+    const request = await openAndSend(client, "Humanise these");
+    expect(request.context.selectedNotes?.noteCount).toBe(4);
+    expect(request.context.selection?.countByKind).toEqual({ event: 4 });
+    expect(transport.named("assistant_message_sent").at(-1)?.params).toMatchObject({
+      scope: "clip",
+    });
+  });
+
+  it("scopes to the notes selected in the step editor (GRV-26)", async () => {
+    const project = createStepGridProject();
+    const notes =
+      project.clips[0]?.content.kind === "notes" ? project.clips[0].content.events : [];
+    const { client } = await renderTalking(project);
+    const editor = await openSequenceEditor();
+    within(editor).getByRole("region", { name: "Step editor" });
+    fireAndFlush(() => fireEvent.keyDown(window, { key: "a", ctrlKey: true }));
+    press("k", assistantChord());
+    expect(scopeChip()).toHaveAccessibleName(`Scope: ${notes.length} notes`);
+    const request = await openAndSend(client, "Swing these");
+    expect(notes.length).toBeGreaterThan(0);
+    expect(request.context.selectedNotes?.noteCount).toBe(notes.length);
+    expect(request.context.selection?.countByKind).toEqual({ event: notes.length });
   });
 
   it("offers a sign-in in place of the composer to someone not signed in (GRV-26)", async () => {
