@@ -1,5 +1,5 @@
-// The assistant panel's shortcuts (#849): summoning it, and resizing it from
-// its focused edge. Part of the one shortcut registry: see `../registry.ts`.
+// The assistant panel's shortcuts (#849, GRV-26): summoning it, resizing it
+// from its focused edge, and sending from its composer. Part of the one shortcut registry: see `../registry.ts`.
 
 import type { AbletonParity } from "../types";
 import { define, type ShortcutDefinition } from "./define";
@@ -11,6 +11,7 @@ export const ASSISTANT_SHORTCUT_IDS = [
   "assistant.shrink",
   "assistant.grow_more",
   "assistant.shrink_more",
+  "assistant.send",
 ] as const;
 
 const RESIZE_EDGE_PARITY: AbletonParity = {
@@ -91,4 +92,19 @@ export const ASSISTANT_SHORTCUTS: readonly ShortcutDefinition[] = [
     },
   }),
   ...ASSISTANT_RESIZE_KEYS,
+  define({
+    id: "assistant.send",
+    label: "Send the message",
+    description:
+      "Sends what is in the assistant's composer. Shift+Enter adds a line instead.",
+    group: "navigation",
+    contexts: ["composer"],
+    keys: "Enter",
+    // The composer is text entry, and Enter is what sends from it.
+    textEntry: "allowed",
+    ableton: {
+      kind: "solid_groove",
+      reason: "Live has no assistant; Enter sends, as it does in any chat composer.",
+    },
+  }),
 ];

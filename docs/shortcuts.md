@@ -79,6 +79,7 @@ than also meaning `track.move_left`. It suppresses nothing else.
 | `assistant.shrink` | Shrink the assistant | `Down / Right` | `Down / Right` | Navigation | resize_edge | Groove addition — Live has no assistant panel |
 | `assistant.grow_more` | Grow the assistant more | `Shift+Up / Shift+Left` | `Shift+Up / Shift+Left` | Navigation | resize_edge | Groove addition — Live has no assistant panel |
 | `assistant.shrink_more` | Shrink the assistant more | `Shift+Down / Shift+Right` | `Shift+Down / Shift+Right` | Navigation | resize_edge | Groove addition — Live has no assistant panel |
+| `assistant.send` | Send the message | `Enter` | `Enter` | Navigation | composer | Groove addition — Live has no assistant; Enter sends, as in any chat composer |
 | `device.move_earlier` | Move device earlier | `Option+Up` | `Alt+Up` | Mixer and Devices | editor | Groove addition — Live reorders devices by dragging only |
 | `device.move_later` | Move device later | `Option+Down` | `Alt+Down` | Mixer and Devices | editor | Groove addition — Live reorders devices by dragging only |
 | `track.move_left` | Move track left | `Left` | `Left` | Mixer and Devices | editor | Groove addition — Live reorders tracks by dragging only |
@@ -160,7 +161,10 @@ types nothing. The four `assistant.grow`/
 it is docked. Each takes the arrow for either orientation, so Up and Left both
 move the edge outward by 16px, and `Shift` moves it 64px. Only one element has
 focus, so `resize_edge` is never live beside `loop_brace` or `value_field`, and
-may claim the arrows they claim.
+may claim the arrows they claim. `assistant.send` is the assistant's composer
+(GRV-26), in the `composer` focus context: Enter sends the message, and
+`Shift+Enter` is left to the text box, which adds a line. While a reply is on
+its way, Enter does nothing; Stop is the button beside the composer.
 
 ## Deviations from Ableton Live
 

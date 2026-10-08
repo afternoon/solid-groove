@@ -14,6 +14,7 @@ import { Analytics } from "../analytics/analytics";
 import { ConsentStore } from "../analytics/consent";
 import { createRecordingTransport } from "../analytics/transport";
 import { INITIAL_PIXELS_PER_TICK, ROW_METRICS } from "../arrangement/ArrangementView";
+import type { AssistantClient } from "../assistant/assistantClient";
 import { installWebAudioGlobals } from "../audio/testAudioContext";
 import { type CapabilityReport, detectCapabilities } from "../browser/capabilities";
 import { executeTransaction } from "../commands";
@@ -47,6 +48,7 @@ import { systemClock } from "../shared/clock";
 import { detectPlatform, shortcutLabel } from "../shortcuts";
 import { buildArrangementProject } from "../testing/arrangementProject";
 import { clickAndFlush, fireAndFlush } from "../testing/events";
+import { createFakeAssistantClient } from "../testing/fakeAssistantClient";
 import { memoryStorage } from "../testing/storage";
 import { packAudioPath } from "../userData/userData";
 import { createInMemoryUserLibraryRepository } from "../userLibrary/inMemoryUserLibraryRepository";
@@ -239,6 +241,7 @@ function renderEditor(
     capabilities?: CapabilityReport;
     account?: UserLibraryAccount | null;
     userLibraryRepository?: () => Promise<UserLibraryRepository>;
+    assistantClient?: () => Promise<AssistantClient>;
   } = {},
 ) {
   const EditorView = EditorViewModule.default;
@@ -258,6 +261,7 @@ function renderEditor(
         capabilities={options.capabilities}
         libraryAccount={options.account}
         userLibraryRepository={options.userLibraryRepository}
+        assistantClient={options.assistantClient}
       />
     );
   };
@@ -3657,6 +3661,59 @@ describe("EditorView assistant panel", () => {
     expect(
       transport.named("feature_first_use").map((event) => event.params?.feature),
     ).toContain("assistant");
+  });
+
+  it("talks to the assistant from the composer: Enter sends, Shift+Enter adds a line (GRV-26)", async () => {
+    const log = vi.spyOn(defaultAnalytics, "log");
+    const client = createFakeAssistantClient();
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createSliceFixtureProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    renderEditor(project.metadata.id, {
+      analytics: recordingAnalytics(createRecordingTransport()),
+      account: { uid: "u1", registered: true },
+      assistantClient: async () => client,
+    });
+    await screen.findByTestId("arrangement-view-ready");
+
+    press("k", assistantChord());
+    const composer = within(panel() as HTMLElement).getByRole("textbox", {
+      name: "Message the assistant",
+    });
+    expect(composer).toHaveFocus();
+    expect(panelButton("Scope: BD")).toBeInTheDocument();
+
+    fireAndFlush(() => fireEvent.input(composer, { target: { value: "Loosen it" } }));
+    press("Enter", { shiftKey: true });
+    expect(client.turns).toHaveLength(0);
+    press("Enter");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(client.turns).toHaveLength(1);
+    expect(client.last().request.messages.at(-1)?.text).toBe("Loosen it");
+    expect(composer).toHaveValue("");
+    expect(
+      log.mock.calls.some(
+        ([name, params]) =>
+          name === "shortcut_used" &&
+          (params as { action_id?: string }).action_id === "assistant.send",
+      ),
+    ).toBe(true);
+
+    // While the reply streams, Escape in the composer still minimises the
+    // panel, and the bar says the assistant is writing.
+    fireAndFlush(() => client.last().text("Here"));
+    press("Escape");
+    expect(panel()).toHaveAttribute("data-mode", "minimised");
+    expect(within(panel() as HTMLElement).getByText("Writing…")).toBeInTheDocument();
+  });
+
+  it("offers a sign-in in place of the composer to someone not signed in (GRV-26)", async () => {
+    await renderSlice();
+    press("k", assistantChord());
+    expect(panel()).toHaveFocus();
+    expect(within(panel() as HTMLElement).queryByRole("textbox")).toBeNull();
+    expect(panel()).toHaveTextContent("Sign in to talk to the assistant.");
   });
 
   it("puts the Assistant button first in the header's document zone: Assistant, Export, Help", async () => {

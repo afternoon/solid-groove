@@ -7,6 +7,7 @@ import { CAPABILITY_IDS } from "../browser/capabilities";
 import { COMMAND_TYPES } from "../commands/registry";
 import { SCALE_IDS } from "../domain/musicalKey";
 import type { SaveFailureReason } from "../persistence/projectRepository";
+import { SUGGESTION_IDS } from "../projection/projectAnalysisProjection";
 import { SHORTCUT_ACTION_IDS as REGISTERED_SHORTCUT_IDS } from "../shortcuts/registry";
 import { BUCKET_SCALES, bucketLabels, bucketOf } from "./buckets";
 import {
@@ -15,6 +16,7 @@ import {
   type AnalyticsEventDefinition,
   type AnalyticsParam,
   ASSISTANT_PROPOSAL_CAPABILITIES,
+  ASSISTANT_SUGGESTION_IDS,
   BROWSER_CAPABILITY_IDS,
   COMMAND_IDS,
   DEVICE_OPERATIONS,
@@ -316,6 +318,19 @@ describe("catalog cross-references", () => {
     }
   });
 
+  it("pins exactly the analysis's suggestions as assistant_suggestion_clicked's suggestion_id", () => {
+    // A next step added to the analysis without an analytics decision fails
+    // here (GRV-26).
+    expect([...ASSISTANT_SUGGESTION_IDS].sort()).toEqual([...SUGGESTION_IDS].sort());
+    expect(
+      [
+        ...declaredValues(
+          ANALYTICS_EVENTS.assistant_suggestion_clicked.params.suggestion_id,
+        ),
+      ].sort(),
+    ).toEqual([...SUGGESTION_IDS].sort());
+  });
+
   it("pins exactly the registered shortcut actions as shortcut_used's action_id", () => {
     // Same rule for the KEY-01 registry: a mapping added without an
     // analytics decision fails here rather than shipping unmeasured.
@@ -377,6 +392,7 @@ describe("catalog cross-references", () => {
         "arrangement_clip_list",
         "arrangement_clip_resize",
         "assistant",
+        "assistant_message",
         "audio_loop",
         "automation",
         "device_chain",

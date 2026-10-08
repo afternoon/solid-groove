@@ -339,6 +339,7 @@ describe("context resolution", () => {
         value_field: { key: "arrowup", id: "value.nudge_up" },
         export_tracks: { key: "arrowup", id: "export.focus_previous" },
         resize_edge: { key: "arrowup", id: "assistant.grow" },
+        composer: { key: "enter", id: "assistant.send" },
       };
     for (const context of SHORTCUT_CONTEXTS) {
       const probe = expected[context];

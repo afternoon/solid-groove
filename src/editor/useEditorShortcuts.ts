@@ -45,12 +45,14 @@ export interface UseEditorShortcutsOptions {
   readonly setGuideOpen: (open: boolean) => void;
   /** Whether the Export dialog is open (`EXP-004`): a modal, so it takes the keyboard. */
   readonly exportOpen: Accessor<boolean>;
-  /** The assistant panel (#849): Cmd/Ctrl+K, Escape inside it, and its
-   * resize edge's arrows. */
+  /** The assistant panel (#849): Cmd/Ctrl+K, Escape inside it, its
+   * resize edge's arrows, and Enter in its composer (GRV-26). */
   readonly assistant: Pick<
     AssistantPanel,
-    "toggle" | "resizeBy" | "dismissAction" | "edgeHasFocus"
+    "toggle" | "resizeBy" | "dismissAction" | "edgeHasFocus" | "composerHasFocus"
   >;
+  /** Sends the assistant composer's draft (GRV-26). */
+  readonly sendAssistantDraft: () => void;
 }
 
 /** Controls that use the vertical arrows themselves, so a track step must not
@@ -444,6 +446,13 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     "assistant.shrink": resizeEdge(-RESIZE_STEP),
     "assistant.grow_more": resizeEdge(RESIZE_STEP_LARGE),
     "assistant.shrink_more": resizeEdge(-RESIZE_STEP_LARGE),
+    // Enter in the composer sends (GRV-26). It is the composer's whenever it
+    // has focus, so an empty draft or a reply on its way swallows the key
+    // rather than adding a line; Shift+Enter is not this mapping and adds one.
+    "assistant.send": {
+      run: () => options.sendAssistantDraft(),
+      isEnabled: () => assistant.composerHasFocus(),
+    },
     // A focused Transform value field (ARR-010): ↑/↓ nudge it, in place of
     // the roll's note moves, which its context replaces.
     "value.nudge_up": {
@@ -592,13 +601,17 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     return assistant.edgeHasFocus() ? [...withLoopBrace, "resize_edge"] : withLoopBrace;
   };
 
+  /** The assistant's composer, when it has focus, takes Enter (GRV-26). */
+  const withComposer = (base: readonly ShortcutContext[]): readonly ShortcutContext[] =>
+    assistant.composerHasFocus() ? [...base, "composer"] : base;
+
   // While a modal is open it is the only active context, so nothing behind it
   // can fire — including playback and selection (PRD KEY-02).
   const contexts = (): readonly ShortcutContext[] => {
     if (guideOpen() || exportOpen()) return ["dialog"];
     // The Library view has keys of its own, and the view keys and undo with
     // them; the editor's transport and edits stand down while it is up.
-    return libraryOpen() ? ["library"] : editorContexts();
+    return withComposer(libraryOpen() ? ["library"] : editorContexts());
   };
 
   const shortcuts = useShortcuts({ handlers, contexts });

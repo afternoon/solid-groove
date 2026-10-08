@@ -8,6 +8,7 @@ import {
   RestoreIcon,
   SparkIcon,
 } from "../../components/icons";
+import AssistantChatView, { WRITING_STATUS } from "./AssistantChatView";
 import {
   FLOATING_INSET,
   FLOATING_WIDTH,
@@ -16,6 +17,7 @@ import {
   resizable,
   rightClearance,
 } from "./assistantPanelLayout";
+import type { AssistantChat } from "./useAssistantChat";
 import type { AssistantPanel as AssistantPanelState } from "./useAssistantPanel";
 import "./AssistantPanel.css";
 
@@ -28,6 +30,11 @@ export interface AssistantPanelProps {
    * panel floats over it.
    */
   readonly underModal?: () => boolean;
+  /**
+   * The conversation (GRV-26). Without one the panel is its chrome alone,
+   * with a composer that says the assistant is not available.
+   */
+  readonly chat?: AssistantChat;
 }
 
 /**
@@ -37,12 +44,12 @@ export interface AssistantPanelProps {
  */
 export const CLEARANCE_PROPERTY = "--assistant-clearance";
 
-/** The note under the composer while there is no assistant to talk to. */
+/** The note under the composer while there is no conversation to hold. */
 export const UNAVAILABLE_NOTE = "The assistant isn't available yet";
 
 /**
- * The assistant's panel (#849, AI-004a), with no conversation in it yet: the
- * chrome, its three homes and its resize edge. It floats bottom-right over the
+ * The assistant's panel (#849, AI-004a): the chrome, its three homes and its
+ * resize edge, around the conversation (GRV-26, `AssistantChatView`). It floats bottom-right over the
  * editor, minimises to a bar, docks as a column at the right edge, or closes,
  * and remembers which on this device (`assistantPanelLayout.ts`).
  *
@@ -106,9 +113,11 @@ export default function AssistantPanel(props: AssistantPanelProps): JSX.Element 
               <SparkIcon size={12} />
               Assistant
             </span>
-            {/* The status slot: "Writing…" and "Previewing a change" fill it
-                later (#852, #72). */}
-            <span class="assistant-panel-status" />
+            {/* The status slot: "Writing…" while a reply streams, so the
+                minimised bar still says so; "Previewing a change" is GRV-5's. */}
+            <span class="assistant-panel-status">
+              {props.chat?.conversation.streaming() ? WRITING_STATUS : ""}
+            </span>
           </div>
           <Switch>
             <Match when={mode() === "docked"}>
@@ -149,8 +158,16 @@ export default function AssistantPanel(props: AssistantPanelProps): JSX.Element 
             <CloseIcon size={14} />
           </HeaderButton>
         </header>
-        <Show when={expanded()}>
-          {/* An empty conversation until the assistant exists (#852). */}
+        <Show when={expanded() && props.chat}>
+          {(chat) => (
+            <AssistantChatView
+              chat={chat()}
+              bindComposer={(element) => props.panel.bindComposer(element)}
+              focusComposer={() => props.panel.focusComposer()}
+            />
+          )}
+        </Show>
+        <Show when={expanded() && !props.chat}>
           <div class="assistant-panel-log" role="log" aria-label="Conversation" />
           <div class="assistant-panel-composer">
             <textarea

@@ -28,6 +28,8 @@ export interface PianoRollActions {
   selectAll(): void;
   clearSelection(): void;
   hasSelection(): boolean;
+  /** The selected notes' IDs; reactive, for the assistant's scope (GRV-26). */
+  selectedIds(): readonly EventId[];
   /** By visible rows, so in a scale by scale degree; up is negative. */
   moveRows(delta: number): void;
   moveOctaves(delta: number): void;
@@ -154,6 +156,7 @@ export function createRollActions(host: RollActionsHost): PianoRollActions {
     selectAll: () => host.setSelection(new Set(host.notes().map((note) => note.id))),
     clearSelection: () => host.setSelection(new Set()),
     hasSelection: () => selectedNotes().length > 0,
+    selectedIds: () => selectedNotes().map((note) => note.id),
     moveRows(delta) {
       const notes = selectedNotes();
       update(

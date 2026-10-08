@@ -40,6 +40,7 @@ export const SHORTCUT_CONTEXTS = [
   "value_field",
   "export_tracks",
   "resize_edge",
+  "composer",
 ] as const;
 export type ShortcutContext = (typeof SHORTCUT_CONTEXTS)[number];
 
@@ -53,13 +54,15 @@ export type ShortcutContext = (typeof SHORTCUT_CONTEXTS)[number];
  * Only one element has focus, so no two of these are ever live together, and
  * two of them may claim the same key: `resize_edge` (a focused resize edge,
  * such as the assistant panel's, #849) takes every arrow, as `loop_brace` and
- * `value_field` each take some.
+ * `value_field` each take some. `composer` is the assistant's message box
+ * (GRV-26), where Enter sends.
  */
 export const FOCUS_CONTEXTS: readonly ShortcutContext[] = [
   "loop_brace",
   "clip_list",
   "value_field",
   "resize_edge",
+  "composer",
 ];
 
 /**

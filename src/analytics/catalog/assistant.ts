@@ -8,7 +8,7 @@ import {
 } from "./params";
 
 /** The assistant's `feature_first_use` keys (see `FEATURE_KEYS`). */
-export const ASSISTANT_FEATURE_KEYS = ["assistant"] as const;
+export const ASSISTANT_FEATURE_KEYS = ["assistant", "assistant_message"] as const;
 
 /** The assistant panel's shortcut actions, as `shortcut_used`'s `action_id` (see `SHORTCUT_ACTION_IDS`). */
 export const ASSISTANT_SHORTCUT_ACTION_IDS = [
@@ -17,6 +17,22 @@ export const ASSISTANT_SHORTCUT_ACTION_IDS = [
   "assistant.shrink",
   "assistant.grow_more",
   "assistant.shrink_more",
+  "assistant.send",
+] as const;
+
+/**
+ * The suggestion chips' IDs, as `assistant_suggestion_clicked`'s
+ * `suggestion_id` (GRV-26): #70's published next steps. Pinned against
+ * `SUGGESTION_IDS` in `src/projection/projectAnalysisProjection.ts` by
+ * `catalog.test.ts`, so a suggestion added there needs a decision here.
+ */
+export const ASSISTANT_SUGGESTION_IDS = [
+  "create_arrangement",
+  "add_variation",
+  "build_transition",
+  "balance_section",
+  "add_track",
+  "fill_empty_track",
 ] as const;
 
 /**
@@ -48,7 +64,7 @@ export const ASSISTANT_EVENTS = {
   assistant_suggestion_clicked: {
     phase: 3,
     owners: ["AI-004"],
-    params: { suggestion_id: enumParam(UNCLAIMED) },
+    params: { suggestion_id: enumParam(ASSISTANT_SUGGESTION_IDS) },
   },
 
   assistant_proposal_shown: {

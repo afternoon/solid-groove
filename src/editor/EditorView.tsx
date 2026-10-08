@@ -15,6 +15,8 @@ import {
 } from "solid-js";
 import { pageTitle } from "../../site.config.mjs";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
+import type { AssistantClient } from "../assistant/assistantClient";
+import { getAssistantClient } from "../assistantClientProvider";
 import { provideStoredAudio } from "../audio/storedAudio";
 import { type CapabilityReport, FULLY_CAPABLE } from "../browser/capabilities";
 import { reportMissingCapabilities } from "../browser/reportCapabilities";
@@ -39,6 +41,8 @@ import { userPackAvailability } from "../userLibrary/userPacks";
 import { type UserLibraryAccount, useUserLibrary } from "../userLibrary/useUserLibrary";
 import ArrangementPane from "./ArrangementPane";
 import AssistantPanel from "./assistant/AssistantPanel";
+import type { ScopeSelection, ScopeSources } from "./assistant/assistantScope";
+import { useAssistantChat } from "./assistant/useAssistantChat";
 import { useAssistantPanel } from "./assistant/useAssistantPanel";
 import CompatibilityNotice from "./CompatibilityNotice";
 import { compatibilityNoticeItems } from "./compatibilityNoticeItems";
@@ -59,6 +63,7 @@ import MissingSounds, {
 import Mixer from "./Mixer";
 import ProjectLoadStates from "./ProjectLoadStates";
 import SequencePane from "./SequencePane";
+import { noteEventsOf } from "./stepEditorModel";
 import {
   type AddTrackHost,
   addTrackOfKind,
@@ -119,6 +124,16 @@ export interface EditorViewProps {
   readonly userLibraryRepository?: () => Promise<UserLibraryRepository>;
   /** Injected in tests; Firestore (or memory) otherwise. */
   readonly favouritesRepository?: () => Promise<FavouritesRepository>;
+  /**
+   * The assistant's way to the gateway (GRV-26). Injected in tests; the
+   * app's composition root (`src/assistantClientProvider.ts`) otherwise.
+   */
+  readonly assistantClient?: () => Promise<AssistantClient>;
+  /**
+   * Starts a sign-in, for the assistant's prompt to someone who is not
+   * signed in (ADR 0006 decision 4). Supplied by the route.
+   */
+  onSignIn?(): void;
 }
 
 /** Mints IDs for tracks the arrangement creates. A module singleton. */
@@ -306,6 +321,10 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   // clip you selected is still highlighted (`UI-002`). Read only on mount, so
   // a plain variable rather than a signal.
   let arrangementSelection: ArrangementSelection | null = null;
+  // The same selection as a signal, for the assistant's scope chip (GRV-26).
+  const [arrangementPick, setArrangementPick] = createSignal<ArrangementSelection | null>(
+    null,
+  );
   /** Selects a placement's clip and goes to `2` with it (`UI-002`). */
   function openPlacement(placementId: PlacementId): void {
     selectPlacement(placementId);
@@ -348,6 +367,46 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   // device. One per editor, shared by the panel, the header's button and the
   // shortcut layer.
   const assistant = useAssistantPanel({ analytics: () => props.analytics });
+  // What the assistant's scope chip follows (GRV-26): the selection on the
+  // view that shows it (clips in the arrangement, notes in the open clip),
+  // and the selected track.
+  const assistantSources = createMemo((): ScopeSources => {
+    let picked: ScopeSelection | null = null;
+    if (props.view === "arrangement") {
+      const selected = arrangementPick();
+      if (selected?.kind === "clips" && selected.placementIds.length > 0) {
+        picked = { kind: "clips", placementIds: selected.placementIds };
+      }
+    } else if (props.view === "sequence") {
+      const clip = surfaces.clip();
+      if (clip) {
+        const ids = surfaces.showPianoRoll()
+          ? (surfaces.pianoRollActions()?.selectedIds() ?? [])
+          : surfaces.selectedNoteIds();
+        const inClip = new Set(noteEventsOf(clip).map((note) => note.id));
+        const eventIds = ids.filter((id) => inClip.has(id));
+        if (eventIds.length > 0) picked = { kind: "notes", eventIds };
+      }
+    }
+    return { selection: picked, track: track() };
+  });
+  // The conversation (GRV-26): one per editor, kept while the panel is
+  // closed, gone on a reload.
+  const chat = useAssistantChat({
+    project,
+    view: () => props.view,
+    sources: assistantSources,
+    account: () => ({
+      registered: props.libraryAccount?.registered ?? false,
+      signIn: props.onSignIn && (() => props.onSignIn?.()),
+    }),
+    expanded: () => {
+      const mode = assistant.layout().mode;
+      return mode === "floating" || mode === "docked";
+    },
+    client: props.assistantClient ?? getAssistantClient,
+    analytics,
+  });
   // Docked, the editor's views leave the panel's column free (EditorView.css).
   const assistantDockSpace = () =>
     assistant.layout().mode === "docked" ? `${assistant.layout().width}px` : "0px";
@@ -368,6 +427,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     setGuideOpen,
     exportOpen,
     assistant,
+    sendAssistantDraft: () => chat.sendDraft(),
   });
 
   /** An empty screen's way out: a view, named and keyed as the dock names it. */
@@ -475,6 +535,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                               initialSelection={arrangementSelection}
                               onSelectionChange={(selected) => {
                                 arrangementSelection = selected;
+                                setArrangementPick(selected);
                               }}
                               onAddTrack={(spec) => addTrack(currentProject(), spec)}
                               onAddLoop={() => library.aim("arrangement", "new-track")}
@@ -561,6 +622,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                    */}
                   <AssistantPanel
                     panel={assistant}
+                    chat={chat}
                     underModal={() => guideOpen() || exportOpen()}
                   />
                   <Show when={guideOpen()}>
