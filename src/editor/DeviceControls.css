@@ -5,6 +5,9 @@
 
 .device-controls {
   display: flex;
+  /* A narrow card moves whole banks onto the next row rather than squeezing
+     them under their labels (GRV-61). */
+  flex-wrap: wrap;
   gap: 20px;
   align-items: flex-end;
   min-width: 0;
@@ -15,7 +18,16 @@
   --controls: 1;
 
   flex: var(--controls) 1 0;
-  min-width: 0;
+  /* Never narrower than its faders' labels and values: a bank allowed to
+     shrink to nothing let "TIME" run into "FEEDBACK" at an 800px window
+     (GRV-61). Below this the bank wraps instead. */
+  min-width: min-content;
+}
+
+/* A fader's column likewise keeps its label's width rather than the shared
+   row's shrink-to-zero tracks, so a bank's min-content is its labels'. */
+.device-controls .control-group-row {
+  grid-auto-columns: minmax(min-content, 1fr);
 }
 
 .device-controls .control-group.device-switch {
