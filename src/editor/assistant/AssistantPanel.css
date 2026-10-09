@@ -259,6 +259,180 @@
   font-size: var(--font-size-small);
 }
 
+/* A proposal (GRV-5), after docs/assistant-panel.html: a head, the changes
+   old to new, the actions with the line that says where it stands, and "Why
+   this works" folded under it. Square, on black, a hairline frame. */
+.assistant-proposal {
+  gap: 0;
+  padding: 0;
+}
+
+.assistant-proposal:focus {
+  outline: none;
+}
+
+.assistant-proposal:focus-visible {
+  outline: 1px solid var(--color-accent);
+  outline-offset: -1px;
+}
+
+.assistant-proposal-head {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--color-divider);
+}
+
+.assistant-proposal-changes {
+  margin: 0;
+  padding: 6px 0;
+  list-style: none;
+}
+
+.assistant-proposal-changes li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: baseline;
+  padding: 5px 12px;
+}
+
+.assistant-card .assistant-proposal-values {
+  color: var(--color-foreground);
+  font-variant-numeric: tabular-nums;
+}
+
+.assistant-card .assistant-proposal-was {
+  color: var(--color-foreground-muted);
+  text-decoration: line-through;
+}
+
+.assistant-card .assistant-proposal-now {
+  color: var(--color-foreground-bright);
+  font-weight: 600;
+}
+
+/* A control's name: a link that shows the control in the editor. */
+.assistant-control-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-foreground-bright);
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.assistant-control-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.assistant-control-link:focus-visible {
+  outline: 1px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.assistant-proposal-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--color-divider);
+}
+
+.assistant-proposal-say {
+  flex: 1 1 100%;
+  padding-top: 6px;
+  color: var(--color-foreground);
+  font-size: var(--font-size-tiny);
+}
+
+/* The quieter of the card's buttons; pressed (Preview, while previewing) is
+   the brightest thing beside it. */
+.assistant-button {
+  height: 30px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 0;
+  background: var(--color-background-tertiary);
+  color: var(--color-foreground-bright);
+  font: inherit;
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.assistant-button:hover:not(:disabled) {
+  background: var(--color-background-hover);
+}
+
+.assistant-button[aria-pressed="true"],
+.assistant-button[aria-pressed="true"]:hover:not(:disabled) {
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+}
+
+.assistant-button:focus-visible {
+  outline: 1px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.assistant-button:disabled,
+.assistant-button-primary:disabled {
+  background: var(--color-background-tertiary);
+  color: var(--color-foreground-muted);
+  cursor: default;
+}
+
+.assistant-why {
+  border-top: 1px solid var(--color-divider);
+}
+
+.assistant-why summary {
+  padding: 9px 12px;
+  color: var(--color-foreground);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.assistant-why summary:hover {
+  color: var(--color-foreground-bright);
+}
+
+.assistant-why summary:focus-visible {
+  outline: 1px solid var(--color-accent);
+  outline-offset: -1px;
+}
+
+.assistant-why dl {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0 12px 12px;
+}
+
+.assistant-why dd {
+  margin: 0 0 4px;
+  color: var(--color-foreground);
+  font-size: var(--font-size-small);
+}
+
+.assistant-why .assistant-control-link {
+  font-weight: 400;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.assistant-why-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
 /* An inline error: framed and worded, never red (docs/design.md). */
 .assistant-error {
   display: flex;
