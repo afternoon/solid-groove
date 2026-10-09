@@ -55,6 +55,7 @@ describe("the assistant's system prompt", () => {
   it("gives the turn's stem, with worked IDs, in its own block after the project", () => {
     const [prompt, project, ids] = buildSystemBlocks(
       MINIMAL_ASSISTANT_CONTEXT,
+      undefined,
       "S".repeat(17),
     );
     expect(prompt.text).toBe(ASSISTANT_SYSTEM_PROMPT);

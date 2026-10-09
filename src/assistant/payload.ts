@@ -22,7 +22,7 @@ import {
   type NoteSummary,
 } from "../projection/projectAnalysisProjection";
 import type { SelectionState } from "../selection/types";
-import type { AssistantContextPayload } from "./protocol";
+import { type AssistantContextPayload, MAX_CONTEXT_PADS } from "./protocol";
 
 type NoteStats = AssistantContextPayload["noteStats"]["song"];
 
@@ -64,6 +64,9 @@ export function buildAssistantPayload(
       soloed: track.soloed,
       clipCount: track.clipCount,
       placementCount: track.placementCount,
+      pads: track.pads
+        .slice(0, MAX_CONTEXT_PADS)
+        .map((pad) => ({ id: pad.id, name: pad.name })),
     })),
     sections: context.sections.map((section) => ({
       id: section.id,

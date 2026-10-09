@@ -7,6 +7,7 @@ import {
 } from "../commands";
 import { createReferenceProject } from "../domain/fixtures";
 import { TRACK_VOLUME } from "../domain/parameters";
+import { buildAssistantLibrary } from "../testing/assistantLibrary";
 import {
   type CallScript,
   createScriptedAssistantProvider,
@@ -31,7 +32,7 @@ import {
   type InMemoryGuardStores,
 } from "./inMemoryGuardStores";
 import { buildAssistantPayload } from "./payload";
-import { ASSISTANT_PROMPT_VERSION } from "./prompt";
+import { ASSISTANT_PROMPT_VERSION, LIBRARY_BLOCK_HEADING } from "./prompt";
 import { validateProposal } from "./proposal";
 import { createProposalExecutor } from "./proposalExecutor";
 import {
@@ -40,6 +41,7 @@ import {
   type AssistantStreamChunk,
   type AssistantTurnRequest,
 } from "./protocol";
+import { RECOMMEND_SOUNDS_TOOL } from "./recommendation";
 import { type AssistantTurnLog, TURN_LOG_KEYS } from "./telemetry";
 import {
   ASSISTANT_TOOLSET_VERSION,
@@ -181,7 +183,9 @@ describe("runAssistantTurn: new IDs (GRV-6)", () => {
     const h = harness([replyEvents(["ok"])]);
     await run(h);
     await run(h);
-    const [first, second] = h.provider.requests.map((sent) => sent.system[2].text);
+    const [first, second] = h.provider.requests.map(
+      (sent) => sent.system.at(-1)?.text ?? "",
+    );
     const stemOf = (text: string) => /the stem ([A-Za-z0-9]+),/.exec(text)?.[1];
     expect(stemOf(first)).toHaveLength(17);
     expect(stemOf(second)).toHaveLength(17);
@@ -196,7 +200,9 @@ describe("runAssistantTurn: new IDs (GRV-6)", () => {
       request(),
       { signal: new AbortController().signal, onChunk: () => {} },
     );
-    expect(h.provider.requests[0].system[2].text).toContain("trk_Stem00000000000000001");
+    expect(h.provider.requests[0].system.at(-1)?.text).toContain(
+      "trk_Stem00000000000000001",
+    );
   });
 });
 
@@ -279,6 +285,45 @@ describe("runAssistantTurn: tools and proposals (GRV-4)", () => {
       ASK_PRODUCER_TOOL_NAME,
     ]);
     for (const tool of sent.tools) expect(tool.input_schema.type).toBe("object");
+  });
+
+  it("offers recommend_sounds, and the library, only on a turn that carries it (GRV-23)", async () => {
+    const without = harness([replyEvents(["ok"])]);
+    await run(without);
+    const plain = without.provider.requests[0];
+    expect(plain.tools.map((tool) => tool.name)).not.toContain(RECOMMEND_SOUNDS_TOOL);
+    // The prompt, the project and the turn's ID stem (GRV-6): no library.
+    expect(plain.system).toHaveLength(3);
+    expect(
+      plain.system.some((block) => block.text.startsWith(LIBRARY_BLOCK_HEADING)),
+    ).toBe(false);
+
+    const library = buildAssistantLibrary();
+    const h = harness([replyEvents(["ok"])]);
+    await run(h, request({ library }));
+    const sent = h.provider.requests[0];
+    expect(sent.tools.map((tool) => tool.name)).toEqual([
+      ...assistantTools().map((tool) => tool.name),
+      EXPLAIN_TOOL_NAME,
+      ASK_PRODUCER_TOOL_NAME,
+      RECOMMEND_SOUNDS_TOOL,
+    ]);
+    // The prompt, the project, the library, then the turn's ID stem (GRV-6).
+    expect(sent.system).toHaveLength(4);
+    expect(sent.system[2].text).toContain("Dusty Kick");
+    expect(sent.system[2].text).toContain(library.packs[0].id);
+  });
+
+  it("returns a recommendation among the turn's calls, for the browser to take out", async () => {
+    const recommend = {
+      name: RECOMMEND_SOUNDS_TOOL,
+      input: { packId: "pak_x", soundIds: ["a"], reason: "Dusty." },
+    };
+    const h = harness([toolUseEvents("Try this.", [recommend])]);
+    const result = await run(h, request({ library: buildAssistantLibrary() }));
+    expect(result.proposal?.calls.map((entry) => entry.name)).toEqual([
+      RECOMMEND_SOUNDS_TOOL,
+    ]);
   });
 
   it("returns the tool calls as a proposal at the request's revision", async () => {
@@ -473,6 +518,15 @@ describe("runAssistantTurn: the request", () => {
       context: { ...body.context, assetUrl: "https://storage.example/sound.wav" },
     };
     await expectCode(run(h, leaky), "invalid_request");
+    expect(h.provider.requests).toHaveLength(0);
+  });
+
+  it("refuses a library carrying a field the allowlist does not name", async () => {
+    const h = harness([replyEvents(["ok"])]);
+    const library = buildAssistantLibrary();
+    (library.packs[0] as unknown as Record<string, unknown>).manifestPath = "/x.json";
+    const error = await failure(run(h, request({ library })));
+    expect(error.code).toBe("invalid_request");
     expect(h.provider.requests).toHaveLength(0);
   });
 

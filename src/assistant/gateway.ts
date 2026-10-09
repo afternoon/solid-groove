@@ -30,7 +30,10 @@
  * the tool set's version; the browser validates it against the open project
  * before anything can apply. An `ask_producer` call is not a change: it is
  * validated here and returned as the turn's question, and a malformed one is
- * a malformed reply.
+ * a malformed reply. A turn that carries the published library is offered
+ * `recommend_sounds` as well (GRV-23); its calls come back among the
+ * proposal's, and the browser takes them out and checks their IDs against the
+ * library it sent.
  */
 import { type AssistantAsk, askProducerTool, isAskCall, parseAskCall } from "./ask";
 import {
@@ -64,6 +67,7 @@ import {
   providerTools,
 } from "./providerRequest";
 import { admitCall, type QuotaLimits, quotaExceededMessage } from "./quota";
+import { recommendationTool } from "./recommendation";
 import { recordTurn, type TranscriptWrite } from "./retention";
 import { costMicroUsd, spendDay, usdToMicro } from "./spend";
 import { NO_USAGE, type ProviderUsage, StreamReader } from "./streamEvents";
@@ -202,8 +206,12 @@ async function prepare(
   turn: AssistantTurnRequest,
   idStem: string,
 ): Promise<PreparedTurn> {
-  const system = buildSystemBlocks(turn.context, idStem);
-  const tools = providerTools([...assistantTools(), EXPLAIN_TOOL, askProducerTool()]);
+  const system = buildSystemBlocks(turn.context, turn.library, idStem);
+  // A turn that carries the library may also recommend from it (GRV-23).
+  const tools = [
+    ...providerTools([...assistantTools(), EXPLAIN_TOOL, askProducerTool()]),
+    ...(turn.library ? [recommendationTool()] : []),
+  ];
   // The tool definitions take room in the window just as the prompt does.
   const systemTokens =
     system.reduce((sum, block) => sum + estimateTokens(block.text), 0) +
