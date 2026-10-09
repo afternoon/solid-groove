@@ -135,11 +135,17 @@ const ERROR_CODE: Readonly<Record<ImportFailure, ErrorCode>> = {
   unknown: "unknown",
 };
 
-/** The failures a second attempt could get past: not a refused or unreadable file. */
+/**
+ * The failures a second attempt could get past: not a refused or unreadable
+ * file. A permission failure is among them: away from the allowance (which is
+ * reported as `over_allowance`), it can be a network retry the rules refused
+ * (GRV-77), and a retry writes to a fresh path.
+ */
 const RETRYABLE: ReadonlySet<ImportFailure> = new Set([
   "network",
   "unknown",
   "not_found",
+  "permission_denied",
 ]);
 
 /** What the allowance line says once an account is at least 90% full. */

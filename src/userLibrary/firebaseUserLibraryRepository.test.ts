@@ -46,7 +46,38 @@ vi.mock("firebase/firestore", () => ({
   },
 }));
 
+/**
+ * A small file goes up in one request; when that request fails on the network
+ * after it reached the bucket, the SDK's repeat is refused by the create-only
+ * rule (GRV-77). This stands in for Storage with an upload that fails that way
+ * and an object that may or may not be stored.
+ */
+const bucket = vi.hoisted(() => ({ storedSize: null as number | null }));
+
+vi.mock("firebase/storage", () => ({
+  connectStorageEmulator: vi.fn(),
+  deleteObject: vi.fn(),
+  getBytes: vi.fn(),
+  getStorage: vi.fn(),
+  ref: vi.fn(() => ({})),
+  getMetadata: async () => {
+    if (bucket.storedSize === null) {
+      throw Object.assign(new Error("missing"), { code: "storage/object-not-found" });
+    }
+    return { size: bucket.storedSize };
+  },
+  uploadBytesResumable: () => ({
+    cancel: vi.fn(),
+    on: (_event: string, _next: unknown, error: (failure: Error) => void) => {
+      setTimeout(() =>
+        error(Object.assign(new Error("403"), { code: "storage/unauthorized" })),
+      );
+    },
+  }),
+}));
+
 const { FirebaseUserLibraryRepository } = await import("./firebaseUserLibraryRepository");
+const { UserLibraryError } = await import("./userLibraryRepository");
 
 describe("FirebaseUserLibraryRepository.updatePack", () => {
   it("keeps every change when many are made to one pack at once", async () => {
@@ -70,5 +101,33 @@ describe("FirebaseUserLibraryRepository.updatePack", () => {
     const final = store.doc as UserPack;
     // Each change adds its own (index + 1), so a lost one shows in the sum.
     expect(final.modifiedAt - pack.modifiedAt).toBe((count * (count + 1)) / 2);
+  });
+});
+
+describe("FirebaseUserLibraryRepository.uploadAudio", () => {
+  const repository = new FirebaseUserLibraryRepository(
+    {} as never,
+    {} as FirebaseStorage,
+  );
+  const file = new Blob([new Uint8Array(53_000)]);
+
+  it("succeeds when a refused repeat finds its first attempt already stored", async () => {
+    bucket.storedSize = file.size;
+    await expect(
+      repository.uploadAudio("users/u1/packs/pak_1/ast_1", file, "audio/wav"),
+    ).resolves.toBeUndefined();
+  });
+
+  it("still fails as refused when nothing of the file's size is stored", async () => {
+    for (const storedSize of [null, file.size - 1]) {
+      bucket.storedSize = storedSize;
+      const failure = await repository
+        .uploadAudio("users/u1/packs/pak_1/ast_1", file, "audio/wav")
+        .catch((error: unknown) => error);
+      expect(failure).toBeInstanceOf(UserLibraryError);
+      expect((failure as InstanceType<typeof UserLibraryError>).reason).toBe(
+        "permission_denied",
+      );
+    }
   });
 });
