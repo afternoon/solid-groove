@@ -28,6 +28,7 @@ describe("the conversation a turn resends", () => {
           id: "4",
           error: { code: "timeout", retryable: true },
           request: null as never,
+          origin: null as never,
         },
         message("5", "Stopped early"),
         { kind: "reply", id: "6", text: "", streaming: false, stopped: true },

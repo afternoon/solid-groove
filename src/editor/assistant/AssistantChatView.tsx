@@ -2,6 +2,7 @@ import type { JSX } from "@solidjs/web";
 import { createEffect, For, Match, Show, Switch } from "solid-js";
 import { SendIcon, SparkIcon, StopIcon } from "../../components/icons";
 import { ERROR_HEADING, ERROR_REASSURANCE, errorMessage } from "./assistantErrorCopy";
+import ProposalCard from "./ProposalCard";
 import type { AssistantChat } from "./useAssistantChat";
 import { type ConversationEntry, MAX_MESSAGE_CHARS } from "./useAssistantConversation";
 
@@ -89,6 +90,7 @@ export default function AssistantChatView(props: AssistantChatViewProps): JSX.El
               entry={entry()}
               canRetry={conversation().canRetry(entry())}
               onRetry={retry}
+              chat={props.chat}
             />
           )}
         </For>
@@ -165,6 +167,7 @@ function Entry(props: {
   /** Only the error that ended the conversation offers Try again. */
   readonly canRetry: boolean;
   onRetry(): void;
+  readonly chat: AssistantChat;
 }): JSX.Element {
   return (
     <Switch>
@@ -206,12 +209,27 @@ function Entry(props: {
         )}
       </Match>
       <Match when={props.entry.kind === "proposal"}>
-        {/* The proposal card is GRV-5's. Until then the reply says a change is
-            ready and nothing more: nothing in the song changes. */}
-        <section class="assistant-card" aria-label="Proposal">
-          <b>A change is ready</b>
-          <span>Previewing and applying it is coming soon. Your song is unchanged.</span>
-        </section>
+        <Show
+          when={props.chat.proposals}
+          fallback={
+            // No editor to apply it to: the reply says a change was proposed
+            // and nothing more. Nothing in the song changes.
+            <section class="assistant-card" aria-label="Proposal">
+              <b>A change was proposed</b>
+              <span>Open a project to preview and apply it. Your song is unchanged.</span>
+            </section>
+          }
+        >
+          {(proposals) => (
+            <ProposalCard
+              entryId={props.entry.id}
+              proposals={proposals()}
+              canAsk={
+                props.chat.account().registered && !props.chat.conversation.streaming()
+              }
+            />
+          )}
+        </Show>
       </Match>
       <Match when={props.entry.kind === "error" && props.entry}>
         {(failure) => (

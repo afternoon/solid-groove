@@ -1,14 +1,13 @@
 // The assistant: messages, suggestions, and the proposals it makes.
 
-import {
-  type AnalyticsEventDefinition,
-  bucketParam,
-  enumParam,
-  UNCLAIMED,
-} from "./params";
+import { type AnalyticsEventDefinition, bucketParam, enumParam } from "./params";
 
 /** The assistant's `feature_first_use` keys (see `FEATURE_KEYS`). */
-export const ASSISTANT_FEATURE_KEYS = ["assistant", "assistant_message"] as const;
+export const ASSISTANT_FEATURE_KEYS = [
+  "assistant",
+  "assistant_message",
+  "assistant_proposal",
+] as const;
 
 /** The assistant panel's shortcut actions, as `shortcut_used`'s `action_id` (see `SHORTCUT_ACTION_IDS`). */
 export const ASSISTANT_SHORTCUT_ACTION_IDS = [
@@ -106,9 +105,14 @@ export const ASSISTANT_EVENTS = {
     },
   },
 
+  /**
+   * A producer edited, by hand, a control an applied proposal changed: once
+   * per proposal, which then stops being watched (GRV-5). `capability` is the
+   * proposal's, as its `assistant_proposal_applied` carried it.
+   */
   assistant_result_edited: {
     phase: 3,
     owners: ["AI-004"],
-    params: { capability: enumParam(UNCLAIMED) },
+    params: { capability: enumParam(ASSISTANT_PROPOSAL_CAPABILITIES) },
   },
 } as const satisfies Record<string, AnalyticsEventDefinition>;

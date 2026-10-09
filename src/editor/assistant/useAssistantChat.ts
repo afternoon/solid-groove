@@ -23,6 +23,12 @@ import {
   type AssistantConversation,
   useAssistantConversation,
 } from "./useAssistantConversation";
+import {
+  type AssistantProposals,
+  type ProposalSessionPort,
+  type UseAssistantProposalsOptions,
+  useAssistantProposals,
+} from "./useAssistantProposals";
 
 /** Who is here to talk: a signed-in account, or someone who must sign in. */
 export interface AssistantAccount {
@@ -42,6 +48,15 @@ export interface UseAssistantChatOptions {
   readonly expanded: Accessor<boolean>;
   readonly client: () => Promise<AssistantClient>;
   readonly analytics: () => Analytics;
+  /**
+   * The editor session and controls a proposal previews, applies and shows
+   * itself through (GRV-5). Without them a proposal is listed, but there is
+   * nothing to apply it to.
+   */
+  readonly editor?: {
+    readonly session: ProposalSessionPort;
+    readonly controls: UseAssistantProposalsOptions["controls"];
+  };
 }
 
 export interface AssistantChat {
@@ -57,6 +72,8 @@ export interface AssistantChat {
   /** A suggestion chip: sends its label as the message. */
   sendSuggestion(suggestion: Suggestion): boolean;
   readonly account: Accessor<AssistantAccount>;
+  /** The proposal cards, when there is an editor to apply them to. */
+  readonly proposals: AssistantProposals | null;
 }
 
 export function useAssistantChat(options: UseAssistantChatOptions): AssistantChat {
@@ -73,12 +90,27 @@ export function useAssistantChat(options: UseAssistantChatOptions): AssistantCha
   });
   const [draft, setDraft] = createSignal("");
 
+  const editor = options.editor;
+  const proposals = editor
+    ? useAssistantProposals({
+        session: editor.session,
+        controls: editor.controls,
+        project: options.project,
+        analytics: options.analytics,
+        // The conversation is made just below; Refresh is only ever pressed later.
+        refresh: (entryId) => conversation.refresh(entryId),
+      })
+    : null;
+
   const conversation = useAssistantConversation({
     client: options.client,
     project: options.project,
     scope,
     canSend: () => options.account().registered,
     analytics: options.analytics,
+    onProposal: proposals
+      ? (entryId, proposal, origin) => proposals.receive(entryId, proposal, origin)
+      : undefined,
   });
 
   const suggestions = createMemo((): readonly Suggestion[] => {
@@ -104,5 +136,6 @@ export function useAssistantChat(options: UseAssistantChatOptions): AssistantCha
     },
     sendSuggestion: (suggestion) => conversation.send(suggestion.label, suggestion.id),
     account: options.account,
+    proposals,
   };
 }

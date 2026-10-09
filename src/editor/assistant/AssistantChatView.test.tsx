@@ -197,7 +197,7 @@ describe("the assistant's conversation", () => {
     expect(client.turns).toHaveLength(1);
   });
 
-  it("renders a proposal as a placeholder card, and changes nothing", async () => {
+  it("lists a proposal with no editor to apply it to, and changes nothing", async () => {
     const { client, project } = renderChat();
     const before = JSON.stringify(project);
     await send("Change the tempo");
@@ -214,7 +214,7 @@ describe("the assistant's conversation", () => {
     );
     fireAndFlush(() => client.last().done());
     const card = within(log()).getByRole("region", { name: "Proposal" });
-    expect(card).toHaveTextContent("A change is ready");
+    expect(card).toHaveTextContent("A change was proposed");
     expect(JSON.stringify(project)).toBe(before);
   });
 });

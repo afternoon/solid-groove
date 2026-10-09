@@ -406,6 +406,18 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     },
     client: props.assistantClient ?? getAssistantClient,
     analytics,
+    // A proposal previews and applies through the session, and shows its
+    // controls through the editor's (GRV-5).
+    editor: {
+      session: {
+        proposalTarget: () => session.proposalTarget(),
+        beginPreview: (commands) => session.beginPreview(commands),
+        onEdit: (listener) => session.onEdit(listener),
+        onRemoteChange: (listener) => session.onRemoteChange(listener),
+        previewing: () => session.state.previewing,
+      },
+      controls: editorControls,
+    },
   });
   // Docked, the editor's views leave the panel's column free (EditorView.css).
   const assistantDockSpace = () =>

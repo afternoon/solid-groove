@@ -393,6 +393,7 @@ describe("catalog cross-references", () => {
         "arrangement_clip_resize",
         "assistant",
         "assistant_message",
+        "assistant_proposal",
         "audio_loop",
         "automation",
         "device_chain",
