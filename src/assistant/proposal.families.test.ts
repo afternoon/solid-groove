@@ -126,13 +126,14 @@ const FAMILIES: readonly FamilyCase[] = [
     valid: () => [
       call(setParameter({ scope: "song", parameterId: SONG_TEMPO.id }, 96)),
       call(setParameter({ scope: "song", parameterId: SONG_TEMPO.id }, 128)),
+      call(setParameter({ scope: "song", parameterId: SONG_SWING.id }, 58)),
     ],
     badSchema: () => ({
       name: "parameter_set",
       input: { target: { scope: "song", parameterId: SONG_TEMPO.id }, value: "fast" },
     }),
-    unauthorized: () =>
-      call(setParameter({ scope: "song", parameterId: SONG_SWING.id }, 60)),
+    // The song's tempo and swing are the assistant's; nothing else at song scope is.
+    unauthorized: () => call(setParameter({ scope: "song", parameterId: "song.key" }, 1)),
     unauthorizedCode: "unauthorized",
     // The tempo always exists; its invariant is its range, refused, not clamped.
     invariant: () => [
