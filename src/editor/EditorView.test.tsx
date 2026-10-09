@@ -3858,6 +3858,32 @@ describe("EditorView assistant panel", () => {
     );
   });
 
+  it("leaves Enter on a single choice's focused chip to the chip, even with text typed (GRV-42)", async () => {
+    const { client } = await renderTalking(createSliceFixtureProject());
+    await openAndSend(client, "Build me a drop");
+    askLatest(client);
+    const card = within(askCard() as HTMLElement);
+    const other = card.getByRole("textbox", { name: "Something else" });
+    fireAndFlush(() => fireEvent.input(other, { target: { value: "after the fill" } }));
+
+    const chip = card.getByRole("button", { name: "Bar 25" });
+    chip.focus();
+    let notPrevented = true;
+    fireAndFlush(() => {
+      notPrevented = fireEvent.keyDown(chip, { key: "Enter", bubbles: true });
+    });
+    await settleTurn();
+    // The registry stood down: the text alone was not sent, and the browser's
+    // Enter is left to press the chip.
+    expect(notPrevented).toBe(true);
+    expect(client.turns).toHaveLength(1);
+    clickAndFlush(chip);
+    await settleTurn();
+    expect(client.last().request.messages.at(-1)?.text).toBe(
+      '[Answer to "Where should the drop land?"] Picked: Bar 25. Also: after the fill',
+    );
+  });
+
   it("leaves 1-8 to the views while focus is outside the panel (GRV-42)", async () => {
     const { client } = await renderTalking(createSliceFixtureProject());
     await openAndSend(client, "Build me a drop");

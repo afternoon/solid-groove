@@ -25,6 +25,14 @@ export const ASK_CARD_LABEL = "The assistant asks";
 /** What the "something else" box is called, and says when empty. */
 export const ASK_TEXT_LABEL = "Something else";
 
+/** The keys line under a question: its digits run as far as its options. */
+export function askHint(count: number, multiSelect: boolean): string {
+  const keys = count > 1 ? `1–${count}` : "1";
+  return multiSelect
+    ? `Pick any · ${keys} toggle · Enter sends`
+    : `Pick one · ${keys} picks`;
+}
+
 /**
  * A question the assistant asks the producer (GRV-42), above the composer:
  * a header line when the question says what it is about, the question, its
@@ -162,9 +170,7 @@ export default function AssistantAskCard(props: AssistantAskCardProps): JSX.Elem
         </button>
       </div>
       <span class="assistant-composer-hint assistant-ask-hint">
-        {ask().multiSelect
-          ? "Pick any · 1–8 toggle · Enter sends"
-          : "Pick one · 1–8 picks"}
+        {askHint(ask().options.length, ask().multiSelect)}
       </span>
     </section>
   );

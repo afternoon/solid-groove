@@ -15,7 +15,7 @@ import {
 } from "../../testing/fakeAssistantClient";
 import { memoryStorage } from "../../testing/storage";
 import type { EditorViewName } from "../editorViews";
-import { ASK_CARD_LABEL, ASK_TEXT_LABEL } from "./AssistantAskCard";
+import { ASK_CARD_LABEL, ASK_TEXT_LABEL, askHint } from "./AssistantAskCard";
 import AssistantPanel from "./AssistantPanel";
 import { useAssistantChat } from "./useAssistantChat";
 import { useAssistantPanel } from "./useAssistantPanel";
@@ -338,5 +338,13 @@ describe("a question the assistant asks (GRV-42)", () => {
     fireAndFlush(() => fireEvent.input(composer(), { target: { value: "And also" } }));
     ask(client.last());
     expect(composer()).toHaveFocus();
+  });
+});
+
+describe("askHint (GRV-42)", () => {
+  it("numbers the keys as far as the question's options go", () => {
+    expect(askHint(3, false)).toBe("Pick one · 1–3 picks");
+    expect(askHint(8, true)).toBe("Pick any · 1–8 toggle · Enter sends");
+    expect(askHint(1, false)).toBe("Pick one · 1 picks");
   });
 });

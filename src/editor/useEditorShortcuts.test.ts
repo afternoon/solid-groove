@@ -79,6 +79,7 @@ function setup(view: EditorViewName) {
       sendAssistantDraft: vi.fn(),
       assistantAsk: {
         pending: () => false,
+        multiSelect: () => false,
         pick: () => false,
         canFinish: () => false,
         finish: () => false,
