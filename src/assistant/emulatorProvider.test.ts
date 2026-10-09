@@ -82,6 +82,21 @@ describe("the emulator's assistant provider", () => {
     expect((await second.result).text).toBe(EMULATOR_REPLY_CHUNKS.join(""));
   });
 
+  it("asks the memory it is given whether [flaky] failed before", async () => {
+    const asked: string[] = [];
+    const deps = {
+      ...gateway(),
+      provider: createEmulatorAssistantProvider((message) => {
+        asked.push(message);
+        return false;
+      }),
+    };
+    // Another worker already failed this message: this one answers.
+    const reply = await turn(deps, "Again [flaky] 2").result;
+    expect(reply.text).toBe(EMULATOR_REPLY_CHUNKS.join(""));
+    expect(asked).toEqual(["Again [flaky] 2"]);
+  });
+
   it("ends [propose] in a proposal", async () => {
     const reply = await turn(gateway(), "Change it [propose]").result;
     expect(reply.stopReason).toBe("tool_use");
