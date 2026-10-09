@@ -7,6 +7,7 @@ import {
 } from "../commands";
 import { createReferenceProject } from "../domain/fixtures";
 import { TRACK_VOLUME } from "../domain/parameters";
+import { buildAssistantLibrary } from "../testing/assistantLibrary";
 import { historyProposalTarget } from "../testing/historyProposalTarget";
 import {
   type CallScript,
@@ -39,6 +40,7 @@ import {
   type AssistantStreamChunk,
   type AssistantTurnRequest,
 } from "./protocol";
+import { RECOMMEND_SOUNDS_TOOL } from "./recommendation";
 import { type AssistantTurnLog, TURN_LOG_KEYS } from "./telemetry";
 import { ASSISTANT_TOOLSET_VERSION, assistantTools, toolNameFor } from "./tools";
 
@@ -185,6 +187,38 @@ describe("runAssistantTurn: tools and proposals (GRV-4)", () => {
       assistantTools().map((tool) => tool.name),
     );
     for (const tool of sent.tools) expect(tool.input_schema.type).toBe("object");
+  });
+
+  it("offers recommend_sounds, and the library, only on a turn that carries it (GRV-23)", async () => {
+    const without = harness([replyEvents(["ok"])]);
+    await run(without);
+    const plain = without.provider.requests[0];
+    expect(plain.tools.map((tool) => tool.name)).not.toContain(RECOMMEND_SOUNDS_TOOL);
+    expect(plain.system).toHaveLength(2);
+
+    const library = buildAssistantLibrary();
+    const h = harness([replyEvents(["ok"])]);
+    await run(h, request({ library }));
+    const sent = h.provider.requests[0];
+    expect(sent.tools.map((tool) => tool.name)).toEqual([
+      ...assistantTools().map((tool) => tool.name),
+      RECOMMEND_SOUNDS_TOOL,
+    ]);
+    expect(sent.system).toHaveLength(3);
+    expect(sent.system[2].text).toContain("Dusty Kick");
+    expect(sent.system[2].text).toContain(library.packs[0].id);
+  });
+
+  it("returns a recommendation among the turn's calls, for the browser to take out", async () => {
+    const recommend = {
+      name: RECOMMEND_SOUNDS_TOOL,
+      input: { packId: "pak_x", soundIds: ["a"], reason: "Dusty." },
+    };
+    const h = harness([toolUseEvents("Try this.", [recommend])]);
+    const result = await run(h, request({ library: buildAssistantLibrary() }));
+    expect(result.proposal?.calls.map((entry) => entry.name)).toEqual([
+      RECOMMEND_SOUNDS_TOOL,
+    ]);
   });
 
   it("returns the tool calls as a proposal at the request's revision", async () => {
@@ -350,6 +384,15 @@ describe("runAssistantTurn: the request", () => {
       context: { ...body.context, assetUrl: "https://storage.example/sound.wav" },
     };
     await expectCode(run(h, leaky), "invalid_request");
+    expect(h.provider.requests).toHaveLength(0);
+  });
+
+  it("refuses a library carrying a field the allowlist does not name", async () => {
+    const h = harness([replyEvents(["ok"])]);
+    const library = buildAssistantLibrary();
+    (library.packs[0] as unknown as Record<string, unknown>).manifestPath = "/x.json";
+    const error = await failure(run(h, request({ library })));
+    expect(error.code).toBe("invalid_request");
     expect(h.provider.requests).toHaveLength(0);
   });
 

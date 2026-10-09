@@ -16,7 +16,7 @@ import {
   trackTypeSchema,
 } from "../domain/entities";
 import { MAX_SELECTED_NOTES } from "../projection/selectedNotes";
-import { ASSISTANT_REQUEST_LIMITS } from "./config";
+import { ASSISTANT_LIBRARY_LIMITS, ASSISTANT_REQUEST_LIMITS } from "./config";
 
 const name = z.string().max(200);
 const count = z.int().min(0);
@@ -135,6 +135,55 @@ export const assistantContextPayloadSchema = z.strictObject({
 });
 export type AssistantContextPayload = z.infer<typeof assistantContextPayloadSchema>;
 
+/**
+ * One sound in the library the assistant may recommend from (GRV-23): its
+ * library ID, name, role and tags, and whether the open project uses it. Never
+ * its audio, an asset URL or where it is stored (ADR 0007 decision 2).
+ */
+export const assistantLibrarySoundSchema = z.strictObject({
+  id: z.string().min(1).max(128),
+  name,
+  role: z.string().max(64),
+  type: z.enum(["one-shot", "loop"]),
+  tags: z.array(z.string().max(64)).max(ASSISTANT_LIBRARY_LIMITS.maxTags),
+  inProject: z.boolean(),
+});
+export type AssistantLibrarySound = z.infer<typeof assistantLibrarySoundSchema>;
+
+/**
+ * One pack the app serves, with its sounds: what a recommendation card shows
+ * of it (name, publisher, version, how many sounds) and whether the project
+ * already uses it.
+ */
+export const assistantLibraryPackSchema = z.strictObject({
+  id: z.string().min(1).max(64),
+  name,
+  publisher: name,
+  version: z.string().max(32),
+  description: z.string().max(ASSISTANT_LIBRARY_LIMITS.maxDescriptionChars),
+  soundCount: count,
+  inProject: z.boolean(),
+  sounds: z.array(assistantLibrarySoundSchema).max(ASSISTANT_LIBRARY_LIMITS.maxSounds),
+});
+export type AssistantLibraryPack = z.infer<typeof assistantLibraryPackSchema>;
+
+/**
+ * The published library a turn may recommend from (GRV-23, ADR 0007 decision
+ * 1): the packs the app serves and their sounds' metadata. Never a producer's
+ * own packs, whose names are theirs.
+ */
+export const assistantLibraryContextSchema = z
+  .strictObject({
+    packs: z.array(assistantLibraryPackSchema).max(ASSISTANT_LIBRARY_LIMITS.maxPacks),
+  })
+  .refine(
+    (library) =>
+      library.packs.reduce((sum, pack) => sum + pack.sounds.length, 0) <=
+      ASSISTANT_LIBRARY_LIMITS.maxSounds,
+    { message: `a library carries at most ${ASSISTANT_LIBRARY_LIMITS.maxSounds} sounds` },
+  );
+export type AssistantLibraryContext = z.infer<typeof assistantLibraryContextSchema>;
+
 export const assistantMessageSchema = z.strictObject({
   role: z.enum(["user", "assistant"]),
   text: z.string().min(1).max(ASSISTANT_REQUEST_LIMITS.maxMessageChars),
@@ -146,6 +195,10 @@ export type AssistantMessage = z.infer<typeof assistantMessageSchema>;
  * project context it is about, and the revision of the project that context
  * was read from (PRD AI-06). A proposal the turn returns carries that
  * revision back, so the browser refuses it once the project has moved on.
+ *
+ * `library` is the published library the assistant may recommend from
+ * (GRV-23). A turn without one is offered no way to recommend anything: the
+ * browser leaves it out when the library has not loaded.
  */
 export const assistantTurnRequestSchema = z.strictObject({
   projectRevision: z.int().min(0),
@@ -157,6 +210,7 @@ export const assistantTurnRequestSchema = z.strictObject({
       message: "the conversation must end with the user's message",
     }),
   context: assistantContextPayloadSchema,
+  library: assistantLibraryContextSchema.optional(),
 });
 export type AssistantTurnRequest = z.infer<typeof assistantTurnRequestSchema>;
 

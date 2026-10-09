@@ -20,13 +20,21 @@
  *   a proposal: the tempo to 100 BPM.
  * - "Loosen the beat" (CF-027, any case): a proposal of two changes, swing to
  *   58% and the BD track 3 dB quieter, read from the project context.
+ * - anything "dusty" or "dustier" (CF-034, any case): a recommendation of up to
+ *   three kicks the project does not use, the grittiest first, all from the
+ *   pack of the best one, for the BD track (or the first), read from the
+ *   library the turn carries (GRV-23). With no library, or no such kick, a
+ *   short reply saying so.
  * - anything else: a short reply, streamed in pieces with a pause between.
  *
  * Like the rest of `src/assistant`, it imports no Firebase and no SDK.
  */
+import { LIBRARY_BLOCK_HEADING, PROJECT_BLOCK_HEADING } from "./prompt";
+import type { AssistantLibraryContext } from "./protocol";
 import type { AssistantProvider } from "./provider";
 import { ProviderFailure } from "./provider";
 import type { ProviderMessagesRequest } from "./providerRequest";
+import { RECOMMEND_SOUNDS_TOOL } from "./recommendation";
 
 /** The reply every ordinary turn streams, piece by piece. */
 export const EMULATOR_REPLY_CHUNKS = [
@@ -136,25 +144,29 @@ interface ContextTrack {
   readonly volume: number;
 }
 
+/** The JSON a system block carries after `heading`, or null when none does. */
+function systemJson(request: ProviderMessagesRequest, heading: string): unknown {
+  for (const block of request.system) {
+    const at = block.text.indexOf(heading);
+    if (at < 0) continue;
+    try {
+      return JSON.parse(block.text.slice(at + heading.length));
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 /**
  * The tracks in the project context the gateway put in the system prompt
  * (`prompt.ts`), as the scripted provider needs them: IDs, names and volumes.
  */
 function contextTracks(request: ProviderMessagesRequest): readonly ContextTrack[] {
-  const marker = "The open project, as JSON:\n";
-  for (const block of request.system) {
-    const at = block.text.indexOf(marker);
-    if (at < 0) continue;
-    try {
-      const context = JSON.parse(block.text.slice(at + marker.length)) as {
-        tracks?: readonly ContextTrack[];
-      };
-      return context.tracks ?? [];
-    } catch {
-      return [];
-    }
-  }
-  return [];
+  const context = systemJson(request, PROJECT_BLOCK_HEADING) as {
+    tracks?: readonly ContextTrack[];
+  } | null;
+  return context?.tracks ?? [];
 }
 
 /**
@@ -187,6 +199,64 @@ function loosenProposal(request: ProviderMessagesRequest): Step[] {
   return proposalReply(
     `A little swing pushes every second 16th late, so the beat sounds played rather than programmed${track ? `, and ${track.name} sits back a little so the groove leads` : ""}.`,
     calls,
+  );
+}
+
+/** The role "anything dustier?" recommends. */
+export const DUSTIER_ROLE = "kick";
+/** The tags that make a sound dustier, the strongest first. */
+const DUSTY_TAGS = ["gritty", "lofi", "warm", "soft"] as const;
+
+/** How dusty a sound's tags say it is: higher is dustier. */
+function dustiness(tags: readonly string[]): number {
+  return DUSTY_TAGS.reduce(
+    (score, tag, index) => score + (tags.includes(tag) ? DUSTY_TAGS.length - index : 0),
+    0,
+  );
+}
+
+/**
+ * CF-034's script: asked for something dustier, the kicks the project does
+ * not use, dustiest first, from the pack of the dustiest, for the BD track or
+ * the first track. Read from the library the turn carries; with none, or no
+ * kick to offer, a reply that says so.
+ */
+function dustierRecommendation(request: ProviderMessagesRequest): Step[] {
+  const library = systemJson(
+    request,
+    LIBRARY_BLOCK_HEADING,
+  ) as AssistantLibraryContext | null;
+  const kicks = (library?.packs ?? []).flatMap((pack) =>
+    pack.sounds
+      .filter(
+        (sound) =>
+          sound.role === DUSTIER_ROLE && sound.type === "one-shot" && !sound.inProject,
+      )
+      .map((sound) => ({ pack, sound, score: dustiness(sound.tags) })),
+  );
+  // A stable sort, so equally dusty kicks keep the library's order.
+  const ranked = [...kicks].sort((a, b) => b.score - a.score);
+  const best = ranked[0];
+  if (!best) {
+    return textReply(["I can't find a dustier kick in the library right now."]);
+  }
+  const picks = ranked.filter((entry) => entry.pack.id === best.pack.id).slice(0, 3);
+  const tracks = contextTracks(request);
+  const track =
+    tracks.find((candidate) => candidate.name === LOOSEN_TRACK_NAME) ?? tracks[0];
+  return proposalReply(
+    `${best.pack.name} has kicks with a softer, grittier attack that sit back in the beat. Try ${best.sound.name} first.`,
+    [
+      {
+        name: RECOMMEND_SOUNDS_TOOL,
+        input: {
+          packId: best.pack.id,
+          soundIds: picks.map((entry) => entry.sound.id),
+          reason: "Softer, grittier kicks that sit back under the beat.",
+          ...(track ? { trackId: track.id } : {}),
+        },
+      },
+    ],
   );
 }
 
@@ -229,6 +299,7 @@ export function createEmulatorAssistantProvider(
     }
     if (message.includes("[propose]")) return tempoProposal();
     if (/loosen the beat/i.test(message)) return loosenProposal(request);
+    if (/\bdust(y|ier)\b/i.test(message)) return dustierRecommendation(request);
     return textReply(EMULATOR_REPLY_CHUNKS);
   }
 

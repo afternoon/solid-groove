@@ -60,8 +60,10 @@ import {
 /**
  * Bumped whenever a tool is added, removed, renamed or changes its rules.
  * 2: `parameter_set` may set the song's swing as well as its tempo (GRV-5).
+ * 3: a turn that carries the library is offered `recommend_sounds`
+ *    (`recommendation.ts`, GRV-23).
  */
-export const ASSISTANT_TOOLSET_VERSION = 2;
+export const ASSISTANT_TOOLSET_VERSION = 3;
 
 /** The song's own parameters the assistant may set: its tempo and its swing. */
 const SONG_PARAMETER_IDS: readonly string[] = [SONG_TEMPO.id, SONG_SWING.id];

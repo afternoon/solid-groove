@@ -31,6 +31,7 @@ The assistant may be sent, for the project currently open:
 - a description of the current selection;
 - **raw note events for the current selection only**;
 - the conversation so far, within the bound [ADR 0006](./0006-anthropic-behind-a-model-agnostic-gateway.md) decision 3 sets.
+- the published library the app serves, so the assistant can recommend a pack and its sounds by ID (GRV-23): each pack's name, publisher, version, description and size, its sounds' names, roles and tags, and which of them the project already uses. These are library facts Groove ships, not user content. Never a sound's audio, URL or storage path, and never a producer's own packs, whose names are theirs.
 
 Anything not on this list is not sent. Extending the list is a change to this ADR.
 

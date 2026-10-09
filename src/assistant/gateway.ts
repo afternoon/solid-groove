@@ -24,7 +24,10 @@
  * Every turn offers the model the assistant's tool set (GRV-4). A turn that
  * stops for `tool_use` returns its calls as a proposal stamped with the
  * request's project revision and the tool set's version; the browser
- * validates it against the open project before anything can apply.
+ * validates it against the open project before anything can apply. A turn
+ * that carries the published library is offered `recommend_sounds` as well
+ * (GRV-23); its calls come back among the proposal's, and the browser takes
+ * them out and checks their IDs against the library it sent.
  */
 import {
   ASSISTANT_CALL_LIMITS,
@@ -57,6 +60,7 @@ import {
   providerTools,
 } from "./providerRequest";
 import { admitCall, type QuotaLimits, quotaExceededMessage } from "./quota";
+import { recommendationTool } from "./recommendation";
 import { costMicroUsd, spendDay, usdToMicro } from "./spend";
 import { NO_USAGE, type ProviderUsage, StreamReader } from "./streamEvents";
 import { type AssistantTurnLog, toTurnLog } from "./telemetry";
@@ -173,8 +177,12 @@ async function prepare(
   uid: string,
   turn: AssistantTurnRequest,
 ): Promise<PreparedTurn> {
-  const system = buildSystemBlocks(turn.context);
-  const tools = providerTools(assistantTools());
+  const system = buildSystemBlocks(turn.context, turn.library);
+  // A turn that carries the library may also recommend from it (GRV-23).
+  const tools = [
+    ...providerTools(assistantTools()),
+    ...(turn.library ? [recommendationTool()] : []),
+  ];
   // The tool definitions take room in the window just as the prompt does.
   const systemTokens =
     system.reduce((sum, block) => sum + estimateTokens(block.text), 0) +
