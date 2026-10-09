@@ -82,7 +82,7 @@ Work is tracked as **Linear issues** in team `GRV`, project **Groove** (`https:/
 
 ### The board
 
-The board is the team's Linear board: a card's column is its workflow state, and moving it is what starts the automation. `.github/workflows/board.yml` polls Linear every five minutes (`.github/scripts/board.mjs poll`) and acts on what it finds; GitHub events move cards the other way at once. A card is in exactly one column, always.
+The board is the team's Linear board: a card's column is its workflow state, and moving it is what starts the automation. `.github/workflows/board.yml` polls Linear (`.github/scripts/board.mjs poll`) and acts on what it finds, started within seconds of a card moving by a Cloudflare Worker that Linear calls (`scripts/linear/relay/`, see [`docs/linear.md`](./docs/linear.md)) and every five minutes by schedule as a backstop; GitHub events move cards the other way at once. A card is in exactly one column, always.
 
 | Column | Moved there by |
 | --- | --- |
@@ -117,6 +117,8 @@ Every task runs in two phases:
 | **Feature** | New capability: one PR, or a few in sequence | Unit/component tests, plus a core flow when the feature adds a new user journey | Adversarial review, up to two fix rounds |
 | **Fix** | Something is wrong | A regression test that fails before the fix (keep the red output for the PR body) | None |
 | **Polish** | A small enhancement or tweak | A unit test where the behaviour is testable | None |
+
+Triage also picks the **model tier** the build, its fixes and the review run on, the cheapest that fits the issue's complexity and novelty: **Haiku** for a fix or polish the spec pins down in a file or two along an existing pattern, touching no contract; **Sonnet** by default; **Opus** for novel or risky work (a new module or pattern, a contract change, real-time audio, streaming, rules or server code, a multi-PR feature). A feature never builds on Haiku and a review never runs below Sonnet; a cheaper build that cannot finish is retried once a tier up. A `model:haiku`, `model:sonnet` or `model:opus` label on the card overrides triage, and each PR body says which tier built it.
 
 Whether the issue says "bug" or "enhancement" does not matter. Behaviour that works as coded but is not what the product owner wants is still a change to make: never stop because something "is expected behaviour". Ship stops only when the issue is genuinely unclear (two reasonable readings would build materially different things) and comments the question on the issue.
 

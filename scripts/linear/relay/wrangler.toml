@@ -1,0 +1,12 @@
+# The Linear → GitHub relay (worker.mjs). Deploy steps: docs/linear.md, "The relay".
+# Secrets, set with `bunx wrangler secret put <NAME>`, never written here:
+#   LINEAR_WEBHOOK_SECRET  the signing secret Linear shows for the webhook
+#   GITHUB_TOKEN           fine-grained PAT, trygroove/groove only, Actions: read and write
+name = "groove-linear-relay"
+main = "worker.mjs"
+compatibility_date = "2026-09-01"
+
+[vars]
+GITHUB_REPO = "trygroove/groove"
+WORKFLOW = "board.yml"
+REF = "main"
