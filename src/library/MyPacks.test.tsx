@@ -23,7 +23,11 @@ import {
 } from "../userLibrary/inMemoryUserLibraryRepository";
 import type { AudioDecoder } from "../userLibrary/soundAnalysis";
 import type { UserPackAsset } from "../userLibrary/userPacks";
-import { type UserLibraryAccount, useUserLibrary } from "../userLibrary/useUserLibrary";
+import {
+  type UserLibrary,
+  type UserLibraryAccount,
+  useUserLibrary,
+} from "../userLibrary/useUserLibrary";
 import MyPackFiles from "./MyPackFiles";
 import MyPacks from "./MyPacks";
 import type { LibraryAsset } from "./manifest";
@@ -77,6 +81,12 @@ function setUp(
     repository?: InMemoryUserLibraryRepository;
     /** Hands the repository over when this settles, not straight away. */
     repositoryReady?: Promise<void>;
+    /**
+     * Leave the open pack's sounds unrendered. A test that fills a pack to
+     * its limit would otherwise draw hundreds of rows, slow enough in jsdom
+     * to time out on a busy runner.
+     */
+    hideFiles?: boolean;
   } = {},
 ) {
   const repository = options.repository ?? createInMemoryUserLibraryRepository();
@@ -98,8 +108,9 @@ function setUp(
   const [selectedId, setSelectedId] = createSignal<string | null>(null);
   // The view's key handler, as the modal takes it (GRV-76).
   let keys: ((action: SoundsKeyAction) => void) | null = null;
+  let library!: UserLibrary;
   function Harness() {
-    const library = useUserLibrary({
+    library = useUserLibrary({
       account,
       repository: async () => {
         await options.repositoryReady;
@@ -117,7 +128,7 @@ function setUp(
     return (
       <>
         <MyPacks library={library} openId={openId()} onOpen={setOpenId} />
-        <Show when={openPack()}>
+        <Show when={!options.hideFiles && openPack()}>
           {(pack) => (
             <MyPackFiles
               library={library}
@@ -147,6 +158,7 @@ function setUp(
   return {
     repository,
     transport,
+    library: () => library,
     auditioned,
     similar,
     favourited,
@@ -877,7 +889,7 @@ describe("My packs", () => {
   });
 
   it("refuses a sound past a pack's limit before uploading it", async () => {
-    const { repository, transport } = setUp();
+    const { repository, transport, library } = setUp({ hideFiles: true });
     const pack = await addNamedPack("Field Recordings");
     const [stored] = await new Promise<readonly { id: string }[]>((resolve) => {
       const stop = repository.watchPacks(
@@ -914,7 +926,15 @@ describe("My packs", () => {
 
     // Room for one more: of two files dropped together, the second is refused.
     drop(pack, [audioFile("tape-kick.wav"), audioFile("door-slam.wav")]);
-    expect(await within(files()).findByText(/This pack is full/)).toBeVisible();
+    await waitFor(() =>
+      expect(library().imports()).toEqual([
+        expect.objectContaining({
+          fileName: "door-slam.wav",
+          state: "failed",
+          message: expect.stringMatching(/This pack is full/),
+        }),
+      ]),
+    );
     await waitFor(() => expect(transport.named("sound_imported")).toHaveLength(1));
     expect(repository.objects.size).toBe(1);
     expect(transport.named("sound_import_failed")[0].params).toMatchObject({
