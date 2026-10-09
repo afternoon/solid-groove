@@ -10,6 +10,7 @@ import type { AssistantClient } from "../../assistant/assistantClient";
 import type { Project } from "../../domain/entities";
 import type { Suggestion } from "../../projection/projectAnalysisProjection";
 import type { EditorViewName } from "../editorViews";
+import { type AssistantLibrary, libraryContext } from "./assistantLibrary";
 import {
   type AssistantScope,
   resolveScope,
@@ -29,6 +30,11 @@ import {
   type UseAssistantProposalsOptions,
   useAssistantProposals,
 } from "./useAssistantProposals";
+import {
+  type AssistantRecommendations,
+  type RecommendationEditorPort,
+  useAssistantRecommendations,
+} from "./useAssistantRecommendations";
 
 /** Who is here to talk: a signed-in account, or someone who must sign in. */
 export interface AssistantAccount {
@@ -56,6 +62,15 @@ export interface UseAssistantChatOptions {
   readonly editor?: {
     readonly session: ProposalSessionPort;
     readonly controls: UseAssistantProposalsOptions["controls"];
+    /**
+     * The library a turn may recommend from, and the slots, audio and insert
+     * a recommendation is tried and kept through (GRV-23). Without them the
+     * assistant is sent no library, so it recommends nothing.
+     */
+    readonly recommendations?: {
+      readonly library: AssistantLibrary;
+      readonly port: RecommendationEditorPort;
+    };
   };
 }
 
@@ -74,6 +89,8 @@ export interface AssistantChat {
   readonly account: Accessor<AssistantAccount>;
   /** The proposal cards, when there is an editor to apply them to. */
   readonly proposals: AssistantProposals | null;
+  /** The recommended packs, when there is an editor and a library to try them in. */
+  readonly recommendations: AssistantRecommendations | null;
 }
 
 export function useAssistantChat(options: UseAssistantChatOptions): AssistantChat {
@@ -111,6 +128,20 @@ export function useAssistantChat(options: UseAssistantChatOptions): AssistantCha
       })
     : null;
 
+  const recommending = editor?.recommendations;
+  const recommendations =
+    editor && recommending
+      ? useAssistantRecommendations({
+          session: editor.session,
+          controls: editor.controls,
+          project: options.project,
+          library: recommending.library,
+          editor: recommending.port,
+          analytics: options.analytics,
+          refresh: (entryId) => conversation.refresh(entryId),
+        })
+      : null;
+
   const conversation = useAssistantConversation({
     client: options.client,
     project: options.project,
@@ -121,6 +152,16 @@ export function useAssistantChat(options: UseAssistantChatOptions): AssistantCha
       ? (entryId, proposal, origin) => proposals.receive(entryId, proposal, origin)
       : undefined,
     remoteChanges: proposals ? () => proposals.remoteChanges() : undefined,
+    library: recommending
+      ? async (project) => {
+          const catalog = await recommending.library.load();
+          return catalog ? libraryContext(catalog, project) : null;
+        }
+      : undefined,
+    onRecommendation: recommendations
+      ? (entryId, call, library, origin) =>
+          recommendations.receive(entryId, call, library, origin)
+      : undefined,
   });
 
   const suggestions = createMemo((): readonly Suggestion[] => {
@@ -147,5 +188,6 @@ export function useAssistantChat(options: UseAssistantChatOptions): AssistantCha
     sendSuggestion: (suggestion) => conversation.send(suggestion.label, suggestion.id),
     account: options.account,
     proposals,
+    recommendations,
   };
 }

@@ -23,10 +23,13 @@ import type {
 import { ASSISTANT_REQUEST_LIMITS } from "../../assistant/config";
 import type {
   AssistantErrorDetails,
+  AssistantLibraryContext,
   AssistantMessage,
   AssistantProposal,
+  AssistantToolCall,
   AssistantTurnRequest,
 } from "../../assistant/protocol";
+import { splitRecommendations } from "../../assistant/recommendation";
 import type { Project } from "../../domain/entities";
 import type { SuggestionId } from "../../projection/projectAnalysisProjection";
 import { type AssistantScope, scopedContext } from "./assistantScope";
@@ -76,6 +79,18 @@ export type ConversationEntry =
       readonly proposal: AssistantProposal;
       readonly origin: TurnOrigin;
     }
+  /**
+   * A pack and sounds the reply recommends (GRV-23), as the model named them,
+   * with the library the turn was sent with, which is what they are checked
+   * against, and the turn that asked, so Refresh can ask again.
+   */
+  | {
+      readonly kind: "recommendation";
+      readonly id: string;
+      readonly call: AssistantToolCall;
+      readonly library: AssistantLibraryContext | null;
+      readonly origin: TurnOrigin;
+    }
   /** The turn failed. The song is untouched. */
   | {
       readonly kind: "error";
@@ -103,6 +118,19 @@ export interface UseAssistantConversationOptions {
   ) => void;
   /** How many changes made elsewhere the editor has adopted so far; 0 without one. */
   readonly remoteChanges?: () => number;
+  /**
+   * The library a turn may recommend from, for `project` (GRV-23), or null
+   * when it has not loaded. Without it, turns carry no library and the
+   * assistant cannot recommend.
+   */
+  readonly library?: (project: Project) => Promise<AssistantLibraryContext | null>;
+  /** Hears each recommendation as it arrives, under its entry's ID (GRV-23). */
+  readonly onRecommendation?: (
+    entryId: string,
+    call: AssistantToolCall,
+    library: AssistantLibraryContext | null,
+    origin: TurnOrigin,
+  ) => void;
 }
 
 export interface AssistantConversation {
@@ -125,9 +153,9 @@ export interface AssistantConversation {
   /** Whether {@link retry} would resend this entry's turn now. */
   canRetry(entry: ConversationEntry): boolean;
   /**
-   * Asks again for the proposal in entry `entryId`, with its words and its
-   * scope, against the song as it is now (GRV-5's Refresh). Returns whether
-   * it went: not while a reply streams, nor with no account.
+   * Asks again for the proposal or recommendation in entry `entryId`, with
+   * its words and its scope, against the song as it is now (GRV-5's Refresh).
+   * Returns whether it went: not while a reply streams, nor with no account.
    */
   refresh(entryId: string): boolean;
 }
@@ -196,7 +224,26 @@ export function useAssistantConversation(
       }),
     );
 
-  function startTurn(request: AssistantTurnRequest, origin: TurnOrigin): void {
+  /**
+   * The request with the library added, when the turn has none yet and one
+   * loads. A library that will not load sends the turn without one.
+   */
+  async function withLibrary(
+    request: AssistantTurnRequest,
+  ): Promise<AssistantTurnRequest> {
+    const project = options.project();
+    if (request.library || !options.library || !project) return request;
+    try {
+      const library = await options.library(project);
+      return library ? { ...request, library } : request;
+    } catch {
+      return request;
+    }
+  }
+
+  function startTurn(asked: AssistantTurnRequest, origin: TurnOrigin): void {
+    // What Try again resends: the request as it went, library and all.
+    let request = asked;
     const replyId = id();
     append({ kind: "reply", id: replyId, text: "", streaming: true, stopped: false });
     setStreaming(true);
@@ -232,9 +279,20 @@ export function useAssistantConversation(
           );
           return;
         case "proposal": {
-          const entryId = id();
-          append({ kind: "proposal", id: entryId, proposal: event.proposal, origin });
-          options.onProposal?.(entryId, event.proposal, origin);
+          // Recommendations come back among the proposal's calls (GRV-23):
+          // each is a card of its own, and the changes, if any, are one.
+          const split = splitRecommendations(event.proposal);
+          if (split.proposal) {
+            const entryId = id();
+            append({ kind: "proposal", id: entryId, proposal: split.proposal, origin });
+            options.onProposal?.(entryId, split.proposal, origin);
+          }
+          for (const call of split.recommendations) {
+            const entryId = id();
+            const library = request.library ?? null;
+            append({ kind: "recommendation", id: entryId, call, library, origin });
+            options.onRecommendation?.(entryId, call, library, origin);
+          }
           return;
         }
         case "error":
@@ -269,9 +327,10 @@ export function useAssistantConversation(
           });
       },
     };
-    options.client().then(
-      (client) => {
-        if (!ended) handle = client.send(request, onEvent);
+    Promise.all([options.client(), withLibrary(asked)]).then(
+      ([client, prepared]) => {
+        request = prepared;
+        if (!ended) handle = client.send(prepared, onEvent);
       },
       () =>
         onEvent({
@@ -317,7 +376,7 @@ export function useAssistantConversation(
 
   function refresh(entryId: string): boolean {
     const entry = entries().find((candidate) => candidate.id === entryId);
-    if (entry?.kind !== "proposal") return false;
+    if (entry?.kind !== "proposal" && entry?.kind !== "recommendation") return false;
     return ask(entry.origin.text, entry.origin.scope);
   }
 

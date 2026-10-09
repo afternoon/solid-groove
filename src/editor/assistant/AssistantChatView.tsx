@@ -3,6 +3,7 @@ import { createEffect, For, Match, Show, Switch } from "solid-js";
 import { SendIcon, SparkIcon, StopIcon } from "../../components/icons";
 import { ERROR_HEADING, ERROR_REASSURANCE, errorMessage } from "./assistantErrorCopy";
 import ProposalCard from "./ProposalCard";
+import RecommendationCard from "./RecommendationCard";
 import type { AssistantChat } from "./useAssistantChat";
 import { type ConversationEntry, MAX_MESSAGE_CHARS } from "./useAssistantConversation";
 
@@ -224,6 +225,29 @@ function Entry(props: {
             <ProposalCard
               entryId={props.entry.id}
               proposals={proposals()}
+              canAsk={
+                props.chat.account().registered && !props.chat.conversation.streaming()
+              }
+            />
+          )}
+        </Show>
+      </Match>
+      <Match when={props.entry.kind === "recommendation"}>
+        <Show
+          when={props.chat.recommendations}
+          fallback={
+            // No editor to try it in: the reply says a sound was recommended
+            // and nothing more. Nothing in the song changes.
+            <section class="assistant-card" aria-label="Recommended pack">
+              <b>A sound was recommended</b>
+              <span>Open a project to hear and try it. Your song is unchanged.</span>
+            </section>
+          }
+        >
+          {(recommendations) => (
+            <RecommendationCard
+              entryId={props.entry.id}
+              recommendations={recommendations()}
               canAsk={
                 props.chat.account().registered && !props.chat.conversation.streaming()
               }

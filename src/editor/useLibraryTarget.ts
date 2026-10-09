@@ -80,6 +80,15 @@ export interface LibraryTargeting {
   endNewAim(): void;
   /** Goes back from a committed insert to where it belongs. */
   returnFromInsert(via: ViewChangeSource): void;
+  /**
+   * Goes to the Library scoped to one pack, by slug: the assistant's "Open in
+   * library" (GRV-23). The selected track's slot stays the target.
+   */
+  openPack(slug: string, via: ViewChangeSource): void;
+  /** The pack the Library is asked to open on, until it has. */
+  readonly requestedPack: Accessor<string | null>;
+  /** The Library opened the requested pack. */
+  packOpened(): void;
   /** The slot the Library auditions through, if its target has one. */
   slotAudition(): SlotAudition | undefined;
   /** The Library's Insert into `target`, through the pack-upgrade check. */
@@ -131,6 +140,8 @@ export function useLibraryTarget(options: UseLibraryTargetOptions): LibraryTarge
     );
   // Registered by the open library modal; the `library` shortcuts run them.
   const [libraryActions, setLibraryActions] = createSignal<LibraryActions | null>(null);
+  // A pack the Library is asked to open on (GRV-23), until it has.
+  const [requestedPack, setRequestedPack] = createSignal<string | null>(null);
 
   // The project's packs: its derived dependencies and its shelf. Nothing in the
   // library window adds a pack for the session any more; inserting does.
@@ -389,6 +400,14 @@ export function useLibraryTarget(options: UseLibraryTargetOptions): LibraryTarge
       setNewPadAim(false);
     },
     returnFromInsert,
+    openPack(slug, via) {
+      setNewTrackAim(false);
+      setNewPadAim(false);
+      setRequestedPack(slug);
+      navigation.selectView("library", via);
+    },
+    requestedPack,
+    packOpened: () => setRequestedPack(null),
     slotAudition,
     insert(target, asset, insertOptions) {
       insertedInto = target;
