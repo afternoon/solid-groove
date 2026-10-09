@@ -17,6 +17,7 @@ import {
 } from "../domain/entities";
 import { MAX_SELECTED_NOTES } from "../projection/selectedNotes";
 import { ASSISTANT_REQUEST_LIMITS } from "./config";
+import { assistantTurnSessionSchema } from "./transcripts";
 
 const name = z.string().max(200);
 const count = z.int().min(0);
@@ -157,6 +158,12 @@ export const assistantTurnRequestSchema = z.strictObject({
       message: "the conversation must end with the user's message",
     }),
   context: assistantContextPayloadSchema,
+  /**
+   * The conversation, turn and project the transcript files this turn under
+   * (GRV-8). Never sent to the provider. Optional, so a turn without one is
+   * answered the same and simply never kept.
+   */
+  session: assistantTurnSessionSchema.optional(),
 });
 export type AssistantTurnRequest = z.infer<typeof assistantTurnRequestSchema>;
 

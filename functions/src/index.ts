@@ -22,6 +22,12 @@
  * allowlist and end its account's sessions in one go, which needs the Admin
  * SDK; `src/access/revokeAccess.ts` decides.
  *
+ * The assistant's transcripts (GRV-8) are kept by `assistantTurn` only for an
+ * account that said yes; `assistantRetention` reads and stores that answer
+ * (a no deletes what was kept), an hourly job deletes every transcript past
+ * its 30 days, and deleting a project or an account deletes its transcripts.
+ * `src/assistant/retention.ts` and `transcripts.ts` decide all of it.
+ *
  * Every kind of user data (packs today, recordings and presets later) is a
  * folder under `users/{uid}/`, so a new kind is counted as soon as it is added
  * to `USER_DATA_KINDS` — nothing here changes.
@@ -41,10 +47,12 @@ import { type Firestore, getFirestore, type Transaction } from "firebase-admin/f
 import { getStorage } from "firebase-admin/storage";
 import { logger } from "firebase-functions";
 import { defineSecret, defineString } from "firebase-functions/params";
+import { region as v1Region } from "firebase-functions/v1";
 import { setGlobalOptions } from "firebase-functions/v2";
-import { onDocumentWritten } from "firebase-functions/v2/firestore";
+import { onDocumentDeleted, onDocumentWritten } from "firebase-functions/v2/firestore";
 import { onCall } from "firebase-functions/v2/https";
 import { beforeUserSignedIn, HttpsError } from "firebase-functions/v2/identity";
+import { onSchedule } from "firebase-functions/v2/scheduler";
 import {
   onObjectDeleted,
   onObjectFinalized,
@@ -89,7 +97,9 @@ import {
 import { createAnthropicProvider } from "./anthropicProvider";
 import { createAssistantHandler } from "./assistantHandler";
 import { firestoreGuardStores } from "./assistantStores";
+import { createRetentionHandler } from "./retentionHandler";
 import { createRevokeAccessHandler } from "./revokeAccessHandler";
+import { firestoreTranscriptStore } from "./transcriptStore";
 
 /**
  * Where the functions run. A Storage trigger has to run in the default
@@ -371,5 +381,53 @@ export const assistantTurn = onCall(
   createAssistantHandler(() => ({
     provider: assistantProvider(),
     guards: firestoreGuardStores(getFirestore()),
+    transcripts: firestoreTranscriptStore(getFirestore()),
   })),
 );
+
+/**
+ * The account's answer to the assistant's disclosure (GRV-8): read it, give
+ * it, or add what became of a proposal to a kept turn. Saying no deletes every
+ * transcript the account has before the call returns. The export's name is
+ * what the browser calls (`ASSISTANT_RETENTION_CALLABLE` in
+ * `src/assistant/retention.ts`).
+ */
+export const assistantRetention = onCall(
+  createRetentionHandler(() => firestoreTranscriptStore(getFirestore())),
+);
+
+/**
+ * Deletes every transcript whose 30 days have passed (GRV-8). Hourly, so a
+ * record outlives its window by an hour at most; deleted, never archived.
+ */
+export const purgeExpiredTranscripts = onSchedule("every 60 minutes", async () => {
+  const deleted = await firestoreTranscriptStore(getFirestore()).deleteExpired(
+    Date.now(),
+  );
+  logger.info("expired assistant transcripts deleted", { deleted });
+});
+
+/** A deleted project takes its transcripts with it (GRV-8). */
+export const deleteProjectTranscripts = onDocumentDeleted(
+  "projects/{projectId}",
+  async (event) => {
+    const deleted = await firestoreTranscriptStore(getFirestore()).deleteForProject(
+      event.params.projectId,
+    );
+    logger.info("a deleted project's assistant transcripts deleted", { deleted });
+  },
+);
+
+/**
+ * A deleted account takes its transcripts and its retention answer with it
+ * (GRV-8). A first-generation trigger: the second generation has no
+ * account-deleted event.
+ */
+export const deleteAccountTranscripts = v1Region(CLOUD_FUNCTIONS_REGION)
+  .auth.user()
+  .onDelete(async (user) => {
+    const store = firestoreTranscriptStore(getFirestore());
+    const deleted = await store.deleteForUser(user.uid);
+    await store.deletePreference(user.uid);
+    logger.info("a deleted account's assistant transcripts deleted", { deleted });
+  });

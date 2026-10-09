@@ -21,6 +21,10 @@
  *    not streamed anything yet, and abandoning the call if the browser goes away;
  * 7. validates the reply and logs one redacted record of how it went.
  *
+ * 8. keeps the completed turn in the transcript store if, and only if, the
+ *    account has said yes (GRV-8, `retention.ts`). Keeping it never fails or
+ *    changes the turn: the reply is the same either way.
+ *
  * Every turn offers the model the assistant's tool set (GRV-4). A turn that
  * stops for `tool_use` returns its calls as a proposal stamped with the
  * request's project revision and the tool set's version; the browser
@@ -57,16 +61,23 @@ import {
   providerTools,
 } from "./providerRequest";
 import { admitCall, type QuotaLimits, quotaExceededMessage } from "./quota";
+import { recordTurn, type TranscriptWrite } from "./retention";
 import { costMicroUsd, spendDay, usdToMicro } from "./spend";
 import { NO_USAGE, type ProviderUsage, StreamReader } from "./streamEvents";
 import { type AssistantTurnLog, toTurnLog } from "./telemetry";
 import { ASSISTANT_TOOLSET_VERSION, assistantTools } from "./tools";
+import type { TranscriptStore } from "./transcripts";
 
 /** Who is calling, as the function's auth context reports it. */
 export interface AssistantCaller {
   readonly uid: string | null;
   /** `firebase.sign_in_provider` from the ID token, e.g. `google.com`. */
   readonly signInProvider: string | null;
+  /**
+   * Whether the ID token's address is a team or test account
+   * (`isInternalAccount`), so its transcripts are marked internal.
+   */
+  readonly internalAccount?: boolean;
 }
 
 /** The quota and spend figures the gateway enforces. */
@@ -86,6 +97,13 @@ export interface AssistantGatewayDeps {
   readonly model?: AssistantModelProfile;
   readonly limits?: AssistantCallLimits;
   readonly guardLimits?: AssistantGuardLimits;
+  /**
+   * Where a completed turn is kept, if the account allows it (GRV-8).
+   * Without one, nothing is kept.
+   */
+  readonly transcripts?: TranscriptStore;
+  /** Hears how keeping each completed turn went: a code, never the content. */
+  readonly onTranscript?: (write: TranscriptWrite) => void;
 }
 
 export interface AssistantTurnOptions {
@@ -378,6 +396,42 @@ function proposalOf(
 }
 
 /**
+ * Keeps a completed turn in the transcript store, when there is one and the
+ * request named its session. `recordTurn` reads the account's preference in
+ * the same transaction as the write and never throws, so this cannot fail or
+ * alter the turn.
+ */
+async function keepTranscript(
+  deps: AssistantGatewayDeps,
+  uid: string,
+  caller: AssistantCaller,
+  turn: AssistantTurnRequest,
+  receivedAt: number,
+  reply: {
+    text: string;
+    stopReason: AssistantStopReason;
+    proposal: AssistantProposal | null;
+    model: string;
+  },
+): Promise<void> {
+  if (!deps.transcripts || !turn.session) return;
+  const write = await recordTurn(deps.transcripts, {
+    uid,
+    session: turn.session,
+    internalAccount: caller.internalAccount ?? false,
+    projectRevision: turn.projectRevision,
+    userMessage: turn.messages[turn.messages.length - 1]?.text ?? "",
+    reply: reply.text,
+    stopReason: reply.stopReason,
+    proposal: reply.proposal,
+    model: reply.model,
+    promptVersion: ASSISTANT_PROMPT_VERSION,
+    receivedAt,
+  });
+  deps.onTranscript?.(write);
+}
+
+/**
  * Runs one assistant turn. Resolves with the validated reply, or rejects with
  * an {@link AssistantGatewayError}; either way it logs exactly one
  * {@link AssistantTurnLog}.
@@ -454,10 +508,17 @@ export async function runAssistantTurn(
       const { outcome } = attempt;
       if (outcome.kind === "completed") {
         finish("completed", outcome.stopReason);
+        const proposal = proposalOf(turn, outcome.toolCalls);
+        await keepTranscript(deps, uid, caller, turn, startedAt, {
+          text: outcome.text,
+          stopReason: outcome.stopReason,
+          proposal,
+          model: model.id,
+        });
         return {
           text: outcome.text,
           stopReason: outcome.stopReason,
-          proposal: proposalOf(turn, outcome.toolCalls),
+          proposal,
           model: model.id,
           promptVersion: ASSISTANT_PROMPT_VERSION,
           requestsRemaining,
