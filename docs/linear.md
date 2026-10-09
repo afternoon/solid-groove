@@ -13,7 +13,7 @@ itself are in [`CLAUDE.md`](../CLAUDE.md#the-board).
 poll`) and starts whatever the columns ask for. Two things start a poll: a
 small Cloudflare Worker, **the relay** (`scripts/linear/relay/worker.mjs`),
 which Linear calls the moment a card moves or someone comments `@claude`; and
-a five-minute schedule, the backstop for anything the relay misses. The relay
+an hourly schedule, the backstop for anything the relay misses. The relay
 only asks GitHub to run the poll; it decides nothing and passes nothing on,
 so a lost or doubled event costs at most one idle poll. It lives on
 Cloudflare, not in the production Firebase project, so the product side stays
@@ -43,8 +43,8 @@ agents use (`node .github/scripts/linear.mjs issue GRV-12`, `comment`, `state`,
 `create`, …; run it with no arguments for the list). It needs `LINEAR_API_KEY`.
 
 **Latency.** With the relay a poll starts within seconds of the move. The
-schedule alone is far slower: five minutes is the shortest GitHub runs, and on
-this repo scheduled runs have come hours late. If a card you moved shows no
+hourly schedule is only the backstop for a missed delivery, and GitHub runs
+scheduled jobs late (on this repo, sometimes by hours). If a card you moved shows no
 "Picking this up" comment after ten minutes, check the relay's deliveries
 (Linear → Settings → API → the webhook) and the Board workflow's runs;
 "Run workflow" on it polls at once.

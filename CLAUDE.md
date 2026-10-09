@@ -82,12 +82,12 @@ Work is tracked as **Linear issues** in team `GRV`, project **Groove** (`https:/
 
 ### The board
 
-The board is the team's Linear board: a card's column is its workflow state, and moving it is what starts the automation. `.github/workflows/board.yml` polls Linear (`.github/scripts/board.mjs poll`) and acts on what it finds, started within seconds of a card moving by a Cloudflare Worker that Linear calls (`scripts/linear/relay/`, see [`docs/linear.md`](./docs/linear.md)) and every five minutes by schedule as a backstop; GitHub events move cards the other way at once. A card is in exactly one column, always.
+The board is the team's Linear board: a card's column is its workflow state, and moving it is what starts the automation. `.github/workflows/board.yml` polls Linear (`.github/scripts/board.mjs poll`) and acts on what it finds, started within seconds of a card moving by a Cloudflare Worker that Linear calls (`scripts/linear/relay/`, see [`docs/linear.md`](./docs/linear.md)) and hourly by schedule as a backstop; GitHub events move cards the other way at once. A card is in exactly one column, always.
 
 | Column | Moved there by |
 | --- | --- |
 | Backlog | Creating an issue |
-| Ready | The product owner, once the spec is agreed. **This starts `/ship`** in Actions, which moves the card on to In Progress within five minutes, unless a blocker holds it (see below); `/ship` holding off for a conflicting PR |
+| Ready | The product owner, once the spec is agreed. **This starts `/ship`** in Actions, which moves the card on to In Progress within a minute, unless a blocker holds it (see below); `/ship` holding off for a conflicting PR |
 | In Progress | `/ship` starting; a failed QA; the product owner sending it back; a merge-queue failure |
 | Blocked | `/ship` stopping on an unclear issue or a failed run; QA failing twice |
 | QA | The PR that `Completes` the card merging (QA'd on production); a PR labelled `deploy-preview` that `Closes` it opening (QA'd on its preview) |
@@ -101,7 +101,7 @@ Milestones are project milestones on the Groove project (`M1: …`, `M2: …`). 
 
 The QA bot ([`docs/qa-bot.md`](./docs/qa-bot.md) holds its instructions) follows every merged PR back to the card its body names and tests that card on production, as the QA account, once it is in QA and the PR that put it there has deployed; a card in any other column it ignores. On a pass it comments a summary on the card and moves it to Done; on a fail it comments the findings on the card starting with `@claude` (which starts a fix in a new PR) and moves it to In Progress, or to Blocked after the second failure. The rare open PR labelled `deploy-preview` it tests on the preview as well, before it merges: a pass moves the card to Ready For Review, a fail comments on the PR the same way. An agent working a card keeps it current the same way.
 
-**Asking for something on a card.** A comment that mentions `@claude` on a Linear card starts a Claude run on it within five minutes; the run replies "Picking this up" under the comment and keeps its progress there. (On a GitHub PR, `@claude` in a comment or review still starts `claude.yml` at once.) Comments the automation writes start with "**Picking this up**"; never start your own with those words.
+**Asking for something on a card.** A comment that mentions `@claude` on a Linear card starts a Claude run on it within a minute; the run replies "Picking this up" under the comment and keeps its progress there. (On a GitHub PR, `@claude` in a comment or review still starts `claude.yml` at once.) Comments the automation writes start with "**Picking this up**"; never start your own with those words.
 
 **Sending a card back.** To ask for changes on a card whose PRs are open, comment the feedback on the card or a PR, then move the card to In Progress (not Ready, which starts a fresh build). The board runs a rework agent on the open PRs, which fixes them in place, replies to the feedback, and moves the card back to QA (or Ready For Review if there's no preview). It stands down if an `@claude` run is already on it, as after a failed QA.
 
