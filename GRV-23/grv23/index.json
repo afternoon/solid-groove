@@ -1,0 +1,18 @@
+{
+  "id": "grv23",
+  "title": "Recommended pack card",
+  "steps": [
+    {
+      "file": "01-a-recommended-pack-in-the-conversation-w.png",
+      "caption": "A recommended pack in the conversation: why it fits, its kicks, and Try on BD"
+    },
+    {
+      "file": "02-try-on-bd-the-instrument-view-bd-s-slot-.png",
+      "caption": "Try on BD: the instrument view, BD's slot outlined dashed, nothing saved"
+    },
+    {
+      "file": "03-keep-the-slot-names-the-kick-outlined-as.png",
+      "caption": "Keep: the slot names the kick, outlined as changed, with Undo on the card"
+    }
+  ]
+}
