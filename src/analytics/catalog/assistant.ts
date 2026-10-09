@@ -1,13 +1,32 @@
-// The assistant: messages, suggestions, and the proposals it makes.
+// The assistant: messages, suggestions, the questions it asks, and the
+// proposals it makes.
 
-import { type AnalyticsEventDefinition, bucketParam, enumParam } from "./params";
+import {
+  type AnalyticsEventDefinition,
+  boolParam,
+  bucketParam,
+  countParam,
+  enumParam,
+} from "./params";
 
 /** The assistant's `feature_first_use` keys (see `FEATURE_KEYS`). */
 export const ASSISTANT_FEATURE_KEYS = [
   "assistant",
   "assistant_message",
   "assistant_proposal",
+  "assistant_ask",
 ] as const;
+
+/**
+ * How the producer answered a question the assistant asked (GRV-42), as
+ * `assistant_ask_answered`'s `how`: picked an option (with or without typing
+ * too), typed an answer of their own, made the change in the editor instead,
+ * or dismissed it.
+ */
+export const ASSISTANT_ASK_ANSWERS = ["pick", "text", "did_it", "dismissed"] as const;
+
+/** The most options a question can offer (`ASK_LIMITS.maxOptions`). */
+const MAX_ASK_OPTIONS = 8;
 
 /** The assistant panel's shortcut actions, as `shortcut_used`'s `action_id` (see `SHORTCUT_ACTION_IDS`). */
 export const ASSISTANT_SHORTCUT_ACTION_IDS = [
@@ -17,6 +36,15 @@ export const ASSISTANT_SHORTCUT_ACTION_IDS = [
   "assistant.grow_more",
   "assistant.shrink_more",
   "assistant.send",
+  "assistant.ask_option_1",
+  "assistant.ask_option_2",
+  "assistant.ask_option_3",
+  "assistant.ask_option_4",
+  "assistant.ask_option_5",
+  "assistant.ask_option_6",
+  "assistant.ask_option_7",
+  "assistant.ask_option_8",
+  "assistant.ask_finish",
 ] as const;
 
 /**
@@ -72,6 +100,29 @@ export const ASSISTANT_EVENTS = {
     phase: 3,
     owners: ["AI-004"],
     params: { suggestion_id: enumParam(ASSISTANT_SUGGESTION_IDS) },
+  },
+
+  // A question the assistant asked (GRV-42). Never its wording, an option's,
+  // or what the producer typed: only how many options it had and how it was
+  // answered.
+  assistant_ask_shown: {
+    phase: 3,
+    owners: ["AI-004"],
+    params: {
+      option_count: countParam(MAX_ASK_OPTIONS),
+      multi_select: boolParam(),
+      has_suggestion: boolParam(),
+    },
+  },
+
+  assistant_ask_answered: {
+    phase: 3,
+    owners: ["AI-004"],
+    params: {
+      how: enumParam(ASSISTANT_ASK_ANSWERS),
+      option_count: countParam(MAX_ASK_OPTIONS),
+      suggested_taken: boolParam(),
+    },
   },
 
   assistant_proposal_shown: {
