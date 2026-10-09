@@ -93,7 +93,11 @@ export interface RecommendationCard {
   readonly scopeLabel: string;
   /** The pack and sounds, as the library holds them; null when it was refused. */
   readonly recommendation: ResolvedRecommendation | null;
-  /** Where Try plays a sound, or null when there is no slot to try one in. */
+  /**
+   * Where Try plays a sound, or null when there is no slot to try one in. A
+   * recommendation that arrived with none follows the editor: selecting a
+   * drum pad or a sampler afterwards gives it one.
+   */
   readonly slot: RecommendationSlot | null;
   /** The sound Try plays: the first suggested one-shot. */
   readonly sound: LibraryAsset | null;
@@ -105,6 +109,12 @@ export interface RecommendationCard {
   readonly keeping: boolean;
   /** A one-off note after an action could not be done. */
   readonly notice: string | null;
+  /**
+   * Why a stale card is out of date: the slot changed while a sound was tried
+   * (`edited`), or Try found the slot gone before anything was tried
+   * (`missing`). Null for a card that is not stale.
+   */
+  readonly staleBecause: "edited" | "missing" | null;
 }
 
 /** What the cards need from the editor around them. */
@@ -221,6 +231,21 @@ export function useAssistantRecommendations(
   const show = (entryId: string, card: RecommendationCard) =>
     setCards((current) => new Map(current).set(entryId, card));
 
+  /**
+   * The card's slot: the one it was given, or, when it arrived with none,
+   * wherever the editor would aim it now. Reactive through `editor.slotFor`.
+   */
+  function slotOf(card: RecommendationCard): RecommendationSlot | null {
+    if (card.slot || !card.recommendation) return card.slot;
+    return editor.slotFor(card.recommendation.trackId, card.recommendation.padId);
+  }
+  /** The card as shown: with the slot it would try on now. */
+  function asShown(card: RecommendationCard | undefined): RecommendationCard | undefined {
+    if (!card || card.slot || !card.recommendation) return card;
+    const slot = slotOf(card);
+    return slot ? { ...card, slot } : card;
+  }
+
   // Hearing a sound and the pack demo share one engine, made on first use.
   // The controller disposes the engine with itself.
   let audition: AuditionController | null = null;
@@ -270,6 +295,7 @@ export function useAssistantRecommendations(
       refreshed: false,
       keeping: false,
       notice: null,
+      staleBecause: null,
     };
     // Only a turn that carried the library is offered the tool at all.
     if (!library) {
@@ -319,7 +345,7 @@ export function useAssistantRecommendations(
   function tryOn(entryId: string): void {
     const card = cards().get(entryId);
     const entry = entries.get(entryId);
-    if (!card || !entry || !card.slot || !card.sound) return;
+    if (!card || !entry || !card.sound) return;
     if (
       card.status !== "ready" &&
       card.status !== "put-back" &&
@@ -327,11 +353,15 @@ export function useAssistantRecommendations(
     ) {
       return;
     }
+    const slot = slotOf(card);
+    if (!slot) return;
     const project = options.project();
-    if (!project || !slotExists(project, card.slot)) {
-      update(entryId, { status: "stale" });
+    if (!project || !slotExists(project, slot)) {
+      update(entryId, { status: "stale", staleBecause: "missing" });
       return;
     }
+    // A card that arrived with no slot keeps the one it was first tried on.
+    if (!card.slot) update(entryId, { slot });
     stopDemo();
     // One try at a time: another card's ends, and the place it came from is
     // where this one's Put back returns to.
@@ -343,14 +373,14 @@ export function useAssistantRecommendations(
       endTry(otherId);
       update(otherId, { status: "put-back", returnView: null });
     }
-    if (!editor.previewInSlot(card.slot.preview, card.sound)) {
+    if (!editor.previewInSlot(slot.preview, card.sound)) {
       update(entryId, {
-        notice: `${card.sound.name} can't play through ${card.slot.label}.`,
+        notice: `${card.sound.name} can't play through ${slot.label}.`,
       });
       return;
     }
     setMark(entryId, "previewed");
-    const from = controls.revealControl(card.slot.address, { focus: false });
+    const from = controls.revealControl(slot.address, { focus: false });
     entry.location = location ?? from;
     entry.triedAt = clock.now();
     update(entryId, { status: "trying", returnView: entry.location?.view ?? null });
@@ -486,7 +516,7 @@ export function useAssistantRecommendations(
       endTry(entryId);
       update(entryId, { status: "put-back", returnView: null });
     }
-    editor.openLibrary(card.recommendation.pack.slug, card.slot);
+    editor.openLibrary(card.recommendation.pack.slug, slotOf(card));
   }
 
   /** Whether an edit changed what a slot holds, or took the slot away. */
@@ -531,7 +561,7 @@ export function useAssistantRecommendations(
     const entry = entries.get(entryId);
     if (entry) entry.location = null;
     endTry(entryId);
-    update(entryId, { status: "stale", returnView: null });
+    update(entryId, { status: "stale", staleBecause: "edited", returnView: null });
   }
 
   /**
@@ -575,7 +605,7 @@ export function useAssistantRecommendations(
   });
 
   return {
-    card: (entryId) => cards().get(entryId),
+    card: (entryId) => asShown(cards().get(entryId)),
     trying: () => [...cards().values()].some((card) => card.status === "trying"),
     packInProject: (entryId) => packInProjectNow(cards().get(entryId)),
     receive,

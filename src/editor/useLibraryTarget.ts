@@ -187,8 +187,10 @@ export function useLibraryTarget(options: UseLibraryTargetOptions): LibraryTarge
           : null;
     if (!slot) return undefined;
     return {
-      preview: (asset) => audio.previewInSlot(slot, asset),
-      clear: () => audio.clearPreview(),
+      preview: (asset) => audio.previewInSlot(slot, asset, LIBRARY_PREVIEW),
+      // Only the Library's own override: leaving the Library for an
+      // assistant's Try (GRV-23) must not clear the sound that Try put there.
+      clear: () => audio.clearPreview(LIBRARY_PREVIEW),
       isPlaying: () => audio.isPlaying(),
     };
   }
@@ -429,6 +431,9 @@ const AIMS_BACK: ReadonlySet<LibraryTarget["kind"] | undefined> = new Set([
   "new-track",
   "new-pad",
 ]);
+
+/** Marks a slot override as the Library's own, for its close to clear. */
+const LIBRARY_PREVIEW = Object.freeze({ owner: "library" });
 
 /** The footer's sentence when there is no project to insert into. */
 function notOpen(sample: LibrarySample): string {

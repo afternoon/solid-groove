@@ -7,10 +7,10 @@ import { createRecordingTransport } from "../../analytics/transport";
 import type { AssistantToolCall } from "../../assistant/protocol";
 import { RECOMMEND_SOUNDS_TOOL } from "../../assistant/recommendation";
 import { ASSISTANT_TOOLSET_VERSION } from "../../assistant/tools";
-import { addPad, setPadAsset } from "../../commands";
+import { addPad, removePad, setPadAsset } from "../../commands";
 import { type ControlAddress, controlKey } from "../../commands/controlAddress";
 import { createControlRegistry } from "../../controls/registry";
-import type { Project } from "../../domain/entities";
+import type { Project, Track } from "../../domain/entities";
 import { createDrumPad, createFactoryContext } from "../../domain/factories";
 import { fakePreviewEngine } from "../../library/__fixtures__/fakePreviewEngine";
 import { fixtureFetcher } from "../../library/__fixtures__/fixtures";
@@ -60,7 +60,7 @@ const SOFT_KICK = "sg-one-shot-drums-kick-0004";
 const TIGHT_KICK = "sg-one-shot-drums-kick-0002";
 const SUB = "sg-one-shot-bass-sub-0001";
 
-async function setUp() {
+async function setUp(options: { selected?: "drums" | "none" } = {}) {
   const repository = createInMemoryProjectRepository();
   const project = createStarterProject("uid-1");
   const created = await repository.createProject(project);
@@ -101,17 +101,17 @@ async function setUp() {
     setPreviewing(snapshot.previewing);
   });
 
+  // The selected track, as the editor's selection: a card with no slot of its
+  // own follows it.
+  const [selected, setSelected] = createSignal<Track | null>(
+    options.selected === "none" ? null : track,
+  );
+
   // The editor's view: the Library by hand ends a try.
   const [view, setView] = createSignal<EditorViewName>("arrangement");
   const port = {
     slotFor: (trackId: string | null, padId: string | null) =>
-      recommendationSlot(
-        session.committedProject,
-        trackId,
-        padId,
-        track,
-        emptyPadSelection,
-      ),
+      recommendationSlot(shown(), trackId, padId, selected(), emptyPadSelection),
     previewInSlot: vi.fn((_slot, _sound: LibraryAsset) => true),
     clearPreview: vi.fn(() => {}),
     // As the library's Insert does: one transaction onto the pad.
@@ -221,6 +221,7 @@ async function setUp() {
     recommend,
     events,
     setView,
+    setSelected,
   };
 }
 
@@ -413,6 +414,48 @@ describe("the recommended pack card (GRV-23)", () => {
     await press(cardButton("Refresh"));
     await vi.waitFor(() => expect(client.turns).toHaveLength(2));
     expect(cardStatus()).toHaveTextContent("A new recommendation was asked for below.");
+  });
+
+  it("offers Try once a pad is selected, for a recommendation that came with no slot", async () => {
+    const { recommend, setSelected, track, port, pad } = await setUp({
+      selected: "none",
+    });
+    await recommend({ packId: DRUMS, soundIds: [SOFT_KICK], reason: "Softer." });
+    expect(cardStatus()).toHaveTextContent("Select a drum pad or a sampler");
+    expect(within(card()).queryByRole("button", { name: /^Try on/ })).toBeNull();
+
+    fireAndFlush(() => setSelected(track));
+
+    expect(cardStatus()).toHaveTextContent("Try Soft Rounded Kick on BD");
+    await press(cardButton("Try on BD"));
+    expect(port.previewInSlot).toHaveBeenCalledWith(
+      { trackId: track.id, padId: pad.id },
+      expect.objectContaining({ id: SOFT_KICK }),
+    );
+    expect(cardStatus()).toHaveTextContent("BD is trying Soft Rounded Kick.");
+  });
+
+  it("says the slot is gone, not that it changed, when Try finds it deleted", async () => {
+    const { recommend, session, port, track, pad } = await setUp();
+    await recommend();
+    fireAndFlush(() => session.dispatch(removePad(track.id, pad.id)));
+    await press(cardButton("Try on BD"));
+    expect(port.previewInSlot).not.toHaveBeenCalled();
+    expect(cardStatus()).toHaveTextContent(
+      "Out of date. BD is no longer in the song, so there's nothing to try these on.",
+    );
+    expect(cardStatus()).not.toHaveTextContent("while a sound was being tried");
+  });
+
+  it("keeps focus on the card's buttons when Keep could not be done", async () => {
+    const { recommend, port } = await setUp();
+    await recommend();
+    await press(cardButton("Try on BD"));
+    port.keep.mockResolvedValueOnce({ ok: false, reason: "No." });
+    await press(cardButton("Keep"));
+    await settle();
+    expect(cardStatus()).toHaveTextContent("No.");
+    expect(document.activeElement).toBe(cardButton("Keep"));
   });
 
   it("hears one sound on its own, and plays and stops the pack demo", async () => {

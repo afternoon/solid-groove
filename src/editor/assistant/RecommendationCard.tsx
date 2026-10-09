@@ -49,8 +49,10 @@ export function recommendationStatusText(card: Card): string {
       case "put-back":
         return `Put back. ${slot} has its own sound back, and nothing changed.`;
       case "stale":
-        return card.refreshed
-          ? "Out of date. A new recommendation was asked for below."
+        if (card.refreshed)
+          return "Out of date. A new recommendation was asked for below.";
+        return card.staleBecause === "missing"
+          ? `Out of date. ${slot ?? "The slot"} is no longer in the song, so there's nothing to try these on. Nothing changed.`
           : `Out of date. ${slot ?? "The slot"} changed while a sound was being tried, so its own sound is back.`;
       case "dismissed":
         return "Dismissed. Nothing changed.";
@@ -70,7 +72,8 @@ export function recommendationStatusText(card: Card): string {
  * in library.
  *
  * Focus never falls out of the card when its buttons change, as on a proposal
- * (GRV-5): Try hands it to Keep, Keep to Undo, and Put back or Undo to Try.
+ * (GRV-5): Try hands it to Keep, Keep to Undo (or keeps it on Keep when the
+ * keep could not be done), and Put back or Undo to Try.
  */
 export default function RecommendationCard(props: RecommendationCardProps): JSX.Element {
   let section: HTMLElement | undefined;
@@ -79,27 +82,35 @@ export default function RecommendationCard(props: RecommendationCardProps): JSX.
   // status re-renders only what it changes and a button keeps its focus.
   const current = () => card() as Card;
 
-  /** After the card re-renders, focus the button whose name starts `name`, or the card. */
-  function focusAfter(name: string | null): void {
+  /**
+   * After the card re-renders, focus the first enabled button whose name starts
+   * with one of `names`, in that order, or the card.
+   */
+  function focusAfter(names: readonly string[]): void {
     setTimeout(() => {
       if (!section?.isConnected) return;
-      const button = name
-        ? [...section.querySelectorAll<HTMLButtonElement>("button")].find(
+      const buttons = [...section.querySelectorAll<HTMLButtonElement>("button")];
+      const button = names
+        .map((name) =>
+          buttons.find(
             (candidate) =>
               candidate.textContent?.trim().startsWith(name) && !candidate.disabled,
-          )
-        : undefined;
+          ),
+        )
+        .find((found) => found !== undefined);
       (button ?? section).focus();
     }, 0);
   }
 
-  const act = (action: (entryId: string) => unknown, next: string | null) => () => {
-    const hadFocus = section?.contains(document.activeElement) ?? false;
-    const done = action(props.entryId);
-    if (!hadFocus) return;
-    if (done instanceof Promise) void done.then(() => focusAfter(next));
-    else focusAfter(next);
-  };
+  const act =
+    (action: (entryId: string) => unknown, ...next: string[]) =>
+    () => {
+      const hadFocus = section?.contains(document.activeElement) ?? false;
+      const done = action(props.entryId);
+      if (!hadFocus) return;
+      if (done instanceof Promise) void done.then(() => focusAfter(next));
+      else focusAfter(next);
+    };
 
   const tryLabel = () => `Try on ${current().slot?.label ?? ""}`;
   // Which set of buttons the card offers. A memo, so a change of status that
@@ -194,7 +205,8 @@ export default function RecommendationCard(props: RecommendationCardProps): JSX.
                     type="button"
                     class="assistant-button-primary"
                     disabled={current().keeping}
-                    onClick={act(props.recommendations.keep, "Undo")}
+                    // A Keep that could not be done leaves Keep and Put back.
+                    onClick={act(props.recommendations.keep, "Undo", "Keep", "Put back")}
                   >
                     Keep
                   </button>
@@ -230,7 +242,7 @@ export default function RecommendationCard(props: RecommendationCardProps): JSX.
                   <button
                     type="button"
                     class="assistant-button"
-                    onClick={act(props.recommendations.dismiss, null)}
+                    onClick={act(props.recommendations.dismiss)}
                   >
                     Dismiss
                   </button>

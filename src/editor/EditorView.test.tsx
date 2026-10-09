@@ -15,6 +15,8 @@ import { ConsentStore } from "../analytics/consent";
 import { createRecordingTransport } from "../analytics/transport";
 import { INITIAL_PIXELS_PER_TICK, ROW_METRICS } from "../arrangement/ArrangementView";
 import type { AssistantClient } from "../assistant/assistantClient";
+import { RECOMMEND_SOUNDS_TOOL } from "../assistant/recommendation";
+import { ASSISTANT_TOOLSET_VERSION } from "../assistant/tools";
 import { installWebAudioGlobals } from "../audio/testAudioContext";
 import { type CapabilityReport, detectCapabilities } from "../browser/capabilities";
 import { executeTransaction } from "../commands";
@@ -3766,6 +3768,71 @@ describe("EditorView assistant panel", () => {
       ),
     );
   }
+
+  it("keeps a Try pressed from the Library: leaving it does not clear the override (GRV-23)", async () => {
+    const { ProjectAudioGraph } = await import("../audio/ProjectAudioGraph");
+    const reconcile = vi.spyOn(ProjectAudioGraph.prototype, "reconcile");
+    const client = createFakeAssistantClient();
+    repository = inMemoryModule.createInMemoryProjectRepository();
+    const project = createStarterProject("u1", () => 0.5);
+    const [drums] = project.song.tracks;
+    if (drums?.instrument?.kind !== "drumMachine") throw new Error("no drum machine");
+    const bd = drums.instrument.pads.find((pad) => pad.name === "BD");
+    if (!bd) throw new Error("no BD pad");
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    renderEditor(project.metadata.id, {
+      account: { uid: "u1", registered: true },
+      assistantClient: async () => client,
+      libraryClient: new LibraryClient(fixtureFetcher()),
+      createAuditionEngine: fakePreviewEngine,
+    });
+    await screen.findByTestId("arrangement-view-ready");
+    /** The asset BD plays in the graph's latest projection. */
+    const heardOnBd = () => {
+      const projection = reconcile.mock.lastCall?.[0];
+      const instrument = projection?.tracksById.get(drums.id)?.instrument;
+      if (instrument?.kind !== "drumMachine") return undefined;
+      return instrument.pads.find((entry) => entry.id === bd.id)?.assetId;
+    };
+
+    await openAndSend(client, "Softer kicks?");
+    fireAndFlush(() =>
+      client.last().emit({
+        type: "proposal",
+        proposal: {
+          baseRevision: project.metadata.revision,
+          toolsetVersion: ASSISTANT_TOOLSET_VERSION,
+          calls: [
+            {
+              id: "toolu_1",
+              name: RECOMMEND_SOUNDS_TOOL,
+              input: {
+                packId: "pak_SdlN_OazweXrwury0j27Y",
+                soundIds: ["sg-one-shot-drums-kick-0004"],
+                reason: "Softer.",
+                trackId: drums.id,
+                padId: bd.id,
+              },
+            },
+          ],
+        },
+      }),
+    );
+    fireAndFlush(() => client.last().done());
+    const card = await screen.findByRole("region", { name: /^Recommended pack/ });
+
+    clickAndFlush(within(card).getByRole("button", { name: "Open in library" }));
+    await screen.findByRole("region", { name: "Library" });
+    clickAndFlush(within(card).getByRole("button", { name: "Try on BD" }));
+    await vi.waitFor(() =>
+      expect(screen.queryByRole("region", { name: "Library" })).toBeNull(),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(heardOnBd()).toMatch(/^ast_preview/);
+    expect(within(card).getByRole("status")).toHaveTextContent("BD is trying");
+  });
 
   it("scopes to the clips selected in the arrangement, as a section (GRV-26)", async () => {
     const { client, transport } = await renderTalking(createSliceFixtureProject());
