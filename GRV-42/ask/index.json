@@ -1,0 +1,18 @@
+{
+  "id": "ask",
+  "title": "The assistant asks the producer",
+  "steps": [
+    {
+      "file": "01-a-single-choice-question-waits-above-the.png",
+      "caption": "A single-choice question waits above the composer, the suggested option framed"
+    },
+    {
+      "file": "02-pressing-1-answers-it-the-answer-shows-u.png",
+      "caption": "Pressing 1 answers it; the answer shows under its question"
+    },
+    {
+      "file": "03-a-multi-select-picked-options-fill-white.png",
+      "caption": "A multi-select: picked options fill white, with a note in the text box"
+    }
+  ]
+}

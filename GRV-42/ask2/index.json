@@ -1,0 +1,18 @@
+{
+  "id": "ask2",
+  "title": "Options that point, play and answer",
+  "steps": [
+    {
+      "file": "01-hovering-an-option-about-bars-1-2-shows-.png",
+      "caption": "Hovering an option about bars 1-2 shows them on the arrangement"
+    },
+    {
+      "file": "02-an-option-about-a-track-names-it-highlig.png",
+      "caption": "An option about a track names it, highlights its row, and has a sound"
+    },
+    {
+      "file": "03-setting-the-tempo-in-the-header-answers-.png",
+      "caption": "Setting the tempo in the header answers it: done in the editor"
+    }
+  ]
+}
