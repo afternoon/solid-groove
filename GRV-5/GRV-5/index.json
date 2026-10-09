@@ -1,0 +1,18 @@
+{
+  "id": "GRV-5",
+  "title": "GRV-5 QA fixes",
+  "steps": [
+    {
+      "file": "01-why-this-works-the-assistant-s-goal-and-.png",
+      "caption": "Why this works: the assistant's goal and technique, and the controls as links"
+    },
+    {
+      "file": "02-applied-the-changed-controls-are-outline.png",
+      "caption": "Applied: the changed controls are outlined"
+    },
+    {
+      "file": "03-after-an-edit-by-hand-the-outline-clears.png",
+      "caption": "After an edit by hand the outline clears, and the card stops mentioning it"
+    }
+  ]
+}

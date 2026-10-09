@@ -1,0 +1,38 @@
+{
+  "id": "CF-027",
+  "title": "A producer asks the assistant for a change, tries it, and keeps it",
+  "steps": [
+    {
+      "file": "01-open-the-assistant-scoped-to-bd.png",
+      "caption": "Open the assistant, scoped to BD"
+    },
+    {
+      "file": "02-send-a-message-and-a-reply-follows.png",
+      "caption": "Send a message, and a reply follows"
+    },
+    {
+      "file": "03-a-proposal-two-changes-old-to-new.png",
+      "caption": "A proposal: two changes, old to new"
+    },
+    {
+      "file": "04-preview-it-on-the-mixer.png",
+      "caption": "Preview it on the mixer"
+    },
+    {
+      "file": "05-cancel-back-and-nothing-changed.png",
+      "caption": "Cancel: back, and nothing changed"
+    },
+    {
+      "file": "06-preview-again-and-apply.png",
+      "caption": "Preview again and apply"
+    },
+    {
+      "file": "07-one-undo-takes-both-one-redo.png",
+      "caption": "One undo takes both, one redo"
+    },
+    {
+      "file": "08-reload-the-change-is-still-there.png",
+      "caption": "Reload: the change is still there"
+    }
+  ]
+}
