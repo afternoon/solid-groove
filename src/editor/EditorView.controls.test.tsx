@@ -263,6 +263,27 @@ describe("revealControl (UI-004)", () => {
     expect(document.activeElement).toHaveAccessibleName(`Volume for ${track.name}`);
   });
 
+  it("moves to a control without taking focus when asked not to (GRV-5)", async () => {
+    const { project } = projectWithDevice();
+    const [track] = project.song.tracks;
+    const controls = await openProject(project);
+    await screen.findByTestId("arrangement-view-ready");
+    const outside = document.createElement("button");
+    document.body.append(outside);
+    outside.focus();
+
+    controls.revealControl({ entity: track.id, param: "volume" }, { focus: false });
+
+    await vi.waitFor(() => expect(currentView()).toBe("Mixer"));
+    await vi.waitFor(() =>
+      expect(controlsAt({ entity: track.id, param: "volume" }).length).toBeGreaterThan(0),
+    );
+    // Long enough for a focusing reveal to have found the fader and focused it.
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    expect(document.activeElement).toBe(outside);
+    outside.remove();
+  });
+
   it("reveals a track's pan from the instrument view, selecting its track", async () => {
     const { project } = projectWithDevice();
     const [bd, lead] = project.song.tracks;

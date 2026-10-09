@@ -18,7 +18,7 @@
  *
  * | Appendix A family                     | Capability   | Commands |
  * | ------------------------------------- | ------------ | -------- |
- * | `project.setTempo`                    | `tempo`      | `parameter.set` on `song.tempo` only |
+ * | `project.setTempo`                    | `tempo`      | `parameter.set` on `song.tempo` and `song.swing` (the groove's timing, GRV-5) only |
  * | `track.add/update/move/duplicate/remove` | `tracks`  | `track.create`, `track.update`, `track.reorder`, `track.delete` |
  * | `clip.add/update/duplicate/remove`    | `clips`      | `clip.create`, `clip.update`, `clip.delete` |
  * | `note.add/update/transform/remove`    | `notes`      | `note.*` and every `notes.*` transform |
@@ -57,14 +57,20 @@ import {
   getParameterDefinition,
   isParameterValueInRange,
   type ParameterDefinition,
+  SONG_SWING,
   SONG_TEMPO,
 } from "../domain/parameters";
 
 /**
  * Bumped whenever a tool is added, removed, renamed or changes its rules,
- * `ask_producer` (`ask.ts`) included: 2 added it (GRV-42).
+ * `ask_producer` (`ask.ts`) included.
+ * 2: `parameter_set` may set the song's swing as well as its tempo (GRV-5).
+ * 3: `ask_producer` lets the assistant ask the producer a question (GRV-42).
  */
-export const ASSISTANT_TOOLSET_VERSION = 2;
+export const ASSISTANT_TOOLSET_VERSION = 3;
+
+/** The song's own parameters the assistant may set: its tempo and its swing. */
+const SONG_PARAMETER_IDS: readonly string[] = [SONG_TEMPO.id, SONG_SWING.id];
 
 /** One key per Appendix A family the allowlist carries. */
 export const ASSISTANT_CAPABILITIES = [
@@ -227,14 +233,14 @@ function outOfRange(
 const PARAMETER_SET_RULE: ToolRule = {
   commandType: "parameter.set",
   description:
-    "Set one numeric parameter: the song's tempo (song.tempo), a track's or the master's volume or pan, a send level, a return's volume, an instrument parameter, or a device parameter. A value outside the parameter's range is refused, never clamped.",
+    "Set one numeric parameter: the song's tempo (song.tempo) or swing (song.swing, 50 straight to 75), a track's or the master's volume or pan, a send level, a return's volume, an instrument parameter, or a device parameter. A value outside the parameter's range is refused, never clamped.",
   capability: (payload) =>
     PARAMETER_SCOPE_CAPABILITY[(payload as ParameterSetPayload).target.scope],
   capabilities: [...new Set(Object.values(PARAMETER_SCOPE_CAPABILITY))],
   refuse(payload) {
     const { target } = payload as ParameterSetPayload;
-    if (target.scope === "song" && target.parameterId !== SONG_TEMPO.id) {
-      return `Only ${SONG_TEMPO.id} may be set at song scope`;
+    if (target.scope === "song" && !SONG_PARAMETER_IDS.includes(target.parameterId)) {
+      return `Only ${SONG_PARAMETER_IDS.join(" and ")} may be set at song scope`;
     }
     return null;
   },

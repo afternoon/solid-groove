@@ -17,7 +17,9 @@
  *   `provider_unavailable` (retryable); every later turn with it succeeds.
  *   Make the message unique per test.
  * - `[propose]`: a short reply that ends in a tool call, so the turn returns
- *   a proposal.
+ *   a proposal: the tempo to 100 BPM.
+ * - "Loosen the beat" (CF-027, any case): a proposal of two changes, swing to
+ *   58% and the BD track 3 dB quieter, read from the project context.
  * - `[ask]`: a short reply that ends in `ask_producer` (GRV-42), a single
  *   pick among {@link EMULATOR_ASK}'s options; `[ask-multi]` asks the same
  *   question as a multi-select.
@@ -89,47 +91,132 @@ export const EMULATOR_ASK = {
   suggested: 0,
 } as const satisfies Omit<AskProducerInput, "multiSelect">;
 
-/** A short reply that ends in one tool call. */
-function toolReply(text: string, id: string, name: string, input: unknown): Step[] {
+/** One tool call the scripted reply makes. */
+interface ScriptedCall {
+  /** The tool call's ID; `toolu_emulator_<n>` when not given. */
+  readonly id?: string;
+  readonly name: string;
+  readonly input: unknown;
+}
+
+/** A short reply that ends in `calls`, so the turn returns a proposal (or a question). */
+function proposalReply(text: string, calls: readonly ScriptedCall[]): Step[] {
   const reply = textReply([text], "tool_use");
-  const toolCall: Step[] = [
-    {
-      event: {
-        type: "content_block_start",
-        index: 1,
-        content_block: { type: "tool_use", id, name, input: {} },
+  const toolCalls = calls.flatMap((call, offset): Step[] => {
+    const index = offset + 1;
+    return [
+      {
+        event: {
+          type: "content_block_start",
+          index,
+          content_block: {
+            type: "tool_use",
+            id: call.id ?? `toolu_emulator_${index}`,
+            name: call.name,
+            input: {},
+          },
+        },
       },
-    },
-    {
-      event: {
-        type: "content_block_delta",
-        index: 1,
-        delta: { type: "input_json_delta", partial_json: JSON.stringify(input) },
+      {
+        event: {
+          type: "content_block_delta",
+          index,
+          delta: { type: "input_json_delta", partial_json: JSON.stringify(call.input) },
+        },
       },
-    },
-    { event: { type: "content_block_stop", index: 1 } },
-  ];
-  // The text block, then the tool call, then the stop.
-  return [...reply.slice(0, -2), ...toolCall, ...reply.slice(-2)];
-}
-
-function proposalReply(): Step[] {
-  return toolReply("I can set the tempo to 100 BPM.", "toolu_emulator", "parameter_set", {
-    target: { kind: "song", parameter: "tempo" },
-    value: 100,
+      { event: { type: "content_block_stop", index } },
+    ];
   });
+  // The text block, then the tool calls, then the stop.
+  return [...reply.slice(0, -2), ...toolCalls, ...reply.slice(-2)];
 }
 
-function askReply(multiSelect: boolean): Step[] {
-  return toolReply(
-    "One question before I change anything.",
-    "toolu_ask",
-    ASK_PRODUCER_TOOL_NAME,
+/** `[propose]`'s one change: the tempo to 100 BPM. */
+function tempoProposal(): Step[] {
+  return proposalReply("I can set the tempo to 100 BPM.", [
     {
-      ...EMULATOR_ASK,
-      multiSelect,
+      name: "parameter_set",
+      input: { target: { scope: "song", parameterId: "song.tempo" }, value: 100 },
     },
+  ]);
+}
+
+/** The swing "Loosen the beat" proposes, in percent. */
+export const LOOSEN_SWING = 58;
+/** How much quieter "Loosen the beat" makes the track, in dB. */
+export const LOOSEN_VOLUME_DROP_DB = 3;
+/** The track "Loosen the beat" turns down, by name, when the song has one. */
+export const LOOSEN_TRACK_NAME = "BD";
+
+interface ContextTrack {
+  readonly id: string;
+  readonly name: string;
+  readonly volume: number;
+}
+
+/**
+ * The tracks in the project context the gateway put in the system prompt
+ * (`prompt.ts`), as the scripted provider needs them: IDs, names and volumes.
+ */
+function contextTracks(request: ProviderMessagesRequest): readonly ContextTrack[] {
+  const marker = "The open project, as JSON:\n";
+  for (const block of request.system) {
+    const at = block.text.indexOf(marker);
+    if (at < 0) continue;
+    try {
+      const context = JSON.parse(block.text.slice(at + marker.length)) as {
+        tracks?: readonly ContextTrack[];
+      };
+      return context.tracks ?? [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+/**
+ * CF-027's script: asked to loosen the beat, the swing goes to 58% and the
+ * BD track (or the first track, in a song with no BD) 3 dB quieter. With no
+ * track at all, only the swing.
+ */
+function loosenProposal(request: ProviderMessagesRequest): Step[] {
+  const tracks = contextTracks(request);
+  const track =
+    tracks.find((candidate) => candidate.name === LOOSEN_TRACK_NAME) ?? tracks[0];
+  const calls: ScriptedCall[] = [
+    {
+      name: "parameter_set",
+      input: {
+        target: { scope: "song", parameterId: "song.swing" },
+        value: LOOSEN_SWING,
+      },
+    },
+  ];
+  if (track) {
+    calls.push({
+      name: "parameter_set",
+      input: {
+        target: { scope: "track", trackId: track.id, parameterId: "track.volume" },
+        value: Math.max(-60, track.volume - LOOSEN_VOLUME_DROP_DB),
+      },
+    });
+  }
+  return proposalReply(
+    `A little swing pushes every second 16th late, so the beat sounds played rather than programmed${track ? `, and ${track.name} sits back a little so the groove leads` : ""}.`,
+    calls,
   );
+}
+
+/** `[ask]`'s and `[ask-multi]`'s reply: one `ask_producer` call. */
+function askReply(multiSelect: boolean): Step[] {
+  return proposalReply("One question before I change anything.", [
+    {
+      id: "toolu_ask",
+      name: ASK_PRODUCER_TOOL_NAME,
+      input: { ...EMULATOR_ASK, multiSelect },
+    },
+  ]);
 }
 
 function lastUserMessage(request: ProviderMessagesRequest): string {
@@ -161,14 +248,16 @@ function inProcessFirstTime(): FirstTimeCheck {
 export function createEmulatorAssistantProvider(
   firstTime: FirstTimeCheck = inProcessFirstTime(),
 ): AssistantProvider {
-  function scriptFor(message: string): Step[] {
+  function scriptFor(request: ProviderMessagesRequest): Step[] {
+    const message = lastUserMessage(request);
     if (message.includes("[hang]")) {
       return [...textReply([EMULATOR_REPLY_CHUNKS[0]]).slice(0, 3), { hang: true }];
     }
     if (message.includes("[flaky]") && firstTime(message)) {
       return [...textReply([EMULATOR_REPLY_CHUNKS[0]]).slice(0, 3), { fail: true }];
     }
-    if (message.includes("[propose]")) return proposalReply();
+    if (message.includes("[propose]")) return tempoProposal();
+    if (/loosen the beat/i.test(message)) return loosenProposal(request);
     if (message.includes("[ask-multi]")) return askReply(true);
     if (message.includes("[ask]")) return askReply(false);
     return textReply(EMULATOR_REPLY_CHUNKS);
@@ -176,7 +265,7 @@ export function createEmulatorAssistantProvider(
 
   return {
     stream(request, signal) {
-      const script = scriptFor(lastUserMessage(request));
+      const script = scriptFor(request);
       return (async function* () {
         for (const step of script) {
           if (signal.aborted) return;

@@ -14,6 +14,10 @@
  * - `undo()` replays the entry's inverse through the history, but only while
  *   the proposal is still the newest entry, so it can never undo someone
  *   else's edit by mistake.
+ * - `followHistory()` is told when the history undid or redid the proposal's
+ *   entry by some other way (the header's Undo, a shortcut), so the handle
+ *   stays in step: an undo from anywhere is logged as one, and a redo makes
+ *   the proposal undoable again.
  *
  * Each step logs its `assistant_proposal_*` event through the injected
  * analytics, with the proposal's capability, a bucketed command count and,
@@ -110,6 +114,12 @@ export interface ProposalHandle {
   apply(): ProposalActionResult;
   cancel(): ProposalActionResult;
   undo(): ProposalActionResult;
+  /**
+   * The history undid or redid this proposal's entry (matched by its
+   * correlation ID), whoever asked. A no-op when the handle is already there,
+   * as after its own `undo()`.
+   */
+  followHistory(kind: "undo" | "redo"): void;
 }
 
 export type ProposeResult =
@@ -211,12 +221,28 @@ class Handle implements ProposalHandle {
 
   undo(): ProposalActionResult {
     if (this.#status !== "applied") return refuse("not_applied");
-    const { target, analytics, clock } = this.options;
+    const { target } = this.options;
     if (target.gestureActive) return refuse("busy");
     if (target.latestCorrelationId !== this.id) return refuse("not_latest");
     const result = target.undo();
     if (!result) return refuse("not_latest");
     if (!result.ok) return refuse("failed", result.issues);
+    // The target may already have reported the undo back (`followHistory`).
+    if (this.#status === "applied") this.#markUndone();
+    return { ok: true, result };
+  }
+
+  followHistory(kind: "undo" | "redo"): void {
+    if (kind === "undo" && this.#status === "applied") {
+      this.#markUndone();
+    } else if (kind === "redo" && this.#status === "undone") {
+      this.#status = "applied";
+      this.#appliedAt = this.options.clock.now();
+    }
+  }
+
+  #markUndone() {
+    const { analytics, clock } = this.options;
     this.#status = "undone";
     analytics.log("assistant_proposal_undone", {
       capability: this.proposal.capability,
@@ -226,7 +252,6 @@ class Handle implements ProposalHandle {
         seconds(this.#appliedAt, clock.now()),
       ),
     });
-    return { ok: true, result };
   }
 
   #commandCount() {

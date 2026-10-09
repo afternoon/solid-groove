@@ -4,10 +4,19 @@
  * view on screen and the scope the chip says. Clicking one sends its label
  * as a message.
  *
- * A suggestion whose scope is the chip's own comes first, then one the view
- * is for (the arrangement for structure, the mixer for balance, the clip and
- * instrument views for parts), then the rest in the analysis's own order.
- * Only the first {@link MAX_SHOWN} are shown, so the row never scrolls far.
+ * The analysis reads the whole project, so on its own it offers the same
+ * chips everywhere. The panel's focused next steps come first: one for the
+ * selection when the chip is on it (vary these notes, these clips), and one
+ * for the view on screen and the track in scope (develop a part in the
+ * arrangement, a fill in the sequence view, the sound in the instrument view,
+ * a sound in the library, the balance in the mixer). Widening the chip to the
+ * song drops the track's.
+ *
+ * Then the analysis's: a suggestion whose scope is the chip's own comes
+ * first, then one the view is for (the arrangement for structure, the mixer
+ * for balance, the clip and instrument views for parts), then the rest in the
+ * analysis's own order. Only the first {@link MAX_SHOWN} are shown, so the
+ * row never scrolls far.
  */
 import type { Project } from "../../domain/entities";
 import {
@@ -16,7 +25,7 @@ import {
   type SuggestionId,
 } from "../../projection/projectAnalysisProjection";
 import type { EditorViewName } from "../editorViews";
-import type { CatalogScope } from "./assistantScope";
+import type { AssistantScope, CatalogScope } from "./assistantScope";
 
 /** The most chips shown at once. */
 export const MAX_SHOWN = 3;
@@ -57,11 +66,95 @@ export function rankSuggestions(
     .map(({ suggestion }) => suggestion);
 }
 
-/** The project's suggestions for the view and scope on screen. */
+/** The panel's own next steps for the selection, the view and the track in scope. */
+export function focusedSuggestions(
+  view: EditorViewName,
+  scope: AssistantScope,
+): readonly Suggestion[] {
+  const focused: Suggestion[] = [];
+  if (scope.level === "selection" && scope.selection) {
+    focused.push(
+      scope.selection.kind === "notes"
+        ? {
+            id: "vary_notes",
+            scope: "clip",
+            label: "Vary these notes",
+            rationale: `${scope.label} selected.`,
+          }
+        : {
+            id: "vary_clips",
+            scope: "section",
+            label: "Make a variation of these clips",
+            rationale: `${scope.label} selected.`,
+          },
+    );
+  }
+  // The song scope names no track, so the track's own steps go with it.
+  const track = scope.level === "song" ? null : scope.track;
+  const forTrack = track ? `"${track.name}" is in scope.` : "";
+  switch (view) {
+    case "arrangement":
+      if (track) {
+        focused.push({
+          id: "develop_part",
+          scope: "track",
+          label: `Develop the ${track.name} part`,
+          rationale: forTrack,
+        });
+      }
+      break;
+    case "sequence":
+      if (track) {
+        focused.push({
+          id: "write_fill",
+          scope: "track",
+          label: `Write a fill for ${track.name}`,
+          rationale: forTrack,
+        });
+      }
+      break;
+    case "instrument":
+      if (track) {
+        focused.push({
+          id: "shape_sound",
+          scope: "track",
+          label: `Shape the ${track.name} sound`,
+          rationale: forTrack,
+        });
+      }
+      break;
+    case "library":
+      focused.push({
+        id: "find_sound",
+        scope: track ? "track" : "song",
+        label: track ? `Find a sound for ${track.name}` : "Find a sound to add",
+        rationale: track ? forTrack : "The library is open.",
+      });
+      break;
+    case "mixer":
+      focused.push({
+        id: "balance_mix",
+        scope: track ? "track" : "song",
+        label: track ? `Balance ${track.name} in the mix` : "Balance the mix",
+        rationale: track ? forTrack : "The mixer is open.",
+      });
+      break;
+  }
+  return focused;
+}
+
+/** The suggestions for the view and scope on screen: the focused ones, then the analysis's. */
 export function assistantSuggestions(
   project: Project,
   view: EditorViewName,
-  scope: CatalogScope,
+  scope: AssistantScope,
 ): readonly Suggestion[] {
-  return rankSuggestions(buildProjectAnalysis(project).suggestions, view, scope);
+  const focused = focusedSuggestions(view, scope);
+  const taken = new Set(focused.map((suggestion) => suggestion.id));
+  const analysed = rankSuggestions(
+    buildProjectAnalysis(project).suggestions,
+    view,
+    scope.catalogScope,
+  ).filter((suggestion) => !taken.has(suggestion.id));
+  return [...focused, ...analysed].slice(0, MAX_SHOWN);
 }

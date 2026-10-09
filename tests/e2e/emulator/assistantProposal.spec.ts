@@ -1,0 +1,68 @@
+import {
+  assistantButton,
+  composer,
+  newProject,
+  panel,
+  proposal,
+  proposalButton,
+} from "./support/assistant";
+import { expect, type Page, test } from "./support/test";
+
+/**
+ * The assistant's proposal going out of date (GRV-5) against the real
+ * gateway and its scripted provider: an edit here, or one made in another tab
+ * and saved through the emulator, moves the song under a proposal. Its card
+ * says so, Apply is off, and Refresh asks for a new one in the same scope.
+ * CF-027 covers the proposal that stays current; this is what it leaves out.
+ */
+
+async function askToLoosen(page: Page): Promise<void> {
+  await assistantButton(page).click();
+  await composer(page).fill("Loosen the beat");
+  await page.keyboard.press("Enter");
+  await expect(proposalButton(page, "Apply")).toBeEnabled({ timeout: 15_000 });
+}
+
+const muteBd = (page: Page) =>
+  page.getByRole("button", { name: "Mute BD", exact: true }).first();
+
+test.describe("an assistant proposal that goes out of date", () => {
+  test("after an edit here: Apply is off, and Refresh asks again", async ({ page }) => {
+    await newProject(page);
+    await askToLoosen(page);
+
+    await muteBd(page).click();
+
+    await expect(proposal(page)).toContainText("Out of date");
+    await expect(proposalButton(page, "Apply")).toBeDisabled();
+    await proposal(page).getByRole("button", { name: "Refresh" }).click();
+    // The new proposal, for the song as it is now, can be applied.
+    await expect(panel(page).getByRole("region", { name: /^Proposal\b/ })).toHaveCount(
+      2,
+      {
+        timeout: 15_000,
+      },
+    );
+    await expect(proposalButton(page, "Apply")).toBeEnabled({ timeout: 15_000 });
+  });
+
+  test("after a change saved in another tab", async ({ page }) => {
+    const projectUrl = await newProject(page);
+    await askToLoosen(page);
+
+    const other = await page.context().newPage();
+    try {
+      await other.goto(projectUrl);
+      await other.getByTestId("arrangement-view-ready").waitFor();
+      await muteBd(other).click();
+      await expect(other.locator(".save-status")).toHaveText("Saved", {
+        timeout: 10_000,
+      });
+
+      await expect(proposal(page)).toContainText("Out of date", { timeout: 10_000 });
+      await expect(proposalButton(page, "Apply")).toBeDisabled();
+    } finally {
+      await other.close();
+    }
+  });
+});

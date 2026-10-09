@@ -283,6 +283,34 @@ describe("applying, cancelling and undoing", () => {
     expect(handle.undo()).toMatchObject({ ok: false, reason: "not_applied" });
   });
 
+  it("follows an undo and a redo of its entry made through the history", () => {
+    const original = contentSignature(fx.project);
+    const handle = propose();
+    handle.apply();
+    history.undo();
+    handle.followHistory("undo");
+    expect(handle.status).toBe("undone");
+    expect(logged.map(({ name }) => name)).toEqual([
+      "assistant_proposal_shown",
+      "assistant_proposal_applied",
+      "assistant_proposal_undone",
+    ]);
+    history.redo();
+    handle.followHistory("redo");
+    expect(handle.status).toBe("applied");
+    expect(handle.undo().ok).toBe(true);
+    expect(contentSignature(history.project)).toBe(original);
+    // Its own undo already moved it, so hearing of it again changes nothing.
+    handle.followHistory("undo");
+    expect(
+      logged.filter(({ name }) => name === "assistant_proposal_undone"),
+    ).toHaveLength(2);
+    // A redo of an entry it never applied is not its to follow.
+    const pending = propose(notesProposal(history.project.metadata.revision));
+    pending.followHistory("redo");
+    expect(pending.status).toBe("pending");
+  });
+
   it("refuses to undo once something else has been committed after it", () => {
     const handle = propose();
     handle.apply();

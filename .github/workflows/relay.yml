@@ -1,0 +1,48 @@
+name: Relay
+
+# Deploys the Linear → GitHub relay (scripts/linear/relay/, docs/linear.md) to
+# Cloudflare whenever it changes on main, so a merged change to the Worker or
+# its cron is live without anyone running `wrangler deploy` by hand. A PR that
+# touches the relay is gated (`GATED` in .github/scripts/merge.mjs), so nothing
+# reaches main, and so Cloudflare, without the product owner's approval. Its
+# tests ran in CI and the merge queue before it got here.
+#
+# The Worker's own secrets (GITHUB_TOKEN, LINEAR_WEBHOOK_SECRET) stay in
+# Cloudflare; a deploy keeps them. This needs two repository secrets:
+#   CLOUDFLARE_API_TOKEN   an API token with the "Edit Cloudflare Workers"
+#                          template, scoped to the one account
+#   CLOUDFLARE_ACCOUNT_ID  that account's ID
+on:
+  push:
+    branches: [main]
+    paths: ["scripts/linear/relay/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One deploy at a time, and the newest main wins.
+concurrency:
+  group: relay-deploy
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Check the Cloudflare secrets are set
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::Set CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID (docs/linear.md, \"The relay\")."
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts/linear/relay
+      - uses: oven-sh/setup-bun@v2
+      - name: Deploy
+        working-directory: scripts/linear/relay
+        run: bunx wrangler@4.140.0 deploy

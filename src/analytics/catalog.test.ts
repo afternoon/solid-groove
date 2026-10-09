@@ -396,6 +396,7 @@ describe("catalog cross-references", () => {
         "assistant",
         "assistant_ask",
         "assistant_message",
+        "assistant_proposal",
         "audio_loop",
         "automation",
         "device_chain",

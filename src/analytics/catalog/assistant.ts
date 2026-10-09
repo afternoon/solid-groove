@@ -7,13 +7,13 @@ import {
   bucketParam,
   countParam,
   enumParam,
-  UNCLAIMED,
 } from "./params";
 
 /** The assistant's `feature_first_use` keys (see `FEATURE_KEYS`). */
 export const ASSISTANT_FEATURE_KEYS = [
   "assistant",
   "assistant_message",
+  "assistant_proposal",
   "assistant_ask",
 ] as const;
 
@@ -49,7 +49,8 @@ export const ASSISTANT_SHORTCUT_ACTION_IDS = [
 
 /**
  * The suggestion chips' IDs, as `assistant_suggestion_clicked`'s
- * `suggestion_id` (GRV-26): #70's published next steps. Pinned against
+ * `suggestion_id` (GRV-26): #70's published next steps, and the panel's
+ * focused ones for the view and the scope. Pinned against
  * `SUGGESTION_IDS` in `src/projection/projectAnalysisProjection.ts` by
  * `catalog.test.ts`, so a suggestion added there needs a decision here.
  */
@@ -60,6 +61,13 @@ export const ASSISTANT_SUGGESTION_IDS = [
   "balance_section",
   "add_track",
   "fill_empty_track",
+  "vary_notes",
+  "vary_clips",
+  "develop_part",
+  "write_fill",
+  "shape_sound",
+  "balance_mix",
+  "find_sound",
 ] as const;
 
 /**
@@ -156,9 +164,14 @@ export const ASSISTANT_EVENTS = {
     },
   },
 
+  /**
+   * A producer edited, by hand, a control an applied proposal changed: once
+   * per proposal, which then stops being watched (GRV-5). `capability` is the
+   * proposal's, as its `assistant_proposal_applied` carried it.
+   */
   assistant_result_edited: {
     phase: 3,
     owners: ["AI-004"],
-    params: { capability: enumParam(UNCLAIMED) },
+    params: { capability: enumParam(ASSISTANT_PROPOSAL_CAPABILITIES) },
   },
 } as const satisfies Record<string, AnalyticsEventDefinition>;

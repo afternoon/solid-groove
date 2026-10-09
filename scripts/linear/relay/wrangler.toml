@@ -1,4 +1,5 @@
 # The Linear → GitHub relay (worker.mjs). Deploy steps: docs/linear.md, "The relay".
+# .github/workflows/relay.yml deploys it from main when this directory changes.
 # Secrets, set with `bunx wrangler secret put <NAME>`, never written here:
 #   LINEAR_WEBHOOK_SECRET  the signing secret Linear shows for the webhook
 #   GITHUB_TOKEN           fine-grained PAT, trygroove/groove only, Actions: read and write
@@ -10,3 +11,7 @@ compatibility_date = "2026-09-01"
 GITHUB_REPO = "trygroove/groove"
 WORKFLOW = "board.yml"
 REF = "main"
+
+# The backstop poll: GitHub's own schedule for board.yml runs late or not at all.
+[triggers]
+crons = ["*/15 * * * *"]

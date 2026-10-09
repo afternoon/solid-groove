@@ -1,14 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { createReferenceProject } from "../domain/fixtures";
+import { executeTransaction } from "../commands/execute";
+import type { Project } from "../domain/entities";
+import { createReferenceProject, createSliceFixtureProject } from "../domain/fixtures";
+import { SONG_SWING } from "../domain/parameters";
 import {
   createEmulatorAssistantProvider,
   EMULATOR_ASK,
   EMULATOR_REPLY_CHUNKS,
+  LOOSEN_SWING,
+  LOOSEN_VOLUME_DROP_DB,
   usesEmulatorProvider,
 } from "./emulatorProvider";
 import { type AssistantGatewayDeps, runAssistantTurn } from "./gateway";
 import { createInMemoryGuardStores } from "./inMemoryGuardStores";
 import { buildAssistantPayload } from "./payload";
+import { validateProposal } from "./proposal";
 import {
   AssistantGatewayError,
   type AssistantStreamChunk,
@@ -30,8 +36,8 @@ function turn(
   deps: AssistantGatewayDeps,
   text: string,
   signal: AbortSignal = new AbortController().signal,
+  project: Project = createReferenceProject(),
 ): { chunks: AssistantStreamChunk[]; result: Promise<AssistantTurnResult> } {
-  const project = createReferenceProject();
   const chunks: AssistantStreamChunk[] = [];
   const result = runAssistantTurn(
     deps,
@@ -98,10 +104,34 @@ describe("the emulator's assistant provider", () => {
     expect(asked).toEqual(["Again [flaky] 2"]);
   });
 
-  it("ends [propose] in a proposal", async () => {
+  it("ends [propose] in a proposal the browser accepts", async () => {
     const reply = await turn(gateway(), "Change it [propose]").result;
     expect(reply.stopReason).toBe("tool_use");
     expect(reply.proposal?.calls).toHaveLength(1);
+    const validation = validateProposal(createReferenceProject(), reply.proposal);
+    expect(validation.ok).toBe(true);
+  });
+
+  it("answers CF-027's 'Loosen the beat' with swing and a quieter track", async () => {
+    const project = createSliceFixtureProject();
+    const track = project.song.tracks.find((candidate) => candidate.name === "BD");
+    if (!track) throw new Error("the fixture has no BD");
+    const signal = new AbortController().signal;
+    const reply = await turn(gateway(), "Loosen the beat", signal, project).result;
+    expect(reply.stopReason).toBe("tool_use");
+    const validation = validateProposal(project, reply.proposal);
+    if (!validation.ok) throw new Error(JSON.stringify(validation.issues));
+    expect(validation.proposal.commands).toHaveLength(2);
+    const applied = executeTransaction(project, validation.proposal.commands, {
+      actor: "assistant",
+    });
+    if (!applied.ok) throw new Error("the proposal did not apply");
+    expect(applied.project.song.swing).toBe(LOOSEN_SWING);
+    expect(LOOSEN_SWING).toBeGreaterThan(SONG_SWING.defaultValue);
+    const after = applied.project.song.tracks.find(
+      (candidate) => candidate.id === track.id,
+    );
+    expect(after?.mixer.volume).toBe(track.mixer.volume - LOOSEN_VOLUME_DROP_DB);
   });
 
   it("ends [ask] in a question for the producer, and [ask-multi] in a multi-select", async () => {
