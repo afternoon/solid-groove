@@ -707,6 +707,23 @@ describe("My packs", () => {
     expect(within(files()).queryByRole("button", { name: "Retry" })).toBeNull();
   });
 
+  it("offers a retry when the storage rules refuse an upload away from the allowance", async () => {
+    const repository = createInMemoryUserLibraryRepository({
+      failUploads: "permission_denied",
+    });
+    setUp({ repository });
+    const pack = await addNamedPack("Field Recordings");
+    drop(pack, [audioFile("tape-kick.wav")]);
+    expect(
+      await within(files()).findByText(/Your library couldn't take this sound/),
+    ).toBeVisible();
+    repository.failUploads(null);
+    clickAndFlush(within(files()).getByRole("button", { name: "Retry" }));
+    expect(
+      await within(files()).findByRole("button", { name: "Audition tape kick" }),
+    ).toBeVisible();
+  });
+
   it("does not offer a retry for a file that was refused", async () => {
     setUp();
     const pack = await addNamedPack("Field Recordings");
