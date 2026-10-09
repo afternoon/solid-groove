@@ -140,12 +140,260 @@
   outline-offset: -1px;
 }
 
-/* The conversation, empty until the assistant exists (#852). */
+/* The conversation (GRV-26): the producer's messages on the right, the
+   assistant's replies on the left, newest at the bottom. */
 .assistant-panel-log {
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
   padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.assistant-hello {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.assistant-hello b {
+  color: var(--color-foreground-bright);
+  font-size: var(--font-size-base);
+}
+
+.assistant-hello p {
+  margin: 0;
+  color: var(--color-foreground);
+  font-size: var(--font-size-small);
+}
+
+.assistant-entry-label {
+  font-size: var(--font-size-tiny);
+  color: var(--color-foreground-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.assistant-message {
+  align-self: flex-end;
+  max-width: 86%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+
+.assistant-message p {
+  margin: 0;
+  padding: 8px 11px;
+  background: var(--color-background-tertiary);
+  color: var(--color-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.assistant-reply {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.assistant-reply-who {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.assistant-reply p {
+  margin: 0;
+  color: var(--color-text);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.assistant-stopped {
+  color: var(--color-foreground-muted);
+  font-style: italic;
+}
+
+.assistant-caret {
+  display: inline-block;
+  width: 7px;
+  height: 13px;
+  margin-left: 2px;
+  vertical-align: -2px;
+  background: var(--color-accent);
+  animation: assistant-caret-blink 1s steps(1) infinite;
+}
+
+@keyframes assistant-caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assistant-caret {
+    animation: none;
+  }
+}
+
+/* A proposal, until GRV-5 builds the card that previews and applies it. */
+.assistant-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 12px;
+  background: var(--color-background);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+}
+
+.assistant-card b {
+  color: var(--color-foreground-bright);
+}
+
+.assistant-card span {
+  color: var(--color-foreground);
+  font-size: var(--font-size-small);
+}
+
+/* An inline error: framed and worded, never red (docs/design.md). */
+.assistant-error {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--color-danger-wash);
+  box-shadow: inset 0 0 0 1px var(--color-danger-edge);
+}
+
+.assistant-error b {
+  color: var(--color-foreground-bright);
+}
+
+.assistant-button-primary {
+  height: 30px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 0;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  font: inherit;
+  font-size: var(--font-size-small);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.assistant-button-primary:hover {
+  background: var(--color-accent-dim);
+}
+
+.assistant-button-primary:focus-visible {
+  outline: 1px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* The suggestion chips, one row over the composer. */
+.assistant-suggestions {
+  flex: none;
+  display: flex;
+  min-width: 0;
+  margin: 0;
+  border: none;
+  gap: 4px;
+  padding: 0 12px 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.assistant-chip,
+.assistant-scope {
+  flex: none;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 0;
+  background: var(--color-background-tertiary);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--font-size-small);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.assistant-chip:hover,
+.assistant-scope:hover {
+  background: var(--color-background-hover);
+  color: var(--color-foreground-bright);
+}
+
+.assistant-chip:focus-visible,
+.assistant-scope:focus-visible,
+.assistant-send:focus-visible {
+  outline: 1px solid var(--color-accent);
+  outline-offset: -1px;
+}
+
+.assistant-scope {
+  min-width: 0;
+  max-width: 60%;
+  overflow: hidden;
+  padding: 0 8px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+}
+
+.assistant-scope-label {
+  color: var(--color-foreground);
+  font-weight: 400;
+}
+
+.assistant-composer-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.assistant-composer-hint {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-foreground-muted);
+  font-size: var(--font-size-tiny);
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Send, and Stop in its place while a reply streams: the brightest thing in
+   the composer. */
+.assistant-send {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: var(--color-accent);
+  color: var(--color-on-accent);
+  cursor: pointer;
+}
+
+.assistant-send:hover:not(:disabled) {
+  background: var(--color-accent-dim);
+}
+
+.assistant-send:disabled {
+  background: var(--color-background-tertiary);
+  color: var(--color-foreground-muted);
+  cursor: default;
 }
 
 .assistant-panel-composer {

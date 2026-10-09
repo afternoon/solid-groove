@@ -32,6 +32,7 @@ export type ShortcutHandlers = Partial<Record<ShortcutActionId, ShortcutHandler>
 /** Why a key press did not run an action. Returned for tests and debugging. */
 export type ShortcutRejection =
   | "no_match"
+  | "composing"
   | "text_entry"
   | "focused_control"
   | "no_handler"
@@ -119,6 +120,12 @@ export class ShortcutController {
     const shortcut = matchShortcut(event, this.platform, this.options.contexts());
     if (!shortcut) return NO_MATCH;
 
+    // A key pressed while an input method is composing is the IME's: the
+    // Enter that confirms a Japanese or Chinese candidate must not also send
+    // the message (GRV-26). Safari reports that Enter with `isComposing`
+    // already false, but with the IME's `keyCode` 229.
+    if (isComposing(event)) return { shortcut, ran: false, rejected: "composing" };
+
     const textEntry = this.options.isTextEntry ?? defaultIsTextEntry;
     if (shortcut.textEntry !== "allowed" && textEntry(event.target)) {
       return { shortcut, ran: false, rejected: "text_entry" };
@@ -158,4 +165,9 @@ export class ShortcutController {
     target.addEventListener("keydown", listener);
     return () => target.removeEventListener("keydown", listener);
   }
+}
+
+/** Whether a key event belongs to an input method's composition. */
+function isComposing(event: KeyboardEvent): boolean {
+  return event.isComposing === true || event.keyCode === 229;
 }

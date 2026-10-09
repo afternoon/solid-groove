@@ -176,3 +176,12 @@ export function CloseIcon(props: IconProps) {
     </Icon>
   );
 }
+
+/** Send a message: an arrow pointing up and out of the composer (GRV-26). */
+export function SendIcon(props: IconProps) {
+  return (
+    <Icon size={props.size}>
+      <path d="M12 20V5M5.5 11.5L12 5l6.5 6.5" fill="none" stroke-width="2.6" />
+    </Icon>
+  );
+}

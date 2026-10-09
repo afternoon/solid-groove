@@ -108,7 +108,10 @@ export {
   SURFACES,
   type Surface,
 } from "./catalog/app";
-export { ASSISTANT_PROPOSAL_CAPABILITIES } from "./catalog/assistant";
+export {
+  ASSISTANT_PROPOSAL_CAPABILITIES,
+  ASSISTANT_SUGGESTION_IDS,
+} from "./catalog/assistant";
 export { SAMPLE_RATE_KEYS, type SampleRateKey, sampleRateKey } from "./catalog/audio";
 export {
   NOTE_EDIT_OPERATIONS,

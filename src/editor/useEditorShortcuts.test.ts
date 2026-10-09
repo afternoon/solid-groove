@@ -72,7 +72,9 @@ function setup(view: EditorViewName) {
         resizeBy: vi.fn(),
         dismissAction: () => undefined,
         edgeHasFocus: () => false,
+        composerHasFocus: () => false,
       },
+      sendAssistantDraft: vi.fn(),
     });
     return selection;
   });

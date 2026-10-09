@@ -13,6 +13,8 @@ interface FakeKeyEvent {
   altKey: boolean;
   shiftKey: boolean;
   repeat: boolean;
+  isComposing?: boolean;
+  keyCode?: number;
   target: EventTarget | null;
   preventDefault(): void;
   defaultPrevented: boolean;
@@ -288,6 +290,26 @@ describe("text entry", () => {
 
     expect(press(keyEvent("Escape")).ran).toBe(true);
     expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves the Enter that confirms an IME composition to the input method (GRV-26)", () => {
+    const send = vi.fn();
+    const { press } = setup({
+      handlers: { "assistant.send": { run: send } },
+      contexts: ["composer"],
+      isTextEntry: () => true,
+    });
+    const composing = keyEvent("Enter", { isComposing: true });
+    expect(press(composing).rejected).toBe("composing");
+    expect(composing.defaultPrevented).toBe(false);
+    // Safari: the confirming Enter says it is no longer composing, but keeps
+    // the IME's key code.
+    const safari = keyEvent("Enter", { keyCode: 229 });
+    expect(press(safari).rejected).toBe("composing");
+    expect(send).not.toHaveBeenCalled();
+
+    expect(press(keyEvent("Enter")).ran).toBe(true);
+    expect(send).toHaveBeenCalledTimes(1);
   });
 
   it("uses a real input element by default", () => {

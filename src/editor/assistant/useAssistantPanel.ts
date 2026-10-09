@@ -50,10 +50,19 @@ export interface AssistantPanel {
   dismissAction(): (() => void) | undefined;
   /** Whether the resize edge has keyboard focus, for the `resize_edge` context. */
   edgeHasFocus(): boolean;
+  /** Whether the composer has keyboard focus, for the `composer` context. */
+  composerHasFocus(): boolean;
+  /** Puts focus in the composer, if there is one to type into. */
+  focusComposer(): void;
   /** Bound by the panel and the header's button. */
   bindPanel(element: HTMLElement | undefined): void;
   bindEdge(element: HTMLElement | undefined): void;
   bindLauncher(element: HTMLElement | undefined): void;
+  /**
+   * Bound by the composer while there is one to type into. Opening the panel
+   * puts focus there rather than on the panel, so it is ready to type into.
+   */
+  bindComposer(element: HTMLElement | undefined): void;
 }
 
 /** Where focus goes once the panel has rendered its next mode. */
@@ -79,6 +88,7 @@ export function useAssistantPanel(
   let panelElement: HTMLElement | undefined;
   let edgeElement: HTMLElement | undefined;
   let launcherElement: HTMLElement | undefined;
+  let composerElement: HTMLElement | undefined;
   let opener: HTMLElement | null = null;
   let pendingFocus: FocusIntent = null;
 
@@ -108,7 +118,10 @@ export function useAssistantPanel(
     (mode) => {
       const intent = pendingFocus;
       pendingFocus = null;
-      if (intent === "panel" && mode !== "closed") panelElement?.focus();
+      if (intent === "panel" && mode !== "closed") {
+        const composer = composerElement?.isConnected ? composerElement : undefined;
+        (composer ?? panelElement)?.focus();
+      }
       if (intent === "opener") {
         const target = opener?.isConnected ? opener : launcherElement;
         opener = null;
@@ -156,6 +169,11 @@ export function useAssistantPanel(
     },
     edgeHasFocus: () =>
       edgeElement !== undefined && document.activeElement === edgeElement,
+    composerHasFocus: () =>
+      composerElement !== undefined && document.activeElement === composerElement,
+    focusComposer() {
+      if (composerElement?.isConnected) composerElement.focus();
+    },
     bindPanel(element) {
       panelElement = element;
     },
@@ -164,6 +182,9 @@ export function useAssistantPanel(
     },
     bindLauncher(element) {
       launcherElement = element;
+    },
+    bindComposer(element) {
+      composerElement = element;
     },
   };
 }

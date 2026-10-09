@@ -21,6 +21,9 @@ function AccountEditor(props: Parameters<typeof EditorView>[0]) {
       libraryAccount={
         auth.user ? { uid: auth.user.uid, registered: !auth.isAnonymous } : null
       }
+      // A closed popup or a refused address leaves the session as it was,
+      // and the assistant's prompt stays where it is.
+      onSignIn={() => void auth.logIn().catch(() => {})}
     />
   );
 }
