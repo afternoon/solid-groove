@@ -7,12 +7,16 @@
 #                                  taken the PR out of the queue; hand it back to
 #                                  @claude to fix, and move its card (Linear) back
 #                                  to In Progress. A push re-queues it (merge.yml).
-#   main <run-id> <sha>            CI failed on main after <sha> landed. If <sha>
-#                                  is the squash of a PR and main was green before
-#                                  it, revert it through the queue and file a
-#                                  Linear issue to land it again. Otherwise file a bug.
+#   main <run-id> <sha> <attempt>  CI failed on main after <sha> landed. Stop the
+#                                  line (merge.mjs stop) and re-run the failed jobs
+#                                  once: a flake goes green and the line resumes. If
+#                                  they fail again, and <sha> is the squash of a PR
+#                                  and main was green before it, revert it through
+#                                  the queue, hold the card's other open PRs, and
+#                                  file a Linear issue to land it again. Otherwise
+#                                  file a bug.
 #
-# Needs LINEAR_API_KEY, and `linear.mjs` beside this script.
+# Needs LINEAR_API_KEY, and `linear.mjs` and `merge.mjs` beside this script.
 #
 # Only the gate jobs count on main: a failed deploy is infrastructure (a missing
 # role or API), and reverting code would not fix it.
@@ -23,11 +27,13 @@ run="$2"
 ref="$3"
 repo="${GITHUB_REPOSITORY:?}"
 run_url="${GITHUB_SERVER_URL:-https://github.com}/$repo/actions/runs/$run"
+# Keep in step with GATE_JOBS in merge.mjs.
 gates='^(typecheck, check, unit \+ component tests|browser sanity \(chromium\)|firebase emulator tests|production build \+ no-secrets-in-bundle check)$'
 footer=$'\n---\n_Posted by the CI-failure workflow (`.github/workflows/ci-failure.yml`)._'
 
 log() { echo "ci-failure: $*" >&2; }
 linear() { node "$(dirname "${BASH_SOURCE[0]}")/linear.mjs" "$@"; }
+merge() { node "$(dirname "${BASH_SOURCE[0]}")/merge.mjs" "$@"; }
 team="${LINEAR_TEAM:-GRV}"
 
 # The Linear card a PR body closes, completes or refers to (`GRV-12`), if any.
@@ -56,7 +62,7 @@ CI failed on \`main\` after "$subject" landed, and it was not reverted automatic
 Failing jobs:
 $(sed 's/^/- /' <<<"$failed")
 
-Find the cause in that run, fix \`main\`, and say here which change broke it.
+Find the cause in that run, fix \`main\`, and say here which change broke it. The line is stopped until \`main\` is green: label the fix's PR \`fixes-main\` so it can land.
 $footer
 EOF
 }
@@ -67,6 +73,12 @@ queue)
 	pr="$(sed -nE 's#^gh-readonly-queue/[^/]+/pr-([0-9]+)-.*#\1#p' <<<"$ref")"
 	[ -n "$pr" ] || { log "no PR in $ref"; exit 0; }
 	[ "$(gh api "repos/$repo/pulls/$pr" --jq .state)" = open ] || { log "#$pr is not open"; exit 0; }
+	# With main red, the failure is main's, not this PR's: it rejoins the queue
+	# on its own once main is green (merge.mjs resume).
+	if [ "$(merge status)" = stopped ]; then
+		log "the line is stopped; #$pr waits for main"
+		exit 0
+	fi
 	gh pr comment "$pr" --repo "$repo" --body-file - <<EOF
 @claude The merge queue tested this PR on top of \`main\` (and any PRs queued ahead of it) and CI failed, so it was taken out of the queue: $run_url
 
@@ -81,8 +93,20 @@ EOF
 	;;
 main)
 	sha="$ref"
+	attempt="${4:-1}"
 	failed="$(failed_gates "$run")"
 	[ -n "$failed" ] || { log "only non-gate jobs failed; nothing to revert"; exit 0; }
+
+	# Stop the line: nothing else lands, and no new build starts, until main is green.
+	merge stop "$run_url"
+
+	# A flake is not a reason to revert. Re-run the failed jobs once; green resumes
+	# the line, and a second failure comes back here as attempt 2.
+	if [ "$attempt" = 1 ]; then
+		gh run rerun "$run" --repo "$repo" --failed
+		log "re-running the failed jobs of $run before deciding"
+		exit 0
+	fi
 
 	git fetch --quiet origin main
 	subject="$(git log -1 --format=%s "$sha")"
@@ -136,11 +160,15 @@ $footer
 EOF
 )"
 	gh pr edit "$revert" --repo "$repo" --add-label status:approved >/dev/null
+	# The card's later PRs were built on this one: hold them until it lands again.
+	if [ -n "$issue" ]; then
+		merge hold "$pr" "$issue" || log "could not hold the other PRs for $issue"
+	fi
 	gh pr comment "$pr" --repo "$repo" --body "CI failed on \`main\` after this landed ($run_url), so it is being reverted in $revert. Re-landing is tracked in Linear as $reland.$footer" >/dev/null
 	log "reverting #$pr in $revert; re-land in $reland"
 	;;
 *)
-	echo "usage: ci-failure.sh queue <run-id> <queue-branch> | main <run-id> <sha>" >&2
+	echo "usage: ci-failure.sh queue <run-id> <queue-branch> | main <run-id> <sha> <attempt>" >&2
 	exit 2
 	;;
 esac
