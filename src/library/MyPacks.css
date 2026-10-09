@@ -179,6 +179,14 @@
   color: var(--color-foreground);
 }
 
+.my-packs-import-retry {
+  order: 4;
+  padding: 3px 8px;
+  color: var(--color-text);
+  background: transparent;
+  border: 1px solid var(--color-border-strong);
+}
+
 .my-packs-import-failed {
   background: var(--color-danger-wash);
   box-shadow: inset 2px 0 0 var(--color-danger-edge);
