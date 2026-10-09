@@ -15,7 +15,8 @@ import { expect, test } from "./support/test";
  * scripted provider (`src/assistant/emulatorProvider.ts`). A marker in the
  * message picks the script: a plain message streams a short reply, `[hang]`
  * writes one piece and waits for Stop, `[flaky]` fails once and then works,
- * and `[propose]` ends in a proposal.
+ * `[propose]` ends in a proposal, and `[ask]` in a question for the producer
+ * (GRV-42).
  */
 
 const REPLY =
@@ -86,5 +87,32 @@ test.describe("the assistant's conversation", { tag: "@sanity" }, () => {
     await expect(
       conversation(page).getByRole("region", { name: "Proposal" }),
     ).toContainText("A change is ready");
+  });
+});
+
+test.describe("a question the assistant asks", () => {
+  test("waits above the composer and takes its answer from the number keys (GRV-42)", async ({
+    page,
+  }) => {
+    await newProject(page);
+    await assistantButton(page).click();
+    await composer(page).fill("Build me a drop [ask]");
+    await page.keyboard.press("Enter");
+
+    const card = panel(page).getByRole("region", { name: "The assistant asks" });
+    await expect(card).toContainText("Where should the drop land?");
+    await expect(card.getByRole("button", { name: "Bar 17" })).toHaveClass(
+      /assistant-ask-suggested-option/,
+    );
+    // It took focus from the empty composer, so `1` picks rather than switching view.
+    await expect(card).toBeFocused();
+    await page.keyboard.press("1");
+    await expect(card).toHaveCount(0);
+    await expect(conversation(page)).toContainText(
+      "Answer · Where should the drop land?",
+    );
+    await expect(conversation(page)).toContainText("Asked: Where should the drop land?");
+    await expect(conversation(page).getByText(REPLY)).toHaveCount(1);
+    await expect(page).toHaveURL(/\/projects\/[^/]+$/);
   });
 });

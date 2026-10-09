@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createReferenceProject } from "../domain/fixtures";
 import {
   createEmulatorAssistantProvider,
+  EMULATOR_ASK,
   EMULATOR_REPLY_CHUNKS,
   usesEmulatorProvider,
 } from "./emulatorProvider";
@@ -101,6 +102,15 @@ describe("the emulator's assistant provider", () => {
     const reply = await turn(gateway(), "Change it [propose]").result;
     expect(reply.stopReason).toBe("tool_use");
     expect(reply.proposal?.calls).toHaveLength(1);
+  });
+
+  it("ends [ask] in a question for the producer, and [ask-multi] in a multi-select", async () => {
+    const single = await turn(gateway(), "Help [ask]").result;
+    expect(single.stopReason).toBe("tool_use");
+    expect(single.proposal).toBeNull();
+    expect(single.ask).toEqual({ id: "toolu_ask", ...EMULATOR_ASK, multiSelect: false });
+    const multi = await turn(gateway(), "Help [ask-multi]").result;
+    expect(multi.ask?.multiSelect).toBe(true);
   });
 
   it("is only chosen in the emulator, and only with no key", () => {

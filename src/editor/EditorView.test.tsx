@@ -3745,6 +3745,131 @@ describe("EditorView assistant panel", () => {
       name: /^Scope:/,
     });
 
+  /** Ends the latest turn in a question with three options (GRV-42). */
+  function askLatest(client: FakeAssistantClient, multiSelect = false) {
+    fireAndFlush(() => {
+      const turn = client.last();
+      turn.text("One question first.");
+      turn.emit({
+        type: "ask",
+        ask: {
+          id: `toolu_${client.turns.length}`,
+          question: "Where should the drop land?",
+          options: [{ label: "Bar 17" }, { label: "Bar 25" }, { label: "Hold it back" }],
+          multiSelect,
+        },
+      });
+      turn.emit({
+        type: "done",
+        stopped: false,
+        stopReason: "tool_use",
+        requestsRemaining: 98,
+      });
+    });
+  }
+  const askCard = () =>
+    within(panel() as HTMLElement).queryByRole("region", { name: "The assistant asks" });
+  const settleTurn = () => new Promise((resolve) => setTimeout(resolve, 0));
+  const currentView = () =>
+    screen
+      .getByRole("navigation", { name: "Views" })
+      .querySelector("[aria-current='page']");
+
+  it("answers a question with 1-8 while focus is in the panel, in place of the view keys (GRV-42)", async () => {
+    const log = vi.spyOn(defaultAnalytics, "log");
+    const { client } = await renderTalking(createSliceFixtureProject());
+    await openAndSend(client, "Build me a drop");
+    askLatest(client);
+    // The question took focus from the empty composer.
+    expect(askCard()).toHaveFocus();
+
+    press("2");
+    await settleTurn();
+    expect(askCard()).toBeNull();
+    expect(client.turns).toHaveLength(2);
+    expect(client.last().request.messages.at(-1)?.text).toBe(
+      '[Answer to "Where should the drop land?"] Picked: Bar 25.',
+    );
+    // `2` picked; it did not also switch to the sequence view.
+    expect(currentView()).toHaveAccessibleName("Arrangement");
+    expect(
+      log.mock.calls.some(
+        ([name, params]) =>
+          name === "shortcut_used" &&
+          (params as { action_id?: string }).action_id === "assistant.ask_option_2",
+      ),
+    ).toBe(true);
+  });
+
+  it("toggles a multi-select with the number keys and sends it with Enter (GRV-42)", async () => {
+    const { client } = await renderTalking(createSliceFixtureProject());
+    await openAndSend(client, "Which parts?");
+    askLatest(client, true);
+
+    press("1");
+    press("3");
+    // A number past the options does nothing.
+    press("8");
+    const card = within(askCard() as HTMLElement);
+    expect(card.getByRole("button", { name: "Bar 17" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(card.getByRole("button", { name: "Hold it back" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(client.turns).toHaveLength(1);
+
+    // Enter on a focused chip sends the picks rather than toggling it.
+    card.getByRole("button", { name: "Bar 25" }).focus();
+    press("Enter");
+    await settleTurn();
+    expect(client.last().request.messages.at(-1)?.text).toBe(
+      '[Answer to "Where should the drop land?"] Picked: Bar 17, Hold it back.',
+    );
+  });
+
+  it("keeps the digits for typing, and sends the question's own text box on Enter (GRV-42)", async () => {
+    const { client } = await renderTalking(createSliceFixtureProject());
+    await openAndSend(client, "Build me a drop");
+    askLatest(client);
+
+    // In the composer a digit is typing, not an answer.
+    const composer = within(panel() as HTMLElement).getByRole("textbox", {
+      name: "Message the assistant",
+    });
+    composer.focus();
+    press("1");
+    expect(askCard()).toBeInTheDocument();
+
+    const other = within(askCard() as HTMLElement).getByRole("textbox", {
+      name: "Something else",
+    });
+    other.focus();
+    press("2");
+    expect(askCard()).toBeInTheDocument();
+    fireAndFlush(() => fireEvent.input(other, { target: { value: "Bar 21" } }));
+    press("Enter");
+    await settleTurn();
+    expect(askCard()).toBeNull();
+    expect(client.last().request.messages.at(-1)?.text).toBe(
+      '[Answer to "Where should the drop land?"] Bar 21',
+    );
+  });
+
+  it("leaves 1-8 to the views while focus is outside the panel (GRV-42)", async () => {
+    const { client } = await renderTalking(createSliceFixtureProject());
+    await openAndSend(client, "Build me a drop");
+    askLatest(client);
+    (document.activeElement as HTMLElement | null)?.blur();
+
+    press("2");
+    await vi.waitFor(() => expect(currentView()).toHaveAccessibleName("Sequence"));
+    expect(askCard()).toBeInTheDocument();
+    expect(client.turns).toHaveLength(1);
+  });
+
   /** A click on BD's row (the first) at bar 1 of the arrangement. */
   async function clickBdClip(): Promise<void> {
     const canvas = document.querySelector(".arrangement-layer-interactive");

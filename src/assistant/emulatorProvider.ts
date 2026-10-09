@@ -18,10 +18,14 @@
  *   Make the message unique per test.
  * - `[propose]`: a short reply that ends in a tool call, so the turn returns
  *   a proposal.
+ * - `[ask]`: a short reply that ends in `ask_producer` (GRV-42), a single
+ *   pick among {@link EMULATOR_ASK}'s options; `[ask-multi]` asks the same
+ *   question as a multi-select.
  * - anything else: a short reply, streamed in pieces with a pause between.
  *
  * Like the rest of `src/assistant`, it imports no Firebase and no SDK.
  */
+import { ASK_PRODUCER_TOOL_NAME, type AskProducerInput } from "./ask";
 import type { AssistantProvider } from "./provider";
 import { ProviderFailure } from "./provider";
 import type { ProviderMessagesRequest } from "./providerRequest";
@@ -73,38 +77,59 @@ function textReply(chunks: readonly string[], stopReason = "end_turn"): Step[] {
   ];
 }
 
-function proposalReply(): Step[] {
-  const reply = textReply(["I can set the tempo to 100 BPM."], "tool_use");
+/** The question `[ask]` asks. */
+export const EMULATOR_ASK = {
+  question: "Where should the drop land?",
+  context: "The build",
+  options: [
+    { label: "Bar 17", description: "Straight after the build" },
+    { label: "Bar 25", description: "Eight more bars of tension" },
+    { label: "Hold it back" },
+  ],
+  suggested: 0,
+} as const satisfies Omit<AskProducerInput, "multiSelect">;
+
+/** A short reply that ends in one tool call. */
+function toolReply(text: string, id: string, name: string, input: unknown): Step[] {
+  const reply = textReply([text], "tool_use");
   const toolCall: Step[] = [
     {
       event: {
         type: "content_block_start",
         index: 1,
-        content_block: {
-          type: "tool_use",
-          id: "toolu_emulator",
-          name: "parameter_set",
-          input: {},
-        },
+        content_block: { type: "tool_use", id, name, input: {} },
       },
     },
     {
       event: {
         type: "content_block_delta",
         index: 1,
-        delta: {
-          type: "input_json_delta",
-          partial_json: JSON.stringify({
-            target: { kind: "song", parameter: "tempo" },
-            value: 100,
-          }),
-        },
+        delta: { type: "input_json_delta", partial_json: JSON.stringify(input) },
       },
     },
     { event: { type: "content_block_stop", index: 1 } },
   ];
   // The text block, then the tool call, then the stop.
   return [...reply.slice(0, -2), ...toolCall, ...reply.slice(-2)];
+}
+
+function proposalReply(): Step[] {
+  return toolReply("I can set the tempo to 100 BPM.", "toolu_emulator", "parameter_set", {
+    target: { kind: "song", parameter: "tempo" },
+    value: 100,
+  });
+}
+
+function askReply(multiSelect: boolean): Step[] {
+  return toolReply(
+    "One question before I change anything.",
+    "toolu_ask",
+    ASK_PRODUCER_TOOL_NAME,
+    {
+      ...EMULATOR_ASK,
+      multiSelect,
+    },
+  );
 }
 
 function lastUserMessage(request: ProviderMessagesRequest): string {
@@ -144,6 +169,8 @@ export function createEmulatorAssistantProvider(
       return [...textReply([EMULATOR_REPLY_CHUNKS[0]]).slice(0, 3), { fail: true }];
     }
     if (message.includes("[propose]")) return proposalReply();
+    if (message.includes("[ask-multi]")) return askReply(true);
+    if (message.includes("[ask]")) return askReply(false);
     return textReply(EMULATOR_REPLY_CHUNKS);
   }
 

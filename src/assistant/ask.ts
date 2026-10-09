@@ -1,0 +1,216 @@
+/**
+ * The assistant's one non-command tool (GRV-42): `ask_producer`, a question
+ * with options, the way an agent harness asks its operator.
+ *
+ * The model calls it like any tool, beside the proposal tools in `tools.ts`,
+ * but it changes nothing: the gateway takes the call out of the turn's tool
+ * calls and returns it as the turn's {@link AssistantAsk}, and the panel shows
+ * it above the composer until the producer answers or dismisses it. The
+ * answer is the next turn's user message ({@link answerMessage}).
+ *
+ * The provider is stateless and the conversation is resent as plain text
+ * (`history.ts`), so the question itself travels in that text too: the
+ * assistant's turn is resent with {@link askTranscript} after its reply, and
+ * the model reads its own question back beside the answer.
+ *
+ * The tool never writes memory. An answer reaches memory only when the
+ * assistant then proposes a memory note from it (GRV-25).
+ *
+ * Like the rest of `src/assistant`, Firebase-free and SDK-free.
+ */
+import { z } from "zod";
+import type { AssistantToolCall } from "./protocol";
+
+/** The tool's name, as the model calls it. */
+export const ASK_PRODUCER_TOOL_NAME = "ask_producer";
+
+/** How much one ask may say. */
+export const ASK_LIMITS = {
+  minOptions: 2,
+  maxOptions: 8,
+  questionChars: 300,
+  contextChars: 120,
+  labelChars: 60,
+  descriptionChars: 120,
+  /** The "something else" box. */
+  answerChars: 1000,
+} as const;
+
+const text = (max: number) => z.string().trim().min(1).max(max);
+
+export const askOptionSchema = z.strictObject({
+  label: text(ASK_LIMITS.labelChars).describe("What the producer picks, in a few words."),
+  description: text(ASK_LIMITS.descriptionChars)
+    .optional()
+    .describe("One line on what picking it means, when the label is not enough."),
+});
+export type AskOption = z.infer<typeof askOptionSchema>;
+
+const askInputShape = {
+  question: text(ASK_LIMITS.questionChars).describe(
+    "The question, short and in the producer's terms.",
+  ),
+  context: text(ASK_LIMITS.contextChars)
+    .optional()
+    .describe(
+      'What the question is about, as a header line, such as "The build, bars 13-16".',
+    ),
+  options: z
+    .array(askOptionSchema)
+    .min(ASK_LIMITS.minOptions)
+    .max(ASK_LIMITS.maxOptions)
+    .describe("2 to 8 answers to pick from. The producer can always type their own."),
+  suggested: z
+    .int()
+    .min(0)
+    .max(ASK_LIMITS.maxOptions - 1)
+    .optional()
+    .describe("The index of the option you would pick, if you have a view."),
+  multiSelect: z
+    .boolean()
+    .default(false)
+    .describe("Whether the producer may pick more than one option."),
+};
+
+function checkAsk(
+  input: { readonly options: readonly AskOption[]; readonly suggested?: number },
+  issues: z.RefinementCtx,
+): void {
+  if (input.suggested !== undefined && input.suggested >= input.options.length) {
+    issues.addIssue({
+      code: "custom",
+      path: ["suggested"],
+      message: "suggested must be the index of one of the options",
+    });
+  }
+  const labels = input.options.map((option) => option.label.toLowerCase());
+  if (new Set(labels).size !== labels.length) {
+    issues.addIssue({
+      code: "custom",
+      path: ["options"],
+      message: "every option needs a different label",
+    });
+  }
+}
+
+/** What the model sends: the tool's input. */
+export const askProducerInputSchema = z.strictObject(askInputShape).superRefine(checkAsk);
+export type AskProducerInput = z.infer<typeof askProducerInputSchema>;
+
+/** One question the assistant has asked, as the browser receives it. */
+export interface AssistantAsk extends AskProducerInput {
+  /** The tool call's ID, unique within the conversation. */
+  readonly id: string;
+}
+
+/** The wire shape of an ask: the call's ID and its validated input. */
+export const assistantAskSchema = z
+  .strictObject({ ...askInputShape, id: z.string().min(1).max(200) })
+  .superRefine(checkAsk);
+
+const TOOL_DESCRIPTION =
+  "Ask the producer a question with 2 to 8 options to pick from, when you need their choice to go on: which direction, which part, how far. The producer can always answer in their own words instead. Ask one question at a time, only when the answer changes what you do next, and say nothing after it: their answer is the next message. This changes nothing in the song.";
+
+/** The tool as the model is offered it. */
+export interface AskToolDefinition {
+  readonly name: string;
+  readonly description: string;
+  readonly inputSchema: Record<string, unknown>;
+}
+
+let toolCache: AskToolDefinition | null = null;
+
+/** `ask_producer`, its input schema generated from {@link askProducerInputSchema}. */
+export function askProducerTool(): AskToolDefinition {
+  if (!toolCache) {
+    const { $schema: _dialect, ...inputSchema } = z.toJSONSchema(askProducerInputSchema, {
+      io: "input",
+    }) as Record<string, unknown>;
+    toolCache = {
+      name: ASK_PRODUCER_TOOL_NAME,
+      description: TOOL_DESCRIPTION,
+      inputSchema,
+    };
+  }
+  return toolCache;
+}
+
+/** Whether a tool call is an ask rather than a proposed change. */
+export function isAskCall(call: Pick<AssistantToolCall, "name">): boolean {
+  return call.name === ASK_PRODUCER_TOOL_NAME;
+}
+
+/** The call as an ask, or null when its input is not one. */
+export function parseAskCall(call: AssistantToolCall): AssistantAsk | null {
+  const parsed = askProducerInputSchema.safeParse(call.input);
+  return parsed.success ? { id: call.id, ...parsed.data } : null;
+}
+
+/** An ask from the wire, or null when it is not one. Never throws. */
+export function parseAssistantAsk(raw: unknown): AssistantAsk | null {
+  const parsed = assistantAskSchema.safeParse(raw);
+  if (!parsed.success) return null;
+  const { id, question, context, options, suggested, multiSelect } = parsed.data;
+  return {
+    id,
+    question,
+    options,
+    multiSelect,
+    ...(context === undefined ? {} : { context }),
+    ...(suggested === undefined ? {} : { suggested }),
+  };
+}
+
+/**
+ * The question, as the conversation resends it after the assistant's reply,
+ * so the model sees what it asked when it reads the answer.
+ */
+export function askTranscript(ask: AssistantAsk): string {
+  const options = ask.options
+    .map((option, index) => {
+      const marks = [
+        option.description ? ` (${option.description})` : "",
+        index === ask.suggested ? " [suggested]" : "",
+      ].join("");
+      return `${index + 1}. ${option.label}${marks}`;
+    })
+    .join("; ");
+  const how = ask.multiSelect ? "pick any number" : "pick one";
+  const about = ask.context ? ` About: ${ask.context}.` : "";
+  return `[I asked the producer (${ASK_PRODUCER_TOOL_NAME}, ${how}): ${ask.question}${about} Options: ${options}.]`;
+}
+
+/** How the producer answered an ask. */
+export interface AskAnswer {
+  /** The options picked, by index, in the ask's order. */
+  readonly picked: readonly number[];
+  /** What they typed in the "something else" box, trimmed; may be empty. */
+  readonly text: string;
+}
+
+/** Whether `answer` says anything at all. */
+export function answerIsEmpty(answer: AskAnswer): boolean {
+  return answer.picked.length === 0 && answer.text.trim().length === 0;
+}
+
+/** The labels picked, in the ask's order. */
+export function pickedLabels(ask: AssistantAsk, answer: AskAnswer): string[] {
+  return [...new Set(answer.picked)]
+    .filter((index) => index >= 0 && index < ask.options.length)
+    .sort((a, b) => a - b)
+    .map((index) => ask.options[index]?.label ?? "");
+}
+
+/**
+ * The answer as the next turn's user message: the labels picked and the
+ * typed text, under the question it answers.
+ */
+export function answerMessage(ask: AssistantAsk, answer: AskAnswer): string {
+  const labels = pickedLabels(ask, answer);
+  const typed = answer.text.trim().slice(0, ASK_LIMITS.answerChars);
+  const parts = [
+    labels.length > 0 ? `Picked: ${labels.join(", ")}.` : "",
+    typed.length > 0 ? (labels.length > 0 ? `Also: ${typed}` : typed) : "",
+  ].filter((part) => part.length > 0);
+  return `[Answer to "${ask.question}"] ${parts.join(" ")}`;
+}

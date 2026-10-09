@@ -163,6 +163,7 @@ export default function AssistantPanel(props: AssistantPanelProps): JSX.Element 
             <AssistantChatView
               chat={chat()}
               bindComposer={(element) => props.panel.bindComposer(element)}
+              bindAskText={(element) => props.panel.bindAskText(element)}
               focusComposer={() => props.panel.focusComposer()}
             />
           )}

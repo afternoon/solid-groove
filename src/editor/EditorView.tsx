@@ -428,6 +428,12 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     exportOpen,
     assistant,
     sendAssistantDraft: () => chat.sendDraft(),
+    assistantAsk: {
+      pending: () => chat.conversation.pendingAsk() !== null,
+      pick: (index) => chat.ask.pick(index),
+      canFinish: () => chat.ask.canFinish(),
+      finish: () => chat.ask.finish(),
+    },
   });
 
   /** An empty screen's way out: a view, named and keyed as the dock names it. */
