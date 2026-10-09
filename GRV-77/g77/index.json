@@ -1,0 +1,14 @@
+{
+  "id": "g77",
+  "title": "Retrying a failed upload",
+  "steps": [
+    {
+      "file": "01-uploads-that-failed-keep-their-rows-each.png",
+      "caption": "Uploads that failed keep their rows, each with a Retry button"
+    },
+    {
+      "file": "02-after-retry-every-sound-is-in-the-pack.png",
+      "caption": "After Retry every sound is in the pack"
+    }
+  ]
+}
