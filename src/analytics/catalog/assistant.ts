@@ -14,6 +14,7 @@ export const ASSISTANT_FEATURE_KEYS = [
   "assistant",
   "assistant_message",
   "assistant_proposal",
+  "assistant_recommendation",
   "assistant_ask",
 ] as const;
 
@@ -89,6 +90,20 @@ export const ASSISTANT_PROPOSAL_CAPABILITIES = [
   "mixer",
   "mixed",
 ] as const;
+
+/**
+ * Why a recommendation was refused, as `assistant_recommendation_refused`'s
+ * `reason` (GRV-23). Pinned against `RECOMMENDATION_ISSUE_CODES` in
+ * `src/assistant/recommendation.ts` by `catalog.test.ts`.
+ */
+export const ASSISTANT_RECOMMENDATION_REFUSALS = [
+  "malformed",
+  "unknown_pack",
+  "unknown_sound",
+] as const;
+
+/** The most sounds one recommendation suggests (`ASSISTANT_LIBRARY_LIMITS`). */
+const MAX_RECOMMENDED_SOUNDS = 3;
 
 export const ASSISTANT_EVENTS = {
   assistant_message_sent: {
@@ -174,5 +189,53 @@ export const ASSISTANT_EVENTS = {
     phase: 3,
     owners: ["AI-004"],
     params: { capability: enumParam(ASSISTANT_PROPOSAL_CAPABILITIES) },
+  },
+
+  /**
+   * A recommended pack's card was shown (GRV-23). `pack_in_project`: whether
+   * the project already used the pack. Never the pack's, a sound's or the
+   * request's words.
+   */
+  assistant_recommendation_shown: {
+    phase: 3,
+    owners: ["GRV-23"],
+    params: {
+      pack_in_project: boolParam(),
+      sound_count: countParam(MAX_RECOMMENDED_SOUNDS),
+    },
+  },
+
+  /** A recommendation named a pack or sound the library does not hold, and was refused. */
+  assistant_recommendation_refused: {
+    phase: 3,
+    owners: ["GRV-23"],
+    params: { reason: enumParam(ASSISTANT_RECOMMENDATION_REFUSALS) },
+  },
+
+  /** Try on ‹slot›: a recommended sound plays through the slot, unsaved. */
+  assistant_recommendation_tried: {
+    phase: 3,
+    owners: ["GRV-23"],
+    params: { pack_in_project: boolParam() },
+  },
+
+  /** Keep: the sound being tried went into the slot, as one undo step. */
+  assistant_recommendation_kept: {
+    phase: 3,
+    owners: ["GRV-23"],
+    params: {
+      pack_in_project: boolParam(),
+      seconds_to_decision_bucket: bucketParam("elapsed_seconds"),
+    },
+  },
+
+  /** Put back: the sound being tried was dropped and the slot's own came back. */
+  assistant_recommendation_put_back: {
+    phase: 3,
+    owners: ["GRV-23"],
+    params: {
+      pack_in_project: boolParam(),
+      seconds_to_decision_bucket: bucketParam("elapsed_seconds"),
+    },
   },
 } as const satisfies Record<string, AnalyticsEventDefinition>;

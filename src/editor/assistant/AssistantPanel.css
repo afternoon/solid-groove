@@ -421,6 +421,112 @@
   font-weight: 400;
 }
 
+/* A recommended pack (GRV-23), after docs/assistant-panel.html: the cover
+   as the library draws it beside the pack's name, why, status and size; its
+   sounds, each with a button to hear it; and the actions, as a proposal's. */
+.assistant-pack-top {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  gap: 12px;
+  padding: 12px;
+}
+
+.assistant-pack-about {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.assistant-card .assistant-pack-name {
+  font-size: var(--font-size-base);
+  overflow-wrap: anywhere;
+}
+
+.assistant-pack-why {
+  margin: 0;
+  color: var(--color-foreground);
+  font-size: var(--font-size-small);
+}
+
+.assistant-pack-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.assistant-card .assistant-pack-status {
+  padding: 1px 6px;
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  color: var(--color-foreground-bright);
+  font-size: var(--font-size-tiny);
+}
+
+.assistant-pack-sounds {
+  margin: 0;
+  padding: 0 0 6px;
+  list-style: none;
+}
+
+.assistant-pack-sounds li {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 3px 12px 3px 8px;
+}
+
+.assistant-pack-sounds li:hover {
+  background: var(--color-background-secondary);
+}
+
+.assistant-pack-hear {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: none;
+  color: var(--color-foreground);
+  cursor: pointer;
+}
+
+.assistant-pack-hear:hover {
+  background: var(--color-background-hover);
+  color: var(--color-foreground-bright);
+}
+
+.assistant-pack-hear:focus-visible {
+  outline: 1px solid var(--color-accent);
+  outline-offset: -1px;
+}
+
+.assistant-card .assistant-pack-sound {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.assistant-pack-sound b {
+  font-size: var(--font-size-small);
+  font-weight: 600;
+}
+
+.assistant-pack-sound small {
+  color: var(--color-foreground-muted);
+  font-size: var(--font-size-tiny);
+}
+
+.assistant-recommendation .assistant-proposal-actions .assistant-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 /* An inline error: framed and worded, never red (docs/design.md). */
 .assistant-error {
   display: flex;

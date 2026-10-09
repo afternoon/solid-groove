@@ -29,9 +29,8 @@ import { expectView } from "../support/views";
  * pack and sound recommendations), and it is frozen once it lands: a later PR
  * that changes an assertion here has to say so in its body and justify it.
  *
- * It is `test.fixme` because the assistant cannot recommend anything yet: it
- * is offered no library and has no recommendation card. The PR that completes
- * GRV-23 removes this marker.
+ * The marker it carried while the assistant could not recommend anything was
+ * removed by the PR that completes GRV-23.
  *
  * **Locators.** The assistant's are `../support/assistant.ts`'s, the instrument
  * view's are `../support/library.ts`'s, and the views' are
@@ -60,7 +59,7 @@ const ASK = "The kick is too clean. Anything dustier?";
 
 test.describe("CF-034", () => {
   // biome-ignore format: unparked by removing only test.fixme, so the frozen body keeps its lines
-  test.fixme(
+  test(
     "a producer asks the assistant for a dustier kick, tries it in the beat, and keeps it",
     async ({ page }) => {
       const step = walkthrough(page, {

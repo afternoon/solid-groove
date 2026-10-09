@@ -17,6 +17,7 @@ import { pageTitle } from "../../site.config.mjs";
 import { type Analytics, analytics as defaultAnalytics } from "../analytics/analytics";
 import type { AssistantClient } from "../assistant/assistantClient";
 import { getAssistantClient } from "../assistantClientProvider";
+import { getAudioRuntime } from "../audio/AudioRuntime";
 import { provideStoredAudio } from "../audio/storedAudio";
 import { type CapabilityReport, FULLY_CAPABLE } from "../browser/capabilities";
 import { reportMissingCapabilities } from "../browser/reportCapabilities";
@@ -30,6 +31,7 @@ import type { PreviewEngine } from "../library/audition";
 import { withdrawnFactoryPacks } from "../library/factoryAvailability";
 import { type LibraryClient, sharedLibraryClient } from "../library/libraryClient";
 import type { LibraryPackSummary } from "../library/manifest";
+import { ToneAuditionEngine } from "../library/toneAuditionEngine";
 import { useFavourites } from "../library/useFavourites";
 import type { FavouritesRepository } from "../persistence/favouritesRepository";
 import { getProjectRepository } from "../projectRepositoryClient";
@@ -41,7 +43,9 @@ import { userPackAvailability } from "../userLibrary/userPacks";
 import { type UserLibraryAccount, useUserLibrary } from "../userLibrary/useUserLibrary";
 import ArrangementPane from "./ArrangementPane";
 import AssistantPanel from "./assistant/AssistantPanel";
+import { createAssistantLibrary } from "./assistant/assistantLibrary";
 import type { ScopeSelection, ScopeSources } from "./assistant/assistantScope";
+import { recommendationSlot } from "./assistant/recommendationCardModel";
 import { useAskEditorLink } from "./assistant/useAskEditorLink";
 import { useAssistantChat } from "./assistant/useAssistantChat";
 import { useAssistantPanel } from "./assistant/useAssistantPanel";
@@ -391,6 +395,9 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     }
     return { selection: picked, track: track() };
   });
+  // The published library the assistant may recommend from (GRV-23), read
+  // through the shared client's cache the first time a turn is sent.
+  const assistantLibrary = createAssistantLibrary(libraryClient);
   // What a question's options do in the editor (GRV-42): a hovered option's
   // part of the song drawn on the arrangement, a picked one selected, and its
   // sound auditioned or previewed.
@@ -444,6 +451,45 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
         previewing: () => session.state.previewing,
       },
       controls: editorControls,
+      // A recommended sound is tried through the library's hot-swap and kept
+      // through its Insert (GRV-23).
+      recommendations: {
+        library: assistantLibrary,
+        port: {
+          slotFor: (trackId, padId) => {
+            const current = project();
+            return current
+              ? recommendationSlot(
+                  current,
+                  trackId,
+                  padId,
+                  track(),
+                  trackSelection.padSelection(),
+                )
+              : null;
+          },
+          previewInSlot: (slot, sound) => audio.previewInSlot(slot, sound),
+          clearPreview: () => audio.clearPreview(),
+          keep: (target, sound) =>
+            library.insert(target, sound, { upgradeAnyway: false }),
+          openLibrary: (slug, slot) => {
+            // Aimed at the slot the card tries its sounds in.
+            if (slot) {
+              selectTrack(slot.target.trackId);
+              if (slot.target.kind === "pad") {
+                trackSelection.selectPad(slot.target.trackId, slot.target.padId);
+              }
+            }
+            library.openPack(slug, "reveal");
+          },
+          createAuditionEngine:
+            props.createAuditionEngine ??
+            (() =>
+              new ToneAuditionEngine(getAudioRuntime(), {
+                songTempo: () => project()?.song.tempo ?? 120,
+              })),
+        },
+      },
     },
   });
   // Docked, the editor's views leave the panel's column free (EditorView.css).
