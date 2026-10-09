@@ -6,6 +6,7 @@ import { SONG_SWING } from "../domain/parameters";
 import {
   createEmulatorAssistantProvider,
   EMULATOR_REPLY_CHUNKS,
+  LOOSEN_EXPLANATION,
   LOOSEN_SWING,
   LOOSEN_VOLUME_DROP_DB,
   usesEmulatorProvider,
@@ -131,6 +132,7 @@ describe("the emulator's assistant provider", () => {
       (candidate) => candidate.id === track.id,
     );
     expect(after?.mixer.volume).toBe(track.mixer.volume - LOOSEN_VOLUME_DROP_DB);
+    expect(validation.proposal.explanation).toEqual(LOOSEN_EXPLANATION);
   });
 
   it("is only chosen in the emulator, and only with no key", () => {

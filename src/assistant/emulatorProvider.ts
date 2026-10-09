@@ -19,7 +19,8 @@
  * - `[propose]`: a short reply that ends in a tool call, so the turn returns
  *   a proposal: the tempo to 100 BPM.
  * - "Loosen the beat" (CF-027, any case): a proposal of two changes, swing to
- *   58% and the BD track 3 dB quieter, read from the project context.
+ *   58% and the BD track 3 dB quieter, read from the project context, and
+ *   `explain_change`'s goal and technique for them.
  * - anything else: a short reply, streamed in pieces with a pause between.
  *
  * Like the rest of `src/assistant`, it imports no Firebase and no SDK.
@@ -27,6 +28,7 @@
 import type { AssistantProvider } from "./provider";
 import { ProviderFailure } from "./provider";
 import type { ProviderMessagesRequest } from "./providerRequest";
+import { EXPLAIN_TOOL_NAME } from "./tools";
 
 /** The reply every ordinary turn streams, piece by piece. */
 export const EMULATOR_REPLY_CHUNKS = [
@@ -129,6 +131,12 @@ export const LOOSEN_SWING = 58;
 export const LOOSEN_VOLUME_DROP_DB = 3;
 /** The track "Loosen the beat" turns down, by name, when the song has one. */
 export const LOOSEN_TRACK_NAME = "BD";
+/** What "Loosen the beat" explains itself with (`explain_change`). */
+export const LOOSEN_EXPLANATION = {
+  goal: "The beat feels played rather than programmed, and leans back instead of marching.",
+  technique:
+    "Swing delays every second 16th note, the way a drummer's hand lags; easing the kick back lets the late hats carry the groove.",
+} as const;
 
 interface ContextTrack {
   readonly id: string;
@@ -184,6 +192,7 @@ function loosenProposal(request: ProviderMessagesRequest): Step[] {
       },
     });
   }
+  calls.push({ name: EXPLAIN_TOOL_NAME, input: LOOSEN_EXPLANATION });
   return proposalReply(
     `A little swing pushes every second 16th late, so the beat sounds played rather than programmed${track ? `, and ${track.name} sits back a little so the groove leads` : ""}.`,
     calls,

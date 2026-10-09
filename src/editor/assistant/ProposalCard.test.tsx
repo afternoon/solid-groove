@@ -6,7 +6,7 @@ import { Analytics } from "../../analytics/analytics";
 import { ConsentStore } from "../../analytics/consent";
 import { createRecordingTransport } from "../../analytics/transport";
 import type { AssistantProposal } from "../../assistant/protocol";
-import { ASSISTANT_TOOLSET_VERSION } from "../../assistant/tools";
+import { ASSISTANT_TOOLSET_VERSION, EXPLAIN_TOOL_NAME } from "../../assistant/tools";
 import {
   type ControlAddress,
   controlAddress,
@@ -41,6 +41,12 @@ import { useAssistantPanel } from "./useAssistantPanel";
  */
 
 afterEach(cleanup);
+
+/** What the assistant says the default proposal is for, through `explain_change`. */
+const EXPLANATION = {
+  goal: "The beat feels played rather than programmed.",
+  technique: "Swing delays every second 16th note, the way a drummer's hand lags.",
+};
 
 const ARRANGEMENT: EditorLocation = {
   view: "arrangement",
@@ -128,7 +134,7 @@ async function setUp() {
       value,
     );
 
-  /** Asks, and answers with swing at 58% and the track 3 dB down. */
+  /** Asks, and answers with swing at 58% and the track 3 dB down, explained. */
   async function propose(
     calls: AssistantProposal["calls"] = [
       {
@@ -144,6 +150,7 @@ async function setUp() {
           value: -3,
         },
       },
+      { id: "toolu_3", name: EXPLAIN_TOOL_NAME, input: EXPLANATION },
     ],
   ) {
     fireAndFlush(() =>
@@ -311,12 +318,15 @@ describe("the proposal card (GRV-5)", () => {
     expect(card()).toHaveFocus();
   });
 
-  it("clears the solid outline at the next edit", async () => {
+  it("clears the solid outline at the next edit, and stops saying it is there", async () => {
     const { propose, session, registry, swing, volumeTo } = await setUp();
     await propose();
     await press(cardButton("Apply"));
+    expect(cardStatus()).toHaveTextContent("Changed controls are outlined.");
     fireAndFlush(() => session.dispatch(volumeTo(-12)));
     expect(registry.markOf(swing)).toBe("none");
+    expect(cardStatus()).toHaveTextContent("Applied as one undo step.");
+    expect(cardStatus()).not.toHaveTextContent("outlined");
   });
 
   it("goes out of date under a local edit: Apply is off and Refresh asks again", async () => {
@@ -443,30 +453,54 @@ describe("the proposal card (GRV-5)", () => {
     expect(events("assistant_result_edited")).toHaveLength(0);
   });
 
-  it("explains itself: the goal, the technique and the changed controls, each a link", async () => {
+  it("explains itself: the assistant's goal and technique, and the changed controls as links", async () => {
     const { propose, revealControl, swing, volume } = await setUp();
     await propose();
     const why = within(card()).getByText("Why this works");
     fireAndFlush(() => fireEvent.click(why));
     const details = why.closest("details");
     if (!details) throw new Error("no details");
-    expect(details).toHaveTextContent("Goal");
-    expect(details).toHaveTextContent("Loosen the beat");
-    expect(details).toHaveTextContent("Technique");
-    const links = within(details).getAllByRole("button");
-    // A link per technique step, then a link per changed control.
+    expect(details).toHaveTextContent(`Goal${EXPLANATION.goal}`);
+    expect(details).toHaveTextContent(`Technique${EXPLANATION.technique}`);
+    // Neither the request repeated nor the change restated (GRV-5 QA).
+    expect(details).not.toHaveTextContent("Loosen the beat");
+    expect(details).not.toHaveTextContent("Set Swing");
+    const links = within(details).getAllByRole("link");
     expect(links.map((link) => link.getAttribute("aria-label"))).toEqual([
-      expect.stringMatching(/^Show .*swing/i),
-      expect.stringMatching(/^Show .*volume/i),
       "Show Swing",
       "Show BD volume",
     ]);
-    clickAndFlush(within(details).getByRole("button", { name: "Show BD volume" }));
+    clickAndFlush(within(details).getByRole("link", { name: "Show BD volume" }));
     expect(revealControl).toHaveBeenLastCalledWith(volume);
     clickAndFlush(
-      within(card()).getAllByRole("button", { name: "Show Swing" })[0] as HTMLElement,
+      within(card()).getAllByRole("link", { name: "Show Swing" })[0] as HTMLElement,
     );
     expect(revealControl).toHaveBeenLastCalledWith(swing);
+  });
+
+  it("folds nothing out when the assistant did not explain the change", async () => {
+    const { propose } = await setUp();
+    await propose([
+      {
+        id: "toolu_1",
+        name: "parameter_set",
+        input: { target: { scope: "song", parameterId: SONG_SWING.id }, value: 58 },
+      },
+    ]);
+    expect(cardButton("Apply")).toBeEnabled();
+    expect(within(card()).queryByText("Why this works")).toBeNull();
+  });
+
+  it("lists its controls as links, not buttons", async () => {
+    const { propose } = await setUp();
+    await propose();
+    const changes = within(card()).getByRole("list", { name: "Changes" });
+    expect(
+      within(changes)
+        .getAllByRole("link")
+        .map((link) => link.textContent),
+    ).toEqual(["Swing", "BD volume"]);
+    expect(within(changes).queryAllByRole("button")).toEqual([]);
   });
 
   it("undoes from the card again after a redo of it from the header", async () => {
@@ -635,14 +669,14 @@ describe("the proposal card from the keyboard (GRV-5)", () => {
     expect(cardButton("Dismiss")).toHaveFocus();
   });
 
-  it("shows a control from its link with Enter or Space", async () => {
+  it("shows a control from its link with Enter", async () => {
     const { propose, revealControl, swing, volume } = await setUp();
     await propose();
-    within(card()).getAllByRole("button", { name: "Show BD volume" })[0]?.focus();
+    within(card()).getAllByRole("link", { name: "Show BD volume" })[0]?.focus();
     await keys("{Enter}");
     expect(revealControl).toHaveBeenLastCalledWith(volume);
-    within(card()).getAllByRole("button", { name: "Show Swing" })[0]?.focus();
-    await keys(" ");
+    within(card()).getAllByRole("link", { name: "Show Swing" })[0]?.focus();
+    await keys("{Enter}");
     expect(revealControl).toHaveBeenLastCalledWith(swing);
   });
 });
