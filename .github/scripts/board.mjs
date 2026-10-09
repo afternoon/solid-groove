@@ -3,7 +3,7 @@
  * The board lives in Linear (team GRV, the Groove project); this is what makes
  * moving a card there do something. Run by `.github/workflows/board.yml`.
  *
- *   node board.mjs poll   Every five minutes. Reads the columns and writes to
+ *   node board.mjs poll   On each card move (the relay) and hourly. Reads the columns and writes to
  *                         $GITHUB_OUTPUT the work each one asks for:
  *                           ship=["GRV-12", …]      cards in Ready with no open blocker, at most
  *                                                   SHIP_PER_POLL (4) of them in priority order
