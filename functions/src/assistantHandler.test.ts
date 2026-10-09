@@ -3,6 +3,7 @@ import type { CallableRequest, CallableResponse } from "firebase-functions/v2/ht
 import { HttpsError } from "firebase-functions/v2/https";
 import { describe, expect, it, vi } from "vitest";
 import { createInMemoryGuardStores } from "../../src/assistant/inMemoryGuardStores";
+import { createInMemoryTranscriptStore } from "../../src/assistant/inMemoryTranscriptStore";
 import type {
   AssistantStreamChunk,
   AssistantTurnRequest,
@@ -191,6 +192,44 @@ describe("createAssistantHandler", () => {
       handle(callable({ uid: "u", provider: "google.com" }, { messages: [] }), undefined),
     );
     expect(error.code).toBe("invalid-argument");
+  });
+
+  it("marks a team account's kept turn internal, from the ID token's address", async () => {
+    const transcripts = createInMemoryTranscriptStore();
+    const info = vi.spyOn(logger, "info").mockImplementation(() => {});
+    try {
+      const handle = createAssistantHandler(() => ({
+        provider: createScriptedAssistantProvider([replyEvents(["Swing it."])]),
+        guards: createInMemoryGuardStores(),
+        transcripts,
+      }));
+      await transcripts.setPreference("u", {
+        schemaVersion: 1,
+        retain: true,
+        disclosureVersion: 1,
+        answeredAt: 0,
+      });
+      const request = callable(
+        { uid: "u", provider: "google.com" },
+        {
+          ...turn,
+          session: {
+            conversationId: "conversation-1",
+            turnId: "turn-0001",
+            projectId: "prj_one",
+            internal: false,
+          },
+        },
+      );
+      (request.auth?.token as { email?: string }).email = "someone@qa.trygroove.app";
+      await handle(request, streamingResponse().response);
+      expect(transcripts.records().map((record) => record.internal)).toEqual([true]);
+      // How it went is logged as a code; what was said never is.
+      expect(info).toHaveBeenCalledWith("assistant transcript", { write: "kept" });
+      expect(JSON.stringify(info.mock.calls)).not.toContain("Swing it.");
+    } finally {
+      info.mockRestore();
+    }
   });
 
   it("cancels when the client disconnects", async () => {

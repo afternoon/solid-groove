@@ -12,8 +12,8 @@ import type { AssistantClient } from "../../assistant/assistantClient";
 import type { Project } from "../../domain/entities";
 import type { Suggestion } from "../../projection/projectAnalysisProjection";
 import type { EditorViewName } from "../editorViews";
-import { type AssistantLibrary, libraryContext } from "./assistantLibrary";
 import type { AskEditorLink } from "./askReferences";
+import { type AssistantLibrary, libraryContext } from "./assistantLibrary";
 import {
   type AssistantScope,
   resolveScope,
