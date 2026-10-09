@@ -24,7 +24,7 @@ The projections that would carry the payload already exist. `assistantContextPro
 
 The assistant may be sent, for the project currently open:
 
-- project name, tempo, time signature, total length;
+- project name, tempo, swing, time signature, total length (swing added by GRV-5, so the assistant proposes a swing change from the song's current value);
 - sections, with their names, positions and lengths;
 - tracks, with their names, type, instrument kind, device/clip/placement counts, and mixer state;
 - derived note statistics — register, mean velocity, density, repetition;

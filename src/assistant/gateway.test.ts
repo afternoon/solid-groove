@@ -41,7 +41,12 @@ import {
   type AssistantTurnRequest,
 } from "./protocol";
 import { type AssistantTurnLog, TURN_LOG_KEYS } from "./telemetry";
-import { ASSISTANT_TOOLSET_VERSION, assistantTools, toolNameFor } from "./tools";
+import {
+  ASSISTANT_TOOLSET_VERSION,
+  assistantTools,
+  EXPLAIN_TOOL_NAME,
+  toolNameFor,
+} from "./tools";
 
 function call(command: RawCommandInput) {
   return { name: toolNameFor(command.type), input: command.payload };
@@ -240,12 +245,13 @@ describe("runAssistantTurn: tools and proposals (GRV-4)", () => {
     setParameter({ scope: "track", trackId: track.id, parameterId: TRACK_VOLUME.id }, -9),
   );
 
-  it("offers the model every assistant tool on every turn, and ask_producer", async () => {
+  it("offers the model every assistant tool on every turn, explain_change and ask_producer", async () => {
     const h = harness([replyEvents(["ok"])]);
     await run(h);
     const sent = h.provider.requests[0];
     expect(sent.tools.map((tool) => tool.name)).toEqual([
       ...assistantTools().map((tool) => tool.name),
+      EXPLAIN_TOOL_NAME,
       ASK_PRODUCER_TOOL_NAME,
     ]);
     for (const tool of sent.tools) expect(tool.input_schema.type).toBe("object");
@@ -284,6 +290,16 @@ describe("runAssistantTurn: tools and proposals (GRV-4)", () => {
     expect(proposed.handle.apply().ok).toBe(true);
     expect(history.project.song.tracks[0].mixer.volume).toBe(-9);
     expect(history.entries).toHaveLength(1);
+  });
+
+  it("returns no proposal when the only call is an explanation", async () => {
+    const h = harness([
+      toolUseEvents("Here is why.", [
+        { name: EXPLAIN_TOOL_NAME, input: { goal: "Louder", technique: "More gain" } },
+      ]),
+    ]);
+    const result = await run(h);
+    expect(result.proposal).toBeNull();
   });
 
   it("returns a proposal the browser refuses once the project has moved on", async () => {

@@ -114,7 +114,7 @@ export const assistantTrackNoteStatsSchema = assistantNoteStatsSchema.extend({
 
 /**
  * The project context sent with a turn: the open project's name, tempo,
- * time signature and length, its sections and tracks with their mixer
+ * swing, time signature and length, its sections and tracks with their mixer
  * state, derived note statistics, a description of the selection, and the
  * selection's notes. ADR 0007's allowlist, field for field. Never the
  * project's ID, its owner, an asset, a URL, a clip's name or a note outside
@@ -123,6 +123,8 @@ export const assistantTrackNoteStatsSchema = assistantNoteStatsSchema.extend({
 export const assistantContextPayloadSchema = z.strictObject({
   projectName: name,
   tempo: z.number().min(1).max(999),
+  /** The song's swing in percent: 50 is straight (`SONG_SWING`). */
+  swing: z.number().min(0).max(100),
   timeSignature: timeSignatureSchema,
   totalTicks: ticks,
   tracks: z.array(assistantTrackContextSchema).max(256),

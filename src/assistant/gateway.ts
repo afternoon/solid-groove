@@ -64,7 +64,12 @@ import { admitCall, type QuotaLimits, quotaExceededMessage } from "./quota";
 import { costMicroUsd, spendDay, usdToMicro } from "./spend";
 import { NO_USAGE, type ProviderUsage, StreamReader } from "./streamEvents";
 import { type AssistantTurnLog, toTurnLog } from "./telemetry";
-import { ASSISTANT_TOOLSET_VERSION, assistantTools } from "./tools";
+import {
+  ASSISTANT_TOOLSET_VERSION,
+  assistantTools,
+  EXPLAIN_TOOL,
+  EXPLAIN_TOOL_NAME,
+} from "./tools";
 
 /** Who is calling, as the function's auth context reports it. */
 export interface AssistantCaller {
@@ -178,7 +183,7 @@ async function prepare(
   turn: AssistantTurnRequest,
 ): Promise<PreparedTurn> {
   const system = buildSystemBlocks(turn.context);
-  const tools = providerTools([...assistantTools(), askProducerTool()]);
+  const tools = providerTools([...assistantTools(), EXPLAIN_TOOL, askProducerTool()]);
   // The tool definitions take room in the window just as the prompt does.
   const systemTokens =
     system.reduce((sum, block) => sum + estimateTokens(block.text), 0) +
@@ -368,13 +373,16 @@ async function reserveCall(
   return decision.remaining;
 }
 
-/** The turn's change calls as a proposal, or null when it made none. */
+/**
+ * The turn's change calls as a proposal, or null when it made none. An
+ * explanation on its own changes nothing, so it is not a proposal either.
+ */
 function proposalOf(
   turn: AssistantTurnRequest,
   allCalls: readonly AssistantToolCall[],
 ): AssistantProposal | null {
   const calls = allCalls.filter((call) => !isAskCall(call));
-  if (calls.length === 0) return null;
+  if (calls.every((call) => call.name === EXPLAIN_TOOL_NAME)) return null;
   return {
     baseRevision: turn.projectRevision,
     toolsetVersion: ASSISTANT_TOOLSET_VERSION,

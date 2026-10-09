@@ -129,6 +129,7 @@ describe("event names", () => {
         "track_reordered",
         "transport_play",
         "undo_used",
+        "unsaved_exit_warned",
         "user_pack_created",
         "view_changed",
       ].sort(),
@@ -483,6 +484,7 @@ describe("section 11 measure coverage", () => {
     reliability: [
       "save_failed",
       "save_recovered",
+      "unsaved_exit_warned",
       "asset_load_failed",
       "audio_start_failed",
       "audio_underrun",

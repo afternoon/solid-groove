@@ -7,6 +7,7 @@ import {
   createEmulatorAssistantProvider,
   EMULATOR_ASK,
   EMULATOR_REPLY_CHUNKS,
+  LOOSEN_EXPLANATION,
   LOOSEN_SWING,
   LOOSEN_VOLUME_DROP_DB,
   usesEmulatorProvider,
@@ -132,6 +133,7 @@ describe("the emulator's assistant provider", () => {
       (candidate) => candidate.id === track.id,
     );
     expect(after?.mixer.volume).toBe(track.mixer.volume - LOOSEN_VOLUME_DROP_DB);
+    expect(validation.proposal.explanation).toEqual(LOOSEN_EXPLANATION);
   });
 
   it("ends [ask] in a question for the producer, and [ask-multi] in a multi-select", async () => {
