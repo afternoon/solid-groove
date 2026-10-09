@@ -23,9 +23,10 @@ name: Board
 # is a personal API key for the Linear workspace (docs/linear.md).
 on:
   schedule:
-    # The backstop. A card move starts a poll within seconds through the relay
-    # (scripts/linear/relay/, docs/linear.md); this catches anything it misses.
-    # Off the hour, where GitHub's scheduler is busiest.
+    # The last backstop. A card move starts a poll within seconds through the
+    # relay (scripts/linear/relay/, docs/linear.md), and the relay's own cron
+    # polls every 15 minutes; this is for when the relay is down. Off the hour,
+    # where GitHub's scheduler is busiest.
     - cron: "17 * * * *"
   pull_request:
     types: [opened, ready_for_review, closed]
