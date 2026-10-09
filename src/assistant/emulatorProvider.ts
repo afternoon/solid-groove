@@ -22,15 +22,21 @@
  *   58% and the BD track 3 dB quieter, read from the project context.
  * - `[ask]`: a short reply that ends in `ask_producer` (GRV-42), a single
  *   pick among {@link EMULATOR_ASK}'s options; `[ask-multi]` asks the same
- *   question as a multi-select.
+ *   question as a multi-select; `[ask-rich]` asks one whose options point at
+ *   the project's first track and bars 1-2, let it be heard, and answer
+ *   themselves when the tempo goes to 100 BPM or below
+ *   ({@link emulatorRichAsk}).
  * - anything else: a short reply, streamed in pieces with a pause between.
  *
  * Like the rest of `src/assistant`, it imports no Firebase and no SDK.
  */
+import { setParameter } from "../commands/definitions/parameters";
+import { SONG_TEMPO } from "../domain/parameters";
 import { ASK_PRODUCER_TOOL_NAME, type AskProducerInput } from "./ask";
 import type { AssistantProvider } from "./provider";
 import { ProviderFailure } from "./provider";
 import type { ProviderMessagesRequest } from "./providerRequest";
+import { toolNameFor } from "./tools";
 
 /** The reply every ordinary turn streams, piece by piece. */
 export const EMULATOR_REPLY_CHUNKS = [
@@ -208,6 +214,53 @@ function loosenProposal(request: ProviderMessagesRequest): Step[] {
   );
 }
 
+/**
+ * The question `[ask-rich]` asks, about `trackId`: an option that points at
+ * the track and plays it, one about bars 1-2, and one that previews the song
+ * at 100 BPM and is answered by setting the tempo there.
+ */
+export function emulatorRichAsk(trackId: string | null): AskProducerInput {
+  const slower = setParameter({ scope: "song", parameterId: SONG_TEMPO.id }, 100);
+  return {
+    question: "What should change first?",
+    context: "The groove",
+    options: [
+      ...(trackId
+        ? [
+            {
+              label: "The first track",
+              ref: { kind: "track" as const, trackId },
+              sound: { kind: "track" as const, trackId },
+            },
+          ]
+        : []),
+      { label: "The opening", ref: { kind: "bars", startBar: 1, endBar: 2 } },
+      {
+        label: "Slower, at 100 BPM",
+        description: "Set the tempo yourself to answer",
+        sound: {
+          kind: "preview",
+          calls: [{ name: toolNameFor(slower.type), input: { ...slower.payload } }],
+        },
+        doneWhen: { kind: "tempo", max: 100 },
+      },
+    ],
+    suggested: 0,
+    multiSelect: false,
+  };
+}
+
+/** `[ask-rich]`'s reply, about the first track in the project context. */
+function richAskReply(request: ProviderMessagesRequest): Step[] {
+  return proposalReply("Let's pick a place to start.", [
+    {
+      id: "toolu_ask_rich",
+      name: ASK_PRODUCER_TOOL_NAME,
+      input: emulatorRichAsk(contextTracks(request)[0]?.id ?? null),
+    },
+  ]);
+}
+
 /** `[ask]`'s and `[ask-multi]`'s reply: one `ask_producer` call. */
 function askReply(multiSelect: boolean): Step[] {
   return proposalReply("One question before I change anything.", [
@@ -258,6 +311,7 @@ export function createEmulatorAssistantProvider(
     }
     if (message.includes("[propose]")) return tempoProposal();
     if (/loosen the beat/i.test(message)) return loosenProposal(request);
+    if (message.includes("[ask-rich]")) return richAskReply(request);
     if (message.includes("[ask-multi]")) return askReply(true);
     if (message.includes("[ask]")) return askReply(false);
     return textReply(EMULATOR_REPLY_CHUNKS);
