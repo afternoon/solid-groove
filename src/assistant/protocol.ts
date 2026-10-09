@@ -22,6 +22,12 @@ const name = z.string().max(200);
 const count = z.int().min(0);
 const ticks = z.int().min(0);
 
+/**
+ * The most pads one track's context lists. Above the editor's own cap
+ * (`MAX_DRUM_PADS`), so in practice every pad; the payload cuts to it.
+ */
+export const MAX_CONTEXT_PADS = 64;
+
 /** One track, as the assistant sees it (ADR 0007 decision 1). */
 export const assistantTrackContextSchema = z.strictObject({
   id: z.string().max(64),
@@ -35,6 +41,8 @@ export const assistantTrackContextSchema = z.strictObject({
   soloed: z.boolean(),
   clipCount: count,
   placementCount: count,
+  /** A drum machine's pads by ID and name (GRV-23); empty for any other track. */
+  pads: z.array(z.strictObject({ id: z.string().max(64), name })).max(MAX_CONTEXT_PADS),
 });
 
 export const assistantSectionContextSchema = z.strictObject({

@@ -34,6 +34,16 @@ export interface AssistantTrackSummary {
   readonly soloed: boolean;
   readonly clipCount: number;
   readonly placementCount: number;
+  /**
+   * A drum machine's pads, in order, by ID and name, so the assistant can
+   * name the pad a sound is for (GRV-23). Empty for any other instrument.
+   */
+  readonly pads: readonly AssistantPadSummary[];
+}
+
+export interface AssistantPadSummary {
+  readonly id: string;
+  readonly name: string;
 }
 
 export interface AssistantSectionSummary {
@@ -78,6 +88,10 @@ function summarizeTrack(track: Track, project: Project): AssistantTrackSummary {
     placementCount: project.song.placements.filter(
       (placement) => placement.trackId === track.id,
     ).length,
+    pads:
+      track.instrument?.kind === "drumMachine"
+        ? track.instrument.pads.map((pad) => ({ id: pad.id, name: pad.name }))
+        : [],
   };
 }
 

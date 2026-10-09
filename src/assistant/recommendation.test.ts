@@ -23,6 +23,7 @@ describe("validateRecommendation", () => {
         soundIds: ["kick-dusty", "kick-warm"],
         reason: "Softer, grittier kicks.",
         trackId: "trk_bd",
+        padId: "pad_bd",
       },
       library,
     );
@@ -34,15 +35,17 @@ describe("validateRecommendation", () => {
     ]);
     expect(result.recommendation.reason).toBe("Softer, grittier kicks.");
     expect(result.recommendation.trackId).toBe("trk_bd");
+    expect(result.recommendation.padId).toBe("pad_bd");
   });
 
-  it("names no track when the call names none, and drops a repeated sound", () => {
+  it("names no track or pad when the call names none, and drops a repeated sound", () => {
     const result = validateRecommendation(
       { packId: DRUM_PACK_ID, soundIds: ["kick-warm", "kick-warm"], reason: "Warm." },
       library,
     );
     if (!result.ok) throw new Error(result.message);
     expect(result.recommendation.trackId).toBeNull();
+    expect(result.recommendation.padId).toBeNull();
     expect(result.recommendation.sounds).toHaveLength(1);
   });
 
