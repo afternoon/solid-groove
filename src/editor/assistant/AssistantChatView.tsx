@@ -1,6 +1,7 @@
 import type { JSX } from "@solidjs/web";
 import { createEffect, For, Match, Show, Switch } from "solid-js";
 import { SendIcon, SparkIcon, StopIcon } from "../../components/icons";
+import AssistantAskCard from "./AssistantAskCard";
 import { ERROR_HEADING, ERROR_REASSURANCE, errorMessage } from "./assistantErrorCopy";
 import ProposalCard from "./ProposalCard";
 import RecommendationCard from "./RecommendationCard";
@@ -11,6 +12,8 @@ export interface AssistantChatViewProps {
   readonly chat: AssistantChat;
   /** Bound to the composer, so the panel opens ready to type into. */
   bindComposer(element: HTMLElement | undefined): void;
+  /** Bound to a question's "something else" box (GRV-42), where Enter sends. */
+  bindAskText(element: HTMLElement | undefined): void;
   /** Puts focus back in the composer, after Stop or Try again. */
   focusComposer(): void;
 }
@@ -23,7 +26,9 @@ export const SIGN_IN_NOTE = "Sign in to talk to the assistant.";
 
 /**
  * The assistant's conversation (GRV-26), after docs/assistant-panel.html: the
- * log, the suggestion chips and the composer with its scope chip.
+ * log, the suggestion chips and the composer with its scope chip. A question
+ * the assistant asks (GRV-42) waits between the log and the composer until it
+ * is answered or dismissed (`AssistantAskCard`).
  *
  * Enter is not read here: it is the registry's `assistant.send`, live while
  * the composer has focus, so this only binds the composer and renders.
@@ -42,6 +47,7 @@ export default function AssistantChatView(props: AssistantChatViewProps): JSX.El
   // effect's one reactive read; the scroll is a DOM write, so it is the apply
   // half's.
   let log: HTMLDivElement | undefined;
+  let composerElement: HTMLTextAreaElement | undefined;
   let pinned = true;
   const PIN_SLACK = 40;
   createEffect(
@@ -91,6 +97,7 @@ export default function AssistantChatView(props: AssistantChatViewProps): JSX.El
               entry={entry()}
               canRetry={conversation().canRetry(entry())}
               onRetry={retry}
+              asking={conversation().pendingAsk()?.replyId === entry().id}
               chat={props.chat}
             />
           )}
@@ -100,7 +107,28 @@ export default function AssistantChatView(props: AssistantChatViewProps): JSX.El
         when={props.chat.account().registered}
         fallback={<SignInPrompt signIn={props.chat.account().signIn} />}
       >
-        <Show when={!streaming() && props.chat.suggestions().length > 0}>
+        <Show when={conversation().pendingAsk()}>
+          {(pending) => (
+            <AssistantAskCard
+              pending={pending()}
+              draft={props.chat.ask}
+              streaming={streaming()}
+              bindText={(element) => props.bindAskText(element)}
+              takeFocus={() =>
+                composerElement !== undefined &&
+                document.activeElement === composerElement &&
+                props.chat.draft().trim().length === 0
+              }
+            />
+          )}
+        </Show>
+        <Show
+          when={
+            !streaming() &&
+            !conversation().pendingAsk() &&
+            props.chat.suggestions().length > 0
+          }
+        >
           <fieldset class="assistant-suggestions" aria-label="Suggestions">
             <For each={props.chat.suggestions()}>
               {(suggestion) => (
@@ -118,7 +146,10 @@ export default function AssistantChatView(props: AssistantChatViewProps): JSX.El
         </Show>
         <div class="assistant-panel-composer">
           <textarea
-            ref={(element) => props.bindComposer(element)}
+            ref={(element) => {
+              composerElement = element;
+              props.bindComposer(element);
+            }}
             class="assistant-panel-input"
             aria-label="Message the assistant"
             placeholder="Ask for a change, a sound, or how something works"
@@ -168,6 +199,8 @@ function Entry(props: {
   /** Only the error that ended the conversation offers Try again. */
   readonly canRetry: boolean;
   onRetry(): void;
+  /** Whether this reply's question is the one waiting above the composer. */
+  readonly asking: boolean;
   readonly chat: AssistantChat;
 }): JSX.Element {
   return (
@@ -175,7 +208,11 @@ function Entry(props: {
       <Match when={props.entry.kind === "message" && props.entry}>
         {(message) => (
           <div class="assistant-message">
-            <span class="assistant-entry-label">Scope · {message().scopeLabel}</span>
+            <span class="assistant-entry-label">
+              {message().answers
+                ? `Answer · ${message().answers}`
+                : `Scope · ${message().scopeLabel}`}
+            </span>
             {/* A space between the stamp and the message, so their text reads
                 as two words to a screen reader and a search, not one. The flex
                 column does not draw it. */}{" "}
@@ -183,7 +220,15 @@ function Entry(props: {
           </div>
         )}
       </Match>
-      <Match when={props.entry.kind === "reply" && props.entry}>
+      {/* A reply that only asked a question has nothing to show while the
+          question waits above the composer: the card is all of it. */}
+      <Match
+        when={
+          props.entry.kind === "reply" &&
+          !(props.asking && props.entry.text.length === 0) &&
+          props.entry
+        }
+      >
         {(reply) => (
           <div class="assistant-reply">
             <span class="assistant-entry-label assistant-reply-who">
@@ -206,6 +251,11 @@ function Entry(props: {
                 <span class="assistant-stopped">Interrupted.</span>
               </Show>
             </p>
+            {/* Once its question is answered or put away, the reply keeps it,
+                so the answer below reads against what was asked. */}
+            <Show when={!props.asking && reply().ask}>
+              {(ask) => <p class="assistant-reply-asked">Asked: {ask().question}</p>}
+            </Show>
           </div>
         )}
       </Match>

@@ -46,6 +46,7 @@ import AssistantPanel from "./assistant/AssistantPanel";
 import { createAssistantLibrary } from "./assistant/assistantLibrary";
 import type { ScopeSelection, ScopeSources } from "./assistant/assistantScope";
 import { recommendationSlot } from "./assistant/recommendationCardModel";
+import { useAskEditorLink } from "./assistant/useAskEditorLink";
 import { useAssistantChat } from "./assistant/useAssistantChat";
 import { useAssistantPanel } from "./assistant/useAssistantPanel";
 import CompatibilityNotice from "./CompatibilityNotice";
@@ -397,6 +398,30 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
   // The published library the assistant may recommend from (GRV-23), read
   // through the shared client's cache the first time a turn is sent.
   const assistantLibrary = createAssistantLibrary(libraryClient);
+  // What a question's options do in the editor (GRV-42): a hovered option's
+  // part of the song drawn on the arrangement, a picked one selected, and its
+  // sound auditioned or previewed.
+  const askLink = useAskEditorLink({
+    project,
+    session,
+    audio,
+    selectTrack: (trackId) => selectTrack(trackId),
+    selectArrangement(selected) {
+      const actions = surfaces.arrangementEditingActions();
+      if (actions) {
+        // The arrangement reports it back through `onSelectionChange`.
+        actions.setSelection(selected);
+        return;
+      }
+      // Off the arrangement: kept for its next visit, and one clip is what
+      // the sequence view edits.
+      arrangementSelection = selected;
+      setArrangementPick(selected);
+      if (selected.kind === "clips" && selected.placementIds.length === 1) {
+        selectPlacement(selected.placementIds[0]);
+      }
+    },
+  });
   // The conversation (GRV-26): one per editor, kept while the panel is
   // closed, gone on a reload.
   const chat = useAssistantChat({
@@ -413,6 +438,8 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     },
     client: props.assistantClient ?? getAssistantClient,
     analytics,
+    committedProject: () => session.committedProject(),
+    link: askLink,
     // A proposal previews and applies through the session, and shows its
     // controls through the editor's (GRV-5).
     editor: {
@@ -486,6 +513,17 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     exportOpen,
     assistant,
     sendAssistantDraft: () => chat.sendDraft(),
+    assistantAsk: {
+      pending: () => chat.conversation.pendingAsk() !== null,
+      optionCount: () => chat.conversation.pendingAsk()?.ask.options.length ?? 0,
+      multiSelect: () => chat.conversation.pendingAsk()?.ask.multiSelect === true,
+      pick: (index) => chat.ask.pick(index),
+      canFinish: () => chat.ask.canFinish(),
+      finish: () => chat.ask.finish(),
+      focused: () => chat.ask.focused(),
+      canHear: (index) => chat.ask.canHear(index),
+      hear: (index) => chat.ask.hear(index),
+    },
   });
 
   /** An empty screen's way out: a view, named and keyed as the dock names it. */
@@ -597,6 +635,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
                               }}
                               onAddTrack={(spec) => addTrack(currentProject(), spec)}
                               onAddLoop={() => library.aim("arrangement", "new-track")}
+                              highlight={askLink.bands}
                             />
                           </Match>
                           <Match when={props.view === "sequence"}>

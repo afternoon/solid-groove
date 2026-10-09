@@ -123,6 +123,40 @@ describe("the assistant client", () => {
     expect(events[0]).toEqual({ type: "proposal", proposal });
   });
 
+  it("hands a question for the producer over after the proposal, before the done", async () => {
+    const wire = manualTransport();
+    const { events } = record(wire.transport);
+    const proposal = {
+      baseRevision: 3,
+      toolsetVersion: 2,
+      calls: [{ id: "toolu_1", name: "parameter_set", input: {} }],
+    };
+    const ask = {
+      id: "toolu_2",
+      question: "Which way?",
+      options: [{ label: "Up" }, { label: "Down" }],
+      multiSelect: false,
+    };
+    wire.finish({ ...RESULT, stopReason: "tool_use", proposal, ask });
+    await flush();
+    expect(events.map((event) => event.type)).toEqual(["proposal", "ask", "done"]);
+    expect(events[1]).toEqual({ type: "ask", ask });
+  });
+
+  it("turns a question in the wrong shape into a malformed_response error", async () => {
+    const wire = manualTransport();
+    const { events } = record(wire.transport);
+    wire.finish({
+      ...RESULT,
+      stopReason: "tool_use",
+      ask: { id: "toolu_1", question: "Which?", options: [{ label: "Only one" }] },
+    });
+    await flush();
+    expect(events).toEqual([
+      { type: "error", error: { code: "malformed_response", retryable: true } },
+    ]);
+  });
+
   it("turns a chunk in the wrong shape into one malformed_response error", async () => {
     const wire = manualTransport();
     const { events } = record(wire.transport);

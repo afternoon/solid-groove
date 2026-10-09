@@ -35,6 +35,12 @@ describe("buildAssistantPayload", () => {
     expect(parsed.tracks.every((track) => track.pads.length === 0)).toBe(true);
   });
 
+  it("carries the song's current swing, so a swing change starts from it", () => {
+    const project = createSliceFixtureProject();
+    const swung = { ...project, song: { ...project.song, swing: 62 } };
+    expect(buildAssistantPayload(swung).swing).toBe(62);
+  });
+
   it("carries ADR 0007's allowlist and nothing else", () => {
     const payload = buildAssistantPayload(createReferenceProject());
     expect(Object.keys(payload).sort()).toEqual(
@@ -44,6 +50,7 @@ describe("buildAssistantPayload", () => {
         "sections",
         "selectedNotes",
         "selection",
+        "swing",
         "tempo",
         "timeSignature",
         "totalTicks",
