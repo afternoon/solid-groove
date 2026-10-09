@@ -25,6 +25,16 @@ describe("buildAssistantPayload", () => {
     }
   });
 
+  it("still accepts a track with no pads, as a tab on the earlier bundle sends", () => {
+    const payload = buildAssistantPayload(createDrumMachineFixtureProject());
+    const legacyTracks = payload.tracks.map(({ pads: _pads, ...track }) => track);
+    const parsed = assistantContextPayloadSchema.parse({
+      ...payload,
+      tracks: legacyTracks,
+    });
+    expect(parsed.tracks.every((track) => track.pads.length === 0)).toBe(true);
+  });
+
   it("carries ADR 0007's allowlist and nothing else", () => {
     const payload = buildAssistantPayload(createReferenceProject());
     expect(Object.keys(payload).sort()).toEqual(
