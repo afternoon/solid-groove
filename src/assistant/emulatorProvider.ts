@@ -115,16 +115,32 @@ function lastUserMessage(request: ProviderMessagesRequest): string {
   return "";
 }
 
-/** A provider that answers from the scripts above. Holds `[flaky]`'s memory. */
-export function createEmulatorAssistantProvider(): AssistantProvider {
-  const failedOnce = new Set<string>();
+/**
+ * `[flaky]`'s memory: true the first time it is asked about a message, false
+ * every time after. The emulator can answer a retry from a different worker
+ * process than the first try, so the function hands in one that every worker
+ * shares; the default lives in this process alone.
+ */
+export type FirstTimeCheck = (message: string) => boolean;
 
+function inProcessFirstTime(): FirstTimeCheck {
+  const seen = new Set<string>();
+  return (message) => {
+    if (seen.has(message)) return false;
+    seen.add(message);
+    return true;
+  };
+}
+
+/** A provider that answers from the scripts above. */
+export function createEmulatorAssistantProvider(
+  firstTime: FirstTimeCheck = inProcessFirstTime(),
+): AssistantProvider {
   function scriptFor(message: string): Step[] {
     if (message.includes("[hang]")) {
       return [...textReply([EMULATOR_REPLY_CHUNKS[0]]).slice(0, 3), { hang: true }];
     }
-    if (message.includes("[flaky]") && !failedOnce.has(message)) {
-      failedOnce.add(message);
+    if (message.includes("[flaky]") && firstTime(message)) {
       return [...textReply([EMULATOR_REPLY_CHUNKS[0]]).slice(0, 3), { fail: true }];
     }
     if (message.includes("[propose]")) return proposalReply();

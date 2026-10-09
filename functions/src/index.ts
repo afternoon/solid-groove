@@ -31,6 +31,10 @@
  * `firebase-functions` and `@anthropic-ai/sdk` to the runtime's own install of
  * `functions/package.json`.
  */
+import { createHash } from "node:crypto";
+import { mkdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { initializeApp } from "firebase-admin/app";
 import { type Auth, getAuth } from "firebase-admin/auth";
 import { type Firestore, getFirestore, type Transaction } from "firebase-admin/firestore";
@@ -317,7 +321,25 @@ export const revokeAccess = onCall(
 /** The provider's API key, readable by `assistantTurn` and nothing else. */
 const anthropicApiKey = defineSecret(ASSISTANT_API_KEY_SECRET);
 
-/** One for the life of the emulator, so `[flaky]` remembers its first failure. */
+/**
+ * `[flaky]`'s memory, shared by every worker process the emulator runs: the
+ * first to claim a message's marker file is the first time. A retry often
+ * lands on another worker than the try it repeats, so a memory held in one
+ * process would fail it again.
+ */
+function emulatorFirstTime(message: string): boolean {
+  const name = createHash("sha256").update(message).digest("hex");
+  const dir = join(tmpdir(), "groove-emulator-assistant");
+  mkdirSync(dir, { recursive: true });
+  try {
+    writeFileSync(join(dir, name), "", { flag: "wx" });
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "EEXIST") return false;
+    throw error;
+  }
+}
+
 let emulatorProvider: AssistantProvider | null = null;
 
 /**
@@ -327,7 +349,7 @@ let emulatorProvider: AssistantProvider | null = null;
 function assistantProvider(): AssistantProvider {
   const apiKey = anthropicApiKey.value() ?? "";
   if (usesEmulatorProvider(process.env, apiKey)) {
-    emulatorProvider ??= createEmulatorAssistantProvider();
+    emulatorProvider ??= createEmulatorAssistantProvider(emulatorFirstTime);
     return emulatorProvider;
   }
   return createAnthropicProvider({ apiKey });
