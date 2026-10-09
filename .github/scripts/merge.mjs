@@ -8,6 +8,15 @@
 //                                                 on every poll): approve every open PR that
 //                                                 refers to it and is not approved yet.
 //   node .github/scripts/merge.mjs pr <n>         `status:approved` went on PR <n>: approve it.
+//   node .github/scripts/merge.mjs stop <url>     CI is red on main: stop the line. Take every open PR
+//                                                 out of the queue except the ones that fix main.
+//   node .github/scripts/merge.mjs resume         CI is green on main again: re-sync every open PR.
+//   node .github/scripts/merge.mjs status         Print `stopped` or `running`.
+//
+// Stop the line: while the last CI run on main failed a gate job, nothing but
+// a revert (`revert/pr-<n>`) or a PR labelled `fixes-main` joins the queue, and
+// the board starts no new builds (board.mjs). Green CI on main resumes both
+// (ci-failure.yml). Nothing is stored: the state is main's last CI run.
 //
 // A PR is safe when it touches no GATED path: those change what is stored,
 // who may read it, what runs server side, dependencies, or the automation
@@ -34,6 +43,25 @@ const APPROVED = "status:approved";
 const NEEDS_APPROVAL = "needs-approval";
 const HOLD = "hold";
 const BASE = "main";
+const FIXES_MAIN = "fixes-main";
+
+/** The CI jobs that gate main. Keep in step with `gates` in ci-failure.sh. */
+export const GATE_JOBS = [
+  "typecheck, check, unit + component tests",
+  "browser sanity (chromium)",
+  "firebase emulator tests",
+  "production build + no-secrets-in-bundle check",
+];
+
+/** A PR that may land while the line is stopped: the revert, or a fix for main. */
+export const fixesMain = (p) =>
+  p.headRefName.startsWith("revert/") || p.labels.some((l) => l.name === FIXES_MAIN);
+
+/** The gate jobs that failed, from a run's job list. */
+export const failedGates = (jobs) =>
+  jobs
+    .filter((j) => j.conclusion === "failure" && GATE_JOBS.includes(j.name))
+    .map((j) => j.name);
 
 /** Paths a PR may not merge on its own. Keep in step with CLAUDE.md, "Merging". */
 const GATED = [
@@ -73,7 +101,7 @@ export function openPrs() {
       "--limit",
       "500",
       "--json",
-      "number,headRefName,baseRefName,isCrossRepository,isDraft,body,labels,comments",
+      "id,number,headRefName,baseRefName,isCrossRepository,isDraft,body,labels,comments,autoMergeRequest",
     ]),
   ).filter((p) => !p.isCrossRepository);
   return { prs };
@@ -193,6 +221,92 @@ async function flag(p, gated) {
   console.log(`#${p.number}: needs approval (${gated.join(", ")})`);
 }
 
+/**
+ * Whether the line is stopped: main's last finished CI run failed a gate job.
+ * A run still going (a fix, or a re-run) leaves it as the last one left it.
+ */
+export function lineStatus() {
+  const run = JSON.parse(
+    gh([
+      "api",
+      `repos/${REPO}/actions/workflows/ci.yml/runs?branch=${BASE}&event=push&status=completed&per_page=1`,
+      "--jq",
+      ".workflow_runs[0] // null",
+    ]),
+  );
+  if (!run || run.conclusion === "success") return { stopped: false };
+  const jobs = JSON.parse(
+    gh([
+      "api",
+      "--paginate",
+      `repos/${REPO}/actions/runs/${run.id}/jobs`,
+      "--jq",
+      ".jobs",
+    ]),
+  );
+  const failed = failedGates(jobs);
+  return failed.length
+    ? { stopped: true, url: run.html_url, failed }
+    : { stopped: false };
+}
+
+/** Take a PR out of the queue: no auto-merge, and out of the queue if it is in it. */
+function dequeue(p) {
+  try {
+    gh(["pr", "merge", String(p.number), "--repo", REPO, "--disable-auto"]);
+  } catch {
+    // Auto-merge was not on.
+  }
+  try {
+    gh([
+      "api",
+      "graphql",
+      "-f",
+      "query=mutation($id: ID!) { dequeuePullRequest(input: { id: $id }) { clientMutationId } }",
+      "-f",
+      `id=${p.id}`,
+    ]);
+  } catch {
+    // It was not in the queue.
+  }
+}
+
+/** Stop the line: take every open PR but the fixes for main out of the queue. */
+function stop(url, index) {
+  for (const p of index.prs) {
+    if (fixesMain(p) || !p.autoMergeRequest) continue;
+    dequeue(p);
+    gh([
+      "pr",
+      "comment",
+      String(p.number),
+      "--repo",
+      REPO,
+      "--body",
+      `CI is red on \`${BASE}\` (${url}), so the line is stopped: this PR left the merge queue and rejoins it on its own once \`${BASE}\` is green again. Nothing to do here.\n\n---\n_Posted by the merge workflow (\`.github/scripts/merge.mjs\`)._`,
+    ]);
+    console.log(`#${p.number}: line stopped; out of the queue`);
+  }
+}
+
+/** Hold a PR out of the queue until the product owner removes `hold`, saying why. */
+export function hold(number, why, index) {
+  const p = index.prs.find((p) => p.number === number);
+  if (!p || p.labels.some((l) => l.name === HOLD)) return;
+  gh(["pr", "edit", String(number), "--repo", REPO, "--add-label", HOLD]);
+  dequeue(p);
+  gh([
+    "pr",
+    "comment",
+    String(number),
+    "--repo",
+    REPO,
+    "--body",
+    `${why} Labelled \`${HOLD}\` so it does not land ahead of that. Remove the label to queue it again.\n\n---\n_Posted by the merge workflow (\`.github/scripts/merge.mjs\`)._`,
+  ]);
+  console.log(`#${number}: held`);
+}
+
 async function sync(n, index) {
   const p = index.prs.find((p) => p.number === n);
   const has = (name) => p?.labels.some((l) => l.name === name);
@@ -203,6 +317,8 @@ async function sync(n, index) {
       `#${n}: not on ${BASE} (${p.baseRefName}); retarget it onto ${BASE}`,
     );
   if (has(HOLD)) return console.log(`#${n}: labelled ${HOLD}; not queued`);
+  if (!fixesMain(p) && lineStatus().stopped)
+    return console.log(`#${n}: the line is stopped (CI red on ${BASE}); not queued`);
   if (has(APPROVED)) return queue(n);
   const gated = gatedPaths(changedPaths(n));
   if (gated.length) return flag(p, gated);
@@ -216,8 +332,20 @@ async function main() {
   if (mode === "issue") approve(approvalOfIssue(arg.toUpperCase(), index), index);
   else if (mode === "pr") approve(approvalOf(Number(arg), index), index);
   else if (mode === "sync") await sync(Number(arg), index);
-  else {
-    console.error("usage: merge.mjs sync <n> | issue <GRV-id> | pr <n>");
+  else if (mode === "stop") stop(arg, index);
+  else if (mode === "status") console.log(lineStatus().stopped ? "stopped" : "running");
+  else if (mode === "resume") {
+    if (lineStatus().stopped) return console.log("The line is still stopped.");
+    for (const p of index.prs) await sync(p.number, index);
+  } else if (mode === "hold") {
+    const [, number, card] = process.argv.slice(2);
+    for (const p of index.prs)
+      if (p.number !== Number(number) && refersTo(p.body, card))
+        hold(p.number, `#${number}, an earlier PR for ${card}, was reverted.`, index);
+  } else {
+    console.error(
+      "usage: merge.mjs sync <n> | issue <GRV-id> | pr <n> | stop <url> | resume | status | hold <reverted-pr> <GRV-id>",
+    );
     process.exit(2);
   }
 }

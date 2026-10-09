@@ -29,7 +29,7 @@
 import { execFileSync } from "node:child_process";
 import { appendFileSync, readFileSync } from "node:fs";
 import * as linear from "./linear.mjs";
-import { approvalOfIssue, approve, openPrs, refersTo } from "./merge.mjs";
+import { approvalOfIssue, approve, lineStatus, openPrs, refersTo } from "./merge.mjs";
 
 const REPO = process.env.GITHUB_REPOSITORY;
 const RUN_URL = process.env.RUN_URL ?? "";
@@ -132,6 +132,12 @@ const enteredInProgress = (issue) =>
 
 async function pollReady() {
   const ship = [];
+  // Stop the line: no new build starts while CI is red on main (merge.mjs).
+  const line = lineStatus();
+  if (line.stopped) {
+    console.log(`The line is stopped (CI red on main: ${line.url}); starting no builds`);
+    return ship;
+  }
   for (const card of linear.startOrder(await linear.list({ state: "Ready" }))) {
     if (ship.length >= SHIP_PER_POLL) {
       console.log(

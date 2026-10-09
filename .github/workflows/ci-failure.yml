@@ -5,9 +5,14 @@ name: CI failure
 #
 #  - a merge-queue run fails -> the PR goes back to @claude to fix, and its card
 #                               (Linear) back to In Progress; the fix re-queues it
-#  - CI fails on main        -> the PR that broke it is reverted through the queue
-#                               and a Linear issue is filed to land it again (or,
-#                               when the cause is unclear, a bug is filed)
+#  - CI fails on main        -> stop the line (nothing else is queued, no new
+#                               builds start) and re-run the failed jobs once; if
+#                               they fail again, the PR that broke it is reverted
+#                               through the queue, the card's other open PRs are
+#                               held, and a Linear issue is filed to land it again
+#                               (or, when the cause is unclear, a bug is filed)
+#  - CI goes green on main    -> the line resumes: every open PR is synced back
+#                               into the queue and the board polls
 #
 # The daily browser pass is not handled here: browser-pass-report in ci.yml
 # files its own bug.
@@ -20,7 +25,7 @@ permissions:
   contents: write
   pull-requests: write
   issues: write
-  actions: read
+  actions: write
 
 jobs:
   handle:
@@ -52,12 +57,46 @@ jobs:
           RUN: ${{ github.event.workflow_run.id }}
           BRANCH: ${{ github.event.workflow_run.head_branch }}
           SHA: ${{ github.event.workflow_run.head_sha }}
+          ATTEMPT: ${{ github.event.workflow_run.run_attempt }}
         run: |
           # Copied out of the checkout, with the Linear client beside it, so the
           # revert's branch switching cannot change the script under it.
-          cp .github/scripts/ci-failure.sh .github/scripts/linear.mjs "$RUNNER_TEMP/"
+          cp .github/scripts/ci-failure.sh .github/scripts/linear.mjs .github/scripts/merge.mjs "$RUNNER_TEMP/"
           if [ "$EVENT" = merge_group ]; then
             bash "$RUNNER_TEMP/ci-failure.sh" queue "$RUN" "$BRANCH"
           else
-            bash "$RUNNER_TEMP/ci-failure.sh" main "$RUN" "$SHA"
+            bash "$RUNNER_TEMP/ci-failure.sh" main "$RUN" "$SHA" "$ATTEMPT"
           fi
+
+  # Green on main after a red run: restart the line. A green run after a green
+  # run finds nothing to do (every open PR is already queued or waiting).
+  resume:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: ci-failure
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ secrets.RESTACK_TOKEN || github.token }}
+      LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: .github/scripts
+      - name: Was the line stopped?
+        id: before
+        env:
+          RUN: ${{ github.event.workflow_run.id }}
+        run: |
+          # The run before this one on main, finished: was it red?
+          prev="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?branch=main&event=push&status=completed&per_page=2" \
+            --jq "[.workflow_runs[] | select(.id != $RUN)][0].conclusion // \"success\"")"
+          attempt="${{ github.event.workflow_run.run_attempt }}"
+          if [ "$prev" != success ] || [ "$attempt" != 1 ]; then echo "was=stopped" >> "$GITHUB_OUTPUT"; fi
+      - if: steps.before.outputs.was == 'stopped'
+        run: |
+          node .github/scripts/merge.mjs resume
+          gh workflow run board.yml --repo "$GITHUB_REPOSITORY" --ref main
