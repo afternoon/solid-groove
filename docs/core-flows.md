@@ -1435,3 +1435,49 @@ their mind, even after a reload.
 heard on another device or browser, which it deliberately doesn't follow
 (per-device by decision). Sounds heard through Browse packs' "Hear it", which
 plays a pack, not a sound, and is left out at the component layer.
+
+### CF-034 — A producer asks the assistant for a dustier kick, tries it in the beat, and keeps it
+
+**Issue:** GRV-23 · **Suite:** `tests/e2e/emulator/flows/CF-034.spec.ts` · **Entrypoint:**
+the project dashboard
+
+**Preconditions:** signed in with no projects. The assistant is answered by the
+suite's scripted provider (#69). Asked for a dustier kick, it recommends the
+pack the starter kick comes from, Core Electronic Drums, with up to three of
+its kicks that the project does not use yet, the grittiest first, for the BD
+track. The library holds at least one such kick.
+
+1. Create a new project. It opens on the arrangement, with the starter kick on
+   the drum machine's "BD" pad.
+2. Press the Assistant button, type "The kick is too clean. Anything dustier?"
+   and press Enter. Your message appears in the conversation, and the
+   assistant's reply follows it.
+3. The reply ends with a recommended pack. It names the pack, its publisher,
+   its version and how many sounds it holds, says in a line why it fits, and
+   says the pack is already in this project. It lists up to three kicks, each
+   with a button to hear it, and offers to try the first on BD. Nothing has
+   changed: there is nothing to undo.
+4. Press Try on BD. The editor goes to the instrument view, where BD's sample
+   slot is. The card says BD is trying the first kick it listed, and the slot
+   still names the sound it had: a sound being tried is heard, not saved.
+   There is still nothing to undo.
+5. Press Put back. The editor goes back to the arrangement, the card says BD's
+   own sound is back, and there is nothing to undo.
+6. Press Try on BD again, then Keep. The card says the kick was kept, and BD's
+   sample slot names it.
+7. Undo once. The slot names the starter kick again. Redo once. It names the
+   kept kick.
+8. Reload the page. BD's sample slot still names the kept kick.
+
+**Outcome:** a producer asked for a sound in words, heard the assistant's pick
+in their own beat before anything changed, walked away from it without a trace,
+then kept it as one step they can undo, and it is still there when they come
+back.
+
+**Out of scope:** what the assistant says, and whether a real model recommends
+anything that fits, which `AI-005` evaluates. That trying, hearing a sound and
+the pack demo are *audible*: no headless browser records audio. Open in
+library, a pack the project does not use yet, a recommendation naming a pack or
+sound the library does not hold, and a card that goes out of date under an
+edit, which are tested at the component and unit layers, as are the outlines on
+the slot. Proposals of changes, which are CF-027's.

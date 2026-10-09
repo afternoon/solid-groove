@@ -245,5 +245,21 @@ service cloud.firestore {
     match /assistantControl/{document} {
       allow read, write: if false;
     }
+
+    // The assistant's transcripts and each account's answer about keeping
+    // them (GRV-8). Only the Cloud Functions read or write either, with the
+    // admin credential: `assistantTurn` reads the answer in the same
+    // transaction as it writes a transcript, and `assistantRetention` is the
+    // one way an account reads or changes its answer. No client may touch
+    // them, the owner included, so no browser can cause a transcript to be
+    // kept that its account's answer does not allow, or read anyone's.
+    // `src/assistant/transcripts.ts` owns the paths and shapes.
+    match /assistantTranscripts/{transcriptId} {
+      allow read, write: if false;
+    }
+
+    match /assistantPreferences/{uid} {
+      allow read, write: if false;
+    }
   }
 }
