@@ -16,7 +16,7 @@ import {
 } from "../../testing/fakeAssistantClient";
 import { memoryStorage } from "../../testing/storage";
 import type { EditorViewName } from "../editorViews";
-import { ASK_CARD_LABEL, ASK_TEXT_LABEL } from "./AssistantAskCard";
+import { ASK_CARD_LABEL, ASK_TEXT_LABEL, askHint } from "./AssistantAskCard";
 import AssistantPanel from "./AssistantPanel";
 import type { AskEditorLink } from "./askReferences";
 import { useAssistantChat } from "./useAssistantChat";
@@ -515,5 +515,13 @@ describe("options that carry more than words (GRV-42)", () => {
     await settle();
     expect(card()).toBeNull();
     expect(client.last().request.messages.at(-1)?.text).toContain("Did it in the editor");
+  });
+});
+
+describe("askHint (GRV-42)", () => {
+  it("numbers the keys as far as the question's options go", () => {
+    expect(askHint(3, false)).toBe("Pick one · 1–3 picks");
+    expect(askHint(8, true)).toBe("Pick any · 1–8 toggle · Enter sends");
+    expect(askHint(1, false)).toBe("Pick one · 1 picks");
   });
 });

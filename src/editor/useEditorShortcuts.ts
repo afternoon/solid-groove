@@ -68,6 +68,8 @@ export interface UseEditorShortcutsOptions {
     "pick" | "canFinish" | "finish" | "focused" | "canHear" | "hear"
   > & {
     readonly pending: () => boolean;
+    /** Whether the pending question takes several options. */
+    readonly multiSelect: () => boolean;
   };
 }
 
@@ -505,12 +507,18 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     },
     "assistant.ask_finish": {
       run: () => void options.assistantAsk.finish(),
+      // Enter on a focused button presses that button, with one exception: a
+      // multi-select's chip, where Enter sends the picks rather than toggling
+      // it. A single choice's chip keeps Enter, so it picks that chip (with
+      // any typed text) rather than sending the text alone.
       isEnabled: () => {
         const focused = document.activeElement;
-        const onOtherButton =
+        const onChip =
           focused instanceof HTMLButtonElement &&
-          !focused.classList.contains("assistant-ask-option");
-        return !onOtherButton && options.assistantAsk.canFinish();
+          focused.classList.contains("assistant-ask-option");
+        if (focused instanceof HTMLButtonElement && !onChip) return false;
+        if (onChip && !options.assistantAsk.multiSelect()) return false;
+        return options.assistantAsk.canFinish();
       },
     },
     // A focused Transform value field (ARR-010): ↑/↓ nudge it, in place of
