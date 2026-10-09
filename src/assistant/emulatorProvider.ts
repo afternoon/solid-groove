@@ -19,18 +19,25 @@
  * - `[propose]`: a short reply that ends in a tool call, so the turn returns
  *   a proposal: the tempo to 100 BPM.
  * - "Loosen the beat" (CF-027, any case): a proposal of two changes, swing to
- *   58% and the BD track 3 dB quieter, read from the project context.
+ *   58% and the BD track 3 dB quieter, read from the project context, and
+ *   `explain_change`'s goal and technique for them.
  * - `[ask]`: a short reply that ends in `ask_producer` (GRV-42), a single
  *   pick among {@link EMULATOR_ASK}'s options; `[ask-multi]` asks the same
- *   question as a multi-select.
+ *   question as a multi-select; `[ask-rich]` asks one whose options point at
+ *   the project's first track and bars 1-2, let it be heard, and answer
+ *   themselves when the tempo goes to 100 BPM or below
+ *   ({@link emulatorRichAsk}).
  * - anything else: a short reply, streamed in pieces with a pause between.
  *
  * Like the rest of `src/assistant`, it imports no Firebase and no SDK.
  */
+import { setParameter } from "../commands/definitions/parameters";
+import { SONG_TEMPO } from "../domain/parameters";
 import { ASK_PRODUCER_TOOL_NAME, type AskProducerInput } from "./ask";
 import type { AssistantProvider } from "./provider";
 import { ProviderFailure } from "./provider";
 import type { ProviderMessagesRequest } from "./providerRequest";
+import { EXPLAIN_TOOL_NAME, toolNameFor } from "./tools";
 
 /** The reply every ordinary turn streams, piece by piece. */
 export const EMULATOR_REPLY_CHUNKS = [
@@ -147,6 +154,12 @@ export const LOOSEN_SWING = 58;
 export const LOOSEN_VOLUME_DROP_DB = 3;
 /** The track "Loosen the beat" turns down, by name, when the song has one. */
 export const LOOSEN_TRACK_NAME = "BD";
+/** What "Loosen the beat" explains itself with (`explain_change`). */
+export const LOOSEN_EXPLANATION = {
+  goal: "The beat feels played rather than programmed, and leans back instead of marching.",
+  technique:
+    "Swing delays every second 16th note, the way a drummer's hand lags; easing the kick back lets the late hats carry the groove.",
+} as const;
 
 interface ContextTrack {
   readonly id: string;
@@ -202,10 +215,58 @@ function loosenProposal(request: ProviderMessagesRequest): Step[] {
       },
     });
   }
+  calls.push({ name: EXPLAIN_TOOL_NAME, input: LOOSEN_EXPLANATION });
   return proposalReply(
     `A little swing pushes every second 16th late, so the beat sounds played rather than programmed${track ? `, and ${track.name} sits back a little so the groove leads` : ""}.`,
     calls,
   );
+}
+
+/**
+ * The question `[ask-rich]` asks, about `trackId`: an option that points at
+ * the track and plays it, one about bars 1-2, and one that previews the song
+ * at 100 BPM and is answered by setting the tempo there.
+ */
+export function emulatorRichAsk(trackId: string | null): AskProducerInput {
+  const slower = setParameter({ scope: "song", parameterId: SONG_TEMPO.id }, 100);
+  return {
+    question: "What should change first?",
+    context: "The groove",
+    options: [
+      ...(trackId
+        ? [
+            {
+              label: "The first track",
+              ref: { kind: "track" as const, trackId },
+              sound: { kind: "track" as const, trackId },
+            },
+          ]
+        : []),
+      { label: "The opening", ref: { kind: "bars", startBar: 1, endBar: 2 } },
+      {
+        label: "Slower, at 100 BPM",
+        description: "Set the tempo yourself to answer",
+        sound: {
+          kind: "preview",
+          calls: [{ name: toolNameFor(slower.type), input: { ...slower.payload } }],
+        },
+        doneWhen: { kind: "tempo", max: 100 },
+      },
+    ],
+    suggested: 0,
+    multiSelect: false,
+  };
+}
+
+/** `[ask-rich]`'s reply, about the first track in the project context. */
+function richAskReply(request: ProviderMessagesRequest): Step[] {
+  return proposalReply("Let's pick a place to start.", [
+    {
+      id: "toolu_ask_rich",
+      name: ASK_PRODUCER_TOOL_NAME,
+      input: emulatorRichAsk(contextTracks(request)[0]?.id ?? null),
+    },
+  ]);
 }
 
 /** `[ask]`'s and `[ask-multi]`'s reply: one `ask_producer` call. */
@@ -258,6 +319,7 @@ export function createEmulatorAssistantProvider(
     }
     if (message.includes("[propose]")) return tempoProposal();
     if (/loosen the beat/i.test(message)) return loosenProposal(request);
+    if (message.includes("[ask-rich]")) return richAskReply(request);
     if (message.includes("[ask-multi]")) return askReply(true);
     if (message.includes("[ask]")) return askReply(false);
     return textReply(EMULATOR_REPLY_CHUNKS);

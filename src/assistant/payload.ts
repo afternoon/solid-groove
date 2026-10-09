@@ -2,7 +2,7 @@
  * The project context a turn sends (ADR 0007 decision 1), built from the two
  * assistant projections and cut down to the allowlist, field by field:
  *
- * - from `buildAssistantContext`: the project's name, tempo, time signature
+ * - from `buildAssistantContext`: the project's name, tempo, swing, time signature
  *   and length; its sections; its tracks with their mixer state; a
  *   description of the selection; and the selection's raw notes;
  * - from `buildProjectAnalysis`: derived note statistics (register, mean
@@ -46,6 +46,7 @@ export function buildAssistantPayload(
   return {
     projectName: context.projectName,
     tempo: context.tempo,
+    swing: context.swing,
     timeSignature: {
       numerator: context.timeSignature.numerator,
       denominator: context.timeSignature.denominator,

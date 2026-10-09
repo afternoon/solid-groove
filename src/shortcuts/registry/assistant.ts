@@ -22,6 +22,7 @@ export const ASSISTANT_SHORTCUT_IDS = [
   "assistant.ask_option_7",
   "assistant.ask_option_8",
   "assistant.ask_finish",
+  "assistant.ask_hear",
 ] as const;
 
 /** The `1`-`8` mappings, in option order: `ASK_OPTION_SHORTCUT_IDS[0]` picks the first. */
@@ -163,6 +164,19 @@ export const ASSISTANT_SHORTCUTS: readonly ShortcutDefinition[] = [
     contexts: ["assistant_ask"],
     keys: "Enter",
     // The chips are toggles: Space presses one, and Enter sends the picks.
+    focusedControl: "allowed",
+    ableton: ASK_PARITY,
+  }),
+  define({
+    id: "assistant.ask_hear",
+    label: "Hear the answer",
+    description:
+      "Plays the focused option's sound, when the assistant's question has one. With focus elsewhere in the panel, Space plays and stops the song as usual.",
+    group: "navigation",
+    contexts: ["assistant_ask"],
+    keys: "Space",
+    // A chip with a sound takes Space to play it; one without keeps it, so
+    // Space presses it, as it does any button.
     focusedControl: "allowed",
     ableton: ASK_PARITY,
   }),
