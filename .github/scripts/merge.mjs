@@ -77,6 +77,8 @@ const GATED = [
   /^release\.config\.mjs$/,
   /^\.github\//,
   /^\.claude\//,
+  // Deployed to Cloudflare on merge (relay.yml), where it can start workflows.
+  /^scripts\/linear\/relay\//,
 ];
 
 /** The changed paths that keep a PR from merging on its own. */

@@ -44,6 +44,15 @@ export interface AssistantPanelProps {
  */
 export const CLEARANCE_PROPERTY = "--assistant-clearance";
 
+/** The status a previewed proposal puts in the panel's header and bar (GRV-5). */
+export const PREVIEWING_STATUS = "Previewing a change";
+
+function panelStatus(chat: AssistantChat | undefined): string {
+  if (chat?.conversation.streaming()) return WRITING_STATUS;
+  if (chat?.proposals?.previewing()) return PREVIEWING_STATUS;
+  return "";
+}
+
 /** The note under the composer while there is no conversation to hold. */
 export const UNAVAILABLE_NOTE = "The assistant isn't available yet";
 
@@ -113,11 +122,10 @@ export default function AssistantPanel(props: AssistantPanelProps): JSX.Element 
               <SparkIcon size={12} />
               Assistant
             </span>
-            {/* The status slot: "Writing…" while a reply streams, so the
-                minimised bar still says so; "Previewing a change" is GRV-5's. */}
-            <span class="assistant-panel-status">
-              {props.chat?.conversation.streaming() ? WRITING_STATUS : ""}
-            </span>
+            {/* The status slot, so the minimised bar still says it:
+                "Writing…" while a reply streams, "Previewing a change" while a
+                proposal is previewed (GRV-5). */}
+            <span class="assistant-panel-status">{panelStatus(props.chat)}</span>
           </div>
           <Switch>
             <Match when={mode() === "docked"}>

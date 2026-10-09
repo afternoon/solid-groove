@@ -4,18 +4,28 @@
  *
  * Linear posts a webhook for every issue and comment change in team GRV. The
  * Worker checks Linear's signature, keeps only the events `board.mjs poll`
- * acts on (a card entering Ready, Approved or In Progress, a new card, a
- * comment that mentions @claude) and asks GitHub to run `board.yml` on main.
- * The poll then reads the board itself, so the Worker passes nothing on and
- * makes no decisions: a dropped or duplicated event costs at most one idle
- * poll, the hourly schedule stays as the backstop, and a burst of events
- * collapses into one run through `board.yml`'s concurrency group.
+ * acts on (a card entering Ready, Approved or In Progress, a card reaching QA
+ * or Done, which can free the cards it blocks, a new card, a comment that
+ * mentions @claude) and asks GitHub to run `board.yml` on main. The poll then
+ * reads the board itself, so the Worker passes nothing on and makes no
+ * decisions: a dropped or duplicated event costs at most one idle poll, and a
+ * burst of events collapses into one run through `board.yml`'s concurrency
+ * group.
  *
- * Deploy and secrets: docs/linear.md, "The relay".
+ * It is also the backstop: a Cloudflare cron (`wrangler.toml`) starts a poll
+ * every 15 minutes, because GitHub runs `board.yml`'s own schedule late or not
+ * at all for hours. That schedule stays, for when the relay itself is down.
+ *
+ * Deploy and secrets: docs/linear.md, "The relay". `relay.yml` redeploys it
+ * when this directory changes on main.
  */
 
-/** Columns whose arrival `board.mjs poll` acts on. */
-const ACTIONABLE_STATES = new Set(["ready", "approved", "in progress"]);
+/**
+ * Columns whose arrival `board.mjs poll` acts on. QA and Done count because a
+ * blocker counts as merged once it reaches QA, so a card waiting on it in
+ * Ready can start.
+ */
+const ACTIONABLE_STATES = new Set(["ready", "approved", "in progress", "qa", "done"]);
 
 /** How old a delivery may be before it is treated as a replay. */
 const MAX_AGE_MS = 5 * 60 * 1000;
@@ -122,4 +132,15 @@ export async function handle(request, env, { now = Date.now, fetchImpl = fetch }
   return new Response("dispatch failed", { status: 502 });
 }
 
-export default { fetch: (request, env) => handle(request, env) };
+/** The cron backstop: starts a poll whatever the board looks like. */
+export async function poll(env, fetchImpl = fetch) {
+  const res = await dispatch(env, fetchImpl);
+  if (res.status === 204) return;
+  // Throwing marks the cron run failed in the Worker's logs.
+  throw new Error(`scheduled dispatch failed: ${res.status} ${await res.text()}`);
+}
+
+export default {
+  fetch: (request, env) => handle(request, env),
+  scheduled: (_controller, env, ctx) => ctx.waitUntil(poll(env)),
+};

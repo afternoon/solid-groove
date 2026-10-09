@@ -114,7 +114,7 @@ describe("the assistant client", () => {
     const { events } = record(wire.transport);
     const proposal = {
       baseRevision: 3,
-      toolsetVersion: 1,
+      toolsetVersion: 2,
       calls: [{ id: "toolu_1", name: "parameter_set", input: {} }],
     };
     wire.finish({ ...RESULT, stopReason: "tool_use", proposal });

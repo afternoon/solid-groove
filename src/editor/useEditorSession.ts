@@ -1,4 +1,5 @@
 import { type Accessor, createEffect, createStore, onCleanup } from "solid-js";
+import type { ProposalTarget } from "../assistant/proposalExecutor";
 import type {
   Gesture,
   GestureOptions,
@@ -9,10 +10,12 @@ import type { Project } from "../domain/entities";
 import type { ProjectId } from "../domain/ids";
 import type { SaveStatus } from "../persistence/autosave";
 import type { ProjectRepository } from "../persistence/projectRepository";
+import { assistantProposalTarget } from "./assistantProposalTarget";
 import {
   EditorSession,
   type EditorSessionSnapshot,
   type PreviewResult,
+  type SessionEditListener,
 } from "./EditorSession";
 import { reportProjectLoad } from "./projectLoadReport";
 
@@ -65,11 +68,6 @@ export interface EditorSessionState {
   readonly project: Project | null;
   /** True while an uncommitted preview is open (UI-005). */
   readonly previewing: boolean;
-  /**
-   * True while a continuous gesture (a drag) is open: its steps show in
-   * `project` but are not a finished edit until it commits.
-   */
-  readonly gestureActive: boolean;
   readonly canUndo: boolean;
   readonly canRedo: boolean;
   readonly undoSummary: string | null;
@@ -116,6 +114,19 @@ export interface UseEditorSessionResult {
   redo(): TransactionResult | null | undefined;
   /** The explicit retry affordance PRD `PRJ-03` requires for a failed save. */
   retry(): Promise<SaveStatus> | undefined;
+  /**
+   * The session as the assistant's proposal target (GRV-4), or `undefined`
+   * before a session has loaded.
+   */
+  proposalTarget(): ProposalTarget | undefined;
+  /**
+   * Hears every edit, undo and redo the open session commits
+   * (`EditorSession.subscribeEdits`), whichever session is open. Returns the
+   * call that stops it.
+   */
+  onEdit(listener: SessionEditListener): () => void;
+  /** Hears every change adopted from elsewhere (`subscribeRemoteChanges`). */
+  onRemoteChange(listener: () => void): () => void;
 }
 
 /**
@@ -135,7 +146,6 @@ const INITIAL_STATE: EditorSessionState = {
   error: null,
   project: null,
   previewing: false,
-  gestureActive: false,
   canUndo: false,
   canRedo: false,
   undoSummary: null,
@@ -179,6 +189,10 @@ export function useEditorSession(
   );
   let session: EditorSession | null = null;
   watchNavigationFlush(() => session);
+  // Held here rather than on a session, so a listener added before the
+  // project has loaded hears the session that opens.
+  const editListeners = new Set<SessionEditListener>();
+  const remoteListeners = new Set<() => void>();
 
   // Split effect. The compute half holds *both* reactive reads — `projectId()`
   // and `repository()` — and nothing else in the body below reads a signal or
@@ -209,6 +223,8 @@ export function useEditorSession(
       let localSession: EditorSession | null = null;
       let unsubscribeHistory: (() => void) | null = null;
       let unsubscribeSave: (() => void) | null = null;
+      let unsubscribeEdits: (() => void) | null = null;
+      let unsubscribeRemote: (() => void) | null = null;
 
       function applySnapshot(snapshot: EditorSessionSnapshot): void {
         setState((draft) => {
@@ -217,7 +233,6 @@ export function useEditorSession(
           draft.error = null;
           draft.project = snapshot.project;
           draft.previewing = snapshot.previewing;
-          draft.gestureActive = snapshot.gestureActive;
           draft.canUndo = snapshot.canUndo;
           draft.canRedo = snapshot.canRedo;
           draft.undoSummary = snapshot.undoSummary;
@@ -250,6 +265,12 @@ export function useEditorSession(
         });
         session = localSession;
         unsubscribeHistory = localSession.subscribe(applySnapshot);
+        unsubscribeEdits = localSession.subscribeEdits((edit) => {
+          for (const listener of [...editListeners]) listener(edit);
+        });
+        unsubscribeRemote = localSession.subscribeRemoteChanges(() => {
+          for (const listener of [...remoteListeners]) listener();
+        });
         unsubscribeSave = localSession.autosave.subscribe((status) =>
           setState((draft) => {
             draft.saveStatus = status;
@@ -262,6 +283,8 @@ export function useEditorSession(
         cancelled = true;
         unsubscribeHistory?.();
         unsubscribeSave?.();
+        unsubscribeEdits?.();
+        unsubscribeRemote?.();
         if (localSession) {
           const disposing = localSession;
           void disposing.autosave.flush().finally(() => disposing.dispose());
@@ -306,5 +329,18 @@ export function useEditorSession(
     undo: () => session?.undo(),
     redo: () => session?.redo(),
     retry: () => session?.autosave.retry(),
+    proposalTarget: () => (session ? assistantProposalTarget(session) : undefined),
+    onEdit(listener) {
+      editListeners.add(listener);
+      return () => {
+        editListeners.delete(listener);
+      };
+    },
+    onRemoteChange(listener) {
+      remoteListeners.add(listener);
+      return () => {
+        remoteListeners.delete(listener);
+      };
+    },
   };
 }

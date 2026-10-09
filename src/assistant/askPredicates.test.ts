@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Device, Project, Track } from "../domain/entities";
 import { createReferenceProject } from "../domain/fixtures";
 import type { AskPredicate, AssistantAsk } from "./ask";
-import { optionDoneBy, predicateHolds } from "./askPredicates";
+import { optionDoneByEdit, predicateHolds } from "./askPredicates";
 
 const asked = createReferenceProject();
 const [first, second] = asked.song.tracks;
@@ -129,7 +129,7 @@ describe("answering a question by doing (GRV-42)", () => {
     ).toBe(false);
   });
 
-  it("picks the first option whose change has happened", () => {
+  it("picks the first option whose change has happened, made by this edit", () => {
     const ask: AssistantAsk = {
       id: "toolu_1",
       question: "Slow it down?",
@@ -140,8 +140,14 @@ describe("answering a question by doing (GRV-42)", () => {
       ],
       multiSelect: false,
     };
-    expect(optionDoneBy(ask, asked, asked)).toBeNull();
-    expect(optionDoneBy(ask, asked, withSong(asked, { tempo: 105 }))).toBe(2);
-    expect(optionDoneBy(ask, asked, withSong(asked, { tempo: 90 }))).toBe(1);
+    const at = (tempo: number) => withSong(asked, { tempo });
+    expect(optionDoneByEdit(ask, asked, asked, asked)).toBeNull();
+    expect(optionDoneByEdit(ask, asked, asked, at(105))).toBe(2);
+    expect(optionDoneByEdit(ask, asked, asked, at(90))).toBe(1);
+    expect(optionDoneByEdit(ask, asked, at(105), at(90))).toBe(1);
+    // Something else got it under 100 first: an edit that leaves it there
+    // has not done it.
+    expect(optionDoneByEdit(ask, asked, at(90), at(95))).toBe(null);
+    expect(optionDoneByEdit(ask, asked, at(95), at(95))).toBe(null);
   });
 });

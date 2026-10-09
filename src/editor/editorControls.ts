@@ -35,10 +35,19 @@ export interface EditorControls {
    * into view and focuses it once it has mounted. A control with no on-screen
    * home in this layout reveals its track instead. Returns where the editor
    * was, for {@link restoreView}.
+   *
+   * `focus: false` moves the editor without taking focus from where it is:
+   * the assistant's Preview shows a change while the producer's focus stays
+   * on the proposal they are deciding about (GRV-5).
    */
-  revealControl(address: ControlAddress): EditorLocation;
+  revealControl(address: ControlAddress, options?: RevealOptions): EditorLocation;
   /** Puts the editor back where a reveal found it: its view, selection and the clip `2` edits. */
   restoreView(location: EditorLocation): void;
+}
+
+export interface RevealOptions {
+  /** Whether to focus the control once it mounts. Defaults to true. */
+  readonly focus?: boolean;
 }
 
 export const EditorControlsContext = createContext<EditorControls>();
@@ -115,14 +124,14 @@ export function createEditorControls(host: EditorControlsHost): EditorControlsHa
 
   return {
     registry: host.registry,
-    revealControl(address) {
+    revealControl(address, options = {}) {
       const before = host.location();
       cancelPending();
       const project = host.project();
       if (!project) return before;
       const home = controlHome(project, address);
       host.goTo(home);
-      focusWhenMounted(address, home.fallback);
+      if (options.focus !== false) focusWhenMounted(address, home.fallback);
       return before;
     },
     restoreView(location) {

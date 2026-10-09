@@ -4,12 +4,15 @@
  * text, and what the options do in the editor along the way. Hovering an
  * option shows what it is about and plays what it sounds like; picking one
  * selects what it is about; making the change an option describes, in the
- * editor, answers the question as that option.
+ * editor, answers the question as that option. Only the producer's own edit
+ * does that: not a preview, not a drag that has not let go, not a proposal
+ * the assistant applied, and not a change made elsewhere.
  */
 import { type Accessor, createEffect, createSignal, onCleanup, untrack } from "solid-js";
 import type { AskOption } from "../../assistant/ask";
-import { optionDoneBy } from "../../assistant/askPredicates";
+import { optionDoneByEdit, predicateHolds } from "../../assistant/askPredicates";
 import type { Project } from "../../domain/entities";
+import type { SessionEdit } from "../EditorSession";
 import { type AskEditorLink, barsLabel } from "./askReferences";
 import type { AssistantConversation } from "./useAssistantConversation";
 
@@ -53,10 +56,14 @@ export interface AskDraft {
 export interface UseAskDraftOptions {
   readonly conversation: AssistantConversation;
   readonly project: Accessor<Project | null>;
+  /** The committed project, never a preview of it: where an edit left the song. */
   readonly committedProject?: () => Project | null;
-  readonly previewing?: Accessor<boolean>;
-  /** Whether a drag is open: its steps are not a finished edit until it commits. */
-  readonly gestureActive?: Accessor<boolean>;
+  /**
+   * Hears every change the editor session commits (`EditorSession`'s
+   * `subscribeEdits`): a dispatch, a finished drag, an undo or a redo, never
+   * a preview or a remote change. Without it nothing is answered by doing.
+   */
+  readonly onEdit?: (listener: (edit: SessionEdit) => void) => () => void;
   readonly link?: AskEditorLink;
 }
 
@@ -103,32 +110,54 @@ export function useAskDraft(options: UseAskDraftOptions): AskDraft {
   );
   onCleanup(release);
 
-  // Answering by doing: once the committed project has moved into the state
-  // an option describes, the question is answered as that option. Never from
-  // a preview, which is not a change yet, nor mid-drag, whose steps are not
-  // either (a fader passing through the range, then let go outside it or
-  // cancelled, has answered nothing); the drag's end brings this back. And
-  // not while a reply streams: it is answered once the reply is done, as the
-  // change still stands.
+  // Answering by doing: the option a producer's own edit has made true, held
+  // against its question until it can be sent. Only an edit the producer
+  // made counts (`actor` "user"): a proposal the assistant applied, or its
+  // undo, is the assistant's, and a change made elsewhere is no edit here.
+  // The session reports a drag once, when it lets go, and a preview never,
+  // so a fader passing through the range, then let go outside it or
+  // cancelled, has answered nothing.
+  const [doneBy, setDoneBy] = createSignal<{ askId: string; index: number } | null>(null);
+  if (options.onEdit) {
+    const stopListening = options.onEdit((edit) => {
+      const pending = conversation.pendingAsk();
+      const now = options.committedProject?.() ?? null;
+      if (edit.actor !== "user" || !pending?.asked || !now) return;
+      const index = optionDoneByEdit(pending.ask, pending.asked, edit.before, now);
+      if (index !== null) {
+        setDoneBy({ askId: pending.ask.id, index });
+        return;
+      }
+      // An edit that takes the change back again, before the answer could
+      // go, takes the answer with it.
+      const held = doneBy();
+      const predicate =
+        held?.askId === pending.ask.id
+          ? pending.ask.options[held.index]?.doneWhen
+          : undefined;
+      if (held && (!predicate || !predicateHolds(predicate, pending.asked, now))) {
+        setDoneBy(null);
+      }
+    });
+    onCleanup(stopListening);
+  }
+
+  // Sent once nothing streams: an edit made while a reply is on its way
+  // answers once the reply is done, as the change still stands.
   createEffect(
     () => ({
       pending: conversation.pendingAsk(),
-      shown: options.project(),
+      done: doneBy(),
       streaming: conversation.streaming(),
-      previewing: options.previewing?.() ?? false,
-      dragging: options.gestureActive?.() ?? false,
     }),
-    ({ pending, shown, streaming, previewing, dragging }) => {
-      if (!pending?.asked || streaming || previewing || dragging) return;
-      const now = options.committedProject?.() ?? shown;
-      if (!now) return;
-      const index = optionDoneBy(pending.ask, pending.asked, now);
-      if (index === null) return;
+    ({ pending, done, streaming }) => {
+      if (!pending || !done || done.askId !== pending.ask.id || streaming) return;
+      setDoneBy(null);
       // Answering reads the conversation it adds to: read once, knowingly,
       // since the compute half above already follows everything that should
       // bring this back.
       untrack(() => {
-        if (conversation.answerAsk({ picked: [index], text: "", byDoing: true })) {
+        if (conversation.answerAsk({ picked: [done.index], text: "", byDoing: true })) {
           setDraft(null);
         }
       });

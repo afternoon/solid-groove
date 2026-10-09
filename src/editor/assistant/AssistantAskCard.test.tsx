@@ -58,8 +58,6 @@ function recordingLink(audible = true) {
 interface ChatOptions {
   readonly link?: AskEditorLink;
   readonly project?: () => Project;
-  readonly previewing?: () => boolean;
-  readonly gestureActive?: () => boolean;
 }
 
 function renderChat(options: ChatOptions = {}) {
@@ -89,8 +87,6 @@ function renderChat(options: ChatOptions = {}) {
       client: async () => client,
       analytics: () => analytics,
       link: options.link,
-      previewing: options.previewing,
-      gestureActive: options.gestureActive,
     });
     chatHandle = chat;
     return (
@@ -469,118 +465,6 @@ describe("options that carry more than words (GRV-42)", () => {
     // The question is gone, and so is its highlight.
     expect(calls.at(-2)).toBe("highlight none");
     expect(calls.at(-1)).toBe("stop");
-  });
-
-  it("is answered by making the change in the editor", async () => {
-    const [project, setProject] = createSignal(createSliceFixtureProject());
-    const [previewing, setPreviewing] = createSignal(false);
-    const { client, transport } = renderChat({ project, previewing });
-    await send("Teach me tempo");
-    ask(client.last(), RICH);
-
-    // A preview at 90 BPM is not a change yet.
-    const slow = (tempo: number) => {
-      const current = project();
-      return { ...current, song: { ...current.song, tempo } };
-    };
-    fireAndFlush(() => {
-      setPreviewing(true);
-      setProject(slow(90));
-    });
-    await settle();
-    expect(card()).toBeInTheDocument();
-    expect(client.turns).toHaveLength(1);
-
-    fireAndFlush(() => setPreviewing(false));
-    await settle();
-    expect(card()).toBeNull();
-    expect(client.turns).toHaveLength(2);
-    expect(client.last().request.messages.at(-1)?.text).toBe(
-      '[Answer to "What should change first?"] Did it in the editor: Slower.',
-    );
-    expect(log()).toHaveTextContent("Slower (done in the editor)");
-    expect(transport.named("assistant_ask_answered")[0]?.params).toMatchObject({
-      how: "did_it",
-      option_count: 3,
-    });
-  });
-
-  it("is not answered by a drag that passes through the change and is cancelled", async () => {
-    const [project, setProject] = createSignal(createSliceFixtureProject());
-    const [dragging, setDragging] = createSignal(false);
-    const { client } = renderChat({ project, gestureActive: dragging });
-    await send("Teach me tempo");
-    ask(client.last(), RICH);
-    const start = project();
-    const at = (tempo: number) => ({ ...start, song: { ...start.song, tempo } });
-
-    // A drag's steps reach 90 BPM, inside the option's range...
-    fireAndFlush(() => {
-      setDragging(true);
-      setProject(at(105));
-    });
-    fireAndFlush(() => setProject(at(90)));
-    await settle();
-    expect(card()).toBeInTheDocument();
-    // ...and it is cancelled, back where it started: nothing was done.
-    fireAndFlush(() => {
-      setDragging(false);
-      setProject(start);
-    });
-    await settle();
-    expect(card()).toBeInTheDocument();
-    expect(client.turns).toHaveLength(1);
-
-    // A drag that ends inside the range answers it when it ends.
-    fireAndFlush(() => {
-      setDragging(true);
-      setProject(at(95));
-    });
-    await settle();
-    expect(card()).toBeInTheDocument();
-    fireAndFlush(() => setDragging(false));
-    await settle();
-    expect(card()).toBeNull();
-    expect(client.last().request.messages.at(-1)?.text).toBe(
-      '[Answer to "What should change first?"] Did it in the editor: Slower.',
-    );
-  });
-
-  it("is not answered by a change that was already made when it was asked", async () => {
-    const start = createSliceFixtureProject();
-    const [project, setProject] = createSignal({
-      ...start,
-      song: { ...start.song, tempo: 90 },
-    });
-    const { client } = renderChat({ project });
-    await send("Teach me tempo");
-    ask(client.last(), RICH);
-    fireAndFlush(() =>
-      setProject({ ...project(), song: { ...project().song, tempo: 95 } }),
-    );
-    await settle();
-    expect(card()).toBeInTheDocument();
-    expect(client.turns).toHaveLength(1);
-  });
-
-  it("waits for a reply on its way before answering by doing", async () => {
-    const [project, setProject] = createSignal(createSliceFixtureProject());
-    const { client } = renderChat({ project });
-    await send("Teach me tempo");
-    ask(client.last(), RICH);
-    await send("Wait, what is a BPM?");
-    fireAndFlush(() =>
-      setProject({ ...project(), song: { ...project().song, tempo: 90 } }),
-    );
-    await settle();
-    expect(card()).toBeInTheDocument();
-    fireAndFlush(() => {
-      client.last().text("Beats per minute.");
-      client.last().done();
-    });
-    await settle();
-    expect(card()).toBeNull();
-    expect(client.last().request.messages.at(-1)?.text).toContain("Did it in the editor");
   });
 });
 

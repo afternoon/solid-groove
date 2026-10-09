@@ -52,6 +52,25 @@ export interface EditorSessionSnapshot extends HistorySnapshot {
 
 export type EditorSessionListener = (snapshot: EditorSessionSnapshot) => void;
 
+/**
+ * One change this session committed to the project: a dispatch, a finished
+ * gesture, an undo or a redo. Never a remote change, and never a preview
+ * opening or ending, since neither is an edit made here.
+ */
+export interface SessionEdit {
+  readonly kind: "edit" | "undo" | "redo";
+  /** Who authored the history entry (for an undo or redo, the undone entry's author). */
+  readonly actor: CommandActor;
+  /** The history entry's correlation ID: the one an undo or a redo replays. */
+  readonly correlationId: string;
+  /** What was committed, as the entry records it (for an undo, the entry undone). */
+  readonly commands: readonly RawCommandInput[];
+  /** The committed project just before the change. */
+  readonly before: Project;
+}
+
+export type SessionEditListener = (edit: SessionEdit) => void;
+
 export interface EditorSessionOptions {
   readonly repository: ProjectRepository;
   /** The project as it was loaded (or just created). */
@@ -116,6 +135,8 @@ export class EditorSession {
   private readonly openedAt: number;
   private readonly unwatch: () => void;
   private readonly listeners = new Set<EditorSessionListener>();
+  private readonly editListeners = new Set<SessionEditListener>();
+  private readonly remoteListeners = new Set<() => void>();
   private readonly unsubscribeHistory: () => void;
   private readonly previewHost: PreviewHost = {
     cancelPreview: (preview) => this.endPreview(preview, "cancelled", "cancelled"),
@@ -146,6 +167,7 @@ export class EditorSession {
       // so the preview is stale. An echo or an ignored snapshot moves nothing.
       if (this.autosave.applyRemote(event) === "adopted") {
         this.endOpenPreview("stale", "remote_change");
+        for (const listener of [...this.remoteListeners]) listener();
       }
     });
     this.logProjectOpened(options.project, options.deviceStorage);
@@ -187,6 +209,31 @@ export class EditorSession {
     this.listeners.add(listener);
     return () => {
       this.listeners.delete(listener);
+    };
+  }
+
+  /**
+   * Notified after every change this session commits (see {@link SessionEdit}),
+   * once the snapshot listeners have heard about it. The assistant uses it to
+   * tell a producer's own edit to what it changed apart from anything else
+   * (GRV-5).
+   */
+  subscribeEdits(listener: SessionEditListener): () => void {
+    this.editListeners.add(listener);
+    return () => {
+      this.editListeners.delete(listener);
+    };
+  }
+
+  /**
+   * Notified whenever a change made elsewhere (another tab, another device)
+   * is adopted, moving the saved revision under this session. Anything worked
+   * out against the revision before it, a proposal included, is out of date.
+   */
+  subscribeRemoteChanges(listener: () => void): () => void {
+    this.remoteListeners.add(listener);
+    return () => {
+      this.remoteListeners.delete(listener);
     };
   }
 
@@ -305,6 +352,13 @@ export class EditorSession {
         if (!entry) return entry;
         if (firstEditResult) this.logFirstEdit(firstEditResult);
         this.queueDiff(this.history.project, before);
+        this.emitEdit({
+          kind: "edit",
+          actor: entry.actor,
+          correlationId: entry.correlationId,
+          commands: entry.commands,
+          before,
+        });
         return entry;
       },
       cancel: () => {
@@ -326,10 +380,18 @@ export class EditorSession {
   undo(actor: "user" | "assistant" = "user"): TransactionResult | null {
     if (!this.history.gestureActive) this.endOpenPreview("stale", "undo");
     const before = this.history.project;
+    const undone = this.history.entries.at(-1);
     const result = this.history.undo();
     if (result?.ok) {
       this.queueAutosave(result, before);
       this.analytics.log("undo_used", { direction: "undo", actor });
+      this.emitEdit({
+        kind: "undo",
+        actor: result.actor,
+        correlationId: result.correlationId,
+        commands: undone?.commands ?? [],
+        before,
+      });
     }
     return result;
   }
@@ -343,6 +405,7 @@ export class EditorSession {
       this.logFirstEdit(result);
       this.queueAutosave(result, before);
       this.analytics.log("undo_used", { direction: "redo", actor });
+      this.emitEdit({ kind: "redo", ...this.editOf(result), before });
     }
     return result;
   }
@@ -352,6 +415,8 @@ export class EditorSession {
     this.disposed = true;
     this.endOpenPreview("cancelled", "disposed", false);
     this.listeners.clear();
+    this.editListeners.clear();
+    this.remoteListeners.clear();
     this.unsubscribeHistory();
     this.unwatch();
     this.autosave.dispose();
@@ -367,8 +432,27 @@ export class EditorSession {
     if (result.ok) {
       this.logFirstEdit(result);
       this.queueAutosave(result, before);
+      // Inside an open gesture the history folds the dispatch into it, and
+      // the gesture's commit reports the whole of it once.
+      if (!this.history.gestureActive) {
+        this.emitEdit({ kind: "edit", ...this.editOf(result), before });
+      }
     }
     return result;
+  }
+
+  private editOf(
+    result: TransactionSuccess,
+  ): Pick<SessionEdit, "actor" | "correlationId" | "commands"> {
+    return {
+      actor: result.actor,
+      correlationId: result.correlationId,
+      commands: result.commands,
+    };
+  }
+
+  private emitEdit(edit: SessionEdit): void {
+    for (const listener of [...this.editListeners]) listener(edit);
   }
 
   /**

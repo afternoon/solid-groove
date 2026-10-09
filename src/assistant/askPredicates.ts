@@ -92,18 +92,24 @@ export function predicateHolds(
 }
 
 /**
- * The option the producer has answered by doing, or null. The first option,
- * in the ask's order, whose predicate holds.
+ * The option one edit answers, or null: the first, in the ask's order, whose
+ * change has happened since the question was asked (`asked` to `now`) and
+ * that this edit made (`before` to `now`). An edit that leaves the change
+ * where something else put it, the assistant's own proposal say, answers
+ * nothing.
  */
-export function optionDoneBy(
+export function optionDoneByEdit(
   ask: AssistantAsk,
   asked: Project,
+  before: Project,
   now: Project,
 ): number | null {
-  if (asked === now) return null;
+  if (before === now) return null;
   const index = ask.options.findIndex(
     (option) =>
-      option.doneWhen !== undefined && predicateHolds(option.doneWhen, asked, now),
+      option.doneWhen !== undefined &&
+      predicateHolds(option.doneWhen, asked, now) &&
+      predicateHolds(option.doneWhen, before, now),
   );
   return index === -1 ? null : index;
 }

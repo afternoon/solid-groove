@@ -6,7 +6,7 @@
  * (GRV-42). The panel renders it, and the shortcut layer sends the draft on
  * Enter and picks an answer on `1`-`8`.
  */
-import { type Accessor, createMemo, createSignal } from "solid-js";
+import { type Accessor, createEffect, createMemo, createSignal } from "solid-js";
 import type { Analytics } from "../../analytics/analytics";
 import type { AssistantClient } from "../../assistant/assistantClient";
 import type { Project } from "../../domain/entities";
@@ -27,6 +27,12 @@ import {
   type AssistantConversation,
   useAssistantConversation,
 } from "./useAssistantConversation";
+import {
+  type AssistantProposals,
+  type ProposalSessionPort,
+  type UseAssistantProposalsOptions,
+  useAssistantProposals,
+} from "./useAssistantProposals";
 
 /** Who is here to talk: a signed-in account, or someone who must sign in. */
 export interface AssistantAccount {
@@ -47,14 +53,20 @@ export interface UseAssistantChatOptions {
   readonly client: () => Promise<AssistantClient>;
   readonly analytics: () => Analytics;
   /**
+   * The editor session and controls a proposal previews, applies and shows
+   * itself through (GRV-5). Without them a proposal is listed, but there is
+   * nothing to apply it to. A question's options hear the producer's own
+   * edits through the same session (GRV-42).
+   */
+  readonly editor?: {
+    readonly session: ProposalSessionPort;
+    readonly controls: UseAssistantProposalsOptions["controls"];
+  };
+  /**
    * The committed project, never a preview of it (GRV-42): what a question
    * is asked against and answered by doing in. Defaults to {@link project}.
    */
   readonly committedProject?: () => Project | null;
-  /** Whether the editor is showing a preview, during which nothing is done yet. */
-  readonly previewing?: Accessor<boolean>;
-  /** Whether a drag is open, whose steps are not a finished edit yet. */
-  readonly gestureActive?: Accessor<boolean>;
   /** What a question's options can do in the editor (GRV-42). */
   readonly link?: AskEditorLink;
 }
@@ -72,6 +84,8 @@ export interface AssistantChat {
   /** A suggestion chip: sends its label as the message. */
   sendSuggestion(suggestion: Suggestion): boolean;
   readonly account: Accessor<AssistantAccount>;
+  /** The proposal cards, when there is an editor to apply them to. */
+  readonly proposals: AssistantProposals | null;
   /** The pending question's answer so far (GRV-42). */
   readonly ask: AskDraft;
 }
@@ -80,9 +94,18 @@ export type { AskDraft } from "./useAskDraft";
 
 export function useAssistantChat(options: UseAssistantChatOptions): AssistantChat {
   // The chip's choice, kept against the selection it was made for: a new
-  // selection lets it go, so the scope resets without an effect.
+  // selection lets it go at once.
   const [chosen, setChosen] = createSignal<{ level: ScopeLevel; key: string } | null>(
     null,
+  );
+  // And for good: going back to the selection it was made for (nothing
+  // selected, say) must not bring a widened choice back. The key is the one
+  // reactive read; forgetting the choice is a write, so it is the apply half's.
+  createEffect(
+    () => selectionKey(options.sources()),
+    () => {
+      setChosen(null);
+    },
   );
   const scope = createMemo(() => {
     const sources = options.sources();
@@ -92,6 +115,18 @@ export function useAssistantChat(options: UseAssistantChatOptions): AssistantCha
   });
   const [draft, setDraft] = createSignal("");
 
+  const editor = options.editor;
+  const proposals = editor
+    ? useAssistantProposals({
+        session: editor.session,
+        controls: editor.controls,
+        project: options.project,
+        analytics: options.analytics,
+        // The conversation is made just below; Refresh is only ever pressed later.
+        refresh: (entryId) => conversation.refresh(entryId),
+      })
+    : null;
+
   const conversation = useAssistantConversation({
     client: options.client,
     project: options.project,
@@ -99,21 +134,24 @@ export function useAssistantChat(options: UseAssistantChatOptions): AssistantCha
     canSend: () => options.account().registered,
     analytics: options.analytics,
     committedProject: options.committedProject,
+    onProposal: proposals
+      ? (entryId, proposal, origin) => proposals.receive(entryId, proposal, origin)
+      : undefined,
+    remoteChanges: proposals ? () => proposals.remoteChanges() : undefined,
   });
 
   const ask = useAskDraft({
     conversation,
     project: options.project,
     committedProject: options.committedProject,
-    previewing: options.previewing,
-    gestureActive: options.gestureActive,
+    onEdit: options.editor?.session.onEdit,
     link: options.link,
   });
 
   const suggestions = createMemo((): readonly Suggestion[] => {
     const project = options.project();
     if (!project || !options.expanded()) return [];
-    return assistantSuggestions(project, options.view(), scope().catalogScope);
+    return assistantSuggestions(project, options.view(), scope());
   });
 
   return {
@@ -133,6 +171,7 @@ export function useAssistantChat(options: UseAssistantChatOptions): AssistantCha
     },
     sendSuggestion: (suggestion) => conversation.send(suggestion.label, suggestion.id),
     account: options.account,
+    proposals,
     ask,
   };
 }

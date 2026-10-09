@@ -79,14 +79,14 @@ test.describe("the assistant's conversation", { tag: "@sanity" }, () => {
     await expect(conversation(page).locator(".assistant-reply")).toHaveCount(3);
   });
 
-  test("shows a proposal as a placeholder card", async ({ page }) => {
+  test("ends a reply in a proposal card", async ({ page }) => {
     await newProject(page);
     await assistantButton(page).click();
     await composer(page).fill("Speed it up [propose]");
     await page.keyboard.press("Enter");
-    await expect(
-      conversation(page).getByRole("region", { name: "Proposal" }),
-    ).toContainText("A change is ready");
+    const card = conversation(page).getByRole("region", { name: /^Proposal\b/ });
+    await expect(card).toContainText(/Tempo\b.*→.*\b100 BPM/);
+    await expect(card.getByRole("button", { name: "Apply" })).toBeEnabled();
   });
 });
 

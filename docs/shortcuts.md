@@ -180,7 +180,10 @@ When the assistant asks a question (GRV-42), the `assistant_ask` focus context
 is live while focus is anywhere in its panel except a text box or the resize
 edge: `1`-`8` pick the question's options in the order its chips number them,
 in place of the view keys, and `assistant.ask_finish` (Enter) sends the
-options picked when the question takes several. A chip is a button, so Space
+options picked when the question takes several. With nothing picked or typed
+yet there is nothing to send, so Enter on a focused chip presses it as it
+would any button, toggling it; on a single choice's chip Enter is always the
+chip's, which answers with it. A chip is a button, so Space
 presses it, which picks or toggles it, unless the option has a sound: then
 `assistant.ask_hear` (Space) plays it instead. With focus on the panel rather
 than on a button, Space still plays and stops the song, through the same
