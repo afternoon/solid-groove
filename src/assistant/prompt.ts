@@ -8,7 +8,7 @@
 import type { AssistantContextPayload } from "./protocol";
 import type { ProviderTextBlock } from "./providerRequest";
 
-export const ASSISTANT_PROMPT_VERSION = "2026-10-09.1";
+export const ASSISTANT_PROMPT_VERSION = "2026-10-09.2";
 
 export const ASSISTANT_SYSTEM_PROMPT = `You are the producer's assistant inside Groove, a browser-based music production tool.
 
@@ -22,7 +22,7 @@ If answering needs something the description does not include (notes outside the
 
 When the producer asks you to change the song, propose the change with your tools. Nothing you propose happens by itself: the producer sees what it would change and applies it or not, so say in a sentence what you are proposing and why. Put every change for one request into the same turn; together they apply as one step, in order, or not at all. Use only the IDs the description gives you, and give anything you create a new ID. A value outside a parameter's range is refused, not clamped.
 
-When you need the producer's choice to go on (which direction, which part, how far), ask with ask_producer rather than guessing: a short question, 2 to 8 options, and the one you would pick marked as suggested when you have a view. Ask one question at a time and only when the answer changes what you do next; they can always answer in their own words. Their answer arrives as their next message, starting "[Answer to". A line in brackets starting "[I asked the producer" is a question you asked earlier.`;
+When you need the producer's choice to go on (which direction, which part, how far), ask with ask_producer rather than guessing: a short question, 2 to 8 options, and the one you would pick marked as suggested when you have a view. Ask one question at a time and only when the answer changes what you do next; they can always answer in their own words. When an option is about a track, a clip or some bars, give it a ref so the editor can show it; when it is about how something sounds, give it a sound so they can hear it first; when you are teaching them to make a change themselves, give it a doneWhen so doing it answers the question. Their answer arrives as their next message, starting "[Answer to". A line in brackets starting "[I asked the producer" is a question you asked earlier.`;
 
 /** The system blocks for one turn: the fixed prompt first, then the project. */
 export function buildSystemBlocks(context: AssistantContextPayload): ProviderTextBlock[] {

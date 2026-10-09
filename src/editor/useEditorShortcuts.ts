@@ -63,8 +63,13 @@ export interface UseEditorShortcutsOptions {
   /** Sends the assistant composer's draft (GRV-26). */
   readonly sendAssistantDraft: () => void;
   /** The answer to a question the assistant asks, when one waits (GRV-42). */
-  readonly assistantAsk: Pick<AskDraft, "pick" | "canFinish" | "finish"> & {
+  readonly assistantAsk: Pick<
+    AskDraft,
+    "pick" | "canFinish" | "finish" | "focused" | "canHear" | "hear"
+  > & {
     readonly pending: () => boolean;
+    /** How many options the pending question has; 0 with none waiting. */
+    readonly optionCount: () => number;
     /** Whether the pending question takes several options. */
     readonly multiSelect: () => boolean;
   };
@@ -474,16 +479,35 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     },
     // A question the assistant asks (GRV-42): `1`-`8` pick its options, and
     // Enter sends a multi-select's picks. Enter on any other button in the
-    // panel (Dismiss, the header's) presses that button instead.
+    // panel (Dismiss, the header's) presses that button instead. A digit past
+    // the last option is no option, so it is left alone.
     ...Object.fromEntries(
       ASK_OPTION_SHORTCUT_IDS.map((id, index) => [
         id,
         {
           run: () => void options.assistantAsk.pick(index),
-          isEnabled: () => options.assistantAsk.pending(),
+          isEnabled: () => index < options.assistantAsk.optionCount(),
         },
       ]),
     ),
+    // Space on a chip with a sound plays it (GRV-42). On the panel itself it
+    // is still play/stop, which the question's context would otherwise take;
+    // on any other button it presses that button.
+    "assistant.ask_hear": {
+      run: () => {
+        const focused = options.assistantAsk.focused();
+        if (focused !== null && options.assistantAsk.canHear(focused)) {
+          options.assistantAsk.hear(focused);
+        } else {
+          void audio.toggle();
+        }
+      },
+      isEnabled: () => {
+        const focused = options.assistantAsk.focused();
+        if (focused !== null) return options.assistantAsk.canHear(focused);
+        return !(document.activeElement instanceof HTMLButtonElement);
+      },
+    },
     "assistant.ask_finish": {
       run: () => void options.assistantAsk.finish(),
       // Enter on a focused button presses that button, with one exception: a

@@ -66,8 +66,9 @@ import {
  * `ask_producer` (`ask.ts`) included.
  * 2: `parameter_set` may set the song's swing as well as its tempo (GRV-5).
  * 3: `ask_producer` lets the assistant ask the producer a question (GRV-42).
+ * 4: its options may carry references, sounds and predicates (GRV-42).
  */
-export const ASSISTANT_TOOLSET_VERSION = 3;
+export const ASSISTANT_TOOLSET_VERSION = 4;
 
 /** The song's own parameters the assistant may set: its tempo and its swing. */
 const SONG_PARAMETER_IDS: readonly string[] = [SONG_TEMPO.id, SONG_SWING.id];
