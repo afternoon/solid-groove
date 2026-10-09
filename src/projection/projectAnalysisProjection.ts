@@ -177,8 +177,9 @@ export const MAX_RECENT_ACTIONS = 8;
 /**
  * Stable suggestion identifiers. These are a published set (they key
  * `assistant_suggestion_clicked`'s `suggestion_id` and drive AI-004's UI), so
- * adding one is a deliberate change, and the analysis only ever emits an id
- * from this list. AI-02's named examples map directly onto them.
+ * adding one is a deliberate change, and the analysis and the assistant's
+ * panel only ever emit an id from this list. AI-02's named examples map
+ * directly onto them.
  */
 export const SUGGESTION_IDS = [
   "create_arrangement",
@@ -187,6 +188,15 @@ export const SUGGESTION_IDS = [
   "balance_section",
   "add_track",
   "fill_empty_track",
+  // The assistant's focused next steps (GRV-26): not the analysis's, but
+  // offered by the panel for what is on screen (`assistantSuggestions.ts`).
+  "vary_notes",
+  "vary_clips",
+  "develop_part",
+  "write_fill",
+  "shape_sound",
+  "balance_mix",
+  "find_sound",
 ] as const;
 export type SuggestionId = (typeof SUGGESTION_IDS)[number];
 

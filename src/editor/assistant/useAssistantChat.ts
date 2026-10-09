@@ -4,7 +4,7 @@
  * scope the chip says, the draft, the suggestion chips and the conversation.
  * The panel renders it, and the shortcut layer sends the draft on Enter.
  */
-import { type Accessor, createMemo, createSignal } from "solid-js";
+import { type Accessor, createEffect, createMemo, createSignal } from "solid-js";
 import type { Analytics } from "../../analytics/analytics";
 import type { AssistantClient } from "../../assistant/assistantClient";
 import type { Project } from "../../domain/entities";
@@ -61,9 +61,18 @@ export interface AssistantChat {
 
 export function useAssistantChat(options: UseAssistantChatOptions): AssistantChat {
   // The chip's choice, kept against the selection it was made for: a new
-  // selection lets it go, so the scope resets without an effect.
+  // selection lets it go at once.
   const [chosen, setChosen] = createSignal<{ level: ScopeLevel; key: string } | null>(
     null,
+  );
+  // And for good: going back to the selection it was made for (nothing
+  // selected, say) must not bring a widened choice back. The key is the one
+  // reactive read; forgetting the choice is a write, so it is the apply half's.
+  createEffect(
+    () => selectionKey(options.sources()),
+    () => {
+      setChosen(null);
+    },
   );
   const scope = createMemo(() => {
     const sources = options.sources();
@@ -84,7 +93,7 @@ export function useAssistantChat(options: UseAssistantChatOptions): AssistantCha
   const suggestions = createMemo((): readonly Suggestion[] => {
     const project = options.project();
     if (!project || !options.expanded()) return [];
-    return assistantSuggestions(project, options.view(), scope().catalogScope);
+    return assistantSuggestions(project, options.view(), scope());
   });
 
   return {

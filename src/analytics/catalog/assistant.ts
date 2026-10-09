@@ -22,7 +22,8 @@ export const ASSISTANT_SHORTCUT_ACTION_IDS = [
 
 /**
  * The suggestion chips' IDs, as `assistant_suggestion_clicked`'s
- * `suggestion_id` (GRV-26): #70's published next steps. Pinned against
+ * `suggestion_id` (GRV-26): #70's published next steps, and the panel's
+ * focused ones for the view and the scope. Pinned against
  * `SUGGESTION_IDS` in `src/projection/projectAnalysisProjection.ts` by
  * `catalog.test.ts`, so a suggestion added there needs a decision here.
  */
@@ -33,6 +34,13 @@ export const ASSISTANT_SUGGESTION_IDS = [
   "balance_section",
   "add_track",
   "fill_empty_track",
+  "vary_notes",
+  "vary_clips",
+  "develop_part",
+  "write_fill",
+  "shape_sound",
+  "balance_mix",
+  "find_sound",
 ] as const;
 
 /**
