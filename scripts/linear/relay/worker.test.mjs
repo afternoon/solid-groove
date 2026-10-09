@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { handle, reasonToPoll, sign, verify } from "./worker.mjs";
+import { handle, poll, reasonToPoll, sign, verify } from "./worker.mjs";
 
 const SECRET = "whsec_test";
 const NOW = 1_760_000_000_000;
@@ -41,8 +41,12 @@ describe("reasonToPoll", () => {
       expect(reasonToPoll(moved(name))).toMatch(name);
   });
 
+  it("polls when a card reaches QA or Done, which can free the cards it blocks", () => {
+    for (const name of ["QA", "Done"]) expect(reasonToPoll(moved(name))).toMatch(name);
+  });
+
   it("ignores moves into columns the board does not act on", () => {
-    for (const name of ["Backlog", "QA", "Done", "Blocked", "Ready For Review"])
+    for (const name of ["Backlog", "Blocked", "Ready For Review"])
       expect(reasonToPoll(moved(name))).toBeNull();
   });
 
@@ -88,7 +92,7 @@ describe("handle", () => {
   });
 
   it("acknowledges an event it ignores without calling GitHub", async () => {
-    const { res, fetchImpl } = await deliver(moved("Done"));
+    const { res, fetchImpl } = await deliver(moved("Backlog"));
     expect(res.status).toBe(200);
     expect(fetchImpl).not.toHaveBeenCalled();
   });
@@ -116,5 +120,23 @@ describe("handle", () => {
   it("accepts only POST", async () => {
     const res = await handle(new Request("https://relay.example/"), env);
     expect(res.status).toBe(405);
+  });
+});
+
+describe("poll", () => {
+  it("dispatches board.yml on main", async () => {
+    const fetchImpl = vi.fn(async () => new Response(null, { status: 204 }));
+    await poll(env, fetchImpl);
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    const [url, init] = fetchImpl.mock.calls[0];
+    expect(url).toBe(
+      "https://api.github.com/repos/trygroove/groove/actions/workflows/board.yml/dispatches",
+    );
+    expect(JSON.parse(init.body)).toEqual({ ref: "main" });
+  });
+
+  it("fails the cron run when GitHub refuses", async () => {
+    const fetchImpl = vi.fn(async () => new Response("nope", { status: 403 }));
+    await expect(poll(env, fetchImpl)).rejects.toThrow("403");
   });
 });
