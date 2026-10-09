@@ -19,7 +19,10 @@
  * 6. calls the provider, streaming the reply's text as it arrives, under a
  *    per-attempt inactivity timeout, retrying a transient failure that has
  *    not streamed anything yet, and abandoning the call if the browser goes away;
- * 7. validates the reply and logs one redacted record of how it went.
+ * 7. validates the reply and logs one redacted record of how it went;
+ * 8. keeps the completed turn in the transcript store if, and only if, the
+ *    account has said yes (GRV-8, `retention.ts`). Keeping it never fails or
+ *    changes the turn: the reply is the same either way.
  *
  * Every turn offers the model the assistant's tool set (GRV-4) and
  * `ask_producer` (GRV-42). A turn that stops for `tool_use` returns its
@@ -27,7 +30,10 @@
  * the tool set's version; the browser validates it against the open project
  * before anything can apply. An `ask_producer` call is not a change: it is
  * validated here and returned as the turn's question, and a malformed one is
- * a malformed reply.
+ * a malformed reply. A turn that carries the published library is offered
+ * `recommend_sounds` as well (GRV-23); its calls come back among the
+ * proposal's, and the browser takes them out and checks their IDs against the
+ * library it sent.
  */
 import { type AssistantAsk, askProducerTool, isAskCall, parseAskCall } from "./ask";
 import {
@@ -61,6 +67,8 @@ import {
   providerTools,
 } from "./providerRequest";
 import { admitCall, type QuotaLimits, quotaExceededMessage } from "./quota";
+import { recommendationTool } from "./recommendation";
+import { recordTurn, type TranscriptWrite } from "./retention";
 import { costMicroUsd, spendDay, usdToMicro } from "./spend";
 import { NO_USAGE, type ProviderUsage, StreamReader } from "./streamEvents";
 import { type AssistantTurnLog, toTurnLog } from "./telemetry";
@@ -70,12 +78,18 @@ import {
   EXPLAIN_TOOL,
   EXPLAIN_TOOL_NAME,
 } from "./tools";
+import type { TranscriptStore } from "./transcripts";
 
 /** Who is calling, as the function's auth context reports it. */
 export interface AssistantCaller {
   readonly uid: string | null;
   /** `firebase.sign_in_provider` from the ID token, e.g. `google.com`. */
   readonly signInProvider: string | null;
+  /**
+   * Whether the ID token's address is a team or test account
+   * (`isInternalAccount`), so its transcripts are marked internal.
+   */
+  readonly internalAccount?: boolean;
 }
 
 /** The quota and spend figures the gateway enforces. */
@@ -95,6 +109,13 @@ export interface AssistantGatewayDeps {
   readonly model?: AssistantModelProfile;
   readonly limits?: AssistantCallLimits;
   readonly guardLimits?: AssistantGuardLimits;
+  /**
+   * Where a completed turn is kept, if the account allows it (GRV-8).
+   * Without one, nothing is kept.
+   */
+  readonly transcripts?: TranscriptStore;
+  /** Hears how keeping each completed turn went: a code, never the content. */
+  readonly onTranscript?: (write: TranscriptWrite) => void;
 }
 
 export interface AssistantTurnOptions {
@@ -182,8 +203,12 @@ async function prepare(
   uid: string,
   turn: AssistantTurnRequest,
 ): Promise<PreparedTurn> {
-  const system = buildSystemBlocks(turn.context);
-  const tools = providerTools([...assistantTools(), EXPLAIN_TOOL, askProducerTool()]);
+  const system = buildSystemBlocks(turn.context, turn.library);
+  // A turn that carries the library may also recommend from it (GRV-23).
+  const tools = [
+    ...providerTools([...assistantTools(), EXPLAIN_TOOL, askProducerTool()]),
+    ...(turn.library ? [recommendationTool()] : []),
+  ];
   // The tool definitions take room in the window just as the prompt does.
   const systemTokens =
     system.reduce((sum, block) => sum + estimateTokens(block.text), 0) +
@@ -391,6 +416,42 @@ function proposalOf(
 }
 
 /**
+ * Keeps a completed turn in the transcript store, when there is one and the
+ * request named its session. `recordTurn` reads the account's preference in
+ * the same transaction as the write and never throws, so this cannot fail or
+ * alter the turn.
+ */
+async function keepTranscript(
+  deps: AssistantGatewayDeps,
+  uid: string,
+  caller: AssistantCaller,
+  turn: AssistantTurnRequest,
+  receivedAt: number,
+  reply: {
+    text: string;
+    stopReason: AssistantStopReason;
+    proposal: AssistantProposal | null;
+    model: string;
+  },
+): Promise<void> {
+  if (!deps.transcripts || !turn.session) return;
+  const write = await recordTurn(deps.transcripts, {
+    uid,
+    session: turn.session,
+    internalAccount: caller.internalAccount ?? false,
+    projectRevision: turn.projectRevision,
+    userMessage: turn.messages[turn.messages.length - 1]?.text ?? "",
+    reply: reply.text,
+    stopReason: reply.stopReason,
+    proposal: reply.proposal,
+    model: reply.model,
+    promptVersion: ASSISTANT_PROMPT_VERSION,
+    receivedAt,
+  });
+  deps.onTranscript?.(write);
+}
+
+/**
  * The turn's question, or null when it asks none. The first `ask_producer`
  * call is the question; the tool asks one at a time, so any later one is
  * dropped. One that does not parse makes the reply malformed.
@@ -486,10 +547,17 @@ export async function runAssistantTurn(
       if (outcome.kind === "completed") {
         const ask = askOf(outcome.toolCalls);
         finish("completed", outcome.stopReason);
+        const proposal = proposalOf(turn, outcome.toolCalls);
+        await keepTranscript(deps, uid, caller, turn, startedAt, {
+          text: outcome.text,
+          stopReason: outcome.stopReason,
+          proposal,
+          model: model.id,
+        });
         return {
           text: outcome.text,
           stopReason: outcome.stopReason,
-          proposal: proposalOf(turn, outcome.toolCalls),
+          proposal,
           ask,
           model: model.id,
           promptVersion: ASSISTANT_PROMPT_VERSION,

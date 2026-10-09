@@ -18,6 +18,7 @@ import {
   type AssistantStreamChunk,
   type AssistantTurnResult,
 } from "../../src/assistant/protocol";
+import { isInternalAccount } from "../../src/shared/internalTraffic";
 
 /** How each gateway failure reaches the browser. */
 const HTTPS_CODES: Record<AssistantErrorCode, FunctionsErrorCode> = {
@@ -55,8 +56,11 @@ export function toHttpsError(error: AssistantGatewayError): HttpsError {
 }
 
 /** Everything but the provider is wired here; the provider needs the secret. */
-export type AssistantHandlerDeps = Omit<AssistantGatewayDeps, "log" | "now"> &
-  Partial<Pick<AssistantGatewayDeps, "log" | "now">>;
+export type AssistantHandlerDeps = Omit<
+  AssistantGatewayDeps,
+  "log" | "now" | "onTranscript"
+> &
+  Partial<Pick<AssistantGatewayDeps, "log" | "now" | "onTranscript">>;
 
 export function createAssistantHandler(
   deps: () => AssistantHandlerDeps,
@@ -66,19 +70,24 @@ export function createAssistantHandler(
 ) => Promise<AssistantTurnResult> {
   return async (request, response) => {
     const token = request.auth?.token as
-      | { firebase?: { sign_in_provider?: unknown } }
+      | { firebase?: { sign_in_provider?: unknown }; email?: unknown }
       | undefined;
     const signInProvider = token?.firebase?.sign_in_provider;
     try {
       return await runAssistantTurn(
         {
           log: (record) => logger.info("assistant turn", record),
+          // A code only: whether the turn was kept, never what it said.
+          onTranscript: (write) => logger.info("assistant transcript", { write }),
           now: Date.now,
           ...deps(),
         },
         {
           uid: request.auth?.uid ?? null,
           signInProvider: typeof signInProvider === "string" ? signInProvider : null,
+          internalAccount: isInternalAccount(
+            typeof token?.email === "string" ? token.email : null,
+          ),
         },
         request.data,
         {

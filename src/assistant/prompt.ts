@@ -34,10 +34,10 @@ import {
   TRACK_VOLUME,
 } from "../domain/parameters";
 import { TICKS_PER_BAR, TICKS_PER_QUARTER, TICKS_PER_SIXTEENTH } from "../domain/time";
-import type { AssistantContextPayload } from "./protocol";
+import type { AssistantContextPayload, AssistantLibraryContext } from "./protocol";
 import type { ProviderTextBlock } from "./providerRequest";
 
-export const ASSISTANT_PROMPT_VERSION = "2026-10-09.4";
+export const ASSISTANT_PROMPT_VERSION = "2026-10-09.5";
 
 const UNIT_SUFFIX: Partial<Record<ParameterDefinition["unit"], string>> = {
   decibels: " dB",
@@ -99,6 +99,8 @@ When the producer asks you to change the song, propose the change with your tool
 
 When you need the producer's choice to go on (which direction, which part, how far), ask with ask_producer rather than guessing: a short question, 2 to 8 options, and the one you would pick marked as suggested when you have a view. Ask one question at a time and only when the answer changes what you do next; they can always answer in their own words. When an option is about a track, a clip or some bars, give it a ref so the editor can show it; when it is about how something sounds, give it a sound so they can hear it first; when you are teaching them to make a change themselves, give it a doneWhen so doing it answers the question. Their answer arrives as their next message, starting "[Answer to". A line in brackets starting "[I asked the producer" is a question you asked earlier.
 
+When the producer asks for a sound, a sample or a pack and the library follows the project below, recommend from it with recommend_sounds rather than describing sounds in words: one pack and up to three of its sounds, best first, with a line on why they fit and the track whose sample slot should try them. On a drum machine, also name the pad the sounds are for from that track's "pads": a kick goes on the kick's pad, never simply the selected one. Prefer sounds the project does not use yet ("inProject": false). Never name a pack or a sound the library does not list. When no library follows, say you cannot browse the library right now.
+
 ## Taste and extremes
 
 A genre, a reference or the song's current style is a starting point, never a rule. Do what the request asks, as far as it asks. When it asks for something unconventional (broken, lurching, abrasive, dissonant, off the grid, lopsided, silent, too loud), take it literally and commit to it: do not pull it back towards the familiar, tidy it onto the grid, or soften it into a safer version of the conventional answer. When a request is conventional, a conventional answer is right.
@@ -112,7 +114,7 @@ A genre, a reference or the song's current style is a starting point, never a ru
 
 ## Sounds
 
-You cannot add, generate or upload audio, and you cannot browse the library. Every part is note events on an instrument:
+You cannot add, generate or upload audio, and a proposal never swaps a sample: library sounds are recommended with recommend_sounds, as above, not proposed. Every part you propose is note events on an instrument:
 
 - Pitched parts (bass, chords, melody, pads and textures) are notes on a synth: an existing synth track, or a new one made with track_create (instrument kind "synth"), its clip and its placement in the same call. Pitch is MIDI: 60 is middle C. Shape the synth's sound with its parameters: ${SYNTH_LINE}.
 - Drum parts are pad notes on a drum machine's existing pads. A pad's ID appears in selectedNotes as a trigger {"kind": "pad", "padId": ...}; use only pads you have seen there. If no pad is visible and the request needs drums, say the producer needs to select the drum track.
@@ -130,13 +132,29 @@ ${DEVICE_LINES}
 
 Say in a sentence what you are proposing, before the tool calls, and leave the why to explain_change. When you name a control, use the name the producer sees, the track's or device's name and the control ("Bass volume", "Compressor threshold"), and name only controls your proposal changes.`;
 
-/** The system blocks for one turn: the fixed prompt first, then the project. */
-export function buildSystemBlocks(context: AssistantContextPayload): ProviderTextBlock[] {
-  return [
+/** What introduces the project in the system blocks. */
+export const PROJECT_BLOCK_HEADING = "The open project, as JSON:\n";
+
+/** What introduces the library in the system blocks (GRV-23). */
+export const LIBRARY_BLOCK_HEADING = "The library you may recommend from, as JSON:\n";
+
+/**
+ * The system blocks for one turn: the fixed prompt first, then the project,
+ * then the library the assistant may recommend from, when the turn has one.
+ */
+export function buildSystemBlocks(
+  context: AssistantContextPayload,
+  library?: AssistantLibraryContext,
+): ProviderTextBlock[] {
+  const blocks: ProviderTextBlock[] = [
     { type: "text", text: ASSISTANT_SYSTEM_PROMPT },
-    {
-      type: "text",
-      text: `The open project, as JSON:\n${JSON.stringify(context)}`,
-    },
+    { type: "text", text: `${PROJECT_BLOCK_HEADING}${JSON.stringify(context)}` },
   ];
+  if (library) {
+    blocks.push({
+      type: "text",
+      text: `${LIBRARY_BLOCK_HEADING}${JSON.stringify(library)}`,
+    });
+  }
+  return blocks;
 }

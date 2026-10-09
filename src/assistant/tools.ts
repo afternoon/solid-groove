@@ -78,8 +78,10 @@ import {
  * 4: its options may carry references, sounds and predicates (GRV-42).
  * 5: `parameter_set` names its parameter IDs, and `explain_change` carries a
  *    proposal's goal and technique (GRV-5).
+ * 6: a turn that carries the library is offered `recommend_sounds`
+ *    (`recommendation.ts`, GRV-23).
  */
-export const ASSISTANT_TOOLSET_VERSION = 5;
+export const ASSISTANT_TOOLSET_VERSION = 6;
 
 /** The song's own parameters the assistant may set: its tempo and its swing. */
 const SONG_PARAMETER_IDS: readonly string[] = [SONG_TEMPO.id, SONG_SWING.id];
