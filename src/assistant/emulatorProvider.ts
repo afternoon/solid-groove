@@ -20,15 +20,21 @@
  *   a proposal.
  * - `[ask]`: a short reply that ends in `ask_producer` (GRV-42), a single
  *   pick among {@link EMULATOR_ASK}'s options; `[ask-multi]` asks the same
- *   question as a multi-select.
+ *   question as a multi-select; `[ask-rich]` asks one whose options point at
+ *   the project's first track and bars 1-2, let it be heard, and answer
+ *   themselves when the tempo goes to 100 BPM or below
+ *   ({@link emulatorRichAsk}).
  * - anything else: a short reply, streamed in pieces with a pause between.
  *
  * Like the rest of `src/assistant`, it imports no Firebase and no SDK.
  */
+import { setParameter } from "../commands/definitions/parameters";
+import { SONG_TEMPO } from "../domain/parameters";
 import { ASK_PRODUCER_TOOL_NAME, type AskProducerInput } from "./ask";
 import type { AssistantProvider } from "./provider";
 import { ProviderFailure } from "./provider";
 import type { ProviderMessagesRequest } from "./providerRequest";
+import { toolNameFor } from "./tools";
 
 /** The reply every ordinary turn streams, piece by piece. */
 export const EMULATOR_REPLY_CHUNKS = [
@@ -120,6 +126,69 @@ function proposalReply(): Step[] {
   });
 }
 
+/**
+ * The question `[ask-rich]` asks, about `trackId`: an option that points at
+ * the track and plays it, one about bars 1-2, and one that previews the song
+ * at 100 BPM and is answered by setting the tempo there.
+ */
+export function emulatorRichAsk(trackId: string | null): AskProducerInput {
+  const slower = setParameter({ scope: "song", parameterId: SONG_TEMPO.id }, 100);
+  return {
+    question: "What should change first?",
+    context: "The groove",
+    options: [
+      ...(trackId
+        ? [
+            {
+              label: "The first track",
+              ref: { kind: "track" as const, trackId },
+              sound: { kind: "track" as const, trackId },
+            },
+          ]
+        : []),
+      { label: "The opening", ref: { kind: "bars", startBar: 1, endBar: 2 } },
+      {
+        label: "Slower, at 100 BPM",
+        description: "Set the tempo yourself to answer",
+        sound: {
+          kind: "preview",
+          calls: [{ name: toolNameFor(slower.type), input: { ...slower.payload } }],
+        },
+        doneWhen: { kind: "tempo", max: 100 },
+      },
+    ],
+    suggested: 0,
+    multiSelect: false,
+  };
+}
+
+/** The first track the turn's project context names, or null. */
+function firstTrackId(request: ProviderMessagesRequest): string | null {
+  const block = request.system.find((part) => part.text.startsWith(PROJECT_PREFIX));
+  if (!block) return null;
+  try {
+    const context = JSON.parse(block.text.slice(PROJECT_PREFIX.length)) as {
+      tracks?: { id?: unknown }[];
+    };
+    const id = context.tracks?.[0]?.id;
+    return typeof id === "string" ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+/** How `buildSystemBlocks` (`prompt.ts`) introduces the project. */
+const PROJECT_PREFIX = "The open project, as JSON:\n";
+
+function richAskReply(request: ProviderMessagesRequest): Step[] {
+  return toolReply(
+    "Let's pick a place to start.",
+    "toolu_ask_rich",
+    ASK_PRODUCER_TOOL_NAME,
+    emulatorRichAsk(firstTrackId(request)),
+  );
+}
+
 function askReply(multiSelect: boolean): Step[] {
   return toolReply(
     "One question before I change anything.",
@@ -161,7 +230,7 @@ function inProcessFirstTime(): FirstTimeCheck {
 export function createEmulatorAssistantProvider(
   firstTime: FirstTimeCheck = inProcessFirstTime(),
 ): AssistantProvider {
-  function scriptFor(message: string): Step[] {
+  function scriptFor(message: string, request: ProviderMessagesRequest): Step[] {
     if (message.includes("[hang]")) {
       return [...textReply([EMULATOR_REPLY_CHUNKS[0]]).slice(0, 3), { hang: true }];
     }
@@ -169,6 +238,7 @@ export function createEmulatorAssistantProvider(
       return [...textReply([EMULATOR_REPLY_CHUNKS[0]]).slice(0, 3), { fail: true }];
     }
     if (message.includes("[propose]")) return proposalReply();
+    if (message.includes("[ask-rich]")) return richAskReply(request);
     if (message.includes("[ask-multi]")) return askReply(true);
     if (message.includes("[ask]")) return askReply(false);
     return textReply(EMULATOR_REPLY_CHUNKS);
@@ -176,7 +246,7 @@ export function createEmulatorAssistantProvider(
 
   return {
     stream(request, signal) {
-      const script = scriptFor(lastUserMessage(request));
+      const script = scriptFor(lastUserMessage(request), request);
       return (async function* () {
         for (const step of script) {
           if (signal.aborted) return;

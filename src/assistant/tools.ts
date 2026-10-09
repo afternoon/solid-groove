@@ -62,9 +62,10 @@ import {
 
 /**
  * Bumped whenever a tool is added, removed, renamed or changes its rules,
- * `ask_producer` (`ask.ts`) included: 2 added it (GRV-42).
+ * `ask_producer` (`ask.ts`) included: 2 added it, and 3 its options'
+ * references, sounds and predicates (GRV-42).
  */
-export const ASSISTANT_TOOLSET_VERSION = 2;
+export const ASSISTANT_TOOLSET_VERSION = 3;
 
 /** One key per Appendix A family the allowlist carries. */
 export const ASSISTANT_CAPABILITIES = [

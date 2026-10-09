@@ -82,6 +82,9 @@ function setup(view: EditorViewName) {
         pick: () => false,
         canFinish: () => false,
         finish: () => false,
+        focused: () => null,
+        canHear: () => false,
+        hear: () => false,
       },
     });
     return selection;

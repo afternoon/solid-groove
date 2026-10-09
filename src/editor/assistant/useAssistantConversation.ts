@@ -92,20 +92,33 @@ export type ConversationEntry =
       readonly replyId?: string;
     };
 
-/** How an answer came: an option picked, or the producer's own words. */
-export type AskAnswerHow = "pick" | "text";
+/**
+ * How an answer came: an option picked, the producer's own words, or the
+ * change made in the editor (an option's `doneWhen`).
+ */
+export type AskAnswerHow = "pick" | "text" | "did_it";
 
 /** A question waiting for the producer (GRV-42). */
 export interface PendingAsk {
   readonly ask: AssistantAsk;
   /** The reply that asked it. */
   readonly replyId: string;
+  /**
+   * The committed project when it was asked, which an option's `doneWhen`
+   * is read against: only a change since then answers it.
+   */
+  readonly asked: Project | null;
 }
 
 export interface UseAssistantConversationOptions {
   readonly client: () => Promise<AssistantClient>;
   readonly project: Accessor<Project | null>;
   readonly scope: Accessor<AssistantScope>;
+  /**
+   * The committed project, never a preview of it, for what a question is
+   * asked against (GRV-42). Defaults to {@link project}.
+   */
+  readonly committedProject?: () => Project | null;
   /** Whether a signed-in account is here to talk (ADR 0006 decision 4). */
   readonly canSend: Accessor<boolean>;
   readonly analytics: () => Analytics;
@@ -251,7 +264,11 @@ export function useAssistantConversation(
             entry.kind === "reply" ? { ...entry, ask: event.ask } : entry,
           );
           // A newer question takes the place of one still waiting.
-          setPendingAsk({ ask: event.ask, replyId });
+          setPendingAsk({
+            ask: event.ask,
+            replyId,
+            asked: options.committedProject?.() ?? options.project(),
+          });
           options.analytics().log("assistant_ask_shown", {
             option_count: event.ask.options.length,
             multi_select: event.ask.multiSelect,
@@ -367,9 +384,12 @@ export function useAssistantConversation(
     const labels = pickedLabels(ask, answer);
     const typed = answer.text.trim();
     setPendingAsk(null);
-    logAnswered(ask, labels.length > 0 ? "pick" : "text", answer.picked);
+    const how: AskAnswerHow =
+      labels.length === 0 ? "text" : answer.byDoing ? "did_it" : "pick";
+    logAnswered(ask, how, answer.picked);
+    const said = labels.join(", ") + (how === "did_it" ? " (done in the editor)" : "");
     sendMessage({
-      text: [labels.join(", "), typed].filter((part) => part.length > 0).join(" · "),
+      text: [said, typed].filter((part) => part.length > 0).join(" · "),
       answers: ask.question,
       wire: answerMessage(ask, answer),
     });

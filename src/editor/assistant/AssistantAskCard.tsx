@@ -2,6 +2,17 @@ import type { JSX } from "@solidjs/web";
 import { createEffect, For, Show, untrack } from "solid-js";
 import { ASK_LIMITS } from "../../assistant/ask";
 import { CloseIcon } from "../../components/icons";
+
+/** A small speaker: the option has a sound to hear. */
+function SpeakerGlyph(): JSX.Element {
+  return (
+    <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+      <path d="M1 3.5h2L5.5 1.5v7L3 6.5H1z" fill="currentColor" />
+      <path d="M7 3a2.5 2.5 0 0 1 0 4" fill="none" stroke="currentColor" />
+    </svg>
+  );
+}
+
 import type { AskDraft } from "./useAssistantChat";
 import type { PendingAsk } from "./useAssistantConversation";
 
@@ -31,10 +42,13 @@ export const ASK_TEXT_LABEL = "Something else";
  * options as square chips in a wrap with the suggested one marked, and a
  * "something else" box with Send.
  *
- * A single choice answers on a click; several toggle and go with Send. The
- * keys are not read here: `1`-`8` and Enter are the registry's
- * (`assistant.ask_option_*`, `assistant.ask_finish`), live while focus is in
- * the panel outside a text box, so the chips only number themselves.
+ * A single choice answers on a click; several toggle and go with Send. An
+ * option about a part of the song says which, and shows it in the editor
+ * while it is hovered or focused; an option with a sound plays it while it is
+ * hovered. The keys are not read here: `1`-`8`, Enter and Space are the
+ * registry's (`assistant.ask_option_*`, `assistant.ask_finish`,
+ * `assistant.ask_hear`), live while focus is in the panel outside a text box,
+ * so the chips only number themselves.
  */
 export default function AssistantAskCard(props: AssistantAskCardProps): JSX.Element {
   const ask = () => props.pending.ask;
@@ -83,9 +97,13 @@ export default function AssistantAskCard(props: AssistantAskCardProps): JSX.Elem
             const part = (name: string) => `${questionId()}-${index()}-${name}`;
             // The label names the chip; the rest describes it. Referenced by
             // ID, so none of the question's own words sits in an attribute.
+            const about = () => props.draft.about(index());
+            const audible = () => props.draft.canHear(index());
             const described = () =>
               [
                 option.description ? part("description") : "",
+                about() ? part("about") : "",
+                audible() ? part("audible") : "",
                 suggested() ? part("suggested") : "",
               ]
                 .filter((id) => id.length > 0)
@@ -95,7 +113,10 @@ export default function AssistantAskCard(props: AssistantAskCardProps): JSX.Elem
                 type="button"
                 class={[
                   "assistant-ask-option",
-                  { "assistant-ask-suggested-option": suggested() },
+                  {
+                    "assistant-ask-suggested-option": suggested(),
+                    "assistant-ask-audible-option": audible(),
+                  },
                 ]}
                 aria-pressed={
                   ask().multiSelect ? (picked() ? "true" : "false") : undefined
@@ -105,6 +126,10 @@ export default function AssistantAskCard(props: AssistantAskCardProps): JSX.Elem
                 aria-describedby={described()}
                 disabled={props.streaming}
                 onClick={() => props.draft.pick(index())}
+                onPointerEnter={() => props.draft.hover(index())}
+                onPointerLeave={() => props.draft.hover(null)}
+                onFocus={() => props.draft.focus(index())}
+                onBlur={() => props.draft.focus(null)}
               >
                 <span class="assistant-ask-key" aria-hidden="true">
                   {index() + 1}
@@ -124,7 +149,29 @@ export default function AssistantAskCard(props: AssistantAskCardProps): JSX.Elem
                       </span>
                     )}
                   </Show>
+                  <Show when={about()}>
+                    {(text) => (
+                      <span
+                        id={part("about")}
+                        class="assistant-ask-about"
+                        aria-hidden="true"
+                      >
+                        {text()}
+                      </span>
+                    )}
+                  </Show>
                 </span>
+                <Show when={audible()}>
+                  <span
+                    id={part("audible")}
+                    class="assistant-ask-listen"
+                    title="Hover, or focus and press Space, to hear it"
+                    aria-hidden="true"
+                  >
+                    <SpeakerGlyph />
+                    <span class="visually-hidden">Hover or press Space to hear it</span>
+                  </span>
+                </Show>
                 <Show when={suggested()}>
                   <span
                     id={part("suggested")}

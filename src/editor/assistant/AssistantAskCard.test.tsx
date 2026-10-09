@@ -4,8 +4,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import { Analytics } from "../../analytics/analytics";
 import { ConsentStore } from "../../analytics/consent";
 import { createRecordingTransport } from "../../analytics/transport";
-import type { AssistantAsk } from "../../assistant/ask";
+import type { AskReference, AssistantAsk } from "../../assistant/ask";
 import type { AssistantStopReason } from "../../assistant/protocol";
+import type { Project } from "../../domain/entities";
 import { createSliceFixtureProject } from "../../domain/fixtures";
 import { clickAndFlush, fireAndFlush } from "../../testing/events";
 import {
@@ -17,6 +18,7 @@ import { memoryStorage } from "../../testing/storage";
 import type { EditorViewName } from "../editorViews";
 import { ASK_CARD_LABEL, ASK_TEXT_LABEL } from "./AssistantAskCard";
 import AssistantPanel from "./AssistantPanel";
+import type { AskEditorLink } from "./askReferences";
 import { useAssistantChat } from "./useAssistantChat";
 import { useAssistantPanel } from "./useAssistantPanel";
 
@@ -35,7 +37,31 @@ const ASK: AssistantAsk = {
   multiSelect: false,
 };
 
-function renderChat() {
+const barsLabelOf = (ref: AskReference) =>
+  ref.kind === "bars" ? `Bars ${ref.startBar}–${ref.endBar}` : null;
+
+/** A link that records what the options asked of the editor. */
+function recordingLink(audible = true) {
+  const calls: string[] = [];
+  const link: AskEditorLink = {
+    highlight: (ref) => calls.push(`highlight ${ref ? JSON.stringify(ref) : "none"}`),
+    select: (ref) => calls.push(`select ${JSON.stringify(ref)}`),
+    canHear: () => audible,
+    hear: (sound, gesture) =>
+      calls.push(`hear ${sound.kind}${gesture ? " (gesture)" : ""}`),
+    stopHearing: () => calls.push("stop"),
+    describe: (ref) => (ref.kind === "track" ? "Track BD" : barsLabelOf(ref)),
+  };
+  return { link, calls };
+}
+
+interface ChatOptions {
+  readonly link?: AskEditorLink;
+  readonly project?: () => Project;
+  readonly previewing?: () => boolean;
+}
+
+function renderChat(options: ChatOptions = {}) {
   const client: FakeAssistantClient = createFakeAssistantClient();
   const transport = createRecordingTransport();
   const analytics = new Analytics({
@@ -44,7 +70,8 @@ function renderChat() {
     storage: memoryStorage(),
   });
   analytics.setAccountType("registered");
-  const project = createSliceFixtureProject();
+  const fixture = createSliceFixtureProject();
+  const project = options.project ?? (() => fixture);
   const [view] = createSignal<EditorViewName>("arrangement");
   const Harness = () => {
     const panel = useAssistantPanel({
@@ -52,13 +79,15 @@ function renderChat() {
       analytics: () => analytics,
     });
     const chat = useAssistantChat({
-      project: () => project,
+      project,
       view,
-      sources: () => ({ selection: null, track: project.song.tracks[0] ?? null }),
+      sources: () => ({ selection: null, track: project().song.tracks[0] ?? null }),
       account: () => ({ registered: true }),
       expanded: () => panel.layout().mode === "floating",
       client: async () => client,
       analytics: () => analytics,
+      link: options.link,
+      previewing: options.previewing,
     });
     return (
       <>
@@ -338,5 +367,153 @@ describe("a question the assistant asks (GRV-42)", () => {
     fireAndFlush(() => fireEvent.input(composer(), { target: { value: "And also" } }));
     ask(client.last());
     expect(composer()).toHaveFocus();
+  });
+});
+
+describe("options that carry more than words (GRV-42)", () => {
+  const RICH: AssistantAsk = {
+    id: "toolu_rich",
+    question: "What should change first?",
+    options: [
+      {
+        label: "The kick",
+        ref: { kind: "track", trackId: "trk_bd" },
+        sound: { kind: "track", trackId: "trk_bd" },
+      },
+      { label: "The opening", ref: { kind: "bars", startBar: 1, endBar: 2 } },
+      {
+        label: "Slower",
+        sound: { kind: "preview", calls: [{ name: "parameter_set", input: {} }] },
+        doneWhen: { kind: "tempo", max: 100 },
+      },
+    ],
+    multiSelect: false,
+  };
+
+  it("says what an option is about, and marks the ones with a sound", async () => {
+    const { link } = recordingLink();
+    const { client } = renderChat({ link });
+    await send("Where do I start?");
+    ask(client.last(), RICH);
+
+    expect(option("The kick")).toHaveTextContent("Track BD");
+    expect(option("The opening")).toHaveTextContent("Bars 1–2");
+    expect(option("The kick")).toHaveAccessibleDescription(
+      "Track BD Hover or press Space to hear it",
+    );
+    expect(option("The kick")).toHaveClass("assistant-ask-audible-option");
+    expect(option("The opening")).not.toHaveClass("assistant-ask-audible-option");
+  });
+
+  it("shows and plays an option while it is hovered, and puts both away after", async () => {
+    const { link, calls } = recordingLink();
+    const { client } = renderChat({ link });
+    await send("Where do I start?");
+    ask(client.last(), RICH);
+    calls.length = 0;
+
+    fireAndFlush(() => fireEvent.pointerEnter(option("The kick")));
+    expect(calls).toEqual([
+      'highlight {"kind":"track","trackId":"trk_bd"}',
+      "hear track",
+    ]);
+    fireAndFlush(() => fireEvent.pointerLeave(option("The kick")));
+    fireAndFlush(() => fireEvent.pointerEnter(option("The opening")));
+    expect(calls.slice(2)).toEqual([
+      "highlight none",
+      "stop",
+      'highlight {"kind":"bars","startBar":1,"endBar":2}',
+      "stop",
+    ]);
+    // Focus shows it too, for the keyboard, without playing it.
+    calls.length = 0;
+    fireAndFlush(() => option("The kick").focus());
+    expect(calls).toEqual(['highlight {"kind":"track","trackId":"trk_bd"}']);
+  });
+
+  it("selects what a picked option is about", async () => {
+    const { link, calls } = recordingLink();
+    const { client } = renderChat({ link });
+    await send("Where do I start?");
+    ask(client.last(), RICH);
+
+    clickAndFlush(option("The opening"));
+    await settle();
+    expect(calls).toContain('select {"kind":"bars","startBar":1,"endBar":2}');
+    expect(client.turns).toHaveLength(2);
+    // The question is gone, and so is its highlight.
+    expect(calls.at(-2)).toBe("highlight none");
+    expect(calls.at(-1)).toBe("stop");
+  });
+
+  it("is answered by making the change in the editor", async () => {
+    const [project, setProject] = createSignal(createSliceFixtureProject());
+    const [previewing, setPreviewing] = createSignal(false);
+    const { client, transport } = renderChat({ project, previewing });
+    await send("Teach me tempo");
+    ask(client.last(), RICH);
+
+    // A preview at 90 BPM is not a change yet.
+    const slow = (tempo: number) => {
+      const current = project();
+      return { ...current, song: { ...current.song, tempo } };
+    };
+    fireAndFlush(() => {
+      setPreviewing(true);
+      setProject(slow(90));
+    });
+    await settle();
+    expect(card()).toBeInTheDocument();
+    expect(client.turns).toHaveLength(1);
+
+    fireAndFlush(() => setPreviewing(false));
+    await settle();
+    expect(card()).toBeNull();
+    expect(client.turns).toHaveLength(2);
+    expect(client.last().request.messages.at(-1)?.text).toBe(
+      '[Answer to "What should change first?"] Did it in the editor: Slower.',
+    );
+    expect(log()).toHaveTextContent("Slower (done in the editor)");
+    expect(transport.named("assistant_ask_answered")[0]?.params).toMatchObject({
+      how: "did_it",
+      option_count: 3,
+    });
+  });
+
+  it("is not answered by a change that was already made when it was asked", async () => {
+    const start = createSliceFixtureProject();
+    const [project, setProject] = createSignal({
+      ...start,
+      song: { ...start.song, tempo: 90 },
+    });
+    const { client } = renderChat({ project });
+    await send("Teach me tempo");
+    ask(client.last(), RICH);
+    fireAndFlush(() =>
+      setProject({ ...project(), song: { ...project().song, tempo: 95 } }),
+    );
+    await settle();
+    expect(card()).toBeInTheDocument();
+    expect(client.turns).toHaveLength(1);
+  });
+
+  it("waits for a reply on its way before answering by doing", async () => {
+    const [project, setProject] = createSignal(createSliceFixtureProject());
+    const { client } = renderChat({ project });
+    await send("Teach me tempo");
+    ask(client.last(), RICH);
+    await send("Wait, what is a BPM?");
+    fireAndFlush(() =>
+      setProject({ ...project(), song: { ...project().song, tempo: 90 } }),
+    );
+    await settle();
+    expect(card()).toBeInTheDocument();
+    fireAndFlush(() => {
+      client.last().text("Beats per minute.");
+      client.last().done();
+    });
+    await settle();
+    expect(card()).toBeNull();
+    expect(client.last().request.messages.at(-1)?.text).toContain("Did it in the editor");
   });
 });

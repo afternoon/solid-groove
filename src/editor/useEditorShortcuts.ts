@@ -63,7 +63,10 @@ export interface UseEditorShortcutsOptions {
   /** Sends the assistant composer's draft (GRV-26). */
   readonly sendAssistantDraft: () => void;
   /** The answer to a question the assistant asks, when one waits (GRV-42). */
-  readonly assistantAsk: Pick<AskDraft, "pick" | "canFinish" | "finish"> & {
+  readonly assistantAsk: Pick<
+    AskDraft,
+    "pick" | "canFinish" | "finish" | "focused" | "canHear" | "hear"
+  > & {
     readonly pending: () => boolean;
   };
 }
@@ -482,6 +485,24 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
         },
       ]),
     ),
+    // Space on a chip with a sound plays it (GRV-42). On the panel itself it
+    // is still play/stop, which the question's context would otherwise take;
+    // on any other button it presses that button.
+    "assistant.ask_hear": {
+      run: () => {
+        const focused = options.assistantAsk.focused();
+        if (focused !== null && options.assistantAsk.canHear(focused)) {
+          options.assistantAsk.hear(focused);
+        } else {
+          void audio.toggle();
+        }
+      },
+      isEnabled: () => {
+        const focused = options.assistantAsk.focused();
+        if (focused !== null) return options.assistantAsk.canHear(focused);
+        return !(document.activeElement instanceof HTMLButtonElement);
+      },
+    },
     "assistant.ask_finish": {
       run: () => void options.assistantAsk.finish(),
       isEnabled: () => {

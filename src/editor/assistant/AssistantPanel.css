@@ -576,6 +576,23 @@
   overflow-wrap: anywhere;
 }
 
+/* What an option is about (a track, a clip, some bars), under its label. */
+.assistant-ask-about {
+  color: var(--color-foreground-muted);
+  font-size: var(--font-size-tiny);
+  line-height: 14px;
+  overflow-wrap: anywhere;
+}
+
+/* The option has a sound: a small speaker beside the label. */
+.assistant-ask-listen {
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: 18px;
+  color: var(--color-foreground);
+}
+
 .assistant-ask-suggested {
   flex: none;
   color: var(--color-foreground-bright);
@@ -587,6 +604,8 @@
 
 .assistant-ask-option[aria-pressed="true"] .assistant-ask-key,
 .assistant-ask-option[aria-pressed="true"] .assistant-ask-description,
+.assistant-ask-option[aria-pressed="true"] .assistant-ask-about,
+.assistant-ask-option[aria-pressed="true"] .assistant-ask-listen,
 .assistant-ask-option[aria-pressed="true"] .assistant-ask-suggested {
   color: var(--color-on-accent);
 }

@@ -97,6 +97,11 @@ export interface UseEditorSessionResult {
   beginPreview(
     commands: RawCommandInput | readonly RawCommandInput[],
   ): PreviewResult | undefined;
+  /**
+   * The committed project, never a preview of it, or `null` before a session
+   * has loaded. Not reactive: `state.project` is what changes.
+   */
+  committedProject(): Project | null;
   undo(): TransactionResult | null | undefined;
   redo(): TransactionResult | null | undefined;
   /** The explicit retry affordance PRD `PRJ-03` requires for a failed save. */
@@ -284,6 +289,7 @@ export function useEditorSession(
     dispatch: (commands) => session?.dispatch(commands),
     beginGesture: (options) => session?.beginGesture(options),
     beginPreview: (commands) => session?.beginPreview(commands),
+    committedProject: () => session?.committedProject ?? null,
     undo: () => session?.undo(),
     redo: () => session?.redo(),
     retry: () => session?.autosave.retry(),

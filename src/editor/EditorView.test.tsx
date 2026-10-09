@@ -3858,6 +3858,101 @@ describe("EditorView assistant panel", () => {
     );
   });
 
+  it("selects what a picked option is about: a clip, in the arrangement (GRV-42)", async () => {
+    const project = createSliceFixtureProject();
+    const placement = project.song.placements[0];
+    if (!placement) throw new Error("the slice fixture needs a placement");
+    const { client } = await renderTalking(project);
+    await openAndSend(client, "Which part?");
+    fireAndFlush(() => {
+      const turn = client.last();
+      turn.emit({
+        type: "ask",
+        ask: {
+          id: "toolu_ref",
+          question: "Which part?",
+          options: [
+            { label: "That clip", ref: { kind: "clip", clipId: placement.clipId } },
+            { label: "Something else" },
+          ],
+          multiSelect: false,
+        },
+      });
+      turn.emit({
+        type: "done",
+        stopped: false,
+        stopReason: "tool_use",
+        requestsRemaining: 9,
+      });
+    });
+    const chip = within(askCard() as HTMLElement).getByRole("button", {
+      name: "That clip",
+    });
+    expect(chip).toHaveTextContent(/Clip /);
+
+    press("1");
+    await waitFor(() =>
+      expect(screen.getByTestId("arrangement-selection-live")).toHaveTextContent(
+        "Selected clip on BD, bar 1",
+      ),
+    );
+    expect(askCard()).toBeNull();
+  });
+
+  it("previews an option's sound on Space, and puts it away when focus leaves (GRV-42)", async () => {
+    const { client } = await renderTalking(createSliceFixtureProject());
+    await openAndSend(client, "Slower?");
+    fireAndFlush(() => {
+      const turn = client.last();
+      turn.emit({
+        type: "ask",
+        ask: {
+          id: "toolu_hear",
+          question: "How slow?",
+          options: [
+            {
+              label: "100 BPM",
+              sound: {
+                kind: "preview",
+                calls: [
+                  {
+                    name: "parameter_set",
+                    input: {
+                      target: { scope: "song", parameterId: "song.tempo" },
+                      value: 100,
+                    },
+                  },
+                ],
+              },
+            },
+            { label: "Leave it" },
+          ],
+          multiSelect: false,
+        },
+      });
+      turn.emit({
+        type: "done",
+        stopped: false,
+        stopReason: "tool_use",
+        requestsRemaining: 9,
+      });
+    });
+    const tempo = () => screen.getByRole("spinbutton", { name: "Tempo (BPM)" });
+    expect(tempo()).toHaveValue(120);
+    const chip = within(askCard() as HTMLElement).getByRole("button", {
+      name: "100 BPM",
+    });
+    fireAndFlush(() => chip.focus());
+    press(" ");
+    // The song shows the preview; nothing was answered or applied.
+    await waitFor(() => expect(tempo()).toHaveValue(100));
+    expect(askCard()).toBeInTheDocument();
+    expect(client.turns).toHaveLength(1);
+
+    fireAndFlush(() => chip.blur());
+    await waitFor(() => expect(tempo()).toHaveValue(120));
+  });
+
   it("leaves 1-8 to the views while focus is outside the panel (GRV-42)", async () => {
     const { client } = await renderTalking(createSliceFixtureProject());
     await openAndSend(client, "Build me a drop");

@@ -138,3 +138,103 @@ describe("an ask in the conversation's text", () => {
     expect(answerIsEmpty({ picked: [0], text: "" })).toBe(false);
   });
 });
+
+describe("options that carry more than words (GRV-42)", () => {
+  const RICH = {
+    question: "What should change first?",
+    options: [
+      {
+        label: "The bass",
+        ref: { kind: "track", trackId: "trk_bass" },
+        sound: { kind: "track", trackId: "trk_bass" },
+      },
+      { label: "The build", ref: { kind: "bars", startBar: 13, endBar: 16 } },
+      { label: "That clip", ref: { kind: "clip", clipId: "clp_1" } },
+      {
+        label: "Slower",
+        sound: {
+          kind: "preview",
+          calls: [{ name: "parameter_set", input: { value: 100 } }],
+        },
+        doneWhen: { kind: "tempo", max: 100 },
+      },
+    ],
+    multiSelect: false,
+  };
+
+  it("round-trips references, sounds and predicates", () => {
+    const ask = parseAskCall({
+      id: "toolu_9",
+      name: ASK_PRODUCER_TOOL_NAME,
+      input: RICH,
+    });
+    expect(ask).toEqual({ id: "toolu_9", ...RICH });
+    expect(parseAssistantAsk(JSON.parse(JSON.stringify(ask)))).toEqual(ask);
+  });
+
+  it("offers them in the tool's schema", () => {
+    const schema = JSON.stringify(askProducerTool().inputSchema);
+    for (const word of [
+      "ref",
+      "sound",
+      "doneWhen",
+      "trackAdded",
+      "preview",
+      "startBar",
+    ]) {
+      expect(schema).toContain(word);
+    }
+  });
+
+  it.each([
+    [
+      "a bar range that ends before it starts",
+      { kind: "bars", startBar: 9, endBar: 4 },
+      "ref",
+    ],
+    ["bar 0", { kind: "bars", startBar: 0, endBar: 4 }, "ref"],
+    ["a reference of no known kind", { kind: "section", sectionId: "sec_1" }, "ref"],
+    ["a range with no bounds", { kind: "tempo" }, "doneWhen"],
+    [
+      "a range upside down",
+      { kind: "trackVolume", trackId: "t", min: -3, max: -9 },
+      "doneWhen",
+    ],
+    ["a predicate of no known kind", { kind: "keyChanged" }, "doneWhen"],
+    ["a preview with no changes", { kind: "preview", calls: [] }, "sound"],
+    [
+      "a preview with too many changes",
+      {
+        kind: "preview",
+        calls: Array.from({ length: 21 }, () => ({ name: "parameter_set", input: {} })),
+      },
+      "sound",
+    ],
+  ])("refuses %s", (_name, value, field) => {
+    const input = {
+      ...INPUT,
+      options: [{ label: "A", [field]: value }, { label: "B" }],
+    };
+    expect(askProducerInputSchema.safeParse(input).success).toBe(false);
+  });
+
+  it("names them in the transcript the model reads back", () => {
+    const ask = parseAskCall({
+      id: "toolu_9",
+      name: ASK_PRODUCER_TOOL_NAME,
+      input: RICH,
+    });
+    if (!ask) throw new Error("the rich ask did not parse");
+    const transcript = askTranscript(ask);
+    expect(transcript).toContain("1. The bass <track trk_bass> [audible]");
+    expect(transcript).toContain("2. The build <bars 13-16>");
+    expect(transcript).toContain("3. That clip <clip clp_1>");
+    expect(transcript).toContain("4. Slower [audible] [answered by doing it]");
+  });
+
+  it("says an answer made in the editor was done there", () => {
+    expect(answerMessage(ASK, { picked: [0], text: "", byDoing: true })).toBe(
+      '[Answer to "Where should the drop land?"] Did it in the editor: Bar 17.',
+    );
+  });
+});

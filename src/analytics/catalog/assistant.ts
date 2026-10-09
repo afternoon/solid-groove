@@ -45,6 +45,7 @@ export const ASSISTANT_SHORTCUT_ACTION_IDS = [
   "assistant.ask_option_7",
   "assistant.ask_option_8",
   "assistant.ask_finish",
+  "assistant.ask_hear",
 ] as const;
 
 /**
