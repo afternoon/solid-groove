@@ -30,10 +30,11 @@ import type { RawCommandInput } from "../../commands/types";
 import { readControl } from "../../controls/readControl";
 import { deviceParameters, deviceTypeDefinition } from "../../domain/devices";
 import type { Device, Project } from "../../domain/entities";
+import { ID_PREFIXES, ID_SUFFIX_LENGTH } from "../../domain/ids";
 import { bareParameterId, instrumentParameters } from "../../domain/parameters";
 import { serializeClip, serializeSong } from "../../domain/serialize";
 import { factoryLibrary } from "../../library/factoryLibrary";
-import { historyProposalTarget } from "../../testing/historyProposalTarget";
+import { historyProposalTarget } from "../historyProposalTarget";
 import { type ValidProposal, validateProposal } from "../proposal";
 import { createProposalExecutor, type ProposalTarget } from "../proposalExecutor";
 import { ASSISTANT_COMMAND_TYPES } from "../tools";
@@ -538,7 +539,16 @@ export function checkGrounded(
 // 6. Extreme is not flattened
 // ---------------------------------------------------------------------------
 
-const ENTITY_ID = /\b(?:trk|clp|evt|plc|dev|pad|ret|sec|ast)_[A-Za-z0-9_-]{21}\b/g;
+/**
+ * Any entity ID, by the domain's own prefixes. The suffix alphabet includes
+ * `-` and `_`, which `\b` does not treat as word characters, so the bounds
+ * are explicit: an ID that ends in `-` still matches, and a longer run of ID
+ * characters never matches a 21-character slice of itself.
+ */
+const ENTITY_ID = new RegExp(
+  `(?<![A-Za-z0-9_-])(?:${Object.values(ID_PREFIXES).join("|")})_[A-Za-z0-9_-]{${ID_SUFFIX_LENGTH}}(?![A-Za-z0-9_-])`,
+  "g",
+);
 
 /**
  * The proposal's commands with every ID it made up replaced by its order of

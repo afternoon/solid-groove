@@ -13,6 +13,12 @@
  * Each turn's reply is kept whole (its text and its proposal), and every check
  * is judged from what was kept, so {@link evaluateRecords} can replay a saved
  * report's proposals against the current checks without calling anything.
+ *
+ * A turn that *errored* (the provider refused or failed, the transport broke,
+ * the turn timed out, or judging it threw) is not the model's answer, so it is
+ * judged by no check at all: it is counted apart, with the provider's failure
+ * kinds and HTTP status, and never lowers a pass rate. A reply that came back
+ * with no proposal is the model's answer, and fails check 1.
  */
 import {
   ASSISTANT_MODEL_ID,
@@ -29,6 +35,7 @@ import {
   type AssistantStopReason,
 } from "../protocol";
 import type { AssistantProvider } from "../provider";
+import type { AssistantTurnLog } from "../telemetry";
 import { ASSISTANT_TOOLSET_VERSION } from "../tools";
 import { casePairs, type EvalCase, resolveScope, resolveSelection } from "./cases";
 import {
@@ -46,11 +53,31 @@ import {
 } from "./checks";
 import { describeProposal, type ProposalStats } from "./describe";
 
+/** Why a turn errored, as far as the gateway and the provider said. */
+export interface EvalTurnError {
+  /**
+   * The gateway's error code (`provider_error`, `provider_unavailable`, ...),
+   * `internal_error` for an unknown throw, `eval_timeout` when the turn ran
+   * past the eval's own limit, or `eval_error` when judging it threw.
+   */
+  readonly code: string;
+  readonly message: string;
+  /** The last HTTP status a failed provider attempt carried, if any. */
+  readonly providerStatus: number | null;
+  /** Why each failed provider attempt failed, in order (`rejected`, `rate_limited`, ...). */
+  readonly providerFailures: readonly string[];
+}
+
 /** What one turn came back with, or how it failed. */
 export interface EvalTurn {
   readonly durationMs: number;
-  /** The gateway's error code and message, when the turn failed. */
+  /**
+   * One line saying why the turn errored, provider status included; null when
+   * it came back with a reply. An errored turn is judged by no check.
+   */
   readonly error: string | null;
+  /** The same failure, field by field. Absent from reports saved before it existed. */
+  readonly turnError?: EvalTurnError | null;
   readonly stopReason: AssistantStopReason | null;
   readonly text: string;
   readonly proposal: AssistantProposal | null;
@@ -64,7 +91,7 @@ export interface EvalRecord extends EvalTurn {
   readonly request: string;
   /** 1-based. Check 6 compares across all of a pair's runs. */
   readonly run: number;
-  /** Check 6 is only judged on an extreme case's records. */
+  /** Check 6 is only judged on an extreme case's records; an errored turn has none. */
   readonly checks: Partial<Record<CheckId, CheckResult>>;
   readonly stats: ProposalStats | null;
   /** The proposal with its fresh IDs normalised; null when it did not apply. */
@@ -81,11 +108,38 @@ export interface EvalReport {
   readonly runsPerCase: number;
   readonly caseIds: readonly string[];
   readonly records: readonly EvalRecord[];
+  /** Why the run stopped before every turn ran, or null when it did not. */
+  readonly aborted: string | null;
   readonly summary: {
     readonly checks: Record<CheckId, Tally>;
     readonly cases: Record<string, Partial<Record<CheckId, Tally>>>;
+    /** Turns that errored and were judged by no check, overall and per case. */
+    readonly errored: {
+      readonly total: number;
+      /** Of those, turns the provider refused for the API key (HTTP 401 or 403). */
+      readonly auth: number;
+      readonly cases: Record<string, number>;
+    };
   };
 }
+
+/** The provider refused the API key: every other turn will be refused too. */
+export function isAuthError(error: EvalTurnError | null | undefined): boolean {
+  return error?.providerStatus === 401 || error?.providerStatus === 403;
+}
+
+/** One line for an errored turn: the code, our message, and what the provider said. */
+export function describeTurnError(error: EvalTurnError): string {
+  const provider = [
+    error.providerFailures.length > 0 ? error.providerFailures.join(", ") : null,
+    error.providerStatus === null ? null : `HTTP ${error.providerStatus}`,
+  ].filter((part): part is string => part !== null);
+  const auth = isAuthError(error) ? " The provider rejected the API key." : "";
+  return `${error.code}: ${error.message}${provider.length > 0 ? ` (provider: ${provider.join(", ")})` : ""}${auth}`;
+}
+
+/** The eval's own limit on one turn, retries included. */
+export const DEFAULT_TURN_TIMEOUT_MS = 120_000;
 
 /**
  * The in-memory guards' limits: high enough that a full run never trips them.
@@ -104,7 +158,11 @@ export interface RunTurnOptions {
   readonly provider: AssistantProvider;
   readonly model?: AssistantModelProfile;
   readonly now?: () => number;
+  /** Aborts a turn that runs longer, as an errored turn. Default {@link DEFAULT_TURN_TIMEOUT_MS}. */
+  readonly turnTimeoutMs?: number;
 }
+
+class EvalTimeout extends Error {}
 
 /** Runs one case once through the gateway's own turn. Never throws for a failed turn. */
 export async function runCaseTurn(
@@ -117,48 +175,89 @@ export async function runCaseTurn(
     project,
     resolveSelection(project, evalCase.selection),
   );
+  const timeoutMs = options.turnTimeoutMs ?? DEFAULT_TURN_TIMEOUT_MS;
+  const controller = new AbortController();
+  let turnLog: AssistantTurnLog | null = null;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timedOut = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      controller.abort();
+      reject(new EvalTimeout());
+    }, timeoutMs);
+  });
   const startedAt = now();
   try {
-    const result = await runAssistantTurn(
-      {
-        provider: options.provider,
-        guards: createInMemoryGuardStores(),
-        log: () => {},
-        now,
-        model: options.model,
-        guardLimits: EVAL_GUARD_LIMITS,
-      },
-      EVAL_CALLER,
-      {
-        projectRevision: project.metadata.revision,
-        messages: [{ role: "user", text: evalCase.request }],
-        context,
-      },
-      { signal: new AbortController().signal, onChunk: () => {} },
-    );
+    const result = await Promise.race([
+      runAssistantTurn(
+        {
+          provider: options.provider,
+          guards: createInMemoryGuardStores(),
+          log: (record) => {
+            turnLog = record;
+          },
+          now,
+          model: options.model,
+          guardLimits: EVAL_GUARD_LIMITS,
+        },
+        EVAL_CALLER,
+        {
+          projectRevision: project.metadata.revision,
+          messages: [{ role: "user", text: evalCase.request }],
+          context,
+        },
+        { signal: controller.signal, onChunk: () => {} },
+      ),
+      timedOut,
+    ]);
     return {
       durationMs: now() - startedAt,
       error: null,
+      turnError: null,
       stopReason: result.stopReason,
       text: result.text,
       proposal: result.proposal,
     };
   } catch (error) {
-    const reason =
-      error instanceof AssistantGatewayError
-        ? `${error.code}: ${error.message}`
-        : `internal_error: ${error instanceof Error ? error.message : String(error)}`;
-    return {
-      durationMs: now() - startedAt,
-      error: reason,
-      stopReason: null,
-      text: "",
-      proposal: null,
+    const log = turnLog as AssistantTurnLog | null;
+    const provider = {
+      providerStatus: log?.providerStatus ?? null,
+      providerFailures: log?.failures ?? [],
     };
+    const turnError: EvalTurnError =
+      error instanceof EvalTimeout || controller.signal.aborted
+        ? {
+            code: "eval_timeout",
+            message: `The turn took longer than ${Math.round(timeoutMs / 1000)} s and was aborted.`,
+            ...provider,
+          }
+        : error instanceof AssistantGatewayError
+          ? { code: error.code, message: error.message, ...provider }
+          : {
+              code: "internal_error",
+              message: error instanceof Error ? error.message : String(error),
+              ...provider,
+            };
+    return erroredTurn(now() - startedAt, turnError);
+  } finally {
+    clearTimeout(timer);
   }
 }
 
-/** Checks 1 to 5 on one turn, and its descriptive numbers. */
+function erroredTurn(durationMs: number, turnError: EvalTurnError): EvalTurn {
+  return {
+    durationMs,
+    error: describeTurnError(turnError),
+    turnError,
+    stopReason: null,
+    text: "",
+    proposal: null,
+  };
+}
+
+/**
+ * Checks 1 to 5 on one turn, and its descriptive numbers. An errored turn is
+ * judged by no check.
+ */
 export function evaluateTurn(
   evalCase: EvalCase,
   run: number,
@@ -172,13 +271,9 @@ export function evaluateTurn(
     request: evalCase.request,
     run,
   };
+  if (turn.error) return { ...base, checks: {}, stats: null, fingerprint: null };
   const project = evalCase.fixture();
-  const valid = turn.error
-    ? {
-        result: { status: "fail" as const, detail: `The turn failed: ${turn.error}` },
-        applied: null,
-      }
-    : checkValid(project, turn.proposal);
+  const valid = checkValid(project, turn.proposal);
   if (!valid.applied) {
     const notJudged = skip("The proposal did not apply");
     return {
@@ -219,7 +314,7 @@ export function judgeFlattening(
   );
   return records.map((record) => {
     const conventionalId = conventionalOf.get(record.caseId);
-    if (!conventionalId) return record;
+    if (!conventionalId || record.error) return record;
     const conventional = records
       .filter((candidate) => candidate.caseId === conventionalId)
       .map((candidate) => candidate.fingerprint);
@@ -243,9 +338,17 @@ export function summarize(records: readonly EvalRecord[]): EvalReport["summary"]
     Tally
   >;
   const cases: Record<string, Partial<Record<CheckId, Tally>>> = {};
+  const errored = { total: 0, auth: 0, cases: {} as Record<string, number> };
   for (const record of records) {
     const perCase = cases[record.caseId] ?? {};
     cases[record.caseId] = perCase;
+    errored.cases[record.caseId] ??= 0;
+    if (record.error) {
+      errored.total += 1;
+      errored.cases[record.caseId] += 1;
+      if (isAuthError(record.turnError)) errored.auth += 1;
+      continue;
+    }
     for (const id of CHECK_IDS) {
       const result = record.checks[id];
       if (!result) continue;
@@ -255,7 +358,7 @@ export function summarize(records: readonly EvalRecord[]): EvalReport["summary"]
       perCase[id] = tally;
     }
   }
-  return { checks, cases };
+  return { checks, cases, errored };
 }
 
 export interface ReportMeta {
@@ -264,6 +367,7 @@ export interface ReportMeta {
   readonly promptVersion?: string;
   readonly toolsetVersion?: number;
   readonly runsPerCase: number;
+  readonly aborted?: string | null;
 }
 
 /** Judges check 6 and builds the report from records that carry checks 1 to 5. */
@@ -280,6 +384,7 @@ export function buildReport(
     toolsetVersion: meta.toolsetVersion ?? ASSISTANT_TOOLSET_VERSION,
     runsPerCase: meta.runsPerCase,
     caseIds: cases.map((entry) => entry.id),
+    aborted: meta.aborted ?? null,
     records: judged,
     summary: summarize(judged),
   };
@@ -300,6 +405,40 @@ export function evaluateRecords(
   });
 }
 
+/**
+ * {@link evaluateTurn}, except that a throw while judging (a bug in a check,
+ * say) is kept as an errored record rather than losing every other turn.
+ */
+export function evaluateTurnSafely(
+  evalCase: EvalCase,
+  run: number,
+  turn: EvalTurn,
+): EvalRecord {
+  try {
+    return evaluateTurn(evalCase, run, turn);
+  } catch (error) {
+    const judged: EvalTurnError = {
+      code: "eval_error",
+      message: `Judging the turn threw: ${error instanceof Error ? error.message : String(error)}`,
+      providerStatus: null,
+      providerFailures: [],
+    };
+    return {
+      ...turn,
+      error: describeTurnError(judged),
+      turnError: judged,
+      caseId: evalCase.id,
+      capability: evalCase.capability,
+      axis: evalCase.axis,
+      request: evalCase.request,
+      run,
+      checks: {},
+      stats: null,
+      fingerprint: null,
+    };
+  }
+}
+
 export interface RunEvalsOptions extends RunTurnOptions {
   readonly cases: readonly EvalCase[];
   readonly runs: number;
@@ -308,31 +447,59 @@ export interface RunEvalsOptions extends RunTurnOptions {
   readonly onRecord?: (record: EvalRecord) => void;
 }
 
-/** Runs every case `runs` times and builds the report. */
+export const AUTH_ABORT_REASON =
+  "The provider rejected the API key (HTTP 401/403), so no further turns were run.";
+
+/**
+ * Runs every case `runs` times and builds the report. If the provider rejects
+ * the API key before any turn has come back with a reply, it stops starting
+ * turns: every one would be refused, and the report says so in `aborted`.
+ */
 export async function runEvals(options: RunEvalsOptions): Promise<EvalReport> {
   const model = options.model ?? ASSISTANT_MODELS[ASSISTANT_MODEL_ID];
   const now = options.now ?? Date.now;
   const jobs = options.cases.flatMap((evalCase) =>
     Array.from({ length: options.runs }, (_, index) => ({ evalCase, run: index + 1 })),
   );
-  const records: EvalRecord[] = new Array(jobs.length);
+  const records: (EvalRecord | undefined)[] = new Array(jobs.length);
   let next = 0;
+  let replied = false;
+  let aborted: string | null = null;
   const worker = async () => {
-    while (next < jobs.length) {
+    while (next < jobs.length && aborted === null) {
       const index = next;
       next += 1;
       const { evalCase, run } = jobs[index];
       const turn = await runCaseTurn(evalCase, { ...options, model, now });
-      const record = evaluateTurn(evalCase, run, turn);
+      const record = evaluateTurnSafely(evalCase, run, turn);
       records[index] = record;
+      if (!turn.error) replied = true;
+      else if (!replied && isAuthError(turn.turnError)) aborted = AUTH_ABORT_REASON;
       options.onRecord?.(record);
     }
   };
   const lanes = Math.max(1, Math.min(options.concurrency ?? 1, jobs.length));
   await Promise.all(Array.from({ length: lanes }, worker));
-  return buildReport(records, options.cases, {
-    generatedAt: new Date(now()).toISOString(),
-    model: model.id,
-    runsPerCase: options.runs,
-  });
+  return buildReport(
+    records.filter((record): record is EvalRecord => record !== undefined),
+    options.cases,
+    {
+      generatedAt: new Date(now()).toISOString(),
+      model: model.id,
+      runsPerCase: options.runs,
+      aborted,
+    },
+  );
+}
+
+/**
+ * The script's exit status for a finished run: 1 when the run stopped early
+ * or every turn errored, since then there is nothing to read the pass rates
+ * from; 0 otherwise, whatever the pass rates are.
+ */
+export function evalExitCode(report: EvalReport): 0 | 1 {
+  if (report.aborted) return 1;
+  if (report.records.length > 0 && report.summary.errored.total === report.records.length)
+    return 1;
+  return 0;
 }

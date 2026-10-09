@@ -44,6 +44,23 @@ function statsLine(record: EvalRecord): string {
   return parts.filter((part): part is string => part !== null).join("; ");
 }
 
+function erroredLines(report: EvalReport): string[] {
+  const { errored } = report.summary;
+  const lines: string[] = [];
+  if (report.aborted) lines.push(`**The run stopped early.** ${report.aborted}`, "");
+  if (errored.total > 0) {
+    const auth =
+      errored.auth > 0
+        ? `, ${errored.auth} of them because the provider rejected the API key`
+        : "";
+    lines.push(
+      `**Errored turns: ${errored.total} of ${report.records.length}**${auth}. They are not the model's answers, so no check judged them; each is listed under its run below.`,
+      "",
+    );
+  }
+  return lines;
+}
+
 export function renderMarkdown(report: EvalReport): string {
   const lines: string[] = [
     "# Assistant musical capability evals",
@@ -52,10 +69,11 @@ export function renderMarkdown(report: EvalReport): string {
     `- Model: \`${report.model}\``,
     `- Prompt version: \`${report.promptVersion}\``,
     `- Tool set version: ${report.toolsetVersion}`,
-    `- Runs per case: ${report.runsPerCase}; cases: ${report.caseIds.length}; proposals: ${report.records.length}`,
+    `- Runs per case: ${report.runsPerCase}; cases: ${report.caseIds.length}; turns: ${report.records.length}; errored turns: ${report.summary.errored.total}`,
     "",
-    "Pass rates count the proposals a check could judge. A proposal that did not apply fails check 1 and is not judged by checks 2 to 5. Check 6 is judged on extreme cases only. Nothing gates on the descriptive numbers.",
+    "Pass rates count the proposals a check could judge. A reply with no proposal, or one that did not apply, fails check 1 and is not judged by checks 2 to 5. A turn that errored (the provider or the transport failed, or it timed out) is not judged by any check and is counted apart. Check 6 is judged on extreme cases only. Nothing gates on the descriptive numbers.",
     "",
+    ...erroredLines(report),
     "## Pass rate per check",
     "",
     "| Check | Pass rate |",
@@ -66,15 +84,15 @@ export function renderMarkdown(report: EvalReport): string {
     "",
     "## By case",
     "",
-    `| Case | ${CHECK_IDS.map((id) => CHECK_LABELS[id].split(".")[0]).join(" | ")} |`,
-    `| --- | ${CHECK_IDS.map(() => "---").join(" | ")} |`,
+    `| Case | ${CHECK_IDS.map((id) => CHECK_LABELS[id].split(".")[0]).join(" | ")} | Errored |`,
+    `| --- | ${CHECK_IDS.map(() => "---").join(" | ")} | --- |`,
     ...report.caseIds.map((caseId) => {
       const tallies = report.summary.cases[caseId] ?? {};
       const cells = CHECK_IDS.map((id: CheckId) => {
         const tally = tallies[id];
         return tally ? `${tally.pass}/${tally.pass + tally.fail}` : "-";
       });
-      return `| \`${caseId}\` | ${cells.join(" | ")} |`;
+      return `| \`${caseId}\` | ${cells.join(" | ")} | ${report.summary.errored.cases[caseId] ?? 0} |`;
     }),
     "",
     "## Runs",
@@ -91,6 +109,13 @@ export function renderMarkdown(report: EvalReport): string {
       "",
     );
     for (const record of records) {
+      if (record.error) {
+        lines.push(
+          `**Run ${record.run}** (${Math.round(record.durationMs / 1000)} s): errored, not judged: ${cell(record.error)}`,
+          "",
+        );
+        continue;
+      }
       lines.push(
         `**Run ${record.run}** (${Math.round(record.durationMs / 1000)} s, stop: ${record.stopReason ?? "none"}): ${statsLine(record)}`,
       );

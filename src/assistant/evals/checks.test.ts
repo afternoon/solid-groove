@@ -29,7 +29,7 @@ import {
 import { createSeededIdFactory } from "../../domain/ids";
 import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH } from "../../domain/time";
 import { factoryLibraryEntry, factoryPack } from "../../library/factoryLibrary";
-import { historyProposalTarget } from "../../testing/historyProposalTarget";
+import { historyProposalTarget } from "../historyProposalTarget";
 import { toolNameFor } from "../tools";
 import { type EvalScope, resolveScope } from "./cases";
 import {
@@ -419,6 +419,31 @@ describe("check 6: extreme is not flattened", () => {
     expect(proposalFingerprint(project, applied([bassDown]).proposal.commands)).not.toBe(
       proposalFingerprint(project, applied([lead]).proposal.commands),
     );
+  });
+
+  it("normalises fresh IDs that end in '-' and automation IDs", () => {
+    // Raw commands are enough: the fingerprint never applies them.
+    const raw = (trackId: string, laneId: string): RawCommandInput[] => [
+      { type: "track.rename", payload: { trackId, laneId, name: "Pad" } },
+    ];
+    const first = proposalFingerprint(
+      project,
+      raw(`trk_${"a".repeat(20)}-`, `aut_${"b".repeat(20)}_`),
+    );
+    const second = proposalFingerprint(
+      project,
+      raw(`trk_${"c".repeat(20)}-`, `aut_${"d".repeat(20)}-`),
+    );
+    expect(first).toBe(second);
+    expect(first).toContain('"trk#1"');
+    expect(first).toContain('"aut#2"');
+  });
+
+  it("does not match a 21-character slice of a longer run", () => {
+    const fingerprint = proposalFingerprint(project, [
+      { type: "track.rename", payload: { trackId: `trk_${"a".repeat(22)}` } },
+    ]);
+    expect(fingerprint).toContain(`trk_${"a".repeat(22)}`);
   });
 
   it("skips when either side has nothing that applied", () => {

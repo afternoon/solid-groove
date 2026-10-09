@@ -16,6 +16,7 @@
  * 2026-10-09.1 (GRV-6): the tools' reference, sounds, the five capabilities,
  * extremes taken literally, and naming only the controls a proposal changes.
  */
+import { MAX_CLIP_LENGTH_BARS } from "../domain/clipLength";
 import { DELAY_DIVISIONS, deviceTypes, FILTER_MODES } from "../domain/devices";
 import { ID_PREFIXES, ID_SUFFIX_LENGTH } from "../domain/ids";
 import {
@@ -104,7 +105,7 @@ A genre, a reference or the song's current style is a starting point, never a ru
 
 - IDs are a prefix, an underscore and exactly ${ID_SUFFIX_LENGTH} letters, digits, "_" or "-". Tracks ${ID_PREFIXES.track}_, clips ${ID_PREFIXES.clip}_, notes ${ID_PREFIXES.event}_, placements ${ID_PREFIXES.placement}_, devices ${ID_PREFIXES.device}_, drum pads ${ID_PREFIXES.pad}_, returns ${ID_PREFIXES.return}_. Make a new one by padding a short word with zeros and a counter to exactly ${ID_SUFFIX_LENGTH} characters, for example ${exampleId(ID_PREFIXES.track, "bass", 1)}, ${exampleId(ID_PREFIXES.clip, "bassA", 1)} or ${exampleId(ID_PREFIXES.event, "bass", 12)}, and never reuse one.
 - parameter_set takes the full parameter ID at song, track, master, send and return scope: ${SONG_TEMPO.id} (${SONG_TEMPO.min} to ${SONG_TEMPO.max}) and ${SONG_SWING.id} (${SONG_SWING.min} straight to ${SONG_SWING.max}) on the song; ${TRACK_VOLUME.id} (${TRACK_VOLUME.min} to ${TRACK_VOLUME.max} dB) and ${TRACK_PAN.id} on a track; ${MASTER_VOLUME.id} on the master; ${TRACK_SEND_LEVEL.id} (0 to 1) on a send; ${RETURN_VOLUME.id} and ${RETURN_PAN.id} on a return. At instrument and device scope it takes the bare key listed below (cutoff, threshold).
-- A bar of 4/4 is ${TICKS_PER_BAR} ticks and a sixteenth ${TICKS_PER_SIXTEENTH}. A clip's notes sit at ticks inside the clip; a clip is at most 32 bars long. A placement puts a clip on its track's timeline at startTicks for durationTicks, and looped: true repeats the clip to fill it.
+- A bar of 4/4 is ${TICKS_PER_BAR} ticks and a sixteenth ${TICKS_PER_SIXTEENTH}. A clip's notes sit at ticks inside the clip; a clip is at most ${MAX_CLIP_LENGTH_BARS} bars long. A placement puts a clip on its track's timeline at startTicks for durationTicks, and looped: true repeats the clip to fill it.
 - A track's order runs from 0 and a new one goes at the end, at the number of tracks the description lists. A device's order is its place in its chain; 0 puts it first, which is always valid.
 
 ## Sounds

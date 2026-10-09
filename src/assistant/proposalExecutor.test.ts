@@ -23,7 +23,7 @@ import {
   TRACK_VOLUME,
 } from "../domain";
 import { createManualClock, type ManualClock } from "../shared/clock";
-import { historyProposalTarget } from "../testing/historyProposalTarget";
+import { historyProposalTarget } from "./historyProposalTarget";
 import { MAX_PROPOSAL_COMMANDS, validateProposal } from "./proposal";
 import { createProposalExecutor, type ProposalExecutor } from "./proposalExecutor";
 import { ASSISTANT_TOOLSET_VERSION, toolNameFor } from "./tools";

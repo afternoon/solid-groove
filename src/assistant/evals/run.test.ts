@@ -13,7 +13,14 @@ import { toolNameFor } from "../tools";
 import { EVAL_CASES, type EvalCase } from "./cases";
 import { createHouseLoopProject } from "./fixtures";
 import { formatTally, renderMarkdown } from "./markdown";
-import { buildReport, evaluateRecords, runEvals } from "./run";
+import {
+  AUTH_ABORT_REASON,
+  buildReport,
+  evalExitCode,
+  evaluateRecords,
+  evaluateTurnSafely,
+  runEvals,
+} from "./run";
 
 const glue = EVAL_CASES.find((entry) => entry.id === "process-glue") as EvalCase;
 const crushed = EVAL_CASES.find((entry) => entry.id === "process-crushed") as EvalCase;
@@ -93,10 +100,10 @@ describe("runEvals", () => {
     expect(report.records[3].stats?.mixer).toEqual(["Bass volume=-4 pan=0"]);
   });
 
-  it("records a reply with no proposal, and a failed turn, as invalid", async () => {
+  it("fails check 1 on a reply with no proposal, and judges an errored turn by no check", async () => {
     const provider = createScriptedAssistantProvider([
       replyEvents(["Which part should I compress?"]),
-      [{ fail: "rejected", status: 401 }],
+      [{ fail: "rejected", status: 400 }],
     ]);
     const report = await runEvals({ provider, cases: [glue], runs: 2, now: fixedNow });
     const [question, failed] = report.records;
@@ -105,9 +112,107 @@ describe("runEvals", () => {
       detail: "The reply proposed no change",
     });
     expect(question.checks.bundled?.status).toBe("skip");
-    expect(failed.error).toMatch(/^provider_error/);
-    expect(failed.checks.valid?.status).toBe("fail");
-    expect(report.summary.checks.grounded).toEqual({ pass: 0, fail: 0, skip: 2 });
+    expect(question.error).toBeNull();
+
+    expect(failed.checks).toEqual({});
+    expect(failed.turnError).toEqual({
+      code: "provider_error",
+      message: "The assistant could not take that request.",
+      providerStatus: 400,
+      providerFailures: ["rejected"],
+    });
+    expect(failed.error).toBe(
+      "provider_error: The assistant could not take that request. (provider: rejected, HTTP 400)",
+    );
+    expect(report.summary.checks.valid).toEqual({ pass: 0, fail: 1, skip: 0 });
+    expect(report.summary.checks.grounded).toEqual({ pass: 0, fail: 0, skip: 1 });
+    expect(report.summary.errored).toEqual({
+      total: 1,
+      auth: 0,
+      cases: { "process-glue": 1 },
+    });
+    expect(report.aborted).toBeNull();
+    expect(evalExitCode(report)).toBe(0);
+
+    const markdown = renderMarkdown(report);
+    expect(markdown).toContain("**Errored turns: 1 of 2**");
+    expect(markdown).toContain(
+      "| `process-glue` | 0/1 | 0/0 | 0/0 | 0/0 | 0/0 | - | 1 |",
+    );
+    expect(markdown).toContain(
+      "**Run 2** (0 s): errored, not judged: provider_error: The assistant could not take that request. (provider: rejected, HTTP 400)",
+    );
+  });
+
+  it("stops at once and exits 1 when the provider rejects the API key", async () => {
+    const provider = createScriptedAssistantProvider([
+      [{ fail: "rejected", status: 401 }],
+    ]);
+    const report = await runEvals({
+      provider,
+      cases: [glue, crushed],
+      runs: 3,
+      now: fixedNow,
+    });
+    expect(provider.requests).toHaveLength(1);
+    expect(report.records).toHaveLength(1);
+    expect(report.records[0].error).toContain("The provider rejected the API key.");
+    expect(report.summary.errored).toMatchObject({ total: 1, auth: 1 });
+    expect(report.summary.checks.valid).toEqual({ pass: 0, fail: 0, skip: 0 });
+    expect(report.aborted).toBe(AUTH_ABORT_REASON);
+    expect(evalExitCode(report)).toBe(1);
+    const markdown = renderMarkdown(report);
+    expect(markdown).toContain(`**The run stopped early.** ${AUTH_ABORT_REASON}`);
+    expect(markdown).toContain("1 of them because the provider rejected the API key");
+  });
+
+  it("exits 1 when every turn errored, for any reason", async () => {
+    const provider = createScriptedAssistantProvider([
+      [{ fail: "rejected", status: 400 }],
+    ]);
+    const report = await runEvals({ provider, cases: [glue], runs: 2, now: fixedNow });
+    expect(report.aborted).toBeNull();
+    expect(report.summary.errored.total).toBe(2);
+    expect(evalExitCode(report)).toBe(1);
+  });
+
+  it("aborts a turn that runs past the timeout and counts it as errored", async () => {
+    const provider = createScriptedAssistantProvider([
+      [{ hang: true }],
+      toolUseEvents("A Compressor on the master.", [compressorCall("a", -18)]),
+    ]);
+    const report = await runEvals({
+      provider,
+      cases: [glue],
+      runs: 2,
+      turnTimeoutMs: 20,
+    });
+    const [hung, answered] = report.records;
+    expect(hung.turnError?.code).toBe("eval_timeout");
+    expect(hung.checks).toEqual({});
+    expect(answered.checks.valid?.status).toBe("pass");
+    expect(report.summary.errored.total).toBe(1);
+    expect(provider.aborted).toBe(1);
+  });
+
+  it("keeps every other turn when judging one throws", () => {
+    const broken: EvalCase = {
+      ...glue,
+      fixture: () => {
+        throw new Error("fixture exploded");
+      },
+    };
+    const turn = {
+      durationMs: 1,
+      error: null,
+      stopReason: null,
+      text: "",
+      proposal: null,
+    };
+    const record = evaluateTurnSafely(broken, 1, turn);
+    expect(record.turnError?.code).toBe("eval_error");
+    expect(record.error).toContain("fixture exploded");
+    expect(record.checks).toEqual({});
   });
 
   it("replays a saved report's proposals against the checks without a model", async () => {

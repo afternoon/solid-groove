@@ -7,7 +7,6 @@ import {
 } from "../commands";
 import { createReferenceProject } from "../domain/fixtures";
 import { TRACK_VOLUME } from "../domain/parameters";
-import { historyProposalTarget } from "../testing/historyProposalTarget";
 import {
   type CallScript,
   createScriptedAssistantProvider,
@@ -25,6 +24,7 @@ import {
   pseudonymousUserId,
   runAssistantTurn,
 } from "./gateway";
+import { historyProposalTarget } from "./historyProposalTarget";
 import {
   createInMemoryGuardStores,
   type InMemoryGuardStores,
