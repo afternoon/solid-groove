@@ -143,7 +143,9 @@ export function useAskDraft(options: UseAskDraftOptions): AskDraft {
   }
 
   // Sent once nothing streams: an edit made while a reply is on its way
-  // answers once the reply is done, as the change still stands.
+  // answers once the reply is done, if the change still stands then. Only
+  // the producer's edits are heard above, so a change taken back by anything
+  // else is only seen here: the option is checked again before it goes.
   createEffect(
     () => ({
       pending: conversation.pendingAsk(),
@@ -157,6 +159,10 @@ export function useAskDraft(options: UseAskDraftOptions): AskDraft {
       // since the compute half above already follows everything that should
       // bring this back.
       untrack(() => {
+        const predicate = pending.ask.options[done.index]?.doneWhen;
+        const now = options.committedProject?.() ?? null;
+        if (!predicate || !pending.asked || !now) return;
+        if (!predicateHolds(predicate, pending.asked, now)) return;
         if (conversation.answerAsk({ picked: [done.index], text: "", byDoing: true })) {
           setDraft(null);
         }

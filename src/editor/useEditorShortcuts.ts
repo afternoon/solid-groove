@@ -68,6 +68,8 @@ export interface UseEditorShortcutsOptions {
     "pick" | "canFinish" | "finish" | "focused" | "canHear" | "hear"
   > & {
     readonly pending: () => boolean;
+    /** How many options the pending question has; 0 with none waiting. */
+    readonly optionCount: () => number;
     /** Whether the pending question takes several options. */
     readonly multiSelect: () => boolean;
   };
@@ -477,13 +479,14 @@ export function useEditorShortcuts(options: UseEditorShortcutsOptions) {
     },
     // A question the assistant asks (GRV-42): `1`-`8` pick its options, and
     // Enter sends a multi-select's picks. Enter on any other button in the
-    // panel (Dismiss, the header's) presses that button instead.
+    // panel (Dismiss, the header's) presses that button instead. A digit past
+    // the last option is no option, so it is left alone.
     ...Object.fromEntries(
       ASK_OPTION_SHORTCUT_IDS.map((id, index) => [
         id,
         {
           run: () => void options.assistantAsk.pick(index),
-          isEnabled: () => options.assistantAsk.pending(),
+          isEnabled: () => index < options.assistantAsk.optionCount(),
         },
       ]),
     ),

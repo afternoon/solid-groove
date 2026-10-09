@@ -93,6 +93,9 @@ async function setUp(start: Project = createSliceFixtureProject()) {
   const track = start.song.tracks[0] ?? null;
   const [shown, setShown] = createSignal<Project>(session.project);
   const [previewing, setPreviewing] = createSignal(false);
+  /** Stands in for the committed song moving without an edit event. */
+  let committedOverride: Project | null = null;
+  const committed = () => committedOverride ?? session.committedProject;
   session.subscribe((snapshot) => {
     setShown(snapshot.project);
     setPreviewing(snapshot.previewing);
@@ -131,7 +134,7 @@ async function setUp(start: Project = createSliceFixtureProject()) {
       expanded: () => panel.layout().mode === "floating",
       client: async () => client,
       analytics: () => analytics,
-      committedProject: () => session.committedProject,
+      committedProject: committed,
       link,
       editor: {
         session: {
@@ -199,7 +202,21 @@ async function setUp(start: Project = createSliceFixtureProject()) {
     { id: "toolu_tempo", name: "parameter_set", input: { ...tempoTo(bpm).payload } },
   ];
 
-  return { session, repository, client, transport, send, reply, tempoCall, start };
+  const setCommitted = (project: Project) => {
+    committedOverride = project;
+  };
+
+  return {
+    session,
+    repository,
+    client,
+    transport,
+    send,
+    reply,
+    tempoCall,
+    start,
+    setCommitted,
+  };
 }
 
 const panel = () => screen.getByRole("region", { name: "Assistant" });
@@ -233,10 +250,14 @@ describe("a question answered by doing, against the editor session (GRV-42)", ()
     expect(askCard()).toBeNull();
     expect(client.turns).toHaveLength(2);
     expect(client.last().request.messages.at(-1)?.text).toBe(DID_IT);
-    expect(transport.named("assistant_ask_answered")[0]?.params).toMatchObject({
-      how: "did_it",
-      option_count: 3,
-    });
+    const answered = transport.named("assistant_ask_answered");
+    expect(answered).toHaveLength(1);
+    expect(answered[0]?.params).toMatchObject({ how: "did_it", option_count: 3 });
+
+    // A later edit has no question left to answer.
+    fireAndFlush(() => session.dispatch(tempoTo(85)));
+    await settle();
+    expect(transport.named("assistant_ask_answered")).toHaveLength(1);
   });
 
   it("is not answered by applying a proposal that makes the change", async () => {
@@ -355,6 +376,25 @@ describe("a question answered by doing, against the editor session (GRV-42)", ()
     await settle();
     expect(askCard()).toBeNull();
     expect(client.last().request.messages.at(-1)?.text).toContain("Did it in the editor");
+  });
+
+  it("is not answered once a reply ends if the song no longer holds the change then", async () => {
+    const { session, client, transport, send, reply, start, setCommitted } =
+      await setUp();
+    await send("Teach me tempo");
+    reply({ ask: RICH });
+
+    await send("Wait, what is a BPM?");
+    fireAndFlush(() => session.dispatch(tempoTo(90)));
+    await settle();
+    // Something that is no edit of the producer's (and so no edit event)
+    // has taken the tempo back by the time the reply ends.
+    setCommitted(start);
+    reply({});
+    await settle();
+    expect(askCard()).toBeInTheDocument();
+    expect(client.turns).toHaveLength(2);
+    expect(transport.named("assistant_ask_answered")).toHaveLength(0);
   });
 });
 

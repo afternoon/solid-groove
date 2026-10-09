@@ -469,6 +469,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     sendAssistantDraft: () => chat.sendDraft(),
     assistantAsk: {
       pending: () => chat.conversation.pendingAsk() !== null,
+      optionCount: () => chat.conversation.pendingAsk()?.ask.options.length ?? 0,
       multiSelect: () => chat.conversation.pendingAsk()?.ask.multiSelect === true,
       pick: (index) => chat.ask.pick(index),
       canFinish: () => chat.ask.canFinish(),

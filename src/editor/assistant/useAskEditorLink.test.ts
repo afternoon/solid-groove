@@ -99,13 +99,12 @@ describe("the editor's side of a question's options (GRV-42)", () => {
     expect(h.session.beginPreview).toHaveBeenCalledOnce();
   });
 
-  it("leaves a preview something else opened to stand on a hover; Space replaces it", () => {
+  it("leaves a preview something else opened to stand, on a hover and on Space", () => {
     const h = harness({ previewOpen: true });
     h.link.hear(PREVIEW);
+    h.link.hear(PREVIEW, true);
     expect(h.session.beginPreview).not.toHaveBeenCalled();
     expect(h.audio.play).not.toHaveBeenCalled();
-    h.link.hear(PREVIEW, true);
-    expect(h.session.beginPreview).toHaveBeenCalledOnce();
   });
 
   it("puts a preview away when the editor goes", () => {
