@@ -876,51 +876,57 @@ describe("My packs", () => {
     expect(repository.objects.size).toBe(2);
   });
 
-  it("refuses a sound past a pack's limit before uploading it", async () => {
-    const { repository, transport } = setUp();
-    const pack = await addNamedPack("Field Recordings");
-    const [stored] = await new Promise<readonly { id: string }[]>((resolve) => {
-      const stop = repository.watchPacks(
-        "u1",
-        (packs) => {
-          queueMicrotask(stop);
-          resolve(packs);
-        },
-        () => undefined,
-      );
-    });
-    const filler = (index: number) =>
-      ({
-        id: `ast_fill${String(index).padStart(17, "0")}`,
-        name: `fill ${index}`,
-        type: "one-shot",
-        family: "drums",
-        role: "kick",
-        storagePath: `users/u1/packs/${stored.id}/fill${index}`,
-        contentType: "audio/wav",
-        sizeBytes: 1,
-        durationSeconds: 0.1,
-        sampleRate: null,
-        channelCount: null,
-        bpm: null,
-        peaks: null,
-        addedInVersion: "1.1.0",
-        createdAt: 1,
-      }) as UserPackAsset;
-    await repository.updatePack("u1", stored.id, (current) => ({
-      ...current,
-      assets: Array.from({ length: MAX_PACK_SOUNDS - 1 }, (_, index) => filler(index)),
-    }));
+  // A pack one short of MAX_PACK_SOUNDS renders hundreds of rows: ~2.5s alone,
+  // past the 5s default under the full suite's load on CI.
+  it(
+    "refuses a sound past a pack's limit before uploading it",
+    { timeout: 20_000 },
+    async () => {
+      const { repository, transport } = setUp();
+      const pack = await addNamedPack("Field Recordings");
+      const [stored] = await new Promise<readonly { id: string }[]>((resolve) => {
+        const stop = repository.watchPacks(
+          "u1",
+          (packs) => {
+            queueMicrotask(stop);
+            resolve(packs);
+          },
+          () => undefined,
+        );
+      });
+      const filler = (index: number) =>
+        ({
+          id: `ast_fill${String(index).padStart(17, "0")}`,
+          name: `fill ${index}`,
+          type: "one-shot",
+          family: "drums",
+          role: "kick",
+          storagePath: `users/u1/packs/${stored.id}/fill${index}`,
+          contentType: "audio/wav",
+          sizeBytes: 1,
+          durationSeconds: 0.1,
+          sampleRate: null,
+          channelCount: null,
+          bpm: null,
+          peaks: null,
+          addedInVersion: "1.1.0",
+          createdAt: 1,
+        }) as UserPackAsset;
+      await repository.updatePack("u1", stored.id, (current) => ({
+        ...current,
+        assets: Array.from({ length: MAX_PACK_SOUNDS - 1 }, (_, index) => filler(index)),
+      }));
 
-    // Room for one more: of two files dropped together, the second is refused.
-    drop(pack, [audioFile("tape-kick.wav"), audioFile("door-slam.wav")]);
-    expect(await within(files()).findByText(/This pack is full/)).toBeVisible();
-    await waitFor(() => expect(transport.named("sound_imported")).toHaveLength(1));
-    expect(repository.objects.size).toBe(1);
-    expect(transport.named("sound_import_failed")[0].params).toMatchObject({
-      error_code: "pack_full",
-    });
-  });
+      // Room for one more: of two files dropped together, the second is refused.
+      drop(pack, [audioFile("tape-kick.wav"), audioFile("door-slam.wav")]);
+      expect(await within(files()).findByText(/This pack is full/)).toBeVisible();
+      await waitFor(() => expect(transport.named("sound_imported")).toHaveLength(1));
+      expect(repository.objects.size).toBe(1);
+      expect(transport.named("sound_import_failed")[0].params).toMatchObject({
+        error_code: "pack_full",
+      });
+    },
+  );
 
   it("renames and deletes a pack", async () => {
     setUp();
