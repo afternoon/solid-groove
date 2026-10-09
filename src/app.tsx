@@ -10,6 +10,7 @@ import ReleaseBadge from "./components/ReleaseBadge";
 import TapeLoader from "./components/TapeLoader";
 import { Router } from "./router";
 import { syncInternalTraffic } from "./shared/internalTraffic";
+import { reloadOnStaleBuild } from "./staleBuild";
 import { initTelemetry, surfaceForPath, type Telemetry } from "./telemetry";
 import "./app.css";
 
@@ -86,7 +87,12 @@ export default function App() {
     });
     setTelemetry(() => instance);
 
+    // A tab that outlived a deploy reloads onto the current build rather than
+    // failing on a route chunk the release no longer has (`src/staleBuild.ts`).
+    const stopStaleBuildReload = reloadOnStaleBuild();
+
     return () => {
+      stopStaleBuildReload();
       void instance.dispose();
     };
   });
