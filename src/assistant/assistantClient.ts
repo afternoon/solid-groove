@@ -5,7 +5,8 @@
  * the reply arrives as a stream of callable chunks, or that a provider exists
  * at all. A component sends an {@link AssistantTurnRequest} and receives a
  * typed sequence of {@link AssistantStreamEvent}s: `text`, then at most one
- * `proposal`, then exactly one terminal `done` or `error`.
+ * `proposal`, then at most one `ask`, then exactly one terminal `done` or
+ * `error`.
  *
  * Like the rest of `src/assistant`, this is Firebase-free and SDK-free: the
  * transport is injected ({@link AssistantTurnTransport}). The app's is the
@@ -22,6 +23,7 @@
  * the wire.
  */
 import { z } from "zod";
+import { type AssistantAsk, parseAssistantAsk } from "./ask";
 import {
   ASSISTANT_ERROR_CODES,
   type AssistantErrorCode,
@@ -38,6 +40,8 @@ export type AssistantStreamEvent =
   | { readonly type: "text"; readonly text: string }
   /** The changes the turn proposes, once it is complete. */
   | { readonly type: "proposal"; readonly proposal: AssistantProposal }
+  /** A question for the producer (GRV-42), once the turn is complete. */
+  | { readonly type: "ask"; readonly ask: AssistantAsk }
   /** The turn failed. Terminal: no `done` follows. */
   | { readonly type: "error"; readonly error: AssistantErrorDetails }
   /** The turn is over. Terminal. */
@@ -104,6 +108,7 @@ const resultSchema = z.looseObject({
   text: z.string(),
   stopReason: z.enum(["end_turn", "max_tokens", "refusal", "tool_use"]),
   proposal: proposalSchema.nullish(),
+  ask: z.unknown().nullish(),
   requestsRemaining: z.number().min(0).nullish(),
 });
 
@@ -195,9 +200,12 @@ export function createAssistantClient(
           if (settled) return;
           const turn = resultSchema.safeParse(raw);
           if (!turn.success) return malformed();
+          const ask = turn.data.ask == null ? null : parseAssistantAsk(turn.data.ask);
+          if (turn.data.ask != null && !ask) return malformed();
           if (turn.data.proposal) {
             emit({ type: "proposal", proposal: turn.data.proposal as AssistantProposal });
           }
+          if (ask) emit({ type: "ask", ask });
           emit({
             type: "done",
             stopped: false,

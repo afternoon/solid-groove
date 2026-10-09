@@ -335,6 +335,63 @@ describe("the proposal card (GRV-5)", () => {
     expect(within(card()).queryByRole("button", { name: "Refresh" })).toBeNull();
   });
 
+  it("titles a proposal that answered a question with the answer, and Refresh resends it as an answer (GRV-42)", async () => {
+    const { session, volumeTo, client } = await setUp();
+    fireAndFlush(() =>
+      fireEvent.input(composer(), { target: { value: "Build a drop" } }),
+    );
+    clickAndFlush(button("Send"));
+    await settle();
+    fireAndFlush(() => {
+      client.last().emit({
+        type: "ask",
+        ask: {
+          id: "toolu_ask",
+          question: "How loose?",
+          options: [{ label: "A little" }, { label: "A lot" }],
+          multiSelect: false,
+        },
+      });
+      client.last().done();
+    });
+    clickAndFlush(button(/A little/));
+    await settle();
+    const answer = '[Answer to "How loose?"] Picked: A little.';
+    expect(client.turns[1]?.request.messages.at(-1)).toEqual({
+      role: "user",
+      text: answer,
+    });
+    fireAndFlush(() => {
+      client.last().emit({
+        type: "proposal",
+        proposal: {
+          baseRevision: session.committedProject.metadata.revision,
+          toolsetVersion: ASSISTANT_TOOLSET_VERSION,
+          calls: [
+            {
+              id: "toolu_1",
+              name: "parameter_set",
+              input: { target: { scope: "song", parameterId: SONG_SWING.id }, value: 58 },
+            },
+          ],
+        },
+      });
+      client.last().done();
+    });
+    expect(card()).toHaveTextContent("A little");
+    expect(card()).not.toHaveTextContent("[Answer to");
+
+    fireAndFlush(() => session.dispatch(volumeTo(-6)));
+    await press(cardButton("Refresh"));
+    expect(client.turns).toHaveLength(3);
+    expect(client.turns[2]?.request.messages.at(-1)).toEqual({
+      role: "user",
+      text: answer,
+    });
+    const log = within(panel()).getByRole("log", { name: "Conversation" });
+    expect(within(log).getAllByText("Answer · How loose?")).toHaveLength(2);
+  });
+
   it("goes out of date while previewing when the song changes under it", async () => {
     const { propose, session, volumeTo, registry, volume } = await setUp();
     await propose();

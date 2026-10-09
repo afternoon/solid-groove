@@ -73,8 +73,17 @@ function setup(view: EditorViewName) {
         dismissAction: () => undefined,
         edgeHasFocus: () => false,
         composerHasFocus: () => false,
+        askTextHasFocus: () => false,
+        focusInPanelOutsideFields: () => false,
       },
       sendAssistantDraft: vi.fn(),
+      assistantAsk: {
+        pending: () => false,
+        multiSelect: () => false,
+        pick: () => false,
+        canFinish: () => false,
+        finish: () => false,
+      },
     });
     return selection;
   });

@@ -19,17 +19,20 @@
  * 6. calls the provider, streaming the reply's text as it arrives, under a
  *    per-attempt inactivity timeout, retrying a transient failure that has
  *    not streamed anything yet, and abandoning the call if the browser goes away;
- * 7. validates the reply and logs one redacted record of how it went.
- *
+ * 7. validates the reply and logs one redacted record of how it went;
  * 8. keeps the completed turn in the transcript store if, and only if, the
  *    account has said yes (GRV-8, `retention.ts`). Keeping it never fails or
  *    changes the turn: the reply is the same either way.
  *
- * Every turn offers the model the assistant's tool set (GRV-4). A turn that
- * stops for `tool_use` returns its calls as a proposal stamped with the
- * request's project revision and the tool set's version; the browser
- * validates it against the open project before anything can apply.
+ * Every turn offers the model the assistant's tool set (GRV-4) and
+ * `ask_producer` (GRV-42). A turn that stops for `tool_use` returns its
+ * change calls as a proposal stamped with the request's project revision and
+ * the tool set's version; the browser validates it against the open project
+ * before anything can apply. An `ask_producer` call is not a change: it is
+ * validated here and returned as the turn's question, and a malformed one is
+ * a malformed reply.
  */
+import { type AssistantAsk, askProducerTool, isAskCall, parseAskCall } from "./ask";
 import {
   ASSISTANT_CALL_LIMITS,
   ASSISTANT_HISTORY_TOKEN_BUDGET,
@@ -192,7 +195,7 @@ async function prepare(
   turn: AssistantTurnRequest,
 ): Promise<PreparedTurn> {
   const system = buildSystemBlocks(turn.context);
-  const tools = providerTools(assistantTools());
+  const tools = providerTools([...assistantTools(), askProducerTool()]);
   // The tool definitions take room in the window just as the prompt does.
   const systemTokens =
     system.reduce((sum, block) => sum + estimateTokens(block.text), 0) +
@@ -382,11 +385,12 @@ async function reserveCall(
   return decision.remaining;
 }
 
-/** The turn's tool calls as a proposal, or null when it made none. */
+/** The turn's change calls as a proposal, or null when it made none. */
 function proposalOf(
   turn: AssistantTurnRequest,
-  calls: readonly AssistantToolCall[],
+  allCalls: readonly AssistantToolCall[],
 ): AssistantProposal | null {
+  const calls = allCalls.filter((call) => !isAskCall(call));
   if (calls.length === 0) return null;
   return {
     baseRevision: turn.projectRevision,
@@ -429,6 +433,24 @@ async function keepTranscript(
     receivedAt,
   });
   deps.onTranscript?.(write);
+}
+
+/**
+ * The turn's question, or null when it asks none. The first `ask_producer`
+ * call is the question; the tool asks one at a time, so any later one is
+ * dropped. One that does not parse makes the reply malformed.
+ */
+function askOf(calls: readonly AssistantToolCall[]): AssistantAsk | null {
+  const call = calls.find(isAskCall);
+  if (!call) return null;
+  const ask = parseAskCall(call);
+  if (!ask) {
+    throw new AssistantGatewayError(
+      "malformed_response",
+      "The assistant's question came back garbled. Try again.",
+    );
+  }
+  return ask;
 }
 
 /**
@@ -507,6 +529,7 @@ export async function runAssistantTurn(
       if (cost > 0) await deps.guards.addSpend(spendDay(deps.now()), cost);
       const { outcome } = attempt;
       if (outcome.kind === "completed") {
+        const ask = askOf(outcome.toolCalls);
         finish("completed", outcome.stopReason);
         const proposal = proposalOf(turn, outcome.toolCalls);
         await keepTranscript(deps, uid, caller, turn, startedAt, {
@@ -519,6 +542,7 @@ export async function runAssistantTurn(
           text: outcome.text,
           stopReason: outcome.stopReason,
           proposal,
+          ask,
           model: model.id,
           promptVersion: ASSISTANT_PROMPT_VERSION,
           requestsRemaining,

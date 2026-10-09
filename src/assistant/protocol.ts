@@ -16,6 +16,7 @@ import {
   trackTypeSchema,
 } from "../domain/entities";
 import { MAX_SELECTED_NOTES } from "../projection/selectedNotes";
+import type { AssistantAsk } from "./ask";
 import { ASSISTANT_REQUEST_LIMITS } from "./config";
 import { assistantTurnSessionSchema } from "./transcripts";
 
@@ -175,7 +176,7 @@ export interface AssistantStreamChunk {
 
 /**
  * Why the provider stopped, as the browser needs to know it. `tool_use`: the
- * turn ends in a proposal.
+ * turn ends in a proposal, a question for the producer, or both.
  */
 export type AssistantStopReason = "end_turn" | "max_tokens" | "refusal" | "tool_use";
 
@@ -208,6 +209,8 @@ export interface AssistantTurnResult {
   readonly stopReason: AssistantStopReason;
   /** What the turn proposes to change, when it stopped for `tool_use`. */
   readonly proposal: AssistantProposal | null;
+  /** The question the turn asks the producer (`ask_producer`, GRV-42), if any. */
+  readonly ask: AssistantAsk | null;
   readonly model: string;
   readonly promptVersion: string;
   /** Provider calls the account has left in the rolling window. */

@@ -20,10 +20,14 @@
  *   a proposal: the tempo to 100 BPM.
  * - "Loosen the beat" (CF-027, any case): a proposal of two changes, swing to
  *   58% and the BD track 3 dB quieter, read from the project context.
+ * - `[ask]`: a short reply that ends in `ask_producer` (GRV-42), a single
+ *   pick among {@link EMULATOR_ASK}'s options; `[ask-multi]` asks the same
+ *   question as a multi-select.
  * - anything else: a short reply, streamed in pieces with a pause between.
  *
  * Like the rest of `src/assistant`, it imports no Firebase and no SDK.
  */
+import { ASK_PRODUCER_TOOL_NAME, type AskProducerInput } from "./ask";
 import type { AssistantProvider } from "./provider";
 import { ProviderFailure } from "./provider";
 import type { ProviderMessagesRequest } from "./providerRequest";
@@ -75,13 +79,27 @@ function textReply(chunks: readonly string[], stopReason = "end_turn"): Step[] {
   ];
 }
 
+/** The question `[ask]` asks. */
+export const EMULATOR_ASK = {
+  question: "Where should the drop land?",
+  context: "The build",
+  options: [
+    { label: "Bar 17", description: "Straight after the build" },
+    { label: "Bar 25", description: "Eight more bars of tension" },
+    { label: "Hold it back" },
+  ],
+  suggested: 0,
+} as const satisfies Omit<AskProducerInput, "multiSelect">;
+
 /** One tool call the scripted reply makes. */
 interface ScriptedCall {
+  /** The tool call's ID; `toolu_emulator_<n>` when not given. */
+  readonly id?: string;
   readonly name: string;
   readonly input: unknown;
 }
 
-/** A short reply that ends in `calls`, so the turn returns a proposal. */
+/** A short reply that ends in `calls`, so the turn returns a proposal (or a question). */
 function proposalReply(text: string, calls: readonly ScriptedCall[]): Step[] {
   const reply = textReply([text], "tool_use");
   const toolCalls = calls.flatMap((call, offset): Step[] => {
@@ -93,7 +111,7 @@ function proposalReply(text: string, calls: readonly ScriptedCall[]): Step[] {
           index,
           content_block: {
             type: "tool_use",
-            id: `toolu_emulator_${index}`,
+            id: call.id ?? `toolu_emulator_${index}`,
             name: call.name,
             input: {},
           },
@@ -190,6 +208,17 @@ function loosenProposal(request: ProviderMessagesRequest): Step[] {
   );
 }
 
+/** `[ask]`'s and `[ask-multi]`'s reply: one `ask_producer` call. */
+function askReply(multiSelect: boolean): Step[] {
+  return proposalReply("One question before I change anything.", [
+    {
+      id: "toolu_ask",
+      name: ASK_PRODUCER_TOOL_NAME,
+      input: { ...EMULATOR_ASK, multiSelect },
+    },
+  ]);
+}
+
 function lastUserMessage(request: ProviderMessagesRequest): string {
   for (let index = request.messages.length - 1; index >= 0; index -= 1) {
     const message = request.messages[index];
@@ -229,6 +258,8 @@ export function createEmulatorAssistantProvider(
     }
     if (message.includes("[propose]")) return tempoProposal();
     if (/loosen the beat/i.test(message)) return loosenProposal(request);
+    if (message.includes("[ask-multi]")) return askReply(true);
+    if (message.includes("[ask]")) return askReply(false);
     return textReply(EMULATOR_REPLY_CHUNKS);
   }
 
