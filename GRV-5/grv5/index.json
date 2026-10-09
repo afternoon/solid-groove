@@ -1,0 +1,22 @@
+{
+  "id": "grv5",
+  "title": "The assistant's proposal card",
+  "steps": [
+    {
+      "file": "01-a-proposal-every-change-old-to-new.png",
+      "caption": "A proposal: every change, old to new"
+    },
+    {
+      "file": "02-preview-the-mixer-dashed-outlines-nothin.png",
+      "caption": "Preview: the mixer, dashed outlines, nothing saved"
+    },
+    {
+      "file": "03-applied-one-undo-step-solid-outlines-why.png",
+      "caption": "Applied: one undo step, solid outlines, why it works"
+    },
+    {
+      "file": "04-out-of-date-apply-is-off-refresh-asks-ag.png",
+      "caption": "Out of date: Apply is off, Refresh asks again"
+    }
+  ]
+}
