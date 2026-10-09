@@ -3,11 +3,11 @@ import { expect, type Locator, type Page } from "@playwright/test";
 /**
  * Shared steps and locators for the assistant's core flows (CF-027, CF-028).
  *
- * The assistant does not exist yet. Every locator below is **assumed** from
- * #72 and its reference design, `docs/assistant-panel.html`, and is written
- * against accessible names and roles only, so the implementation is free to
- * arrange its markup. The PR that closes #72 either meets these names or says
- * in its body which one it changed and why.
+ * Every locator below was written from #72 and its reference design,
+ * `docs/assistant-panel.html`, before the assistant existed, against
+ * accessible names and roles only, so the implementation is free to arrange
+ * its markup. The panel (#849), the conversation (GRV-26) and the proposal
+ * card (GRV-5) meet them as written.
  *
  *  - the header's "Assistant" button (`aria-keyshortcuts` carries Ctrl+K/⌘K);
  *  - the panel: a region named "Assistant", whose header has "Minimise",
@@ -76,7 +76,7 @@ export async function reloadSaved(page: Page): Promise<void> {
   await page.reload();
 }
 
-// --- The assistant (assumed; see the header) ---------------------------------
+// --- The assistant -----------------------------------------------------------
 
 /** The header button that opens and closes the assistant. */
 export const assistantButton = (page: Page): Locator =>

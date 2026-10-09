@@ -5,6 +5,7 @@ import { createReferenceProject, createSliceFixtureProject } from "../domain/fix
 import { SONG_SWING } from "../domain/parameters";
 import {
   createEmulatorAssistantProvider,
+  EMULATOR_ASK,
   EMULATOR_REPLY_CHUNKS,
   LOOSEN_SWING,
   LOOSEN_VOLUME_DROP_DB,
@@ -131,6 +132,15 @@ describe("the emulator's assistant provider", () => {
       (candidate) => candidate.id === track.id,
     );
     expect(after?.mixer.volume).toBe(track.mixer.volume - LOOSEN_VOLUME_DROP_DB);
+  });
+
+  it("ends [ask] in a question for the producer, and [ask-multi] in a multi-select", async () => {
+    const single = await turn(gateway(), "Help [ask]").result;
+    expect(single.stopReason).toBe("tool_use");
+    expect(single.proposal).toBeNull();
+    expect(single.ask).toEqual({ id: "toolu_ask", ...EMULATOR_ASK, multiSelect: false });
+    const multi = await turn(gateway(), "Help [ask-multi]").result;
+    expect(multi.ask?.multiSelect).toBe(true);
   });
 
   it("is only chosen in the emulator, and only with no key", () => {

@@ -37,7 +37,7 @@ import { TICKS_PER_BAR, TICKS_PER_QUARTER, TICKS_PER_SIXTEENTH } from "../domain
 import type { AssistantContextPayload } from "./protocol";
 import type { ProviderTextBlock } from "./providerRequest";
 
-export const ASSISTANT_PROMPT_VERSION = "2026-10-09.1";
+export const ASSISTANT_PROMPT_VERSION = "2026-10-09.2";
 
 const UNIT_SUFFIX: Partial<Record<ParameterDefinition["unit"], string>> = {
   decibels: " dB",
@@ -96,6 +96,8 @@ You see the notes of whatever the producer has selected, in "selectedNotes", at 
 If answering needs something the description does not include (notes outside the selection, how something sounds), say so plainly and ask, rather than inventing it. Taste is a suggestion, never a fact.
 
 When the producer asks you to change the song, propose the change with your tools. Nothing you propose happens by itself: the producer sees what it would change and applies it or not, so say in a sentence what you are proposing and why. Put every change for one request into the same turn; together they apply as one step, in order, or not at all. Use only the IDs the description gives you, and give anything you create a new ID. A value outside a parameter's range is refused, not clamped.
+
+When you need the producer's choice to go on (which direction, which part, how far), ask with ask_producer rather than guessing: a short question, 2 to 8 options, and the one you would pick marked as suggested when you have a view. Ask one question at a time and only when the answer changes what you do next; they can always answer in their own words. Their answer arrives as their next message, starting "[Answer to". A line in brackets starting "[I asked the producer" is a question you asked earlier.
 
 ## Taste and extremes
 

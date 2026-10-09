@@ -13,6 +13,7 @@ import {
   replyEvents,
   toolUseEvents,
 } from "../testing/scriptedAssistantProvider";
+import { ASK_PRODUCER_TOOL_NAME } from "./ask";
 import {
   ASSISTANT_CALL_LIMITS,
   ASSISTANT_MODELS,
@@ -141,6 +142,7 @@ describe("runAssistantTurn: a completed turn", () => {
       text: "Push the kick up 2 dB.",
       stopReason: "end_turn",
       proposal: null,
+      ask: null,
       model: ASSISTANT_MODELS["claude-sonnet-5"].id,
       promptVersion: ASSISTANT_PROMPT_VERSION,
       requestsRemaining: 99,
@@ -169,6 +171,67 @@ describe("runAssistantTurn: a completed turn", () => {
   });
 });
 
+describe("runAssistantTurn: asking the producer (GRV-42)", () => {
+  const project = createReferenceProject();
+  const [track] = project.song.tracks;
+  const muteCall = call(setTrackFlag(track.id, "muted", !track.mixer.muted));
+  const askInput = {
+    question: "Where should the drop land?",
+    context: "The build, bars 13-16",
+    options: [
+      { label: "Bar 17", description: "Right after the build" },
+      { label: "Bar 25" },
+    ],
+    suggested: 0,
+  };
+  const askCall = { name: ASK_PRODUCER_TOOL_NAME, input: askInput };
+
+  it("returns an ask_producer call as the turn's question, not a proposal", async () => {
+    const h = harness([toolUseEvents("One question first.", [askCall])]);
+    const result = await run(h);
+    expect(result.stopReason).toBe("tool_use");
+    expect(result.proposal).toBeNull();
+    expect(result.ask).toEqual({ id: "toolu_1", ...askInput, multiSelect: false });
+  });
+
+  it("splits a turn that both asks and proposes", async () => {
+    const h = harness([
+      toolUseEvents("Muting it, then a question.", [muteCall, askCall]),
+    ]);
+    const result = await run(h);
+    expect(result.proposal?.calls).toEqual([{ id: "toolu_1", ...muteCall }]);
+    expect(result.ask?.id).toBe("toolu_2");
+  });
+
+  it("keeps the first question when the model asks more than one", async () => {
+    const second = { ...askCall, input: { ...askInput, question: "And the tempo?" } };
+    const h = harness([toolUseEvents("Two questions.", [askCall, second])]);
+    expect((await run(h)).ask?.question).toBe("Where should the drop land?");
+  });
+
+  it.each([
+    ["one option", { ...askInput, options: [{ label: "Bar 17" }] }],
+    [
+      "nine options",
+      {
+        ...askInput,
+        options: Array.from({ length: 9 }, (_, i) => ({ label: `Bar ${i}` })),
+      },
+    ],
+    ["a suggestion past the options", { ...askInput, suggested: 2 }],
+    [
+      "two options with one label",
+      { ...askInput, options: [{ label: "Bar 17" }, { label: "bar 17" }] },
+    ],
+    ["a field the tool does not take", { ...askInput, memory: "likes drops" }],
+  ])("treats a question with %s as a malformed reply", async (_name, input) => {
+    const h = harness([
+      toolUseEvents("A question.", [{ name: ASK_PRODUCER_TOOL_NAME, input }]),
+    ]);
+    await expectCode(run(h), "malformed_response");
+  });
+});
+
 describe("runAssistantTurn: tools and proposals (GRV-4)", () => {
   const project = createReferenceProject();
   const [track] = project.song.tracks;
@@ -177,13 +240,14 @@ describe("runAssistantTurn: tools and proposals (GRV-4)", () => {
     setParameter({ scope: "track", trackId: track.id, parameterId: TRACK_VOLUME.id }, -9),
   );
 
-  it("offers the model every assistant tool on every turn", async () => {
+  it("offers the model every assistant tool on every turn, and ask_producer", async () => {
     const h = harness([replyEvents(["ok"])]);
     await run(h);
     const sent = h.provider.requests[0];
-    expect(sent.tools.map((tool) => tool.name)).toEqual(
-      assistantTools().map((tool) => tool.name),
-    );
+    expect(sent.tools.map((tool) => tool.name)).toEqual([
+      ...assistantTools().map((tool) => tool.name),
+      ASK_PRODUCER_TOOL_NAME,
+    ]);
     for (const tool of sent.tools) expect(tool.input_schema.type).toBe("object");
   });
 

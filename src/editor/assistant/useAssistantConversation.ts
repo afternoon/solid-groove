@@ -6,15 +6,31 @@
  *
  * Every turn goes through an {@link AssistantClient}, the one door to the
  * gateway, and each is stamped with the scope it was sent with. Nothing here
- * touches the project: a proposal in a reply is only a placeholder entry
- * until GRV-5 builds the card that can apply it.
+ * touches the project: a proposal in a reply is handed to `onProposal`
+ * (the proposal card's controller, GRV-5), which is what can apply it.
  *
- * Analytics: `assistant_message_sent` with the scope, and
- * `assistant_suggestion_clicked` with the suggestion's ID. Never the text of
- * a message or a reply, and nothing about what is in scope.
+ * A reply may end in a question for the producer (`ask_producer`, GRV-42).
+ * It stays pending, above the composer, until it is answered or dismissed;
+ * a message typed meanwhile goes as usual and leaves it pending, so the
+ * assistant has both. An answer is the next turn's message, and a newer
+ * question takes the place of one still pending.
+ *
+ * Analytics: `assistant_message_sent` with the scope,
+ * `assistant_suggestion_clicked` with the suggestion's ID, and
+ * `assistant_ask_shown`/`assistant_ask_answered` with how many options a
+ * question had and how it was answered. Never the text of a message, a
+ * reply, a question or an answer, and nothing about what is in scope.
  */
 import { type Accessor, createSignal, onCleanup } from "solid-js";
 import type { Analytics } from "../../analytics/analytics";
+import {
+  type AskAnswer,
+  type AssistantAsk,
+  answerIsEmpty,
+  answerMessage,
+  askTranscript,
+  pickedLabels,
+} from "../../assistant/ask";
 import type {
   AssistantClient,
   AssistantStreamEvent,
@@ -24,11 +40,29 @@ import { ASSISTANT_REQUEST_LIMITS } from "../../assistant/config";
 import type {
   AssistantErrorDetails,
   AssistantMessage,
+  AssistantProposal,
   AssistantTurnRequest,
 } from "../../assistant/protocol";
 import type { Project } from "../../domain/entities";
 import type { SuggestionId } from "../../projection/projectAnalysisProjection";
 import { type AssistantScope, scopedContext } from "./assistantScope";
+
+/** What a turn was asked: the producer's words and the scope they were sent with. */
+export interface TurnOrigin {
+  /** The producer's words, as the log shows them. */
+  readonly text: string;
+  /** For an answer to a question (GRV-42): the question it answers. */
+  readonly answers?: string;
+  /** What the turn sent, when it is not {@link text} (an answer's full wording). */
+  readonly wire?: string;
+  readonly scope: AssistantScope;
+  /**
+   * How many changes made elsewhere had been adopted when the turn was sent
+   * (`remoteChanges`), so a proposal that arrives after one more is known to
+   * be out of date (GRV-5).
+   */
+  readonly remoteChanges: number;
+}
 
 /** One thing in the conversation's log. */
 export type ConversationEntry =
@@ -36,8 +70,16 @@ export type ConversationEntry =
   | {
       readonly kind: "message";
       readonly id: string;
+      /** What the log shows. */
       readonly text: string;
       readonly scopeLabel: string;
+      /**
+       * An answer to a question (GRV-42): the question it answers. The log
+       * shows the answer under it, and the turn sends {@link wire}.
+       */
+      readonly answers?: string;
+      /** What the turn sends, when it is not {@link text}. */
+      readonly wire?: string;
     }
   /** The assistant's reply: streaming, finished, stopped or failed part-way. */
   | {
@@ -52,9 +94,19 @@ export type ConversationEntry =
        * Try again replaces it.
        */
       readonly failed?: boolean;
+      /** The question the reply ended in (GRV-42), resent with its text. */
+      readonly ask?: AssistantAsk;
     }
-  /** A change the reply proposes; a placeholder until GRV-5. */
-  | { readonly kind: "proposal"; readonly id: string }
+  /**
+   * A change the reply proposes, as the gateway returned it, and the turn
+   * that asked for it, so Refresh can ask again in the same scope (GRV-5).
+   */
+  | {
+      readonly kind: "proposal";
+      readonly id: string;
+      readonly proposal: AssistantProposal;
+      readonly origin: TurnOrigin;
+    }
   /** The turn failed. The song is untouched. */
   | {
       readonly kind: "error";
@@ -62,9 +114,20 @@ export type ConversationEntry =
       readonly error: AssistantErrorDetails;
       /** What Try again resends. */
       readonly request: AssistantTurnRequest;
+      readonly origin: TurnOrigin;
       /** The failed turn's partial reply, which Try again replaces. */
       readonly replyId?: string;
     };
+
+/** How an answer came: an option picked, or the producer's own words. */
+export type AskAnswerHow = "pick" | "text";
+
+/** A question waiting for the producer (GRV-42). */
+export interface PendingAsk {
+  readonly ask: AssistantAsk;
+  /** The reply that asked it. */
+  readonly replyId: string;
+}
 
 export interface UseAssistantConversationOptions {
   readonly client: () => Promise<AssistantClient>;
@@ -73,6 +136,14 @@ export interface UseAssistantConversationOptions {
   /** Whether a signed-in account is here to talk (ADR 0006 decision 4). */
   readonly canSend: Accessor<boolean>;
   readonly analytics: () => Analytics;
+  /** Hears each proposal as it arrives, under its entry's ID (GRV-5). */
+  readonly onProposal?: (
+    entryId: string,
+    proposal: AssistantProposal,
+    origin: TurnOrigin,
+  ) => void;
+  /** How many changes made elsewhere the editor has adopted so far; 0 without one. */
+  readonly remoteChanges?: () => number;
 }
 
 export interface AssistantConversation {
@@ -94,6 +165,22 @@ export interface AssistantConversation {
   retry(): boolean;
   /** Whether {@link retry} would resend this entry's turn now. */
   canRetry(entry: ConversationEntry): boolean;
+  /**
+   * Asks again for the proposal in entry `entryId`, with its words and its
+   * scope, against the song as it is now (GRV-5's Refresh). Returns whether
+   * it went: not while a reply streams, nor with no account.
+   */
+  refresh(entryId: string): boolean;
+  /** The question waiting for an answer, if there is one (GRV-42). */
+  readonly pendingAsk: Accessor<PendingAsk | null>;
+  /**
+   * Answers the pending question: the options picked and/or the typed text,
+   * sent as the next turn. Returns whether it went: not while a reply
+   * streams, with nothing said, or with no account.
+   */
+  answerAsk(answer: AskAnswer): boolean;
+  /** Puts the pending question away unanswered. Nothing is sent. */
+  dismissAsk(): void;
 }
 
 /** The most one message may say, as the gateway counts it. */
@@ -110,19 +197,19 @@ export function historyOf(entries: readonly ConversationEntry[]): AssistantMessa
   const history: AssistantMessage[] = [];
   let pending: string | null = null;
   for (const entry of entries) {
-    if (entry.kind === "message") pending = entry.text;
-    if (
-      entry.kind === "reply" &&
-      pending !== null &&
-      !entry.failed &&
-      entry.text.trim().length > 0
-    ) {
-      history.push(
-        { role: "user", text: pending.slice(0, MAX_MESSAGE_CHARS) },
-        { role: "assistant", text: entry.text.slice(0, MAX_MESSAGE_CHARS) },
-      );
-      pending = null;
-    }
+    if (entry.kind === "message") pending = entry.wire ?? entry.text;
+    if (entry.kind !== "reply" || pending === null || entry.failed) continue;
+    // A question the reply asked is part of what it said (GRV-42), so the
+    // model reads its question back beside the answer.
+    const said = [entry.text.trim(), entry.ask ? askTranscript(entry.ask) : ""]
+      .filter((part) => part.length > 0)
+      .join("\n\n");
+    if (said.length === 0) continue;
+    history.push(
+      { role: "user", text: pending.slice(0, MAX_MESSAGE_CHARS) },
+      { role: "assistant", text: said.slice(0, MAX_MESSAGE_CHARS) },
+    );
+    pending = null;
   }
   // Room for the new message; whole pairs only, so it still starts with the user.
   const room = ASSISTANT_REQUEST_LIMITS.maxMessages - 1;
@@ -135,6 +222,7 @@ export function useAssistantConversation(
 ): AssistantConversation {
   const [entries, setEntries] = createSignal<readonly ConversationEntry[]>([]);
   const [streaming, setStreaming] = createSignal(false);
+  const [pendingAsk, setPendingAsk] = createSignal<PendingAsk | null>(null);
   let nextId = 0;
   const id = () => {
     nextId += 1;
@@ -160,7 +248,7 @@ export function useAssistantConversation(
       }),
     );
 
-  function startTurn(request: AssistantTurnRequest): void {
+  function startTurn(request: AssistantTurnRequest, origin: TurnOrigin): void {
     const replyId = id();
     append({ kind: "reply", id: replyId, text: "", streaming: true, stopped: false });
     setStreaming(true);
@@ -172,8 +260,9 @@ export function useAssistantConversation(
     const finishReply = (ending: "done" | "stopped" | "failed") =>
       update(replyId, (entry) => {
         if (entry.kind !== "reply") return entry;
-        // A reply that never wrote a word is not one, unless it was stopped.
-        if (entry.text.length === 0 && ending !== "stopped") return null;
+        // A reply that never wrote a word is not one, unless it was stopped
+        // or it asked a question.
+        if (entry.text.length === 0 && !entry.ask && ending !== "stopped") return null;
         replyKept = true;
         return {
           ...entry,
@@ -195,8 +284,23 @@ export function useAssistantConversation(
             entry.kind === "reply" ? { ...entry, text: entry.text + event.text } : entry,
           );
           return;
-        case "proposal":
-          append({ kind: "proposal", id: id() });
+        case "proposal": {
+          const entryId = id();
+          append({ kind: "proposal", id: entryId, proposal: event.proposal, origin });
+          options.onProposal?.(entryId, event.proposal, origin);
+          return;
+        }
+        case "ask":
+          update(replyId, (entry) =>
+            entry.kind === "reply" ? { ...entry, ask: event.ask } : entry,
+          );
+          // A newer question takes the place of one still waiting.
+          setPendingAsk({ ask: event.ask, replyId });
+          options.analytics().log("assistant_ask_shown", {
+            option_count: event.ask.options.length,
+            multi_select: event.ask.multiSelect,
+            has_suggestion: event.ask.suggested !== undefined,
+          });
           return;
         case "error":
           finishReply("failed");
@@ -205,6 +309,7 @@ export function useAssistantConversation(
             id: id(),
             error: event.error,
             request,
+            origin,
             ...(replyKept ? { replyId } : {}),
           });
           setStreaming(false);
@@ -241,30 +346,99 @@ export function useAssistantConversation(
     );
   }
 
-  function send(text: string, suggestion?: SuggestionId): boolean {
-    const message = text.trim();
+  /** Whether a new turn may start now. */
+  const canStart = (): boolean =>
+    !streaming() && options.canSend() && options.project() !== null;
+
+  /**
+   * Sends one message as a new turn in `scope`: the message, its analytics
+   * and its turn. `wire` is what the turn says when the log shows something
+   * else (an answer to a question).
+   */
+  function sendMessage(
+    message: Pick<TurnOrigin, "text" | "answers" | "wire">,
+    scope: AssistantScope,
+  ): void {
     const project = options.project();
-    if (streaming() || message.length === 0 || !options.canSend() || !project) {
-      return false;
-    }
-    const scope = options.scope();
+    if (!project) return;
+    const said = message.wire ?? message.text;
     const request: AssistantTurnRequest = {
       projectRevision: project.metadata.revision,
       messages: [
         ...historyOf(entries()),
-        { role: "user", text: message.slice(0, MAX_MESSAGE_CHARS) },
+        { role: "user", text: said.slice(0, MAX_MESSAGE_CHARS) },
       ],
       context: scopedContext(project, scope),
     };
-    append({ kind: "message", id: id(), text: message, scopeLabel: scope.label });
+    append({ kind: "message", id: id(), scopeLabel: scope.label, ...message });
     const analytics = options.analytics();
-    if (suggestion) {
-      analytics.log("assistant_suggestion_clicked", { suggestion_id: suggestion });
-    }
     analytics.log("assistant_message_sent", { scope: scope.catalogScope });
     analytics.logFeatureFirstUse("assistant_message");
-    startTurn(request);
+    startTurn(request, {
+      ...message,
+      scope,
+      remoteChanges: options.remoteChanges?.() ?? 0,
+    });
+  }
+
+  function send(text: string, suggestion?: SuggestionId): boolean {
+    const message = text.trim();
+    if (!canStart() || message.length === 0) return false;
+    if (suggestion) {
+      options
+        .analytics()
+        .log("assistant_suggestion_clicked", { suggestion_id: suggestion });
+    }
+    sendMessage({ text: message }, options.scope());
     return true;
+  }
+
+  function refresh(entryId: string): boolean {
+    const entry = entries().find((candidate) => candidate.id === entryId);
+    if (entry?.kind !== "proposal" || !canStart()) return false;
+    const { text, answers, wire, scope } = entry.origin;
+    sendMessage({ text, answers, wire }, scope);
+    return true;
+  }
+
+  function logAnswered(
+    ask: AssistantAsk,
+    how: AskAnswerHow | "dismissed",
+    picked: readonly number[],
+  ): void {
+    const analytics = options.analytics();
+    analytics.log("assistant_ask_answered", {
+      how,
+      option_count: ask.options.length,
+      suggested_taken: ask.suggested !== undefined && picked.includes(ask.suggested),
+    });
+    analytics.logFeatureFirstUse("assistant_ask");
+  }
+
+  function answerAsk(answer: AskAnswer): boolean {
+    const pending = pendingAsk();
+    if (!pending || !canStart() || answerIsEmpty(answer)) return false;
+    const { ask } = pending;
+    const labels = pickedLabels(ask, answer);
+    const typed = answer.text.trim();
+    setPendingAsk(null);
+    logAnswered(ask, labels.length > 0 ? "pick" : "text", answer.picked);
+    sendMessage(
+      {
+        text: [labels.join(", "), typed].filter((part) => part.length > 0).join(" · "),
+        answers: ask.question,
+        wire: answerMessage(ask, answer),
+      },
+      options.scope(),
+    );
+    return true;
+  }
+
+  function dismissAsk(): void {
+    const pending = pendingAsk();
+    if (!pending) return;
+    setPendingAsk(null);
+    logAnswered(pending.ask, "dismissed", []);
   }
 
   function stop(): void {
@@ -287,9 +461,20 @@ export function useAssistantConversation(
     // the failed reply had written, so the message is answered once.
     const stale = new Set([last.id, last.replyId]);
     setEntries((current) => current.filter((entry) => !stale.has(entry.id)));
-    startTurn(last.request);
+    startTurn(last.request, last.origin);
     return true;
   }
 
-  return { entries, streaming, send, stop, retry, canRetry };
+  return {
+    entries,
+    streaming,
+    send,
+    stop,
+    retry,
+    canRetry,
+    refresh,
+    pendingAsk,
+    answerAsk,
+    dismissAsk,
+  };
 }

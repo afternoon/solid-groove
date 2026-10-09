@@ -30,7 +30,7 @@ import { createSeededIdFactory } from "../../domain/ids";
 import { TICKS_PER_BAR, TICKS_PER_SIXTEENTH } from "../../domain/time";
 import { factoryLibraryEntry, factoryPack } from "../../library/factoryLibrary";
 import { historyProposalTarget } from "../historyProposalTarget";
-import { toolNameFor } from "../tools";
+import { ASSISTANT_TOOLSET_VERSION, toolNameFor } from "../tools";
 import { type EvalScope, resolveScope } from "./cases";
 import {
   checkAtomicUndo,
@@ -59,7 +59,7 @@ function context(seed: string): DomainFactoryContext {
 function proposalOf(commands: readonly CommandInput<unknown>[], base = project) {
   return {
     baseRevision: base.metadata.revision,
-    toolsetVersion: 2,
+    toolsetVersion: ASSISTANT_TOOLSET_VERSION,
     calls: commands.map((command) => ({
       name: toolNameFor(command.type),
       input: command.payload,
