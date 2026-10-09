@@ -433,6 +433,7 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     analytics,
     committedProject: () => session.committedProject(),
     previewing: () => session.state.previewing,
+    gestureActive: () => session.state.gestureActive,
     link: askLink,
   });
   // Docked, the editor's views leave the panel's column free (EditorView.css).

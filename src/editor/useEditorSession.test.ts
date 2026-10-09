@@ -205,6 +205,39 @@ describe("useEditorSession preview (UI-005)", () => {
   });
 });
 
+describe("useEditorSession gesture state (GRV-42)", () => {
+  it("says a gesture is open from its start until it commits or is cancelled", async () => {
+    const repository = createInMemoryProjectRepository();
+    const project = createSliceFixtureProject();
+    const created = await repository.createProject(project);
+    if (!created.ok) throw new Error("fixture project failed to create");
+    const { result } = renderHook(
+      () =>
+        useEditorSession(
+          () => project.metadata.id,
+          () => repository,
+        ),
+      {},
+    );
+    await vi.waitFor(() => expect(result.state.loading).toBe(false));
+    expect(result.state.gestureActive).toBe(false);
+
+    const cancelled = result.beginGesture();
+    flush();
+    expect(result.state.gestureActive).toBe(true);
+    cancelled?.cancel();
+    flush();
+    expect(result.state.gestureActive).toBe(false);
+
+    const committed = result.beginGesture();
+    flush();
+    expect(result.state.gestureActive).toBe(true);
+    committed?.commit();
+    flush();
+    expect(result.state.gestureActive).toBe(false);
+  });
+});
+
 /**
  * #856: the project a session exposes is one immutable value per revision, so
  * a derivation over it should depend on that value, not on every store node

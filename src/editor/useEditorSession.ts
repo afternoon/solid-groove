@@ -65,6 +65,11 @@ export interface EditorSessionState {
   readonly project: Project | null;
   /** True while an uncommitted preview is open (UI-005). */
   readonly previewing: boolean;
+  /**
+   * True while a continuous gesture (a drag) is open: its steps show in
+   * `project` but are not a finished edit until it commits.
+   */
+  readonly gestureActive: boolean;
   readonly canUndo: boolean;
   readonly canRedo: boolean;
   readonly undoSummary: string | null;
@@ -102,6 +107,11 @@ export interface UseEditorSessionResult {
    * has loaded. Not reactive: `state.project` is what changes.
    */
   committedProject(): Project | null;
+  /**
+   * Whether a preview is open right now. Not reactive, unlike
+   * `state.previewing`, so it is current straight after one ends.
+   */
+  previewOpen(): boolean;
   undo(): TransactionResult | null | undefined;
   redo(): TransactionResult | null | undefined;
   /** The explicit retry affordance PRD `PRJ-03` requires for a failed save. */
@@ -125,6 +135,7 @@ const INITIAL_STATE: EditorSessionState = {
   error: null,
   project: null,
   previewing: false,
+  gestureActive: false,
   canUndo: false,
   canRedo: false,
   undoSummary: null,
@@ -206,6 +217,7 @@ export function useEditorSession(
           draft.error = null;
           draft.project = snapshot.project;
           draft.previewing = snapshot.previewing;
+          draft.gestureActive = snapshot.gestureActive;
           draft.canUndo = snapshot.canUndo;
           draft.canRedo = snapshot.canRedo;
           draft.undoSummary = snapshot.undoSummary;
@@ -290,6 +302,7 @@ export function useEditorSession(
     beginGesture: (options) => session?.beginGesture(options),
     beginPreview: (commands) => session?.beginPreview(commands),
     committedProject: () => session?.committedProject ?? null,
+    previewOpen: () => (session?.activePreview ?? null) !== null,
     undo: () => session?.undo(),
     redo: () => session?.redo(),
     retry: () => session?.autosave.retry(),

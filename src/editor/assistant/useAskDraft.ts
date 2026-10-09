@@ -55,6 +55,8 @@ export interface UseAskDraftOptions {
   readonly project: Accessor<Project | null>;
   readonly committedProject?: () => Project | null;
   readonly previewing?: Accessor<boolean>;
+  /** Whether a drag is open: its steps are not a finished edit until it commits. */
+  readonly gestureActive?: Accessor<boolean>;
   readonly link?: AskEditorLink;
 }
 
@@ -88,28 +90,36 @@ export function useAskDraft(options: UseAskDraftOptions): AskDraft {
     link?.stopHearing();
   }
 
-  // A question answered, dismissed or replaced takes its highlight and sound
-  // with it. The question's ID is the one reactive read; the editor calls are
-  // the apply half's.
+  // A question answered, dismissed or replaced takes its highlight, its sound
+  // and its focused option with it: the new question's chip at that index is
+  // not the one that had focus. The question's ID is the one reactive read;
+  // the editor calls are the apply half's.
   createEffect(
     () => conversation.pendingAsk()?.ask.id ?? null,
-    () => untrack(release),
+    () => {
+      focusedIndex = null;
+      untrack(release);
+    },
   );
   onCleanup(release);
 
   // Answering by doing: once the committed project has moved into the state
   // an option describes, the question is answered as that option. Never from
-  // a preview, which is not a change yet, and not while a reply streams: it
-  // is answered once the reply is done, as the change still stands.
+  // a preview, which is not a change yet, nor mid-drag, whose steps are not
+  // either (a fader passing through the range, then let go outside it or
+  // cancelled, has answered nothing); the drag's end brings this back. And
+  // not while a reply streams: it is answered once the reply is done, as the
+  // change still stands.
   createEffect(
     () => ({
       pending: conversation.pendingAsk(),
       shown: options.project(),
       streaming: conversation.streaming(),
       previewing: options.previewing?.() ?? false,
+      dragging: options.gestureActive?.() ?? false,
     }),
-    ({ pending, shown, streaming, previewing }) => {
-      if (!pending?.asked || streaming || previewing) return;
+    ({ pending, shown, streaming, previewing, dragging }) => {
+      if (!pending?.asked || streaming || previewing || dragging) return;
       const now = options.committedProject?.() ?? shown;
       if (!now) return;
       const index = optionDoneBy(pending.ask, pending.asked, now);

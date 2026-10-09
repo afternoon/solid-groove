@@ -10,6 +10,8 @@
  *   session's preview of the option's changes (UI-005) and plays the song
  *   from where it is, until the pointer leaves, when the preview is put away
  *   and a song it started is paused back where it was. Nothing is applied.
+ *   A hover never puts away a preview something else opened (an assistant
+ *   proposal's, say); only Space, which is asked for, replaces one.
  */
 import { type Accessor, createMemo, createSignal, onCleanup } from "solid-js";
 import type { AskReference, AskSound } from "../../assistant/ask";
@@ -33,7 +35,10 @@ import {
 export interface UseAskEditorLinkOptions {
   /** What the editor shows. */
   readonly project: Accessor<Project | null>;
-  readonly session: Pick<UseEditorSessionResult, "beginPreview" | "committedProject">;
+  readonly session: Pick<
+    UseEditorSessionResult,
+    "beginPreview" | "committedProject" | "previewOpen"
+  >;
   readonly audio: Pick<
     ProjectAudioControls,
     "isPlaying" | "play" | "pause" | "positionTicks" | "seekTicks" | "auditionTrack"
@@ -103,6 +108,7 @@ export function useAskEditorLink(options: UseAskEditorLinkOptions): AskEditorLin
       }
       return;
     }
+    if (!gesture && options.session.previewOpen()) return;
     const commands = previewCommands(project, sound);
     const opened = commands && options.session.beginPreview(commands);
     if (!opened?.ok) return;

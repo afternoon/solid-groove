@@ -53,6 +53,8 @@ export interface UseAssistantChatOptions {
   readonly committedProject?: () => Project | null;
   /** Whether the editor is showing a preview, during which nothing is done yet. */
   readonly previewing?: Accessor<boolean>;
+  /** Whether a drag is open, whose steps are not a finished edit yet. */
+  readonly gestureActive?: Accessor<boolean>;
   /** What a question's options can do in the editor (GRV-42). */
   readonly link?: AskEditorLink;
 }
@@ -104,6 +106,7 @@ export function useAssistantChat(options: UseAssistantChatOptions): AssistantCha
     project: options.project,
     committedProject: options.committedProject,
     previewing: options.previewing,
+    gestureActive: options.gestureActive,
     link: options.link,
   });
 

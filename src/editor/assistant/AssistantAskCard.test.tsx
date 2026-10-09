@@ -59,6 +59,7 @@ interface ChatOptions {
   readonly link?: AskEditorLink;
   readonly project?: () => Project;
   readonly previewing?: () => boolean;
+  readonly gestureActive?: () => boolean;
 }
 
 function renderChat(options: ChatOptions = {}) {
@@ -73,6 +74,7 @@ function renderChat(options: ChatOptions = {}) {
   const fixture = createSliceFixtureProject();
   const project = options.project ?? (() => fixture);
   const [view] = createSignal<EditorViewName>("arrangement");
+  let chatHandle: ReturnType<typeof useAssistantChat> | undefined;
   const Harness = () => {
     const panel = useAssistantPanel({
       storage: memoryStorage(),
@@ -88,7 +90,9 @@ function renderChat(options: ChatOptions = {}) {
       analytics: () => analytics,
       link: options.link,
       previewing: options.previewing,
+      gestureActive: options.gestureActive,
     });
+    chatHandle = chat;
     return (
       <>
         <button type="button" onClick={(event) => panel.toggle(event.currentTarget)}>
@@ -100,7 +104,11 @@ function renderChat(options: ChatOptions = {}) {
   };
   render(() => <Harness />);
   clickAndFlush(screen.getByRole("button", { name: "Open it" }));
-  return { client, transport };
+  const chat = () => {
+    if (!chatHandle) throw new Error("the chat harness did not render");
+    return chatHandle;
+  };
+  return { client, transport, chat };
 }
 
 const panel = () => screen.getByRole("region", { name: "Assistant" });
@@ -431,6 +439,23 @@ describe("options that carry more than words (GRV-42)", () => {
     expect(calls).toEqual(['highlight {"kind":"track","trackId":"trk_bd"}']);
   });
 
+  it("forgets the focused option when a new question replaces the one it was in", async () => {
+    const { link } = recordingLink();
+    const { client, chat } = renderChat({ link });
+    await send("Where do I start?");
+    ask(client.last(), RICH);
+    fireAndFlush(() => option("Slower").focus());
+    expect(chat().ask.focused()).toBe(2);
+
+    // The chip is still focused in the DOM when the reply's new question
+    // lands; it is not the new question's third option.
+    fireAndFlush(() => chat().conversation.send("Hmm"));
+    await settle();
+    ask(client.last(), { ...ASK, id: "toolu_next" });
+    expect(card()).toHaveTextContent("Where should the drop land?");
+    expect(chat().ask.focused()).toBeNull();
+  });
+
   it("selects what a picked option is about", async () => {
     const { link, calls } = recordingLink();
     const { client } = renderChat({ link });
@@ -478,6 +503,47 @@ describe("options that carry more than words (GRV-42)", () => {
       how: "did_it",
       option_count: 3,
     });
+  });
+
+  it("is not answered by a drag that passes through the change and is cancelled", async () => {
+    const [project, setProject] = createSignal(createSliceFixtureProject());
+    const [dragging, setDragging] = createSignal(false);
+    const { client } = renderChat({ project, gestureActive: dragging });
+    await send("Teach me tempo");
+    ask(client.last(), RICH);
+    const start = project();
+    const at = (tempo: number) => ({ ...start, song: { ...start.song, tempo } });
+
+    // A drag's steps reach 90 BPM, inside the option's range...
+    fireAndFlush(() => {
+      setDragging(true);
+      setProject(at(105));
+    });
+    fireAndFlush(() => setProject(at(90)));
+    await settle();
+    expect(card()).toBeInTheDocument();
+    // ...and it is cancelled, back where it started: nothing was done.
+    fireAndFlush(() => {
+      setDragging(false);
+      setProject(start);
+    });
+    await settle();
+    expect(card()).toBeInTheDocument();
+    expect(client.turns).toHaveLength(1);
+
+    // A drag that ends inside the range answers it when it ends.
+    fireAndFlush(() => {
+      setDragging(true);
+      setProject(at(95));
+    });
+    await settle();
+    expect(card()).toBeInTheDocument();
+    fireAndFlush(() => setDragging(false));
+    await settle();
+    expect(card()).toBeNull();
+    expect(client.last().request.messages.at(-1)?.text).toBe(
+      '[Answer to "What should change first?"] Did it in the editor: Slower.',
+    );
   });
 
   it("is not answered by a change that was already made when it was asked", async () => {
