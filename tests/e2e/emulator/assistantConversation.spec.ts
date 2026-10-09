@@ -29,13 +29,14 @@ test.describe("the assistant's conversation", { tag: "@sanity" }, () => {
     await expect(scope(page)).toHaveAccessibleName("Scope: BD");
 
     // Send: Enter sends, the message is stamped with its scope, and the
-    // reply streams in while Stop stands in for Send.
+    // reply streams in. (Stop standing in for Send is checked on the
+    // [hang] turn below, which stays open until Stop: this reply finishes in
+    // a few hundred milliseconds, so a check for Stop here would race it.)
     await composer(page).fill("Make it groove");
     await page.keyboard.press("Enter");
     await expect(composer(page)).toHaveValue("");
     await expect(conversation(page)).toContainText("Make it groove");
     await expect(conversation(page)).toContainText(/Scope\W+BD\b/);
-    await expect(panelButton(page, "Stop")).toBeVisible();
     await expect(conversation(page)).toContainText(REPLY);
     await expect(panelButton(page, "Send")).toBeVisible();
     await expect(conversation(page)).toHaveAttribute("aria-busy", "false");
@@ -45,6 +46,13 @@ test.describe("the assistant's conversation", { tag: "@sanity" }, () => {
     await page.keyboard.press("Enter");
     await expect(conversation(page)).toHaveAttribute("aria-busy", "true");
     await expect(panel(page)).toContainText("Writing…");
+    await expect(panelButton(page, "Stop")).toBeVisible();
+    await expect(panelButton(page, "Send")).toHaveCount(0);
+    // Wait for the hang reply's first piece before stopping: a Stop that
+    // beats it leaves a reply of just "Stopped.".
+    await expect(conversation(page).locator(".assistant-reply").last()).toContainText(
+      "Here is one idea.",
+    );
     await panelButton(page, "Stop").click();
     await expect(conversation(page)).toContainText("Here is one idea. Stopped.");
     await expect(composer(page)).toBeFocused();
@@ -58,6 +66,10 @@ test.describe("the assistant's conversation", { tag: "@sanity" }, () => {
     const failure = conversation(page).getByRole("alert");
     await expect(failure).toContainText("The assistant couldn't reply.");
     await expect(failure).toContainText("Your song is unchanged");
+    // What the failed turn wrote says it was cut off.
+    await expect(conversation(page).locator(".assistant-reply").last()).toContainText(
+      "Here is one idea. Interrupted.",
+    );
     await failure.getByRole("button", { name: "Try again" }).click();
     await expect(failure).toHaveCount(0);
     await expect(conversation(page).getByText(REPLY)).toHaveCount(2);

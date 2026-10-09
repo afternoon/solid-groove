@@ -319,6 +319,21 @@ describe("the assistant's inline errors", () => {
     ]);
   });
 
+  it("marks a reply that failed part-way as interrupted, and a finished one not", async () => {
+    const { client } = renderChat();
+    await send("First");
+    fireAndFlush(() => client.last().text("All of it."));
+    fireAndFlush(() => client.last().done());
+    await send("Second");
+    fireAndFlush(() => client.last().text("Half an"));
+    fireAndFlush(() => client.last().fail({ code: "timeout", retryable: true }));
+    const replies = log().querySelectorAll(".assistant-reply");
+    expect(replies).toHaveLength(2);
+    expect(replies[0]).not.toHaveTextContent("Interrupted.");
+    expect(replies[1]).toHaveTextContent("Half an Interrupted.");
+    expect(replies[1]).not.toHaveTextContent("Stopped.");
+  });
+
   it("does not resend a reply that failed part-way when the producer moves on", async () => {
     const { client } = renderChat();
     await send("Q");

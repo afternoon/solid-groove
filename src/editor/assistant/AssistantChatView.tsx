@@ -195,6 +195,12 @@ function Entry(props: {
                 {reply().text.length > 0 ? " " : ""}
                 <span class="assistant-stopped">Stopped.</span>
               </Show>
+              {/* A reply cut off by a failure says so, so it does not read as
+                  a finished answer above the error. */}
+              <Show when={reply().failed}>
+                {reply().text.length > 0 ? " " : ""}
+                <span class="assistant-stopped">Interrupted.</span>
+              </Show>
             </p>
           </div>
         )}
