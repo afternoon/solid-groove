@@ -12,8 +12,10 @@ itself are in [`CLAUDE.md`](../CLAUDE.md#the-board).
 `.github/workflows/board.yml` **polls Linear** (`.github/scripts/board.mjs
 poll`) and starts whatever the columns ask for. Two things start a poll: a
 small Cloudflare Worker, **the relay** (`scripts/linear/relay/worker.mjs`),
-which Linear calls the moment a card moves or someone comments `@claude`; and
-an hourly schedule, the backstop for anything the relay misses. The relay
+which Linear calls the moment a card moves or someone comments `@claude`, and
+which also starts a poll every 15 minutes on a Cloudflare cron, the backstop
+for anything a delivery misses. `board.yml`'s own hourly schedule stays as a
+second backstop for when the relay itself is down. The relay
 only asks GitHub to run the poll; it decides nothing and passes nothing on,
 so a lost or doubled event costs at most one idle poll. It lives on
 Cloudflare, not in the production Firebase project, so the product side stays
@@ -42,9 +44,11 @@ Everything that reads or writes Linear goes through
 agents use (`node .github/scripts/linear.mjs issue GRV-12`, `comment`, `state`,
 `create`, …; run it with no arguments for the list). It needs `LINEAR_API_KEY`.
 
-**Latency.** With the relay a poll starts within seconds of the move. The
-hourly schedule is only the backstop for a missed delivery, and GitHub runs
-scheduled jobs late (on this repo, sometimes by hours). If a card you moved shows no
+**Latency.** With the relay a poll starts within seconds of the move,
+including a blocker reaching QA or Done, which frees the cards waiting on it in
+Ready. The relay's 15-minute cron is the backstop for a missed delivery. GitHub
+runs its own scheduled jobs late (on this repo, sometimes by hours), which is
+why the backstop lives on Cloudflare. If a card you moved shows no
 "Picking this up" comment after ten minutes, check the relay's deliveries
 (Linear → Settings → API → the webhook) and the Board workflow's runs;
 "Run workflow" on it polls at once.
@@ -139,8 +143,18 @@ they always did.
       `bunx wrangler tail` shows each delivery. A delivery answered `401` has
       the wrong secret; `502` means GitHub refused the token.
 
-   Redeploy with `bunx wrangler deploy` after changing `worker.mjs`. When the
-   token expires, make a new one and `wrangler secret put GITHUB_TOKEN` again.
+   5. For redeploys from GitHub, add two repository secrets (Settings →
+      Secrets and variables → Actions): `CLOUDFLARE_API_TOKEN`, a Cloudflare
+      API token from the "Edit Cloudflare Workers" template scoped to this
+      account, and `CLOUDFLARE_ACCOUNT_ID`.
+
+   After that, `.github/workflows/relay.yml` redeploys the Worker whenever
+   `scripts/linear/relay/` changes on main ("Run workflow" on it redeploys by
+   hand). A PR that touches the relay is gated, so it lands only once the
+   product owner approves it. A deploy keeps the Worker's secrets. When the
+   GitHub token expires, make a new one and `wrangler secret put GITHUB_TOKEN`
+   again. `bunx wrangler tail` also shows each 15-minute cron run; one that
+   throws means GitHub refused the token.
 
 ## Migrating from GitHub issues
 
