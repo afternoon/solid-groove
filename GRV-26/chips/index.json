@@ -1,0 +1,18 @@
+{
+  "id": "chips",
+  "title": "Suggestion chips",
+  "steps": [
+    {
+      "file": "01-arrangement-scoped-to-the-track-develop-.png",
+      "caption": "Arrangement, scoped to the track: develop its part"
+    },
+    {
+      "file": "02-instrument-view-shape-the-track-s-sound.png",
+      "caption": "Instrument view: shape the track's sound"
+    },
+    {
+      "file": "03-mixer-widened-to-the-whole-song-balance-.png",
+      "caption": "Mixer, widened to the whole song: balance the mix"
+    }
+  ]
+}
