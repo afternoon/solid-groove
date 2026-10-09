@@ -22,7 +22,7 @@
  *   58% and the BD track 3 dB quieter, read from the project context.
  * - anything "dusty" or "dustier" (CF-034, any case): a recommendation of up to
  *   three kicks the project does not use, the grittiest first, all from the
- *   pack of the best one, for the BD track (or the first), read from the
+ *   pack of the best one, for the BD track (or the first) and its kick pad, read from the
  *   library the turn carries (GRV-23). With no library, or no such kick, a
  *   short reply saying so.
  * - anything else: a short reply, streamed in pieces with a pause between.
@@ -142,7 +142,11 @@ interface ContextTrack {
   readonly id: string;
   readonly name: string;
   readonly volume: number;
+  readonly pads?: readonly { readonly id: string; readonly name: string }[];
 }
+
+/** A drum machine's pad a kick belongs on, by name: "BD" or anything "kick". */
+const KICK_PAD_NAME = /^(bd\b|kick)/i;
 
 /** The JSON a system block carries after `heading`, or null when none does. */
 function systemJson(request: ProviderMessagesRequest, heading: string): unknown {
@@ -244,6 +248,7 @@ function dustierRecommendation(request: ProviderMessagesRequest): Step[] {
   const tracks = contextTracks(request);
   const track =
     tracks.find((candidate) => candidate.name === LOOSEN_TRACK_NAME) ?? tracks[0];
+  const pad = track?.pads?.find((candidate) => KICK_PAD_NAME.test(candidate.name));
   return proposalReply(
     `${best.pack.name} has kicks with a softer, grittier attack that sit back in the beat. Try ${best.sound.name} first.`,
     [
@@ -254,6 +259,7 @@ function dustierRecommendation(request: ProviderMessagesRequest): Step[] {
           soundIds: picks.map((entry) => entry.sound.id),
           reason: "Softer, grittier kicks that sit back under the beat.",
           ...(track ? { trackId: track.id } : {}),
+          ...(pad ? { padId: pad.id } : {}),
         },
       },
     ],

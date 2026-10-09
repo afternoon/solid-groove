@@ -4,7 +4,7 @@
  * A recommendation is not a change to the song, so it is not one of the
  * command tools in `tools.ts`: the model calls {@link RECOMMEND_SOUNDS_TOOL}
  * with a pack ID, up to three of that pack's sound IDs, a line on why they fit
- * and the track to try them on. The tool is offered only on a turn that
+ * and the track (on a drum machine, the pad) to try them on. The tool is offered only on a turn that
  * carries the published library (`AssistantTurnRequest.library`), so the model
  * has the IDs to choose from.
  *
@@ -55,6 +55,14 @@ export const recommendationInputSchema = z.object({
     .optional()
     .describe(
       "The ID of the track to try the sounds on; its sample slot plays the first one. Omit it to use the selected track.",
+    ),
+  padId: z
+    .string()
+    .min(1)
+    .max(64)
+    .optional()
+    .describe(
+      "On a drum machine, the ID of the pad to try the sounds on, from that track's pads: the pad whose part the sounds are for (a kick goes on the kick's pad). Omit it on any other track.",
     ),
 });
 export type RecommendationInput = z.infer<typeof recommendationInputSchema>;
@@ -114,6 +122,8 @@ export interface ValidRecommendation {
   readonly reason: string;
   /** The track it names, unchecked: the editor knows the song. Null for the selected one. */
   readonly trackId: string | null;
+  /** The drum pad it names, unchecked like the track. Null for the selected pad. */
+  readonly padId: string | null;
 }
 
 export type RecommendationValidation =
@@ -148,7 +158,7 @@ export function validateRecommendation(
         .join("; "),
     );
   }
-  const { packId, soundIds, reason, trackId } = parsed.data;
+  const { packId, soundIds, reason, trackId, padId } = parsed.data;
   const pack = library.packs.find((candidate) => candidate.id === packId);
   if (!pack) return refuse("unknown_pack", `The library has no pack "${packId}"`);
   const sounds: AssistantLibrarySound[] = [];
@@ -164,6 +174,12 @@ export function validateRecommendation(
   }
   return {
     ok: true,
-    recommendation: { pack, sounds, reason, trackId: trackId ?? null },
+    recommendation: {
+      pack,
+      sounds,
+      reason,
+      trackId: trackId ?? null,
+      padId: padId ?? null,
+    },
   };
 }

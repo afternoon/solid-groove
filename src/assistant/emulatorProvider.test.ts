@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { executeTransaction } from "../commands/execute";
 import type { Project } from "../domain/entities";
-import { createReferenceProject, createSliceFixtureProject } from "../domain/fixtures";
+import {
+  createDenseStepFixtureProject,
+  createReferenceProject,
+  createSliceFixtureProject,
+} from "../domain/fixtures";
 import { SONG_SWING } from "../domain/parameters";
 import { buildAssistantLibrary, DRUM_PACK_ID } from "../testing/assistantLibrary";
 import {
@@ -168,6 +172,44 @@ describe("the emulator's assistant provider", () => {
     ]);
     expect(sounds.every((sound) => sound.role === DUSTIER_ROLE)).toBe(true);
     expect(trackId).toBe(bd?.id);
+  });
+
+  it("names the kick's pad on a drum machine, not whichever is selected", async () => {
+    // A kit of BD, SD and HH: the kick is for BD, whatever the producer last touched.
+    const project = createDenseStepFixtureProject();
+    const drums = project.song.tracks[0];
+    if (drums.instrument?.kind !== "drumMachine") throw new Error("not a kit");
+    const bd = drums.instrument.pads.find((pad) => pad.name === "BD");
+    const library = buildAssistantLibrary();
+    const reply = await turn(
+      gateway(),
+      "The kick is too clean. Anything dustier?",
+      new AbortController().signal,
+      project,
+      library,
+    ).result;
+    if (!reply.proposal) throw new Error("no recommendation");
+    const [call] = splitRecommendations(reply.proposal).recommendations;
+    const validation = validateRecommendation(call.input, library);
+    if (!validation.ok) throw new Error(validation.message);
+    expect(validation.recommendation.trackId).toBe(drums.id);
+    expect(validation.recommendation.padId).toBe(bd?.id);
+  });
+
+  it("names no pad on a sampler track", async () => {
+    const library = buildAssistantLibrary();
+    const reply = await turn(
+      gateway(),
+      "Anything dustier?",
+      new AbortController().signal,
+      createSliceFixtureProject(),
+      library,
+    ).result;
+    if (!reply.proposal) throw new Error("no recommendation");
+    const [call] = splitRecommendations(reply.proposal).recommendations;
+    const validation = validateRecommendation(call.input, library);
+    if (!validation.ok) throw new Error(validation.message);
+    expect(validation.recommendation.padId).toBeNull();
   });
 
   it("says it can't find one when the turn carries no library", async () => {
