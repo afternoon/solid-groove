@@ -53,6 +53,8 @@ export interface AssistantContext {
   readonly projectId: string;
   readonly projectName: string;
   readonly tempo: number;
+  /** The song's swing in percent, 50 straight to 75 (`SONG_SWING`). */
+  readonly swing: number;
   readonly timeSignature: Readonly<{ numerator: number; denominator: number }>;
   readonly totalTicks: number;
   readonly tracks: readonly AssistantTrackSummary[];
@@ -143,6 +145,7 @@ export function buildAssistantContext(
   const shape = {
     projectName: project.metadata.name,
     tempo: project.song.tempo,
+    swing: project.song.swing,
     timeSignature: project.song.timeSignature,
     totalTicks,
     tracks,
@@ -155,6 +158,7 @@ export function buildAssistantContext(
     projectId: project.metadata.id,
     projectName: project.metadata.name,
     tempo: project.song.tempo,
+    swing: project.song.swing,
     timeSignature: project.song.timeSignature,
     totalTicks,
     tracks,

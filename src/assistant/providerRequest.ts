@@ -13,7 +13,8 @@
  * shape to the SDK's own parameter type.
  *
  * Every turn offers the model the assistant's tool set (GRV-4, `tools.ts`),
- * so it can answer a request to change the song with a proposal. The tool
+ * so it can answer a request to change the song with a proposal, and
+ * `explain_change`, which says what that proposal is for. The tool
  * set's version is not on the wire (the Messages API has nowhere to put it);
  * the gateway stamps it on the proposal it returns instead.
  */

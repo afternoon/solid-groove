@@ -313,21 +313,17 @@
   font-weight: 600;
 }
 
-/* A control's name: a link that shows the control in the editor. */
+/* A control's name: a link, underlined like one, that shows the control in the editor. */
 .assistant-control-link {
-  padding: 0;
-  border: none;
-  background: none;
   color: var(--color-foreground-bright);
-  font: inherit;
   font-weight: 600;
-  text-align: left;
-  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: var(--color-foreground-muted);
+  text-underline-offset: 3px;
 }
 
 .assistant-control-link:hover {
-  text-decoration: underline;
-  text-underline-offset: 3px;
+  text-decoration-color: currentColor;
 }
 
 .assistant-control-link:focus-visible {
@@ -423,14 +419,6 @@
 
 .assistant-why .assistant-control-link {
   font-weight: 400;
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.assistant-why-steps {
-  margin: 0;
-  padding: 0;
-  list-style: none;
 }
 
 /* An inline error: framed and worded, never red (docs/design.md). */
