@@ -14,8 +14,10 @@ import {
   deleteObject,
   type FirebaseStorage,
   getBytes,
+  getMetadata,
   getStorage,
   ref,
+  type StorageReference,
   uploadBytesResumable,
 } from "firebase/storage";
 import { resolveEmulatorHosts } from "../devBackend";
@@ -96,7 +98,34 @@ export class FirebaseUserLibraryRepository implements UserLibraryRepository {
     }
   }
 
-  async updatePack(
+  /**
+   * The last change queued for each pack, by document path. Every sound in a
+   * pack rewrites the pack's one document, so many imports at once would all
+   * contend on it, and Firestore gives a contended transaction a few retries
+   * before it fails with `failed-precondition` (GRV-77). Changes to one pack
+   * from this tab therefore run one after another.
+   */
+  private readonly pending = new Map<string, Promise<unknown>>();
+
+  updatePack(
+    uid: string,
+    packId: string,
+    change: (pack: UserPack) => UserPack,
+  ): Promise<UserPack> {
+    const key = `${uid}/${packId}`;
+    const run = (this.pending.get(key) ?? Promise.resolve()).then(
+      () => this.updatePackNow(uid, packId, change),
+      () => this.updatePackNow(uid, packId, change),
+    );
+    this.pending.set(key, run);
+    const release = () => {
+      if (this.pending.get(key) === run) this.pending.delete(key);
+    };
+    run.then(release, release);
+    return run;
+  }
+
+  private async updatePackNow(
     uid: string,
     packId: string,
     change: (pack: UserPack) => UserPack,
@@ -154,10 +183,30 @@ export class FirebaseUserLibraryRepository implements UserLibraryRepository {
             options.onProgress?.(snapshot.bytesTransferred / snapshot.totalBytes);
           }
         },
-        (error) => reject(toLibraryError(error)),
+        (error) => {
+          const failure = toLibraryError(error);
+          if (failure.reason !== "permission_denied") return reject(failure);
+          this.alreadyStored(object, file.size).then(
+            (stored) => (stored ? resolve() : reject(failure)),
+            () => reject(failure),
+          );
+        },
         () => resolve(),
       );
     }).finally(() => options.signal?.removeEventListener("abort", abort));
+  }
+
+  /**
+   * Whether an upload refused as a permission failure had in fact landed
+   * already (GRV-77). A small file goes up in one request, and when that
+   * request fails on the network the SDK sends it again to the same name. If
+   * the first one reached the bucket, the object exists, `storage.rules` only
+   * allow creating one, and the repeat is refused. Every import writes to a
+   * fresh asset ID, so an object there of the file's size is this upload's.
+   */
+  private async alreadyStored(object: StorageReference, size: number): Promise<boolean> {
+    const metadata = await getMetadata(object);
+    return metadata.size === size;
   }
 
   async readAudio(path: string): Promise<ArrayBuffer> {

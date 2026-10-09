@@ -6,7 +6,7 @@ name: Board
 #
 # Linear cannot call GitHub Actions directly, and the product side is kept
 # apart from the dev side on purpose (an outage in one must not take the other
-# down), so this polls: every five minutes `poll` reads the columns and starts
+# down), so this polls: `poll` reads the columns and starts
 # whatever they ask for, in this same run:
 #
 #  - a card in Ready is moved to In Progress and /ship runs on it;
@@ -23,7 +23,10 @@ name: Board
 # is a personal API key for the Linear workspace (docs/linear.md).
 on:
   schedule:
-    - cron: "*/5 * * * *"
+    # The backstop. A card move starts a poll within seconds through the relay
+    # (scripts/linear/relay/, docs/linear.md); this catches anything it misses.
+    # Off the hour, where GitHub's scheduler is busiest.
+    - cron: "17 * * * *"
   pull_request:
     types: [opened, ready_for_review, closed]
   workflow_dispatch:

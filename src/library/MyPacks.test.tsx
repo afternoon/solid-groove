@@ -692,6 +692,46 @@ describe("My packs", () => {
     expect(transport.named("sound_imported")).toEqual([]);
   });
 
+  it("offers a retry on a failed upload, and the retried sound lands in its place", async () => {
+    const repository = createInMemoryUserLibraryRepository({ failUploads: "unknown" });
+    setUp({ repository });
+    const pack = await addNamedPack("Field Recordings");
+    drop(pack, [audioFile("tape-kick.wav")]);
+    expect(await within(files()).findByText("Upload failed. Try again.")).toBeVisible();
+    repository.failUploads(null);
+    clickAndFlush(within(files()).getByRole("button", { name: "Retry" }));
+    expect(
+      await within(files()).findByRole("button", { name: "Audition tape kick" }),
+    ).toBeVisible();
+    expect(within(files()).queryByText("Upload failed. Try again.")).toBeNull();
+    expect(within(files()).queryByRole("button", { name: "Retry" })).toBeNull();
+  });
+
+  it("offers a retry when the storage rules refuse an upload away from the allowance", async () => {
+    const repository = createInMemoryUserLibraryRepository({
+      failUploads: "permission_denied",
+    });
+    setUp({ repository });
+    const pack = await addNamedPack("Field Recordings");
+    drop(pack, [audioFile("tape-kick.wav")]);
+    expect(
+      await within(files()).findByText(/Your library couldn't take this sound/),
+    ).toBeVisible();
+    repository.failUploads(null);
+    clickAndFlush(within(files()).getByRole("button", { name: "Retry" }));
+    expect(
+      await within(files()).findByRole("button", { name: "Audition tape kick" }),
+    ).toBeVisible();
+  });
+
+  it("does not offer a retry for a file that was refused", async () => {
+    setUp();
+    const pack = await addNamedPack("Field Recordings");
+    drop(pack, [audioFile("notes.txt", "text/plain"), audioFile("tape-kick.wav")]);
+    await within(files()).findByText(/Not an audio file we can import/);
+    expect(within(files()).queryByRole("button", { name: "Retry" })).toBeNull();
+  });
+
   it("cancels an upload, leaving nothing stored and no failure reported", async () => {
     const repository = createInMemoryUserLibraryRepository({ uploadMs: 5_000 });
     const { transport } = setUp({ repository });
