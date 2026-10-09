@@ -1,4 +1,8 @@
 import { expect, type Locator, type Page } from "@playwright/test";
+import {
+  ASSISTANT_DISCLOSURE_VERSION,
+  preferenceDocPath,
+} from "../../../../src/assistant/transcripts";
 
 /**
  * Shared steps and locators for the assistant's core flows (CF-027, CF-028).
@@ -91,6 +95,55 @@ export const panelButton = (page: Page, name: string): Locator =>
 
 export const resizeEdge = (page: Page, name: "Resize height" | "Resize width"): Locator =>
   panel(page).getByRole("separator", { name });
+
+/** The disclosure the assistant shows before the first message (GRV-8). */
+export const disclosure = (page: Page): Locator =>
+  panel(page).getByRole("region", { name: "About the assistant" });
+
+/**
+ * Answers the disclosure a fresh account meets the first time it opens the
+ * assistant (GRV-8), and waits for the composer it gives way to. Declining is
+ * the default: keeping or not, the assistant behaves the same.
+ */
+export async function answerDisclosure(
+  page: Page,
+  answer: "Keep for 30 days" | "Don't keep them" = "Don't keep them",
+): Promise<void> {
+  await disclosure(page).getByRole("button", { name: answer, exact: true }).click();
+  await expect(composer(page)).toBeVisible();
+}
+
+/**
+ * Records `uid` as having answered the disclosure already, as an account
+ * that met it in an earlier session has (GRV-8). Written through the
+ * Firestore emulator's REST API with its `owner` token, which bypasses the
+ * rules the way the `assistantRetention` function's admin credential does:
+ * no client may write the answer itself.
+ */
+export async function seedDisclosureAnswered(uid: string, retain = false): Promise<void> {
+  const host = process.env.FIRESTORE_EMULATOR_HOST ?? "127.0.0.1:8080";
+  const url =
+    `http://${host}/v1/projects/demo-solid-groove/databases/(default)/documents/` +
+    preferenceDocPath(uid);
+  const response = await fetch(url, {
+    method: "PATCH",
+    headers: { Authorization: "Bearer owner", "Content-Type": "application/json" },
+    body: JSON.stringify({
+      fields: {
+        schemaVersion: { integerValue: "1" },
+        retain: { booleanValue: retain },
+        disclosureVersion: { integerValue: String(ASSISTANT_DISCLOSURE_VERSION) },
+        answeredAt: { integerValue: String(Date.now()) },
+      },
+    }),
+  });
+  if (!response.ok) {
+    throw new Error(
+      `The Firestore emulator refused the disclosure answer (${response.status}): ` +
+        `${await response.text()}`,
+    );
+  }
+}
 
 export const composer = (page: Page): Locator =>
   panel(page).getByRole("textbox", { name: "Message the assistant" });

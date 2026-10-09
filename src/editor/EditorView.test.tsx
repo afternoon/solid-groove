@@ -15,6 +15,7 @@ import { ConsentStore } from "../analytics/consent";
 import { createRecordingTransport } from "../analytics/transport";
 import { INITIAL_PIXELS_PER_TICK, ROW_METRICS } from "../arrangement/ArrangementView";
 import type { AssistantClient } from "../assistant/assistantClient";
+import type { AssistantRetentionClient } from "../assistant/retentionClient";
 import { installWebAudioGlobals } from "../audio/testAudioContext";
 import { type CapabilityReport, detectCapabilities } from "../browser/capabilities";
 import { executeTransaction } from "../commands";
@@ -52,6 +53,7 @@ import {
   createFakeAssistantClient,
   type FakeAssistantClient,
 } from "../testing/fakeAssistantClient";
+import { createFakeRetentionClient } from "../testing/fakeRetentionClient";
 import { memoryStorage } from "../testing/storage";
 import { packAudioPath } from "../userData/userData";
 import { createInMemoryUserLibraryRepository } from "../userLibrary/inMemoryUserLibraryRepository";
@@ -245,8 +247,11 @@ function renderEditor(
     account?: UserLibraryAccount | null;
     userLibraryRepository?: () => Promise<UserLibraryRepository>;
     assistantClient?: () => Promise<AssistantClient>;
+    assistantRetentionClient?: () => Promise<AssistantRetentionClient>;
   } = {},
 ) {
+  // Unless a test is about the disclosure, the account has already answered it.
+  const retentionClient = createFakeRetentionClient({ answered: true });
   const EditorView = EditorViewModule.default;
   const location = memoryHistory(editorViewPath(projectId, "arrangement"));
   const Page = () => {
@@ -265,6 +270,9 @@ function renderEditor(
         libraryAccount={options.account}
         userLibraryRepository={options.userLibraryRepository}
         assistantClient={options.assistantClient}
+        assistantRetentionClient={
+          options.assistantRetentionClient ?? (async () => retentionClient)
+        }
       />
     );
   };
@@ -3679,6 +3687,8 @@ describe("EditorView assistant panel", () => {
       assistantClient: async () => client,
     });
     await screen.findByTestId("arrangement-view-ready");
+    // The account's answer to the disclosure loads with the editor (GRV-8).
+    await new Promise((resolve) => setTimeout(resolve, 0));
 
     press("k", assistantChord());
     const composer = within(panel() as HTMLElement).getByRole("textbox", {
@@ -3724,6 +3734,8 @@ describe("EditorView assistant panel", () => {
       assistantClient: async () => client,
     });
     await screen.findByTestId("arrangement-view-ready");
+    // The account's answer to the disclosure loads with the editor (GRV-8).
+    await new Promise((resolve) => setTimeout(resolve, 0));
     return { client, transport };
   }
 

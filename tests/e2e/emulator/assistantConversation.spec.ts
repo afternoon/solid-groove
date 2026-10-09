@@ -1,4 +1,5 @@
 import {
+  answerDisclosure,
   assistantButton,
   composer,
   conversation,
@@ -25,6 +26,8 @@ test.describe("the assistant's conversation", { tag: "@sanity" }, () => {
   test("sends, streams, stops and tries again through the gateway", async ({ page }) => {
     await newProject(page);
     await assistantButton(page).click();
+    // A fresh account answers the disclosure first (GRV-8).
+    await answerDisclosure(page);
     await expect(composer(page)).toBeFocused();
     await expect(scope(page)).toHaveAccessibleName("Scope: BD");
 
@@ -81,6 +84,7 @@ test.describe("the assistant's conversation", { tag: "@sanity" }, () => {
   test("ends a reply in a proposal card", async ({ page }) => {
     await newProject(page);
     await assistantButton(page).click();
+    await answerDisclosure(page);
     await composer(page).fill("Speed it up [propose]");
     await page.keyboard.press("Enter");
     const card = conversation(page).getByRole("region", { name: /^Proposal\b/ });

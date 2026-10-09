@@ -7,6 +7,7 @@ export const ASSISTANT_FEATURE_KEYS = [
   "assistant",
   "assistant_message",
   "assistant_proposal",
+  "assistant_retention",
 ] as const;
 
 /** The assistant panel's shortcut actions, as `shortcut_used`'s `action_id` (see `SHORTCUT_ACTION_IDS`). */
@@ -122,5 +123,17 @@ export const ASSISTANT_EVENTS = {
     phase: 3,
     owners: ["AI-004"],
     params: { capability: enumParam(ASSISTANT_PROPOSAL_CAPABILITIES) },
+  },
+
+  /**
+   * A producer answered whether Groove keeps their assistant conversations,
+   * in the first-run disclosure or the setting (GRV-8): the answer and
+   * nothing else. Logged once the answer is stored, and nothing about keeping
+   * a conversation depends on it arriving.
+   */
+  assistant_retention_changed: {
+    phase: 3,
+    owners: ["AI-009"],
+    params: { state: enumParam(["on", "off"]) },
   },
 } as const satisfies Record<string, AnalyticsEventDefinition>;

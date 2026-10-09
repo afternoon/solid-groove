@@ -2,7 +2,8 @@
  * The conversation in the assistant's panel (GRV-26): what has been said,
  * the reply streaming now, and the three things a producer can do about it
  * (send, Stop, Try again). It lives in memory for the session: closing the
- * panel keeps it, a reload loses it (keeping it is GRV-8).
+ * panel keeps it, a reload loses it. What Groove keeps of it, for an account
+ * that said yes, is the gateway's transcript (GRV-8), never read back here.
  *
  * Every turn goes through an {@link AssistantClient}, the one door to the
  * gateway, and each is stamped with the scope it was sent with. Nothing here
@@ -41,6 +42,8 @@ export interface TurnOrigin {
    * be out of date (GRV-5).
    */
   readonly remoteChanges: number;
+  /** The ID the transcript files the turn under (GRV-8), when it has one. */
+  readonly turnId?: string;
 }
 
 /** One thing in the conversation's log. */
@@ -103,6 +106,14 @@ export interface UseAssistantConversationOptions {
   ) => void;
   /** How many changes made elsewhere the editor has adopted so far; 0 without one. */
   readonly remoteChanges?: () => number;
+  /**
+   * What the transcript files each turn under (GRV-8): the open project's ID
+   * and whether this browser is internal traffic. Without it, turns carry no
+   * session and are never kept.
+   */
+  readonly session?: () => { readonly projectId: string; readonly internal: boolean };
+  /** Makes the conversation's and each turn's ID; random by default. */
+  readonly newId?: () => string;
 }
 
 export interface AssistantConversation {
@@ -176,6 +187,9 @@ export function useAssistantConversation(
     nextId += 1;
     return `entry-${nextId}`;
   };
+  const newId = options.newId ?? (() => crypto.randomUUID());
+  /** One conversation per panel session: what its kept turns are filed under. */
+  const conversationId = newId();
   /** The turn on its way: Stop goes to it. */
   let inFlight: AssistantTurnHandle | null = null;
   // Leaving the editor stops the reply on its way, at the gateway too, rather
@@ -288,6 +302,8 @@ export function useAssistantConversation(
     if (streaming() || message.length === 0 || !options.canSend() || !project) {
       return false;
     }
+    const where = options.session?.();
+    const turnId = where ? newId() : undefined;
     const request: AssistantTurnRequest = {
       projectRevision: project.metadata.revision,
       messages: [
@@ -295,6 +311,16 @@ export function useAssistantConversation(
         { role: "user", text: message.slice(0, MAX_MESSAGE_CHARS) },
       ],
       context: scopedContext(project, scope),
+      ...(where && turnId
+        ? {
+            session: {
+              conversationId,
+              turnId,
+              projectId: where.projectId,
+              internal: where.internal,
+            },
+          }
+        : {}),
     };
     append({ kind: "message", id: id(), text: message, scopeLabel: scope.label });
     const analytics = options.analytics();
@@ -307,6 +333,7 @@ export function useAssistantConversation(
       text: message,
       scope,
       remoteChanges: options.remoteChanges?.() ?? 0,
+      ...(turnId ? { turnId } : {}),
     });
     return true;
   }
