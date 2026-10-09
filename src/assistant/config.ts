@@ -138,6 +138,29 @@ export const ASSISTANT_REQUEST_LIMITS = {
 } as const;
 
 /**
+ * Limits on the library a turn may describe and on what a recommendation may
+ * name (GRV-23). The library is the published one the app serves: a few
+ * hundred sounds today, so the caps refuse a request no client of ours would
+ * build rather than trimming a real one.
+ *
+ * - `maxPacks`, `maxSounds`: packs, and sounds across every pack, in one
+ *   request's library.
+ * - `maxTags`: tags (genres and characters) on one sound.
+ * - `maxDescriptionChars`: a pack's description, which the browser shortens
+ *   to this before it sends it.
+ * - `maxRecommendedSounds`: sounds one recommendation may suggest.
+ * - `maxReasonChars`: the one line on why a recommendation fits.
+ */
+export const ASSISTANT_LIBRARY_LIMITS = {
+  maxPacks: 64,
+  maxSounds: 1_000,
+  maxTags: 16,
+  maxDescriptionChars: 240,
+  maxRecommendedSounds: 3,
+  maxReasonChars: 200,
+} as const;
+
+/**
  * Tokens are estimated, not counted: a count would cost a provider round
  * trip per turn. Three characters per token over-estimates English prose and
  * JSON alike, so the bound errs towards sending less, never more.

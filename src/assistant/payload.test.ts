@@ -25,6 +25,16 @@ describe("buildAssistantPayload", () => {
     }
   });
 
+  it("still accepts a track with no pads, as a tab on the earlier bundle sends", () => {
+    const payload = buildAssistantPayload(createDrumMachineFixtureProject());
+    const legacyTracks = payload.tracks.map(({ pads: _pads, ...track }) => track);
+    const parsed = assistantContextPayloadSchema.parse({
+      ...payload,
+      tracks: legacyTracks,
+    });
+    expect(parsed.tracks.every((track) => track.pads.length === 0)).toBe(true);
+  });
+
   it("carries the song's current swing, so a swing change starts from it", () => {
     const project = createSliceFixtureProject();
     const swung = { ...project, song: { ...project.song, swing: 62 } };
