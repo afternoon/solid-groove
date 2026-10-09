@@ -96,7 +96,34 @@ export class FirebaseUserLibraryRepository implements UserLibraryRepository {
     }
   }
 
-  async updatePack(
+  /**
+   * The last change queued for each pack, by document path. Every sound in a
+   * pack rewrites the pack's one document, so many imports at once would all
+   * contend on it, and Firestore gives a contended transaction a few retries
+   * before it fails with `failed-precondition` (GRV-77). Changes to one pack
+   * from this tab therefore run one after another.
+   */
+  private readonly pending = new Map<string, Promise<unknown>>();
+
+  updatePack(
+    uid: string,
+    packId: string,
+    change: (pack: UserPack) => UserPack,
+  ): Promise<UserPack> {
+    const key = `${uid}/${packId}`;
+    const run = (this.pending.get(key) ?? Promise.resolve()).then(
+      () => this.updatePackNow(uid, packId, change),
+      () => this.updatePackNow(uid, packId, change),
+    );
+    this.pending.set(key, run);
+    const release = () => {
+      if (this.pending.get(key) === run) this.pending.delete(key);
+    };
+    run.then(release, release);
+    return run;
+  }
+
+  private async updatePackNow(
     uid: string,
     packId: string,
     change: (pack: UserPack) => UserPack,

@@ -64,6 +64,8 @@ export interface ImportRow {
   readonly state: "uploading" | "failed" | "cancelled";
   /** Why it failed, in words the producer can act on. */
   readonly message: string | null;
+  /** A failed upload that trying again could fix (a flaky write, not a refused file). */
+  readonly retryable: boolean;
 }
 
 export type ImportMethod = "drop" | "picker";
@@ -100,6 +102,8 @@ export interface UserLibrary {
   ): Promise<void>;
   cancelImport(id: string): void;
   dismissImport(id: string): void;
+  /** Upload a failed row's file again, in its own place. */
+  retryImport(id: string): void;
   /**
    * The sounds one of the owner's packs holds at `version`, by storage ref,
    * or `null` when that is not the version they hold. Inserting a sound added
@@ -130,6 +134,13 @@ const ERROR_CODE: Readonly<Record<ImportFailure, ErrorCode>> = {
   not_found: "not_found",
   unknown: "unknown",
 };
+
+/** The failures a second attempt could get past: not a refused or unreadable file. */
+const RETRYABLE: ReadonlySet<ImportFailure> = new Set([
+  "network",
+  "unknown",
+  "not_found",
+]);
 
 /** What the allowance line says once an account is at least 90% full. */
 export function allowanceNotice(usage: UserDataUsage): string | null {
@@ -206,6 +217,8 @@ export function useUserLibrary(options: UseUserLibraryOptions): UserLibrary {
   }
 
   const controllers = new Map<string, AbortController>();
+  /** The file behind each import row, kept so a failed upload can be retried. */
+  const importFilesById = new Map<string, { file: File; method: ImportMethod }>();
   /** The pack each import in flight is headed for, by import row ID. */
   const inFlight = new Map<string, string>();
   /** Packs made here whose document is still being written, by ID. */
@@ -452,6 +465,7 @@ export function useUserLibrary(options: UseUserLibraryOptions): UserLibrary {
   }
 
   function removeRow(id: string): void {
+    importFilesById.delete(id);
     setImports((rows) => rows.filter((row) => row.id !== id));
   }
 
@@ -474,14 +488,28 @@ export function useUserLibrary(options: UseUserLibraryOptions): UserLibrary {
     packId: string,
     file: File,
     method: ImportMethod,
+    retryOf?: string,
   ): Promise<void> {
     const id = `import-${ids("asset")}`;
+    importFilesById.set(id, { file, method });
     const controller = new AbortController();
     controllers.set(id, controller);
-    setImports((rows) => [
-      ...rows,
-      { id, packId, fileName: file.name, progress: 0, state: "uploading", message: null },
-    ]);
+    const row: ImportRow = {
+      id,
+      packId,
+      fileName: file.name,
+      progress: 0,
+      state: "uploading",
+      message: null,
+      retryable: false,
+    };
+    // A retry takes the failed row's place in the list.
+    setImports((rows) =>
+      retryOf && rows.some((entry) => entry.id === retryOf)
+        ? rows.map((entry) => (entry.id === retryOf ? row : entry))
+        : [...rows, row],
+    );
+    if (retryOf) importFilesById.delete(retryOf);
     // Everything already on its way counts, so a multi-file drop cannot slip
     // past the allowance one file at a time.
     const before = {
@@ -529,7 +557,11 @@ export function useUserLibrary(options: UseUserLibraryOptions): UserLibrary {
       if (reason === "cancelled") {
         updateRow(id, { state: "cancelled", message: importFailureMessage(reason) });
       } else {
-        updateRow(id, { state: "failed", message: importFailureMessage(reason) });
+        updateRow(id, {
+          state: "failed",
+          message: importFailureMessage(reason),
+          retryable: RETRYABLE.has(reason),
+        });
         analytics.log("sound_import_failed", { error_code: ERROR_CODE[reason] });
       }
     } finally {
@@ -578,6 +610,13 @@ export function useUserLibrary(options: UseUserLibraryOptions): UserLibrary {
     importFiles,
     cancelImport: (id) => controllers.get(id)?.abort(),
     dismissImport: removeRow,
+    retryImport: (id) => {
+      const entry = importFilesById.get(id);
+      const row = imports().find((candidate) => candidate.id === id);
+      const active = session();
+      if (!entry || !row || row.state !== "failed" || !active) return;
+      void importOne(active, row.packId, entry.file, entry.method, id);
+    },
     heldPack: (packId, version) => heldPack(packId, version),
   };
 }

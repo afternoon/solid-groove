@@ -74,6 +74,15 @@ function ImportRowView(props: { row: ImportRow; library: UserLibrary }): JSX.Ele
         fallback={
           <>
             <output class="my-packs-import-message">{props.row.message}</output>
+            <Show when={props.row.state === "failed" && props.row.retryable}>
+              <button
+                type="button"
+                class="my-packs-import-retry"
+                onClick={() => props.library.retryImport(props.row.id)}
+              >
+                Retry
+              </button>
+            </Show>
             <button
               type="button"
               class="my-packs-icon"
