@@ -12,6 +12,8 @@
  *   the library makes it: one transaction, one undo entry. The slot is
  *   outlined as changed until the next edit, and the card offers Undo.
  * - **Put back** drops the override and goes back to where the editor was.
+ *   Going to the Library puts the sound back too: the Library plays its own
+ *   sounds through the slot.
  * - Editing the slot while a sound is being tried, or a change made
  *   elsewhere, puts the sound back and makes the card **stale**: it can ask
  *   again (Refresh) or be dismissed.
@@ -23,7 +25,7 @@
  * project's already and, for a decision, how long it took. Never a pack's or a
  * sound's name, nor what the producer asked.
  */
-import { type Accessor, createSignal, onCleanup } from "solid-js";
+import { type Accessor, createEffect, createSignal, onCleanup } from "solid-js";
 import type { Analytics } from "../../analytics/analytics";
 import { bucketOf } from "../../analytics/buckets";
 import type {
@@ -107,8 +109,8 @@ export interface RecommendationCard {
 
 /** What the cards need from the editor around them. */
 export interface RecommendationEditorPort {
-  /** The slot a recommendation for `trackId` tries its sound in. */
-  slotFor(trackId: string | null): RecommendationSlot | null;
+  /** The slot a recommendation for `trackId` (and `padId`) tries its sound in. */
+  slotFor(trackId: string | null, padId: string | null): RecommendationSlot | null;
   /** The library's hot-swap: an audio-only override of the slot's sound. */
   previewInSlot(slot: PreviewSlot, sound: LibraryAsset): boolean;
   clearPreview(): void;
@@ -130,6 +132,11 @@ export interface UseAssistantRecommendationsOptions {
   >;
   readonly controls: Pick<EditorControls, "registry" | "revealControl" | "restoreView">;
   readonly project: Accessor<Project | null>;
+  /**
+   * The editor's view. Going to the Library by hand ends a try: the Library
+   * plays its own sounds through the slot, which replaces the override.
+   */
+  readonly view?: Accessor<EditorViewName>;
   /** The library each turn was sent with, as the app holds it. */
   readonly library: AssistantLibrary;
   readonly editor: RecommendationEditorPort;
@@ -287,7 +294,7 @@ export function useAssistantRecommendations(
       ...base,
       status: "ready",
       recommendation: resolved,
-      slot: editor.slotFor(resolved.trackId),
+      slot: editor.slotFor(resolved.trackId, resolved.padId),
       sound: soundToTry(resolved.sounds),
     };
     show(entryId, card);
@@ -501,7 +508,16 @@ export function useAssistantRecommendations(
       // Any edit after the keep ends its solid outline, its own undo included.
       if (entry.mark === "changed") setMark(entryId, "none");
       if (ownHistory) {
-        update(entryId, { status: edit.kind === "undo" ? "undone" : "kept" });
+        // A redo of the keep while the sound is tried again: the keep is back
+        // in the song, so the try ends rather than playing over it.
+        if (card.status === "trying") {
+          entry.location = null;
+          endTry(entryId);
+        }
+        update(entryId, {
+          status: edit.kind === "undo" ? "undone" : "kept",
+          returnView: null,
+        });
         continue;
       }
       if (card.status === "trying" && card.slot && editHitsSlot(edit, card.slot)) {
@@ -518,12 +534,36 @@ export function useAssistantRecommendations(
     update(entryId, { status: "stale", returnView: null });
   }
 
+  /**
+   * The editor went to the Library while a sound was tried: the Library's own
+   * auditions play through the slot and its close clears the override, so the
+   * try is put back here rather than left claiming a sound the slot no longer
+   * plays. Its Open in library does the same before it goes.
+   */
+  function leaveForLibrary(): void {
+    for (const [entryId, entry] of entries) {
+      if (cards().get(entryId)?.status !== "trying" || entry.keeping) continue;
+      entry.location = null;
+      endTry(entryId);
+      update(entryId, { status: "put-back", returnView: null });
+    }
+  }
+
   function onRemoteChange(): void {
     for (const [entryId, entry] of entries) {
       if (cards().get(entryId)?.status === "trying" && !entry.keeping) goStale(entryId);
     }
   }
 
+  const view = options.view;
+  if (view) {
+    createEffect(
+      () => view(),
+      (current) => {
+        if (current === "library") leaveForLibrary();
+      },
+    );
+  }
   onCleanup(session.onEdit(onEdit));
   onCleanup(session.onRemoteChange(onRemoteChange));
   onCleanup(() => {

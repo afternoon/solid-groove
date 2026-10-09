@@ -135,6 +135,7 @@ export function useAssistantChat(options: UseAssistantChatOptions): AssistantCha
           session: editor.session,
           controls: editor.controls,
           project: options.project,
+          view: options.view,
           library: recommending.library,
           editor: recommending.port,
           analytics: options.analytics,

@@ -7,11 +7,11 @@ import { createRecordingTransport } from "../../analytics/transport";
 import type { AssistantToolCall } from "../../assistant/protocol";
 import { RECOMMEND_SOUNDS_TOOL } from "../../assistant/recommendation";
 import { ASSISTANT_TOOLSET_VERSION } from "../../assistant/tools";
-import { setPadAsset } from "../../commands";
+import { addPad, setPadAsset } from "../../commands";
 import { type ControlAddress, controlKey } from "../../commands/controlAddress";
 import { createControlRegistry } from "../../controls/registry";
 import type { Project } from "../../domain/entities";
-import { createFactoryContext } from "../../domain/factories";
+import { createDrumPad, createFactoryContext } from "../../domain/factories";
 import { fakePreviewEngine } from "../../library/__fixtures__/fakePreviewEngine";
 import { fixtureFetcher } from "../../library/__fixtures__/fixtures";
 import { loadPadSampleCommands, toLibrarySample } from "../../library/insertion";
@@ -101,9 +101,17 @@ async function setUp() {
     setPreviewing(snapshot.previewing);
   });
 
+  // The editor's view: the Library by hand ends a try.
+  const [view, setView] = createSignal<EditorViewName>("arrangement");
   const port = {
-    slotFor: (trackId: string | null) =>
-      recommendationSlot(session.committedProject, trackId, track, emptyPadSelection),
+    slotFor: (trackId: string | null, padId: string | null) =>
+      recommendationSlot(
+        session.committedProject,
+        trackId,
+        padId,
+        track,
+        emptyPadSelection,
+      ),
     previewInSlot: vi.fn((_slot, _sound: LibraryAsset) => true),
     clearPreview: vi.fn(() => {}),
     // As the library's Insert does: one transaction onto the pad.
@@ -134,7 +142,7 @@ async function setUp() {
     });
     const chat = useAssistantChat({
       project: shown,
-      view: () => "arrangement" as EditorViewName,
+      view,
       sources: () => ({ selection: null, track }),
       account: () => ({ registered: true }),
       expanded: () => panel.layout().mode === "floating",
@@ -212,6 +220,7 @@ async function setUp() {
     engine,
     recommend,
     events,
+    setView,
   };
 }
 
@@ -441,5 +450,86 @@ describe("the recommended pack card (GRV-23)", () => {
     await press(cardButton(/Pack demo/));
     expect(session.committedProject).toBe(project);
     expect(controlKey(slot)).toContain(":sample");
+  });
+
+  it("ends a try again when the header's Redo puts the kept sound back", async () => {
+    // Try, Keep, Undo on the card, Try again, then Redo from the header.
+    const { recommend, session, port, registry, slot, pad } = await setUp();
+    await recommend();
+    await press(cardButton("Try on BD"));
+    await press(cardButton("Keep"));
+    const kept = padAsset(session, pad.id);
+    await press(cardButton("Undo"));
+    await press(cardButton("Try on BD"));
+    expect(registry.markOf(slot)).toBe("previewed");
+    port.clearPreview.mockClear();
+
+    fireAndFlush(() => session.redo());
+
+    expect(padAsset(session, pad.id)).toBe(kept);
+    expect(port.clearPreview).toHaveBeenCalledTimes(1);
+    expect(registry.markOf(slot)).toBe("none");
+    expect(cardStatus()).toHaveTextContent("Kept. BD plays Soft Rounded Kick now");
+    expect(panelStatus()).toBe("");
+  });
+
+  it("puts a try back when the editor goes to the Library by hand", async () => {
+    const { recommend, port, registry, slot, restoreView, setView } = await setUp();
+    await recommend();
+    await press(cardButton("Try on BD"));
+    expect(panelStatus()).toBe(TRYING_STATUS);
+
+    fireAndFlush(() => setView("library"));
+
+    expect(port.clearPreview).toHaveBeenCalled();
+    expect(registry.markOf(slot)).toBe("none");
+    expect(cardStatus()).toHaveTextContent("Put back.");
+    expect(panelStatus()).toBe("");
+    // The producer chose where to go: nothing takes them back.
+    expect(restoreView).not.toHaveBeenCalled();
+    expect(cardButton("Try on BD")).toBeEnabled();
+  });
+
+  it("tries on the pad the recommendation names, not the selected one", async () => {
+    const { recommend, session, port, track, pad } = await setUp();
+    // A second pad, "SD", on the kit; BD stays the selected (first) pad.
+    const added = session.dispatch(
+      addPad(track.id, createDrumPad(createFactoryContext(), { name: "SD" })),
+    );
+    expect(added?.ok).toBe(true);
+    const kit = session.committedProject.song.tracks[0]?.instrument;
+    const sd =
+      kit?.kind === "drumMachine" ? kit.pads.find((p) => p.name === "SD") : undefined;
+    if (!sd) throw new Error("no SD pad");
+    await recommend({
+      packId: DRUMS,
+      soundIds: [SOFT_KICK],
+      reason: "A snare-ish kick.",
+      trackId: track.id,
+      padId: sd.id,
+    });
+    expect(cardButton("Try on SD")).toBeEnabled();
+    await press(cardButton("Try on SD"));
+    expect(port.previewInSlot).toHaveBeenCalledWith(
+      { trackId: track.id, padId: sd.id },
+      expect.objectContaining({ id: SOFT_KICK }),
+    );
+    await press(cardButton("Keep"));
+    expect(padAsset(session, sd.id)).not.toBeNull();
+    expect(padAsset(session, pad.id)).toBe(pad.assetId);
+  });
+
+  it("logs feature_first_use for assistant_recommendation once, however often it is tried", async () => {
+    const { recommend, events } = await setUp();
+    await recommend();
+    await press(cardButton("Try on BD"));
+    await press(cardButton("Put back"));
+    await press(cardButton("Try on BD"));
+    await press(cardButton("Put back"));
+    expect(
+      events("feature_first_use").filter(
+        (event) => event.params?.feature === "assistant_recommendation",
+      ),
+    ).toHaveLength(1);
   });
 });

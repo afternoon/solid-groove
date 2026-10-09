@@ -429,12 +429,13 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
       recommendations: {
         library: assistantLibrary,
         port: {
-          slotFor: (trackId) => {
+          slotFor: (trackId, padId) => {
             const current = project();
             return current
               ? recommendationSlot(
                   current,
                   trackId,
+                  padId,
                   track(),
                   trackSelection.padSelection(),
                 )

@@ -40,8 +40,9 @@ export interface AssistantLibraryCatalog {
 export interface AssistantLibrary {
   /**
    * Loads the index and every published pack's manifest, once: later calls
-   * share it. A pack that will not load is left out; an index that will not
-   * load resolves to null, and is asked for again next time.
+   * share it. A pack that will not load is left out of this load and asked for
+   * again by the next one; an index that will not load resolves to null, and
+   * is asked for again next time.
    */
   load(): Promise<AssistantLibraryCatalog | null>;
   /** What the last load found, or null before one has finished. */
@@ -67,6 +68,9 @@ export function createAssistantLibrary(client: LibraryClient): AssistantLibrary 
     }
     const published = index.filter((pack) => pack.kind !== "user");
     const results = await Promise.all(published.map((pack) => client.loadPack(pack)));
+    // A pack that failed is asked for again by the next load; the client's
+    // cache answers the ones that loaded without fetching them twice.
+    if (results.some((result) => !result.ok)) loading = null;
     const catalog: AssistantLibraryCatalog = {
       packs: published.flatMap((pack, at) => {
         const result = results[at];
@@ -103,16 +107,36 @@ export function projectHasPack(project: Project, packId: string): boolean {
   return addedPackIds(project, []).includes(packId);
 }
 
+/**
+ * The gateway's caps on what a turn sends of the library
+ * (`assistantLibraryPackSchema`). A field over its cap is clipped, so one long
+ * name cannot fail every turn; an ID over its cap cannot be clipped without
+ * naming something else, so its pack or sound is left out instead.
+ */
+const SENT = {
+  packId: 64,
+  soundId: 128,
+  name: 200,
+  version: 32,
+  role: 64,
+  tag: 64,
+} as const;
+
+function clip(text: string, max: number): string {
+  return text.slice(0, max);
+}
+
 function soundOf(asset: LibraryAsset, project: Project): AssistantLibrarySound {
   return {
     id: asset.id,
-    name: asset.name,
-    role: asset.role,
+    name: clip(asset.name, SENT.name),
+    role: clip(asset.role, SENT.role),
     type: asset.type === "loop" ? "loop" : "one-shot",
-    tags: [...new Set([...asset.genres, ...asset.characters])].slice(
-      0,
-      ASSISTANT_LIBRARY_LIMITS.maxTags,
-    ),
+    tags: [
+      ...new Set(
+        [...asset.genres, ...asset.characters].map((tag) => clip(tag, SENT.tag)),
+      ),
+    ].slice(0, ASSISTANT_LIBRARY_LIMITS.maxTags),
     inProject: projectUsesSound(project, asset),
   };
 }
@@ -120,25 +144,24 @@ function soundOf(asset: LibraryAsset, project: Project): AssistantLibrarySound {
 /**
  * What a turn sends of the library: each pack and its sounds' metadata, and
  * what the project already uses, within the gateway's limits. Never a URL, a
- * storage path or a producer's own pack.
+ * storage path or a producer's own pack. Null when there is nothing to send,
+ * so the turn is offered no way to recommend from an empty library.
  */
 export function libraryContext(
   catalog: AssistantLibraryCatalog,
   project: Project,
-): AssistantLibraryContext {
+): AssistantLibraryContext | null {
   let room: number = ASSISTANT_LIBRARY_LIMITS.maxSounds;
   const packs: AssistantLibraryPack[] = [];
-  for (const { pack, sounds } of catalog.packs.slice(
-    0,
-    ASSISTANT_LIBRARY_LIMITS.maxPacks,
-  )) {
-    const sent = sounds.slice(0, room);
+  const sendable = catalog.packs.filter(({ pack }) => pack.id.length <= SENT.packId);
+  for (const { pack, sounds } of sendable.slice(0, ASSISTANT_LIBRARY_LIMITS.maxPacks)) {
+    const sent = sounds.filter((sound) => sound.id.length <= SENT.soundId).slice(0, room);
     room -= sent.length;
     packs.push({
       id: pack.id,
-      name: pack.name,
-      publisher: pack.publisher,
-      version: pack.version,
+      name: clip(pack.name, SENT.name),
+      publisher: clip(pack.publisher, SENT.name),
+      version: clip(pack.version, SENT.version),
       description: pack.description.slice(
         0,
         ASSISTANT_LIBRARY_LIMITS.maxDescriptionChars,
@@ -148,5 +171,5 @@ export function libraryContext(
       sounds: sent.map((sound) => soundOf(sound, project)),
     });
   }
-  return { packs };
+  return packs.some((pack) => pack.sounds.length > 0) ? { packs } : null;
 }

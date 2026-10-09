@@ -27,6 +27,7 @@ export interface ResolvedRecommendation {
   readonly sounds: readonly LibraryAsset[];
   readonly reason: string;
   readonly trackId: string | null;
+  readonly padId: string | null;
 }
 
 /**
@@ -50,6 +51,7 @@ export function resolveRecommendation(
     sounds: sounds as LibraryAsset[],
     reason: recommendation.reason,
     trackId: recommendation.trackId,
+    padId: recommendation.padId,
   };
 }
 
@@ -69,21 +71,32 @@ export interface RecommendationSlot {
 
 /**
  * The slot a recommendation for `trackId` tries its sounds in: that track's,
- * as the Library would aim at it (a drum machine's selected pad, a sampler),
  * or the selected track's when it names none or one the song does not have.
- * Null when that track has no slot a one-shot can play through (a synth, a
- * loop track, an empty kit) or there is no track at all.
+ * On a drum machine it is the pad the recommendation names, so a kick goes on
+ * the kick's pad whichever pad is selected; when it names none, or one the kit
+ * does not have, it is the selected pad, as the Library would aim. Null when
+ * that track has no slot a one-shot can play through (a synth, a loop track,
+ * an empty kit) or there is no track at all.
  */
 export function recommendationSlot(
   project: Project,
   trackId: string | null,
+  padId: string | null,
   selected: Track | null,
   padSelection: PadSelection,
 ): RecommendationSlot | null {
   const named = project.song.tracks.find((track) => track.id === trackId);
   const track = named ?? selected;
   if (!track) return null;
-  const aim = libraryAim(track, selectedPadOf(padSelection, track), false);
+  const namedPad =
+    track.instrument?.kind === "drumMachine"
+      ? track.instrument.pads.find((pad) => pad.id === padId)
+      : undefined;
+  const aim = libraryAim(
+    track,
+    namedPad?.id ?? selectedPadOf(padSelection, track),
+    false,
+  );
   if (aim.kind !== "target") return null;
   const { target } = aim;
   if (target.kind === "pad") {
