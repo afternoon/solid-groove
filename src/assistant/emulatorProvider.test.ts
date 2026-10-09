@@ -5,6 +5,7 @@ import { createReferenceProject, createSliceFixtureProject } from "../domain/fix
 import { SONG_SWING } from "../domain/parameters";
 import {
   createEmulatorAssistantProvider,
+  EMULATOR_ASK,
   EMULATOR_REPLY_CHUNKS,
   LOOSEN_EXPLANATION,
   LOOSEN_SWING,
@@ -133,6 +134,38 @@ describe("the emulator's assistant provider", () => {
     );
     expect(after?.mixer.volume).toBe(track.mixer.volume - LOOSEN_VOLUME_DROP_DB);
     expect(validation.proposal.explanation).toEqual(LOOSEN_EXPLANATION);
+  });
+
+  it("ends [ask] in a question for the producer, and [ask-multi] in a multi-select", async () => {
+    const single = await turn(gateway(), "Help [ask]").result;
+    expect(single.stopReason).toBe("tool_use");
+    expect(single.proposal).toBeNull();
+    expect(single.ask).toEqual({ id: "toolu_ask", ...EMULATOR_ASK, multiSelect: false });
+    const multi = await turn(gateway(), "Help [ask-multi]").result;
+    expect(multi.ask?.multiSelect).toBe(true);
+  });
+
+  it("ends [ask-rich] in a question about the project's first track, with a preview that applies", async () => {
+    const project = createReferenceProject();
+    const reply = await turn(gateway(), "Where do I start? [ask-rich]").result;
+    const options = reply.ask?.options ?? [];
+    expect(options.map((option) => option.label)).toEqual([
+      "The first track",
+      "The opening",
+      "Slower, at 100 BPM",
+    ]);
+    expect(options[0]?.ref).toEqual({
+      kind: "track",
+      trackId: project.song.tracks[0]?.id,
+    });
+    const preview = options[2]?.sound;
+    if (preview?.kind !== "preview") throw new Error("the third option has no preview");
+    const validation = validateProposal(project, {
+      baseRevision: project.metadata.revision,
+      calls: preview.calls,
+    });
+    expect(validation.ok).toBe(true);
+    expect(options[2]?.doneWhen).toEqual({ kind: "tempo", max: 100 });
   });
 
   it("is only chosen in the emulator, and only with no key", () => {

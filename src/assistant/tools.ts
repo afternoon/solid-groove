@@ -37,6 +37,10 @@
  * own, so until they land those families are absent and their lanes cannot be
  * slipped in through a create's restore fields either (see `refuse` below).
  *
+ * The one tool that is not a command, `ask_producer` (GRV-42), lives in
+ * `ask.ts`: it asks the producer a question and changes nothing, so it is
+ * offered beside these but never reaches a proposal.
+ *
  * Commands the assistant may not call at all are pinned in
  * {@link NON_ASSISTANT_COMMANDS}, so a newly registered command needs a
  * decision here before the tests pass.
@@ -67,12 +71,15 @@ import {
 } from "../domain/parameters";
 
 /**
- * Bumped whenever a tool is added, removed, renamed or changes its rules.
+ * Bumped whenever a tool is added, removed, renamed or changes its rules,
+ * `ask_producer` (`ask.ts`) included.
  * 2: `parameter_set` may set the song's swing as well as its tempo (GRV-5).
- * 3: `parameter_set` names its parameter IDs, and `explain_change` carries a
+ * 3: `ask_producer` lets the assistant ask the producer a question (GRV-42).
+ * 4: its options may carry references, sounds and predicates (GRV-42).
+ * 5: `parameter_set` names its parameter IDs, and `explain_change` carries a
  *    proposal's goal and technique (GRV-5).
  */
-export const ASSISTANT_TOOLSET_VERSION = 3;
+export const ASSISTANT_TOOLSET_VERSION = 5;
 
 /** The song's own parameters the assistant may set: its tempo and its swing. */
 const SONG_PARAMETER_IDS: readonly string[] = [SONG_TEMPO.id, SONG_SWING.id];
