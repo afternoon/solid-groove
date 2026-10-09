@@ -43,7 +43,7 @@ import {
 } from "./config";
 import type { AssistantGuardStores } from "./guards";
 import { type BoundedHistory, boundHistory, estimateTokens } from "./history";
-import { ASSISTANT_PROMPT_VERSION, buildSystemBlocks } from "./prompt";
+import { ASSISTANT_PROMPT_VERSION, buildSystemBlocks, createIdStem } from "./prompt";
 import {
   AssistantGatewayError,
   type AssistantProposal,
@@ -93,6 +93,8 @@ export interface AssistantGatewayDeps {
   /** Waits `ms`, or rejects once `signal` aborts. */
   readonly sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
   readonly model?: AssistantModelProfile;
+  /** The stem the turn's new IDs are made from (`prompt.ts`); random by default. */
+  readonly idStem?: () => string;
   readonly limits?: AssistantCallLimits;
   readonly guardLimits?: AssistantGuardLimits;
 }
@@ -181,8 +183,9 @@ async function prepare(
   model: AssistantModelProfile,
   uid: string,
   turn: AssistantTurnRequest,
+  idStem: string,
 ): Promise<PreparedTurn> {
-  const system = buildSystemBlocks(turn.context);
+  const system = buildSystemBlocks(turn.context, idStem);
   const tools = providerTools([...assistantTools(), EXPLAIN_TOOL, askProducerTool()]);
   // The tool definitions take room in the window just as the prompt does.
   const systemTokens =
@@ -454,7 +457,7 @@ export async function runAssistantTurn(
     if (!(await deps.guards.isEnabled())) {
       throw new AssistantGatewayError("assistant_disabled", DISABLED_MESSAGE);
     }
-    const prepared = await prepare(model, uid, turn);
+    const prepared = await prepare(model, uid, turn, (deps.idStem ?? createIdStem)());
     history = prepared.history;
 
     while (true) {

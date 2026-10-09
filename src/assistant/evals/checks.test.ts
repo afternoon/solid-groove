@@ -115,8 +115,25 @@ describe("check 1: valid", () => {
   it("fails a reply that proposed nothing", () => {
     expect(checkValid(project, null).result).toEqual({
       status: "fail",
-      detail: "The reply proposed no change",
+      detail: "no proposal: The reply proposed no change",
+      kind: "no proposal",
     });
+    expect(checkValid(project, null, "It asked instead").result.detail).toBe(
+      "no proposal: It asked instead",
+    );
+  });
+
+  // GRV-6's first live run: every proposal that created something failed here,
+  // because the model counted out its new IDs by hand and got the length wrong.
+  it("fails a new ID one character short as a schema failure", () => {
+    const device = { ...createDevice(context("short").ids("device"), "compressor", 0) };
+    const command = addDevice(
+      { chain: "master" },
+      { ...device, id: device.id.slice(0, -1) as typeof device.id },
+    );
+    const outcome = checkValid(project, proposalOf([command]));
+    expect(outcome.result.kind).toBe("schema");
+    expect(outcome.result.detail).toMatch(/^schema: invalid_payload .*device\.id/);
   });
 
   it("fails a call to a tool that does not exist", () => {
@@ -125,6 +142,7 @@ describe("check 1: valid", () => {
       calls: [{ name: "audio_generate", input: {} }],
     });
     expect(outcome.result.status).toBe("fail");
+    expect(outcome.result.kind).toBe("schema");
     expect(outcome.result.detail).toContain("unknown_tool");
     expect(outcome.applied).toBeNull();
   });
@@ -135,6 +153,7 @@ describe("check 1: valid", () => {
       12,
     );
     const outcome = checkValid(project, proposalOf([loud]));
+    expect(outcome.result.kind).toBe("range");
     expect(outcome.result.detail).toContain("out_of_range");
   });
 
@@ -149,6 +168,7 @@ describe("check 1: valid", () => {
     ]);
     const outcome = checkValid(project, proposalOf([stray]));
     expect(outcome.result.status).toBe("fail");
+    expect(outcome.result.kind).toBe("executor");
     expect(outcome.result.detail).toContain("rejected");
   });
 });

@@ -1,10 +1,11 @@
 /**
  * The Markdown summary of an assistant eval run (GRV-6): the pass rate per
- * check, a case-by-check grid, every failure with its reason, and the
+ * check, a case-by-check grid, why check 1 failed in each case, every
+ * failure with its reason, and the
  * descriptive numbers per run. The JSON report beside it keeps everything,
  * every proposal included; this is the page a human reads first.
  */
-import { CHECK_IDS, CHECK_LABELS, type CheckId } from "./checks";
+import { CHECK_IDS, CHECK_LABELS, type CheckId, type ValidFailureKind } from "./checks";
 import type { EvalRecord, EvalReport, Tally } from "./run";
 
 /** "7/9 (78%)" over the proposals the check could judge; skips said apart. */
@@ -42,6 +43,57 @@ function statsLine(record: EvalRecord): string {
     ...stats.mixer,
   ];
   return parts.filter((part): part is string => part !== null).join("; ");
+}
+
+const VALID_FAILURE_KINDS: readonly ValidFailureKind[] = [
+  "no proposal",
+  "schema",
+  "range",
+  "executor",
+];
+
+/** Check 1's failure on one run in a line short enough for a console, or null. */
+export function validFailureLine(record: EvalRecord, maxLength = 200): string | null {
+  const result = record.checks.valid;
+  if (result?.status !== "fail") return null;
+  const detail = cell(result.detail);
+  return detail.length > maxLength ? `${detail.slice(0, maxLength - 3)}...` : detail;
+}
+
+/**
+ * Why check 1 failed, case by case: how many failures of each kind, then each
+ * distinct reason with how many runs gave it, so a cause shared by every run
+ * reads as one line.
+ */
+function validFailureLines(report: EvalReport): string[] {
+  const failed = report.records.filter(
+    (record) => record.checks.valid?.status === "fail",
+  );
+  if (failed.length === 0) return [];
+  const lines = [
+    "## Why check 1 failed",
+    "",
+    `| Case | ${VALID_FAILURE_KINDS.join(" | ")} |`,
+    `| --- | ${VALID_FAILURE_KINDS.map(() => "---").join(" | ")} |`,
+  ];
+  const reasons: string[] = [];
+  for (const caseId of report.caseIds) {
+    const records = failed.filter((record) => record.caseId === caseId);
+    if (records.length === 0) continue;
+    const counts = VALID_FAILURE_KINDS.map(
+      (kind) => records.filter((record) => record.checks.valid?.kind === kind).length,
+    );
+    lines.push(`| \`${caseId}\` | ${counts.join(" | ")} |`);
+    const byDetail = new Map<string, number>();
+    for (const record of records) {
+      const detail = cell(record.checks.valid?.detail ?? "");
+      byDetail.set(detail, (byDetail.get(detail) ?? 0) + 1);
+    }
+    for (const [detail, count] of byDetail) {
+      reasons.push(`- \`${caseId}\`, ${count} of ${records.length}: ${detail}`);
+    }
+  }
+  return [...lines, "", ...reasons, ""];
 }
 
 function erroredLines(report: EvalReport): string[] {
@@ -95,6 +147,7 @@ export function renderMarkdown(report: EvalReport): string {
       return `| \`${caseId}\` | ${cells.join(" | ")} | ${report.summary.errored.cases[caseId] ?? 0} |`;
     }),
     "",
+    ...validFailureLines(report),
     "## Runs",
   ];
   for (const caseId of report.caseIds) {

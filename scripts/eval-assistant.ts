@@ -38,7 +38,11 @@ import {
   requireApiKey,
   selectEvalCases,
 } from "../src/assistant/evals/cli";
-import { formatTally, renderMarkdown } from "../src/assistant/evals/markdown";
+import {
+  formatTally,
+  renderMarkdown,
+  validFailureLine,
+} from "../src/assistant/evals/markdown";
 import {
   buildReport,
   type EvalRecord,
@@ -81,10 +85,29 @@ function printSummary(report: EvalReport, dir: string): void {
   console.log(`\nReport: ${join(dir, "report.md")} and ${join(dir, "report.json")}`);
 }
 
+/** One line per run: a mark per check, and why it errored or failed check 1. */
+function printRecord(record: EvalRecord): void {
+  const marks = CHECK_IDS.map((id) => {
+    const status = record.checks[id]?.status;
+    return status === "pass"
+      ? "+"
+      : status === "fail"
+        ? "x"
+        : status === "skip"
+          ? "."
+          : " ";
+  }).join("");
+  const valid = validFailureLine(record);
+  console.log(
+    `  [${record.error ? "errored" : marks}] ${record.caseId} run ${record.run}${record.error ? ` (${record.error})` : ""}${valid ? ` (check 1: ${valid})` : ""}`,
+  );
+}
+
 async function replay(path: string, options: EvalCliOptions): Promise<EvalReport> {
   const saved = JSON.parse(await readFile(path, "utf8")) as EvalReport;
   const cases = selectEvalCases(saved.caseIds as string[]);
   const records = evaluateRecords(saved.records as EvalRecord[], cases);
+  for (const record of records) printRecord(record);
   const report = buildReport(records, cases, {
     generatedAt: new Date().toISOString(),
     model: saved.model,
@@ -111,21 +134,7 @@ async function live(options: EvalCliOptions): Promise<EvalReport> {
     runs: options.runs,
     concurrency: options.concurrency,
     turnTimeoutMs: options.turnTimeoutMs,
-    onRecord(record) {
-      const marks = CHECK_IDS.map((id) => {
-        const status = record.checks[id]?.status;
-        return status === "pass"
-          ? "+"
-          : status === "fail"
-            ? "x"
-            : status === "skip"
-              ? "."
-              : " ";
-      }).join("");
-      console.log(
-        `  [${record.error ? "errored" : marks}] ${record.caseId} run ${record.run}${record.error ? ` (${record.error})` : ""}`,
-      );
-    },
+    onRecord: printRecord,
   });
   printSummary(report, await writeReport(report, options.out));
   return report;

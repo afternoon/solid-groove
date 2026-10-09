@@ -45,6 +45,11 @@ export type CheckStatus = "pass" | "fail" | "skip";
 export interface CheckResult {
   readonly status: CheckStatus;
   readonly detail: string;
+  /**
+   * What kind of failure it was, for a check that tells them apart (check 1:
+   * {@link ValidFailureKind}). The detail starts with it too.
+   */
+  readonly kind?: string;
 }
 
 export const CHECK_IDS = [
@@ -77,6 +82,27 @@ const NO_ANALYTICS = { log() {} };
 // 1. Valid
 // ---------------------------------------------------------------------------
 
+/**
+ * Why a proposal failed check 1, so a run can show where its failures cluster:
+ *
+ * - `no proposal`: the reply changed nothing (it asked, was cut off, or only
+ *   talked);
+ * - `schema`: a call is not one the tool set takes as written (an unknown
+ *   tool, a payload or ID in the wrong shape, input that did not parse);
+ * - `range`: a value is outside its parameter's range;
+ * - `executor`: well formed, but the kernel or the executor refused it (a
+ *   missing ID, a broken invariant).
+ */
+export type ValidFailureKind = "no proposal" | "schema" | "range" | "executor";
+
+const failValid = (kind: ValidFailureKind, detail: string): CheckResult => ({
+  status: "fail",
+  detail: `${kind}: ${detail}`,
+  kind,
+});
+
+const EXECUTOR_ISSUES: ReadonlySet<string> = new Set(["rejected", "invalid_project"]);
+
 export interface ValidOutcome {
   readonly result: CheckResult;
   /** The validated proposal and the project it leaves, when it applied. */
@@ -86,11 +112,16 @@ export interface ValidOutcome {
 /**
  * Validates `proposal` against `project` and applies it through the executor
  * on a fresh history. `null` (a reply that proposed nothing) fails: every case
- * asks for a change.
+ * asks for a change. `noProposal` says why there was none, where the caller
+ * knows.
  */
-export function checkValid(project: Project, proposal: unknown): ValidOutcome {
+export function checkValid(
+  project: Project,
+  proposal: unknown,
+  noProposal = "The reply proposed no change",
+): ValidOutcome {
   if (proposal === null || proposal === undefined) {
-    return { result: fail("The reply proposed no change"), applied: null };
+    return { result: failValid("no proposal", noProposal), applied: null };
   }
   const validation = validateProposal(project, proposal);
   if (!validation.ok) {
@@ -102,7 +133,13 @@ export function checkValid(project: Project, proposal: unknown): ValidOutcome {
       );
     const more =
       validation.issues.length > 3 ? ` (+${validation.issues.length - 3} more)` : "";
-    return { result: fail(`${issues.join("; ")}${more}`), applied: null };
+    const [first] = validation.issues;
+    const kind: ValidFailureKind = EXECUTOR_ISSUES.has(first.code)
+      ? "executor"
+      : first.code === "out_of_range"
+        ? "range"
+        : "schema";
+    return { result: failValid(kind, `${issues.join("; ")}${more}`), applied: null };
   }
   const history = createCommandHistory(project);
   const executor = createProposalExecutor({
@@ -111,12 +148,15 @@ export function checkValid(project: Project, proposal: unknown): ValidOutcome {
   });
   const proposed = executor.propose(proposal);
   if (!proposed.ok) {
-    return { result: fail(proposed.issues[0]?.message ?? "Refused"), applied: null };
+    return {
+      result: failValid("executor", proposed.issues[0]?.message ?? "Refused"),
+      applied: null,
+    };
   }
   const applied = proposed.handle.apply();
   if (!applied.ok) {
     return {
-      result: fail(`The executor refused it: ${applied.reason}`),
+      result: failValid("executor", `The executor refused it: ${applied.reason}`),
       applied: null,
     };
   }

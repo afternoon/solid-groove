@@ -20,6 +20,8 @@
  * kinds and HTTP status, and never lowers a pass rate. A reply that came back
  * with no proposal is the model's answer, and fails check 1.
  */
+
+import type { AssistantAsk } from "../ask";
 import {
   ASSISTANT_MODEL_ID,
   ASSISTANT_MODELS,
@@ -81,6 +83,8 @@ export interface EvalTurn {
   readonly stopReason: AssistantStopReason | null;
   readonly text: string;
   readonly proposal: AssistantProposal | null;
+  /** The question the turn asked instead, if it asked one. Absent from older reports. */
+  readonly ask?: AssistantAsk | null;
 }
 
 /** One run of one case: the request, everything the model returned, every check. */
@@ -216,6 +220,7 @@ export async function runCaseTurn(
       stopReason: result.stopReason,
       text: result.text,
       proposal: result.proposal,
+      ask: result.ask,
     };
   } catch (error) {
     const log = turnLog as AssistantTurnLog | null;
@@ -254,6 +259,17 @@ function erroredTurn(durationMs: number, turnError: EvalTurnError): EvalTurn {
   };
 }
 
+/** Why a reply that came back proposed nothing, as far as the turn shows. */
+export function whyNoProposal(turn: EvalTurn): string {
+  if (turn.ask) return `It asked the producer instead: "${turn.ask.question}"`;
+  if (turn.stopReason === "max_tokens") {
+    return "The reply was cut off at max_tokens, so its tool calls were dropped";
+  }
+  if (turn.stopReason === "refusal") return "The model refused";
+  if (turn.stopReason === "tool_use") return "The reply called only explain_change";
+  return "The reply called no tool";
+}
+
 /**
  * Checks 1 to 5 on one turn, and its descriptive numbers. An errored turn is
  * judged by no check.
@@ -273,7 +289,7 @@ export function evaluateTurn(
   };
   if (turn.error) return { ...base, checks: {}, stats: null, fingerprint: null };
   const project = evalCase.fixture();
-  const valid = checkValid(project, turn.proposal);
+  const valid = checkValid(project, turn.proposal, whyNoProposal(turn));
   if (!valid.applied) {
     const notJudged = skip("The proposal did not apply");
     return {

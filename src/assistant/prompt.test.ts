@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import { deviceTypes } from "../domain/devices";
-import { ID_PREFIXES, idPattern } from "../domain/ids";
+import { ENTITY_KINDS, ID_PREFIXES, idPattern } from "../domain/ids";
 import { bareParameterId, SYNTH_PARAMETERS } from "../domain/parameters";
+import { MINIMAL_ASSISTANT_CONTEXT } from "../testing/scriptedAssistantProvider";
 import {
   ASSISTANT_PROMPT_VERSION,
   ASSISTANT_SYSTEM_PROMPT,
+  buildSystemBlocks,
+  createIdStem,
   describeParameter,
-  exampleId,
+  newId,
 } from "./prompt";
 
 describe("the assistant's system prompt", () => {
@@ -32,11 +35,37 @@ describe("the assistant's system prompt", () => {
     }
   });
 
-  it("gives example IDs in exactly the shape the tools accept", () => {
-    const id = exampleId(ID_PREFIXES.track, "bass", 1);
-    expect(ASSISTANT_SYSTEM_PROMPT).toContain(id);
-    expect(id).toMatch(idPattern("track"));
-    expect(exampleId(ID_PREFIXES.event, "bass", 12)).toMatch(idPattern("event"));
+  // GRV-6: the model cannot count out 21 characters, so it never has to.
+  it("makes every new ID from a stem and a counter, in exactly the shape the tools accept", () => {
+    const stem = createIdStem();
+    for (const kind of ENTITY_KINDS) {
+      for (const index of [1, 12, 9999]) {
+        expect(newId(ID_PREFIXES[kind], stem, index)).toMatch(idPattern(kind));
+      }
+    }
+    expect(newId(ID_PREFIXES.event, stem, 12)).toBe(`evt_${stem}0012`);
+  });
+
+  it("mints a fresh stem every turn", () => {
+    const stems = new Set(Array.from({ length: 50 }, createIdStem));
+    expect(stems.size).toBe(50);
+    for (const stem of stems) expect(stem).toMatch(/^[A-Za-z0-9]+$/);
+  });
+
+  it("gives the turn's stem, with worked IDs, in its own block after the project", () => {
+    const [prompt, project, ids] = buildSystemBlocks(
+      MINIMAL_ASSISTANT_CONTEXT,
+      "S".repeat(17),
+    );
+    expect(prompt.text).toBe(ASSISTANT_SYSTEM_PROMPT);
+    // The project block stays the JSON alone, for anything that reads it back.
+    expect(project.text).toBe(
+      `The open project, as JSON:\n${JSON.stringify(MINIMAL_ASSISTANT_CONTEXT)}`,
+    );
+    expect(ids.text).toContain(`the stem ${"S".repeat(17)}`);
+    expect(ids.text).toContain(newId(ID_PREFIXES.event, "S".repeat(17), 2));
+    // The fixed prompt never asks for an ID to be counted out by hand.
+    expect(ASSISTANT_SYSTEM_PROMPT).not.toMatch(/padding .* zeros/);
   });
 
   it("puts the request ahead of genre habits (PRD principle 10)", () => {

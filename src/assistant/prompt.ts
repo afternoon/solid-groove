@@ -15,7 +15,13 @@
  *
  * 2026-10-09.1 (GRV-6): the tools' reference, sounds, the five capabilities,
  * extremes taken literally, and naming only the controls a proposal changes.
+ *
+ * 2026-10-09.5 (GRV-6 rework): new IDs come from a stem minted for the turn
+ * plus a four-digit counter. The first live eval run failed every proposal
+ * that created anything, because the model could not count out an ID's 21
+ * characters by hand; it copies a given string reliably.
  */
+import { customAlphabet } from "nanoid";
 import { MAX_CLIP_LENGTH_BARS } from "../domain/clipLength";
 import { DELAY_DIVISIONS, deviceTypes, FILTER_MODES } from "../domain/devices";
 import { ID_PREFIXES, ID_SUFFIX_LENGTH } from "../domain/ids";
@@ -37,7 +43,7 @@ import { TICKS_PER_BAR, TICKS_PER_QUARTER, TICKS_PER_SIXTEENTH } from "../domain
 import type { AssistantContextPayload } from "./protocol";
 import type { ProviderTextBlock } from "./providerRequest";
 
-export const ASSISTANT_PROMPT_VERSION = "2026-10-09.4";
+export const ASSISTANT_PROMPT_VERSION = "2026-10-09.5";
 
 const UNIT_SUFFIX: Partial<Record<ParameterDefinition["unit"], string>> = {
   decibels: " dB",
@@ -70,10 +76,22 @@ export function describeParameter(definition: ParameterDefinition): string {
   return `${key} ${definition.min} to ${definition.max}${unit} (default ${definition.defaultValue})`;
 }
 
-/** A made-up ID in the shape the tools require, for the prompt's examples. */
-export function exampleId(prefix: string, word: string, index: number): string {
-  const tail = String(index);
-  return `${prefix}_${word}${"0".repeat(ID_SUFFIX_LENGTH - word.length - tail.length)}${tail}`;
+/** The digits of the counter that ends a new ID. */
+export const NEW_ID_COUNTER_DIGITS = 4;
+
+/**
+ * Makes the stem every ID a turn creates starts with: letters and digits
+ * only, long enough that the stem and the counter fill an ID's suffix
+ * exactly. Random, so no two turns mint the same IDs.
+ */
+export const createIdStem: () => string = customAlphabet(
+  "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789",
+  ID_SUFFIX_LENGTH - NEW_ID_COUNTER_DIGITS,
+);
+
+/** The `index`th new ID with `prefix` a turn given `stem` makes. */
+export function newId(prefix: string, stem: string, index: number): string {
+  return `${prefix}_${stem}${String(index).padStart(NEW_ID_COUNTER_DIGITS, "0")}`;
 }
 
 const DEVICE_LINES = deviceTypes()
@@ -105,7 +123,7 @@ A genre, a reference or the song's current style is a starting point, never a ru
 
 ## How the tools address things
 
-- IDs are a prefix, an underscore and exactly ${ID_SUFFIX_LENGTH} letters, digits, "_" or "-". Tracks ${ID_PREFIXES.track}_, clips ${ID_PREFIXES.clip}_, notes ${ID_PREFIXES.event}_, placements ${ID_PREFIXES.placement}_, devices ${ID_PREFIXES.device}_, drum pads ${ID_PREFIXES.pad}_, returns ${ID_PREFIXES.return}_. Make a new one by padding a short word with zeros and a counter to exactly ${ID_SUFFIX_LENGTH} characters, for example ${exampleId(ID_PREFIXES.track, "bass", 1)}, ${exampleId(ID_PREFIXES.clip, "bassA", 1)} or ${exampleId(ID_PREFIXES.event, "bass", 12)}, and never reuse one.
+- IDs are a prefix, an underscore and exactly ${ID_SUFFIX_LENGTH} letters, digits, "_" or "-". Tracks ${ID_PREFIXES.track}_, clips ${ID_PREFIXES.clip}_, notes ${ID_PREFIXES.event}_, placements ${ID_PREFIXES.placement}_, devices ${ID_PREFIXES.device}_, drum pads ${ID_PREFIXES.pad}_, returns ${ID_PREFIXES.return}_. Copy an existing ID exactly. Make a new one only from the stem given after the project description, as it says there: never by counting out characters yourself, and never reuse one.
 - parameter_set takes the full parameter ID at song, track, master, send and return scope: ${SONG_TEMPO.id} (${SONG_TEMPO.min} to ${SONG_TEMPO.max}) and ${SONG_SWING.id} (${SONG_SWING.min} straight to ${SONG_SWING.max}) on the song; ${TRACK_VOLUME.id} (${TRACK_VOLUME.min} to ${TRACK_VOLUME.max} dB) and ${TRACK_PAN.id} on a track; ${MASTER_VOLUME.id} on the master; ${TRACK_SEND_LEVEL.id} (0 to 1) on a send; ${RETURN_VOLUME.id} and ${RETURN_PAN.id} on a return. At instrument and device scope it takes the bare key listed below (cutoff, threshold).
 - A bar of 4/4 is ${TICKS_PER_BAR} ticks and a sixteenth ${TICKS_PER_SIXTEENTH}. A clip's notes sit at ticks inside the clip; a clip is at most ${MAX_CLIP_LENGTH_BARS} bars long. A placement puts a clip on its track's timeline at startTicks for durationTicks, and looped: true repeats the clip to fill it.
 - A track's order runs from 0 and a new one goes at the end, at the number of tracks the description lists. A device's order is its place in its chain; 0 puts it first, which is always valid.
@@ -130,13 +148,31 @@ ${DEVICE_LINES}
 
 Say in a sentence what you are proposing, before the tool calls, and leave the why to explain_change. When you name a control, use the name the producer sees, the track's or device's name and the control ("Bass volume", "Compressor threshold"), and name only controls your proposal changes.`;
 
-/** The system blocks for one turn: the fixed prompt first, then the project. */
-export function buildSystemBlocks(context: AssistantContextPayload): ProviderTextBlock[] {
+/** How to make this turn's new IDs from `stem`, worked through with examples. */
+export function newIdInstructions(stem: string): string {
+  const examples = [
+    newId(ID_PREFIXES.track, stem, 1),
+    newId(ID_PREFIXES.clip, stem, 1),
+    newId(ID_PREFIXES.event, stem, 1),
+    newId(ID_PREFIXES.event, stem, 2),
+  ];
+  return `New IDs this turn: the prefix, an underscore, the stem ${stem}, then a ${NEW_ID_COUNTER_DIGITS}-digit number counting up from ${"1".padStart(NEW_ID_COUNTER_DIGITS, "0")} for each prefix, for example ${examples.join(", ")}.`;
+}
+
+/**
+ * The system blocks for one turn: the fixed prompt first, then the project,
+ * then the stem the turn's new IDs are made from.
+ */
+export function buildSystemBlocks(
+  context: AssistantContextPayload,
+  idStem: string = createIdStem(),
+): ProviderTextBlock[] {
   return [
     { type: "text", text: ASSISTANT_SYSTEM_PROMPT },
     {
       type: "text",
       text: `The open project, as JSON:\n${JSON.stringify(context)}`,
     },
+    { type: "text", text: newIdInstructions(idStem) },
   ];
 }

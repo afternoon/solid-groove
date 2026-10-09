@@ -8,11 +8,16 @@ import {
   replyEvents,
   toolUseEvents,
 } from "../../testing/scriptedAssistantProvider";
-import { ASSISTANT_PROMPT_VERSION, ASSISTANT_SYSTEM_PROMPT } from "../prompt";
+import {
+  ASSISTANT_PROMPT_VERSION,
+  ASSISTANT_SYSTEM_PROMPT,
+  createIdStem,
+  newId,
+} from "../prompt";
 import { toolNameFor } from "../tools";
 import { EVAL_CASES, type EvalCase } from "./cases";
 import { createHouseLoopProject } from "./fixtures";
-import { formatTally, renderMarkdown } from "./markdown";
+import { formatTally, renderMarkdown, validFailureLine } from "./markdown";
 import {
   AUTH_ABORT_REASON,
   buildReport,
@@ -20,6 +25,7 @@ import {
   evaluateRecords,
   evaluateTurnSafely,
   runEvals,
+  whyNoProposal,
 } from "./run";
 
 const glue = EVAL_CASES.find((entry) => entry.id === "process-glue") as EvalCase;
@@ -109,7 +115,8 @@ describe("runEvals", () => {
     const [question, failed] = report.records;
     expect(question.checks.valid).toEqual({
       status: "fail",
-      detail: "The reply proposed no change",
+      detail: "no proposal: The reply called no tool",
+      kind: "no proposal",
     });
     expect(question.checks.bundled?.status).toBe("skip");
     expect(question.error).toBeNull();
@@ -231,6 +238,89 @@ describe("runEvals", () => {
   });
 });
 
+// GRV-6's first live run failed check 1 on every proposal that created
+// anything. Reproduced here: a device ID counted out by hand one character
+// short is refused as a schema failure; the same proposal built from the
+// turn's ID stem applies.
+describe("check 1 and new IDs", () => {
+  function deviceCall(id: string) {
+    const device = {
+      ...createDevice(id as Parameters<typeof createDevice>[0], "compressor", 0),
+      parameters: { threshold: -18 },
+    };
+    const command = addDevice({ chain: "master" }, device);
+    return { name: toolNameFor(command.type), input: command.payload };
+  }
+
+  it("fails an ID counted out by hand one character short, and says why", async () => {
+    const provider = createScriptedAssistantProvider([
+      toolUseEvents("A Compressor on the master.", [
+        deviceCall("dev_glue0000000000000001"),
+      ]),
+    ]);
+    const report = await runEvals({ provider, cases: [glue], runs: 1, now: fixedNow });
+    const [record] = report.records;
+    expect(record.checks.valid?.kind).toBe("schema");
+    expect(validFailureLine(record)).toMatch(
+      /^schema: invalid_payload \(call 0\): device\.id: Expected a "dev_" prefixed id/,
+    );
+  });
+
+  it("passes the same proposal with an ID made from the turn's stem", async () => {
+    const provider = createScriptedAssistantProvider([
+      toolUseEvents("A Compressor on the master.", [
+        deviceCall(newId("dev", createIdStem(), 1)),
+      ]),
+    ]);
+    const report = await runEvals({ provider, cases: [glue], runs: 1, now: fixedNow });
+    expect(report.records[0].checks.valid?.status).toBe("pass");
+    expect(validFailureLine(report.records[0])).toBeNull();
+  });
+
+  it("fails tool input cut short as a schema failure, not an errored turn", async () => {
+    const events = toolUseEvents("A Compressor on the master.", [
+      compressorCall("a", -18),
+    ]);
+    const truncated = events.filter(
+      (step, index) =>
+        !(
+          "event" in step &&
+          (step.event as { delta?: { type?: string } }).delta?.type ===
+            "input_json_delta" &&
+          (events[index - 1] as { event: { type: string } }).event.type ===
+            "content_block_delta"
+        ),
+    );
+    const provider = createScriptedAssistantProvider([truncated]);
+    const report = await runEvals({ provider, cases: [glue], runs: 1, now: fixedNow });
+    const [record] = report.records;
+    expect(record.error).toBeNull();
+    expect(record.checks.valid?.kind).toBe("schema");
+  });
+
+  it.each([
+    [{ stopReason: "max_tokens" }, "cut off at max_tokens"],
+    [{ stopReason: "refusal" }, "The model refused"],
+    [{ stopReason: "end_turn" }, "The reply called no tool"],
+  ] as const)("says why a reply proposed nothing (%o)", (turn, reason) => {
+    expect(
+      whyNoProposal({ ...turn, durationMs: 0, error: null, text: "", proposal: null }),
+    ).toContain(reason);
+  });
+
+  it("says when the reply asked the producer instead", () => {
+    const why = whyNoProposal({
+      durationMs: 0,
+      error: null,
+      stopReason: "tool_use",
+      text: "",
+      proposal: null,
+      ask: { id: "toolu_1", question: "Which part?", options: [] } as never,
+    });
+    expect(why).toBe('It asked the producer instead: "Which part?"');
+  });
+});
+
 describe("renderMarkdown", () => {
   it("names the model and prompt version and gives the pass rate per check", async () => {
     const provider = createScriptedAssistantProvider([
@@ -250,7 +340,20 @@ describe("renderMarkdown", () => {
     expect(markdown).toContain(
       "| 6. Extreme is not flattened | 0/0 (n/a, 1 not judged) |",
     );
-    expect(markdown).toContain("1. Valid failed: The reply proposed no change");
+    expect(markdown).toContain("1. Valid failed: no proposal: The reply called no tool");
+    expect(markdown).toContain("## Why check 1 failed");
+    expect(markdown).toContain("| `process-crushed` | 1 | 0 | 0 | 0 |");
+    expect(markdown).toContain(
+      "- `process-crushed`, 1 of 1: no proposal: The reply called no tool",
+    );
+  });
+
+  it("leaves the check 1 section out when nothing failed it", async () => {
+    const provider = createScriptedAssistantProvider([
+      toolUseEvents("A Compressor on the master.", [compressorCall("a", -18)]),
+    ]);
+    const report = await runEvals({ provider, cases: [glue], runs: 1, now: fixedNow });
+    expect(renderMarkdown(report)).not.toContain("## Why check 1 failed");
   });
 
   it("formats a tally over the proposals a check could judge", () => {
