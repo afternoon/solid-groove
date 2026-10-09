@@ -8,7 +8,7 @@
  * comment that mentions @claude) and asks GitHub to run `board.yml` on main.
  * The poll then reads the board itself, so the Worker passes nothing on and
  * makes no decisions: a dropped or duplicated event costs at most one idle
- * poll, the five-minute schedule stays as the backstop, and a burst of events
+ * poll, the hourly schedule stays as the backstop, and a burst of events
  * collapses into one run through `board.yml`'s concurrency group.
  *
  * Deploy and secrets: docs/linear.md, "The relay".
