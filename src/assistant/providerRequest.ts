@@ -13,7 +13,8 @@
  * shape to the SDK's own parameter type.
  *
  * Every turn offers the model the assistant's tool set (GRV-4, `tools.ts`),
- * so it can answer a request to change the song with a proposal. The tool
+ * so it can answer a request to change the song with a proposal, and
+ * `explain_change`, which says what that proposal is for. The tool
  * set's version is not on the wire (the Messages API has nowhere to put it);
  * the gateway stamps it on the proposal it returns instead.
  */
@@ -71,8 +72,14 @@ export interface ProviderRequestParts {
   readonly pseudonymousUserId: string;
 }
 
+/** What any offered tool has, a proposal tool or `ask_producer` (GRV-42). */
+export type OfferedTool = Pick<
+  AssistantToolDefinition,
+  "name" | "description" | "inputSchema"
+>;
+
 /** The assistant's tools in the wire shape, in the order they are offered. */
-export function providerTools(tools: readonly AssistantToolDefinition[]): ProviderTool[] {
+export function providerTools(tools: readonly OfferedTool[]): ProviderTool[] {
   return tools.map((tool) => {
     if (tool.inputSchema.type !== "object") {
       throw new TypeError(`Tool "${tool.name}" does not take an object`);

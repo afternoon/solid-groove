@@ -21,14 +21,18 @@
  *    not streamed anything yet, and abandoning the call if the browser goes away;
  * 7. validates the reply and logs one redacted record of how it went.
  *
- * Every turn offers the model the assistant's tool set (GRV-4). A turn that
- * stops for `tool_use` returns its calls as a proposal stamped with the
- * request's project revision and the tool set's version; the browser
- * validates it against the open project before anything can apply. A turn
- * that carries the published library is offered `recommend_sounds` as well
- * (GRV-23); its calls come back among the proposal's, and the browser takes
- * them out and checks their IDs against the library it sent.
+ * Every turn offers the model the assistant's tool set (GRV-4) and
+ * `ask_producer` (GRV-42). A turn that stops for `tool_use` returns its
+ * change calls as a proposal stamped with the request's project revision and
+ * the tool set's version; the browser validates it against the open project
+ * before anything can apply. An `ask_producer` call is not a change: it is
+ * validated here and returned as the turn's question, and a malformed one is
+ * a malformed reply. A turn that carries the published library is offered
+ * `recommend_sounds` as well (GRV-23); its calls come back among the
+ * proposal's, and the browser takes them out and checks their IDs against the
+ * library it sent.
  */
+import { type AssistantAsk, askProducerTool, isAskCall, parseAskCall } from "./ask";
 import {
   ASSISTANT_CALL_LIMITS,
   ASSISTANT_HISTORY_TOKEN_BUDGET,
@@ -64,7 +68,12 @@ import { recommendationTool } from "./recommendation";
 import { costMicroUsd, spendDay, usdToMicro } from "./spend";
 import { NO_USAGE, type ProviderUsage, StreamReader } from "./streamEvents";
 import { type AssistantTurnLog, toTurnLog } from "./telemetry";
-import { ASSISTANT_TOOLSET_VERSION, assistantTools } from "./tools";
+import {
+  ASSISTANT_TOOLSET_VERSION,
+  assistantTools,
+  EXPLAIN_TOOL,
+  EXPLAIN_TOOL_NAME,
+} from "./tools";
 
 /** Who is calling, as the function's auth context reports it. */
 export interface AssistantCaller {
@@ -180,7 +189,7 @@ async function prepare(
   const system = buildSystemBlocks(turn.context, turn.library);
   // A turn that carries the library may also recommend from it (GRV-23).
   const tools = [
-    ...providerTools(assistantTools()),
+    ...providerTools([...assistantTools(), EXPLAIN_TOOL, askProducerTool()]),
     ...(turn.library ? [recommendationTool()] : []),
   ];
   // The tool definitions take room in the window just as the prompt does.
@@ -372,17 +381,39 @@ async function reserveCall(
   return decision.remaining;
 }
 
-/** The turn's tool calls as a proposal, or null when it made none. */
+/**
+ * The turn's change calls as a proposal, or null when it made none. An
+ * explanation on its own changes nothing, so it is not a proposal either.
+ */
 function proposalOf(
   turn: AssistantTurnRequest,
-  calls: readonly AssistantToolCall[],
+  allCalls: readonly AssistantToolCall[],
 ): AssistantProposal | null {
-  if (calls.length === 0) return null;
+  const calls = allCalls.filter((call) => !isAskCall(call));
+  if (calls.every((call) => call.name === EXPLAIN_TOOL_NAME)) return null;
   return {
     baseRevision: turn.projectRevision,
     toolsetVersion: ASSISTANT_TOOLSET_VERSION,
     calls,
   };
+}
+
+/**
+ * The turn's question, or null when it asks none. The first `ask_producer`
+ * call is the question; the tool asks one at a time, so any later one is
+ * dropped. One that does not parse makes the reply malformed.
+ */
+function askOf(calls: readonly AssistantToolCall[]): AssistantAsk | null {
+  const call = calls.find(isAskCall);
+  if (!call) return null;
+  const ask = parseAskCall(call);
+  if (!ask) {
+    throw new AssistantGatewayError(
+      "malformed_response",
+      "The assistant's question came back garbled. Try again.",
+    );
+  }
+  return ask;
 }
 
 /**
@@ -461,11 +492,13 @@ export async function runAssistantTurn(
       if (cost > 0) await deps.guards.addSpend(spendDay(deps.now()), cost);
       const { outcome } = attempt;
       if (outcome.kind === "completed") {
+        const ask = askOf(outcome.toolCalls);
         finish("completed", outcome.stopReason);
         return {
           text: outcome.text,
           stopReason: outcome.stopReason,
           proposal: proposalOf(turn, outcome.toolCalls),
+          ask,
           model: model.id,
           promptVersion: ASSISTANT_PROMPT_VERSION,
           requestsRemaining,

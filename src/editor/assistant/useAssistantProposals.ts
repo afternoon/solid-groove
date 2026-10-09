@@ -79,7 +79,7 @@ export interface ProposalCard {
   readonly title: string;
   readonly scopeLabel: string;
   readonly rows: readonly ProposalRow[];
-  /** "Why this works", for a proposal that fits the song. */
+  /** "Why this works", for a proposal that fits the song and came explained. */
   readonly explanation: ProposalExplanation | null;
   /** The view Preview shows the change in, or `null` to stay where it is. */
   readonly previewView: EditorViewName | null;
@@ -89,6 +89,8 @@ export interface ProposalCard {
   readonly refreshed: boolean;
   /** A one-off note after an action could not be done (an Undo too late). */
   readonly notice: string | null;
+  /** Its changed controls still wear the solid outline (until the next edit). */
+  readonly outlined: boolean;
 }
 
 /** What the cards need from the editor session (`useEditorSession`). */
@@ -199,6 +201,7 @@ export function useAssistantProposals(
       returnView: null,
       refreshed: false,
       notice: null,
+      outlined: false,
     };
     const current = session.proposalTarget();
     if (!current) return;
@@ -225,7 +228,7 @@ export function useAssistantProposals(
       ...base,
       status: movedElsewhere ? "stale" : "pending",
       rows,
-      explanation: explainProposal(handle.proposal, origin.text, rows),
+      explanation: explainProposal(handle.proposal, rows),
       previewView: previewTarget(before, rows)?.view ?? null,
     });
   }
@@ -331,7 +334,7 @@ export function useAssistantProposals(
     entry.watching = true;
     entry.marked = true;
     controls.registry.setMark(entry.addresses, "changed");
-    update(entryId, { status: "applied", returnView: null });
+    update(entryId, { status: "applied", returnView: null, outlined: true });
     options.analytics().logFeatureFirstUse("assistant_proposal");
   }
 
@@ -400,10 +403,11 @@ export function useAssistantProposals(
   }
 
   function clearChangedMarks() {
-    for (const entry of entries.values()) {
+    for (const [entryId, entry] of entries) {
       if (!entry.marked) continue;
       entry.marked = false;
       if (!entry.preview) controls.registry.setMark(entry.addresses, "none");
+      update(entryId, { outlined: false });
     }
   }
 

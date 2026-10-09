@@ -1,8 +1,10 @@
 /**
  * Everything the assistant's composer and conversation need (GRV-26), held
  * once per editor beside the panel's layout (`useAssistantPanel.ts`): the
- * scope the chip says, the draft, the suggestion chips and the conversation.
- * The panel renders it, and the shortcut layer sends the draft on Enter.
+ * scope the chip says, the draft, the suggestion chips and the conversation,
+ * and the answer being put together to a question the assistant asked
+ * (GRV-42). The panel renders it, and the shortcut layer sends the draft on
+ * Enter and picks an answer on `1`-`8`.
  */
 import { type Accessor, createEffect, createMemo, createSignal } from "solid-js";
 import type { Analytics } from "../../analytics/analytics";
@@ -10,6 +12,7 @@ import type { AssistantClient } from "../../assistant/assistantClient";
 import type { Project } from "../../domain/entities";
 import type { Suggestion } from "../../projection/projectAnalysisProjection";
 import type { EditorViewName } from "../editorViews";
+import type { AskEditorLink } from "./askReferences";
 import {
   type AssistantScope,
   resolveScope,
@@ -19,6 +22,7 @@ import {
   widen,
 } from "./assistantScope";
 import { assistantSuggestions } from "./assistantSuggestions";
+import { type AskDraft, useAskDraft } from "./useAskDraft";
 import {
   type AssistantConversation,
   useAssistantConversation,
@@ -51,12 +55,20 @@ export interface UseAssistantChatOptions {
   /**
    * The editor session and controls a proposal previews, applies and shows
    * itself through (GRV-5). Without them a proposal is listed, but there is
-   * nothing to apply it to.
+   * nothing to apply it to. A question's options hear the producer's own
+   * edits through the same session (GRV-42).
    */
   readonly editor?: {
     readonly session: ProposalSessionPort;
     readonly controls: UseAssistantProposalsOptions["controls"];
   };
+  /**
+   * The committed project, never a preview of it (GRV-42): what a question
+   * is asked against and answered by doing in. Defaults to {@link project}.
+   */
+  readonly committedProject?: () => Project | null;
+  /** What a question's options can do in the editor (GRV-42). */
+  readonly link?: AskEditorLink;
 }
 
 export interface AssistantChat {
@@ -74,7 +86,11 @@ export interface AssistantChat {
   readonly account: Accessor<AssistantAccount>;
   /** The proposal cards, when there is an editor to apply them to. */
   readonly proposals: AssistantProposals | null;
+  /** The pending question's answer so far (GRV-42). */
+  readonly ask: AskDraft;
 }
+
+export type { AskDraft } from "./useAskDraft";
 
 export function useAssistantChat(options: UseAssistantChatOptions): AssistantChat {
   // The chip's choice, kept against the selection it was made for: a new
@@ -117,10 +133,19 @@ export function useAssistantChat(options: UseAssistantChatOptions): AssistantCha
     scope,
     canSend: () => options.account().registered,
     analytics: options.analytics,
+    committedProject: options.committedProject,
     onProposal: proposals
       ? (entryId, proposal, origin) => proposals.receive(entryId, proposal, origin)
       : undefined,
     remoteChanges: proposals ? () => proposals.remoteChanges() : undefined,
+  });
+
+  const ask = useAskDraft({
+    conversation,
+    project: options.project,
+    committedProject: options.committedProject,
+    onEdit: options.editor?.session.onEdit,
+    link: options.link,
   });
 
   const suggestions = createMemo((): readonly Suggestion[] => {
@@ -147,5 +172,6 @@ export function useAssistantChat(options: UseAssistantChatOptions): AssistantCha
     sendSuggestion: (suggestion) => conversation.send(suggestion.label, suggestion.id),
     account: options.account,
     proposals,
+    ask,
   };
 }
