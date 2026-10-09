@@ -35,6 +35,12 @@ import { type AssistantScope, scopedContext } from "./assistantScope";
 export interface TurnOrigin {
   readonly text: string;
   readonly scope: AssistantScope;
+  /**
+   * How many changes made elsewhere had been adopted when the turn was sent
+   * (`remoteChanges`), so a proposal that arrives after one more is known to
+   * be out of date (GRV-5).
+   */
+  readonly remoteChanges: number;
 }
 
 /** One thing in the conversation's log. */
@@ -95,6 +101,8 @@ export interface UseAssistantConversationOptions {
     proposal: AssistantProposal,
     origin: TurnOrigin,
   ) => void;
+  /** How many changes made elsewhere the editor has adopted so far; 0 without one. */
+  readonly remoteChanges?: () => number;
 }
 
 export interface AssistantConversation {
@@ -295,7 +303,11 @@ export function useAssistantConversation(
     }
     analytics.log("assistant_message_sent", { scope: scope.catalogScope });
     analytics.logFeatureFirstUse("assistant_message");
-    startTurn(request, { text: message, scope });
+    startTurn(request, {
+      text: message,
+      scope,
+      remoteChanges: options.remoteChanges?.() ?? 0,
+    });
     return true;
   }
 

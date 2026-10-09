@@ -111,6 +111,7 @@ export function useAssistantChat(options: UseAssistantChatOptions): AssistantCha
     onProposal: proposals
       ? (entryId, proposal, origin) => proposals.receive(entryId, proposal, origin)
       : undefined,
+    remoteChanges: proposals ? () => proposals.remoteChanges() : undefined,
   });
 
   const suggestions = createMemo((): readonly Suggestion[] => {

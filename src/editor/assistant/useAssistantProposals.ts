@@ -125,6 +125,11 @@ export interface AssistantProposals {
   refresh(entryId: string): void;
   /** A control link: shows the control and focuses it. */
   reveal(address: ControlAddress): void;
+  /**
+   * How many changes made elsewhere have been adopted this session. A turn
+   * records it when sent, so its proposal can tell if one landed meanwhile.
+   */
+  remoteChanges(): number;
 }
 
 /** What the card keeps beside what it shows. */
@@ -136,6 +141,8 @@ interface Entry {
   location: EditorLocation | null;
   /** Watching for a later edit by hand, after it was applied. */
   watching: boolean;
+  /** `assistant_result_edited` has been logged for it; nothing watches it again. */
+  reported: boolean;
   /** Its controls wear the solid outline. */
   marked: boolean;
 }
@@ -150,6 +157,7 @@ export function useAssistantProposals(
   const { session, controls } = options;
   const [cards, setCards] = createSignal<ReadonlyMap<string, ProposalCard>>(new Map());
   const entries = new Map<string, Entry>();
+  let remoteChanges = 0;
   let executor: ProposalExecutor | null = null;
 
   const update = (entryId: string, change: Partial<ProposalCard>) =>
@@ -210,9 +218,12 @@ export function useAssistantProposals(
       handle.proposal.impact.controls,
     );
     entries.set(entryId, blankEntry(handle, handle.proposal.impact.controls));
+    // A change made elsewhere while the reply was written moved the song
+    // under it, though not this session's revision.
+    const movedElsewhere = remoteChanges !== origin.remoteChanges;
     show(entryId, {
       ...base,
-      status: "pending",
+      status: movedElsewhere ? "stale" : "pending",
       rows,
       explanation: explainProposal(handle.proposal, origin.text, rows),
       previewView: previewTarget(before, rows)?.view ?? null,
@@ -370,11 +381,16 @@ export function useAssistantProposals(
     clearChangedMarks();
     if (own) {
       const [entryId, entry] = own;
+      // Whoever undid or redid it (the card, the header, a shortcut), the
+      // handle follows, so the card's Undo works again after a redo.
+      if (edit.kind === "undo" || edit.kind === "redo") {
+        entry.handle?.followHistory(edit.kind);
+      }
       if (edit.kind === "undo") {
         entry.watching = false;
         update(entryId, { status: "undone" });
       } else if (edit.kind === "redo") {
-        entry.watching = true;
+        entry.watching = !entry.reported;
         update(entryId, { status: "applied" });
       }
     } else if (edit.kind === "edit" && edit.actor === "user") {
@@ -398,12 +414,14 @@ export function useAssistantProposals(
       if (!entry.watching || !entry.handle) continue;
       if (!entry.addresses.some((address) => touched.has(controlKey(address)))) continue;
       entry.watching = false;
+      entry.reported = true;
       const capability: ProposalCapability = entry.handle.proposal.capability;
       options.analytics().log("assistant_result_edited", { capability });
     }
   }
 
   function onRemoteChange() {
+    remoteChanges += 1;
     // A change made elsewhere moves the saved song under every open proposal.
     for (const [entryId, entry] of entries) {
       const status = cards().get(entryId)?.status;
@@ -439,6 +457,7 @@ export function useAssistantProposals(
     reveal: (address) => {
       controls.revealControl(address);
     },
+    remoteChanges: () => remoteChanges,
   };
 }
 
@@ -452,6 +471,7 @@ function blankEntry(
     preview: null,
     location: null,
     watching: false,
+    reported: false,
     marked: false,
   };
 }

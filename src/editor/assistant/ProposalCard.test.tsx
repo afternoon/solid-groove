@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, within } from "@solidjs/testing-library";
+import userEvent from "@testing-library/user-event";
 import { createSignal, flush } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Analytics } from "../../analytics/analytics";
@@ -200,6 +201,19 @@ async function press(element: HTMLElement): Promise<void> {
   element.focus();
   clickAndFlush(element);
   await settle();
+  flush();
+}
+
+/** Presses keys as a keyboard would, then lets the card re-render and move focus. */
+async function keys(text: string): Promise<void> {
+  await userEvent.keyboard(text);
+  flush();
+  await settle();
+  flush();
+}
+
+async function tab(): Promise<void> {
+  await userEvent.tab();
   flush();
 }
 
@@ -452,6 +466,183 @@ describe("the proposal card (GRV-5)", () => {
     clickAndFlush(
       within(card()).getAllByRole("button", { name: "Show Swing" })[0] as HTMLElement,
     );
+    expect(revealControl).toHaveBeenLastCalledWith(swing);
+  });
+
+  it("undoes from the card again after a redo of it from the header", async () => {
+    const { propose, session, events } = await setUp();
+    await propose();
+    await press(cardButton("Apply"));
+    await press(cardButton("Undo"));
+    fireAndFlush(() => session.redo());
+    expect(session.committedProject.song.swing).toBe(58);
+    expect(cardStatus()).toHaveTextContent("Applied as one undo step.");
+
+    await press(cardButton("Undo"));
+    expect(session.committedProject.song.swing).toBe(50);
+    expect(session.history.canUndo).toBe(false);
+    expect(cardStatus()).toHaveTextContent("Undone. Your song is back as it was.");
+    expect(cardStatus()).not.toHaveTextContent("header's Undo");
+    expect(events("assistant_proposal_undone")).toHaveLength(2);
+  });
+
+  it("counts an undo of the proposal from the header as its undo", async () => {
+    const { propose, session, events } = await setUp();
+    await propose();
+    await press(cardButton("Apply"));
+    fireAndFlush(() => session.undo());
+    expect(cardStatus()).toHaveTextContent("Undone.");
+    expect(events("assistant_proposal_undone")).toHaveLength(1);
+  });
+
+  it("logs assistant_result_edited once per proposal, even after it is undone and redone", async () => {
+    const { propose, session, volumeTo, events } = await setUp();
+    await propose();
+    await press(cardButton("Apply"));
+    fireAndFlush(() => session.dispatch(volumeTo(-9)));
+    expect(events("assistant_result_edited")).toHaveLength(1);
+    fireAndFlush(() => session.undo()); // the edit by hand
+    fireAndFlush(() => session.undo()); // the proposal
+    fireAndFlush(() => session.redo()); // the proposal again
+    expect(cardStatus()).toHaveTextContent("Applied as one undo step.");
+    fireAndFlush(() => session.dispatch(volumeTo(-10)));
+    expect(events("assistant_result_edited")).toHaveLength(1);
+  });
+
+  it("arrives out of date when a change made elsewhere landed while it was written", async () => {
+    const { session, client, repository, project } = await setUp();
+    fireAndFlush(() =>
+      fireEvent.input(composer(), { target: { value: "Loosen the beat" } }),
+    );
+    clickAndFlush(button("Send"));
+    await settle();
+    let adopted = 0;
+    session.subscribeRemoteChanges(() => {
+      adopted += 1;
+    });
+    const saved = await repository.saveMetadata(
+      project.metadata.id,
+      { name: "Renamed in another tab" },
+      project.metadata.revision,
+    );
+    expect(saved.ok).toBe(true);
+    await vi.waitFor(() => expect(adopted).toBe(1));
+    fireAndFlush(() =>
+      client.last().emit({
+        type: "proposal",
+        proposal: {
+          baseRevision: session.committedProject.metadata.revision,
+          toolsetVersion: ASSISTANT_TOOLSET_VERSION,
+          calls: [
+            {
+              id: "toolu_1",
+              name: "parameter_set",
+              input: { target: { scope: "song", parameterId: SONG_SWING.id }, value: 58 },
+            },
+          ],
+        },
+      }),
+    );
+    fireAndFlush(() => client.last().done());
+    expect(cardStatus()).toHaveTextContent("Out of date.");
+    expect(cardButton("Apply")).toBeDisabled();
+    expect(within(card()).getByRole("button", { name: "Refresh" })).toBeEnabled();
+  });
+
+  it("logs feature_first_use for assistant_proposal once, across Preview and Apply", async () => {
+    const { propose, events } = await setUp();
+    await propose();
+    await press(cardButton("Preview"));
+    await press(cardButton("Apply"));
+    const firstUse = events("feature_first_use").filter(
+      (event) => event.params.feature === "assistant_proposal",
+    );
+    expect(firstUse).toHaveLength(1);
+  });
+});
+
+describe("the proposal card from the keyboard (GRV-5)", () => {
+  it("tabs through its control links to Preview, Apply and Cancel, in that order", async () => {
+    const { propose } = await setUp();
+    await propose();
+    card().focus();
+    const order: (string | null)[] = [];
+    for (let step = 0; step < 5; step += 1) {
+      await tab();
+      const focused = document.activeElement as HTMLElement | null;
+      order.push(focused?.getAttribute("aria-label") ?? focused?.textContent ?? null);
+    }
+    expect(order).toEqual(["Show Swing", "Show BD volume", "Preview", "Apply", "Cancel"]);
+  });
+
+  it("previews with Enter, ends it with Space, and announces each in the card's status", async () => {
+    const { propose, session } = await setUp();
+    await propose();
+    const preview = cardButton("Preview");
+    preview.focus();
+    await keys("{Enter}");
+    expect(session.activePreview).not.toBeNull();
+    expect(cardStatus().tagName).toBe("OUTPUT");
+    expect(cardStatus()).toHaveTextContent("Previewing in Mixer.");
+    expect(preview).toHaveFocus();
+
+    await keys(" ");
+    expect(session.activePreview).toBeNull();
+    expect(cardStatus()).toHaveTextContent("Nothing has changed yet.");
+    expect(preview).toHaveFocus();
+  });
+
+  it("applies with Enter, hands focus to Undo, and undoes with Space", async () => {
+    const { propose, session } = await setUp();
+    await propose();
+    cardButton("Apply").focus();
+    await keys("{Enter}");
+    expect(session.committedProject.song.swing).toBe(58);
+    expect(cardStatus()).toHaveTextContent("Applied as one undo step.");
+    expect(cardButton("Undo")).toHaveFocus();
+
+    await keys(" ");
+    expect(session.committedProject.song.swing).toBe(50);
+    expect(cardStatus()).toHaveTextContent("Undone.");
+    expect(card()).toHaveFocus();
+  });
+
+  it("cancels a preview with Enter on Cancel, keeping focus there, and turns it down with a second", async () => {
+    const { propose, session, restoreView } = await setUp();
+    await propose();
+    cardButton("Preview").focus();
+    await keys("{Enter}");
+    const cancel = cardButton("Cancel");
+    cancel.focus();
+    await keys("{Enter}");
+    expect(session.activePreview).toBeNull();
+    expect(restoreView).toHaveBeenCalledWith(ARRANGEMENT);
+    expect(cancel).toHaveFocus();
+
+    await keys("{Enter}");
+    expect(cardStatus()).toHaveTextContent("Cancelled. Nothing changed.");
+    expect(card()).toHaveFocus();
+  });
+
+  it("refreshes an out-of-date proposal with Enter", async () => {
+    const { propose, session, volumeTo, client } = await setUp();
+    await propose();
+    fireAndFlush(() => session.dispatch(volumeTo(-6)));
+    cardButton("Refresh").focus();
+    await keys("{Enter}");
+    expect(client.turns).toHaveLength(2);
+    expect(cardStatus()).toHaveTextContent("A new proposal was asked for below.");
+    expect(cardButton("Dismiss")).toHaveFocus();
+  });
+
+  it("shows a control from its link with Enter or Space", async () => {
+    const { propose, revealControl, swing, volume } = await setUp();
+    await propose();
+    within(card()).getAllByRole("button", { name: "Show BD volume" })[0]?.focus();
+    await keys("{Enter}");
+    expect(revealControl).toHaveBeenLastCalledWith(volume);
+    within(card()).getAllByRole("button", { name: "Show Swing" })[0]?.focus();
+    await keys(" ");
     expect(revealControl).toHaveBeenLastCalledWith(swing);
   });
 });
