@@ -3,8 +3,9 @@
  * assistant projections and cut down to the allowlist, field by field:
  *
  * - from `buildAssistantContext`: the project's name, tempo, swing, time signature
- *   and length; its sections; its tracks with their mixer state; a
- *   description of the selection; and the selection's raw notes;
+ *   and length; its sections; its tracks with their mixer state and where
+ *   their placements sit; a description of the selection; and the
+ *   selection's raw notes;
  * - from `buildProjectAnalysis`: derived note statistics (register, mean
  *   velocity, density, repetition).
  *
@@ -22,7 +23,11 @@ import {
   type NoteSummary,
 } from "../projection/projectAnalysisProjection";
 import type { SelectionState } from "../selection/types";
-import { type AssistantContextPayload, MAX_CONTEXT_PADS } from "./protocol";
+import {
+  type AssistantContextPayload,
+  MAX_CONTEXT_PADS,
+  MAX_CONTEXT_PLACEMENTS,
+} from "./protocol";
 
 type NoteStats = AssistantContextPayload["noteStats"]["song"];
 
@@ -67,6 +72,13 @@ export function buildAssistantPayload(
       pads: track.pads
         .slice(0, MAX_CONTEXT_PADS)
         .map((pad) => ({ id: pad.id, name: pad.name })),
+      placements: track.placements.slice(0, MAX_CONTEXT_PLACEMENTS).map((placement) => ({
+        id: placement.id,
+        clipId: placement.clipId,
+        startTicks: placement.startTicks,
+        durationTicks: placement.durationTicks,
+        looped: placement.looped,
+      })),
     })),
     sections: context.sections.map((section) => ({
       id: section.id,

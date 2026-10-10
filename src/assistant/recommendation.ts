@@ -80,6 +80,7 @@ export function recommendationTool(): ProviderTool {
     name: RECOMMEND_SOUNDS_TOOL,
     description: DESCRIPTION,
     input_schema: inputSchema as ProviderToolInputSchema,
+    eager_input_streaming: true,
   };
 }
 

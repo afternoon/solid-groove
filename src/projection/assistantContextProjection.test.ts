@@ -176,4 +176,31 @@ describe("buildAssistantContext: selected notes (ADR 0007)", () => {
     ]);
     expect(buildAssistantContext(createSliceFixtureProject()).tracks[0].pads).toEqual([]);
   });
+
+  it("lists each track's placements by start, with no other track's", () => {
+    const project = createReferenceProject();
+    const context = buildAssistantContext(project);
+    for (const track of context.tracks) {
+      const own = project.song.placements.filter(
+        (placement) => placement.trackId === track.id,
+      );
+      expect(track.placements).toHaveLength(own.length);
+      expect(track.placements.map((placement) => placement.id).sort()).toEqual(
+        own.map((placement) => placement.id).sort(),
+      );
+      const starts = track.placements.map((placement) => placement.startTicks);
+      expect(starts).toEqual([...starts].sort((a, b) => a - b));
+      for (const summary of track.placements) {
+        const placement = own.find((candidate) => candidate.id === summary.id);
+        expect(summary).toEqual({
+          id: placement?.id,
+          clipId: placement?.clipId,
+          startTicks: placement?.startTicks,
+          durationTicks: placement?.durationTicks,
+          looped: placement?.looped,
+        });
+      }
+    }
+    expect(context.tracks.some((track) => track.placements.length > 0)).toBe(true);
+  });
 });
