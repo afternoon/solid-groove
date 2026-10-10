@@ -5,7 +5,8 @@
  * times against the **live model**, through the gateway's own turn with the
  * production system prompt and tool schema, on fixture projects only. It
  * never touches user data, Firestore or the deployed gateway's quota. On
- * demand only: by hand, never in per-push CI and never on a schedule.
+ * demand only: by hand or from the Actions tab (`.github/workflows/eval-assistant.yml`),
+ * never in per-push CI and never on a schedule.
  *
  *   bun run eval:assistant                       every case, 3 runs each
  *   bun run eval:assistant -- sketch-house       one case (or several)
