@@ -6,6 +6,12 @@ name: Assistant evals
 # on a schedule. It needs the `ANTHROPIC_API_KEY` Actions secret; the script
 # says so and calls nothing when it is missing.
 #
+# It runs the script from the branch picked under "Use workflow from". The
+# script arrives with GRV-6 (#1190); until that merges, pick its branch,
+# `claude/grv-6-assistant-musical-capability-evals`, which carries this same
+# file. A workflow_dispatch workflow only shows in the Actions tab once it is
+# on `main`, which is why this file lands there first.
+#
 # The report (`report.md` and `report.json`) lands in the run's summary and as
 # an artifact. The job fails only when the script does: the run stopped early
 # (the key was refused) or every turn errored. Low pass rates are for reading,
