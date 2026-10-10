@@ -139,11 +139,11 @@ function completedOnMain(identifier) {
         "[.items[].body]",
       ]),
     );
-    return bodies.some((b) =>
-      [...completedBy(b), ...closedBy(b)].includes(identifier),
-    );
+    return bodies.some((b) => [...completedBy(b), ...closedBy(b)].includes(identifier));
   } catch {
-    console.warn(`${identifier}: could not search its merged PRs; assuming it is finished`);
+    console.warn(
+      `${identifier}: could not search its merged PRs; assuming it is finished`,
+    );
     return true;
   }
 }
@@ -233,7 +233,10 @@ async function pollRework(index, ship) {
     const prs = index.prs.filter((p) => refersTo(p.body, card.identifier));
     if (!prs.length) {
       if (line.stopped || completedOnMain(card.identifier)) continue;
-      const c = await linear.comment(card.identifier, `${PICKUP_CONTINUE}\n\n${PLACEHOLDER}`);
+      const c = await linear.comment(
+        card.identifier,
+        `${PICKUP_CONTINUE}\n\n${PLACEHOLDER}`,
+      );
       ship.push({ issue: card.identifier, comment: c.id });
       console.log(
         `${card.identifier}: sent back from ${moved.fromState?.name ?? "?"} with no PR open and none completing it; continuing /ship`,
