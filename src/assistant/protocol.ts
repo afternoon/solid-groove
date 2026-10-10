@@ -327,6 +327,9 @@ export interface AssistantTurnResult {
  *   newer than this code); retrying fixes neither.
  * - `malformed_response`: the provider's stream broke, or its reply failed
  *   validation.
+ * - `reply_too_long`: the reply ran out of room (`max_tokens`) before it
+ *   finished, so whatever it was proposing or asking was cut off (GRV-42).
+ *   Retryable: asking again, or for less at once, usually fits.
  * - `quota_exceeded`: the account has made its 100 requests in the last 24
  *   hours; `resetsAt` says when the next one frees up (ADR 0006 decision 5).
  * - `assistant_disabled`: the manual kill switch is off.
@@ -340,6 +343,7 @@ export const ASSISTANT_ERROR_CODES = [
   "provider_unavailable",
   "provider_error",
   "malformed_response",
+  "reply_too_long",
   "quota_exceeded",
   "assistant_disabled",
   "spend_ceiling_reached",
@@ -351,6 +355,7 @@ const RETRYABLE_CODES: ReadonlySet<AssistantErrorCode> = new Set([
   "timeout",
   "provider_unavailable",
   "malformed_response",
+  "reply_too_long",
 ]);
 
 /** Extra, code-specific facts the browser needs to explain a failure. */

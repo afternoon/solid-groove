@@ -23,6 +23,7 @@ import {
   widen,
 } from "./assistantScope";
 import { assistantSuggestions } from "./assistantSuggestions";
+import type { ConversationStore } from "./conversationStore";
 import { type AskDraft, useAskDraft } from "./useAskDraft";
 import {
   type AssistantConversation,
@@ -84,6 +85,13 @@ export interface UseAssistantChatOptions {
   readonly committedProject?: () => Project | null;
   /** What a question's options can do in the editor (GRV-42). */
   readonly link?: AskEditorLink;
+  /**
+   * Where the conversation is kept across a reload (GRV-42), for this account
+   * and project, or null to keep it in memory only.
+   */
+  readonly conversationKey?: Accessor<string | null>;
+  /** The store it is kept in; this tab's session storage by default. */
+  readonly conversationStore?: ConversationStore;
 }
 
 export interface AssistantChat {
@@ -179,6 +187,9 @@ export function useAssistantChat(options: UseAssistantChatOptions): AssistantCha
     onRecommendation: recommendations
       ? (entryId, call, library, origin) =>
           recommendations.receive(entryId, call, library, origin)
+      : undefined,
+    persistence: options.conversationKey
+      ? { key: options.conversationKey, store: options.conversationStore }
       : undefined,
   });
 

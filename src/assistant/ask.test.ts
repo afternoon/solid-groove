@@ -94,6 +94,23 @@ describe("the ask_producer tool (GRV-42)", () => {
     ["a field the tool does not take", { ...INPUT, remember: true }],
   ])("refuses %s", (_name, input) => {
     expect(askProducerInputSchema.safeParse(input).success).toBe(false);
+  });
+
+  it.each([
+    ["no options", { ...INPUT, options: [] }],
+    ["one option", { ...INPUT, options: [{ label: "A" }] }],
+    ["an empty question", { ...INPUT, question: "   " }],
+    ["a long question", { ...INPUT, question: "x".repeat(ASK_LIMITS.questionChars + 1) }],
+    [
+      "one usable option left once a long label is dropped",
+      { ...INPUT, options: [{ label: "x".repeat(61) }, { label: "B" }] },
+    ],
+    [
+      "one usable option left once a repeated label is dropped",
+      { ...INPUT, options: [{ label: "A" }, { label: "a" }] },
+    ],
+    ["input that is not an object", '{"question": "Which'],
+  ])("finds no question in a call with %s", (_name, input) => {
     expect(parseAskCall({ id: "t", name: ASK_PRODUCER_TOOL_NAME, input })).toBeNull();
   });
 
@@ -158,6 +175,7 @@ describe("options that carry more than words (GRV-42)", () => {
         },
         doneWhen: { kind: "tempo", max: 100 },
       },
+      { label: "Swing it", doneWhen: { kind: "swing", min: 55, max: 62 } },
     ],
     multiSelect: false,
   };
@@ -179,6 +197,7 @@ describe("options that carry more than words (GRV-42)", () => {
       "sound",
       "doneWhen",
       "trackAdded",
+      "swing",
       "preview",
       "startBar",
     ]) {
@@ -200,6 +219,8 @@ describe("options that carry more than words (GRV-42)", () => {
       { kind: "trackVolume", trackId: "t", min: -3, max: -9 },
       "doneWhen",
     ],
+    ["a swing range with no bounds", { kind: "swing" }, "doneWhen"],
+    ["a swing range upside down", { kind: "swing", min: 66, max: 58 }, "doneWhen"],
     ["a predicate of no known kind", { kind: "keyChanged" }, "doneWhen"],
     ["a preview with no changes", { kind: "preview", calls: [] }, "sound"],
     [
@@ -216,6 +237,92 @@ describe("options that carry more than words (GRV-42)", () => {
       options: [{ label: "A", [field]: value }, { label: "B" }],
     };
     expect(askProducerInputSchema.safeParse(input).success).toBe(false);
+  });
+
+  // Production QA (GRV-42): one slip in an option's extras threw the whole
+  // question away as "Its reply came back broken".
+  it("keeps the question, and the option, when one of its extras does not validate", () => {
+    const ask = parseAskCall({
+      id: "toolu_3",
+      name: ASK_PRODUCER_TOOL_NAME,
+      input: {
+        question: "Which groove?",
+        options: [
+          {
+            label: "Boom bap",
+            description: "x".repeat(ASK_LIMITS.descriptionChars + 1),
+            ref: { kind: "bars", startBar: 9, endBar: 4 },
+            sound: {
+              kind: "preview",
+              calls: Array.from({ length: ASK_LIMITS.previewCalls + 1 }, () => ({
+                name: "parameter_set",
+                input: {},
+              })),
+            },
+            doneWhen: { kind: "tempo" },
+            colour: "gold",
+          },
+          { label: "Trap", ref: { kind: "track", trackId: "trk_drums" } },
+        ],
+      },
+    });
+    expect(ask).toEqual({
+      id: "toolu_3",
+      question: "Which groove?",
+      options: [
+        { label: "Boom bap" },
+        { label: "Trap", ref: { kind: "track", trackId: "trk_drums" } },
+      ],
+      multiSelect: false,
+    });
+    expect(parseAssistantAsk(JSON.parse(JSON.stringify(ask)))).toEqual(ask);
+  });
+
+  it("drops an unusable or repeated option and keeps the suggestion on its option", () => {
+    const ask = parseAskCall({
+      id: "toolu_4",
+      name: ASK_PRODUCER_TOOL_NAME,
+      input: {
+        question: "Which groove?",
+        context: "x".repeat(ASK_LIMITS.contextChars + 1),
+        options: [
+          { label: "" },
+          { label: "Boom bap" },
+          { label: "boom bap" },
+          "Trap",
+          { label: "Trap" },
+          ...Array.from({ length: 9 }, (_, i) => ({ label: `Extra ${i}` })),
+        ],
+        suggested: 4,
+        multiSelect: "yes",
+        remember: true,
+      },
+    });
+    expect(ask?.context).toBeUndefined();
+    expect(ask?.multiSelect).toBe(false);
+    expect(ask?.options.map((option) => option.label)).toEqual([
+      "Boom bap",
+      "Trap",
+      ...Array.from({ length: ASK_LIMITS.maxOptions - 2 }, (_, i) => `Extra ${i}`),
+    ]);
+    expect(ask?.suggested).toBe(1);
+  });
+
+  it("leaves out a suggestion that pointed at nothing, or at an option it dropped", () => {
+    const parse = (suggested: number) =>
+      parseAskCall({
+        id: "t",
+        name: ASK_PRODUCER_TOOL_NAME,
+        input: {
+          question: "Which?",
+          options: [{ label: "A" }, { label: "" }, { label: "B" }],
+          suggested,
+        },
+      });
+    expect(parse(1)?.suggested).toBeUndefined();
+    expect(parse(7)?.suggested).toBeUndefined();
+    expect(parse(-1)?.suggested).toBeUndefined();
+    expect(parse(2)?.suggested).toBe(1);
   });
 
   it("names them in the transcript the model reads back", () => {

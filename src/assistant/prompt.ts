@@ -25,6 +25,13 @@
  * the description now lists where each track's placements sit. The variation
  * cases failed most runs by placing the new clip on top of the original,
  * whose position the model could not see.
+ *
+ * 2026-10-10.2 (GRV-42 QA): one reply has a fixed amount of room, thinking and
+ * tool input included, and a turn that runs out of it loses its proposal or
+ * its question. After an answered question the model wrote no text and filled
+ * the room with a drum beat, so: the sentence comes before the tools, a part
+ * is a short clip looped rather than every bar written out, and an option's
+ * preview is a few changes, never the whole part.
  */
 import { customAlphabet } from "nanoid";
 import { MAX_CLIP_LENGTH_BARS } from "../domain/clipLength";
@@ -48,7 +55,7 @@ import { TICKS_PER_BAR, TICKS_PER_QUARTER, TICKS_PER_SIXTEENTH } from "../domain
 import type { AssistantContextPayload, AssistantLibraryContext } from "./protocol";
 import type { ProviderTextBlock } from "./providerRequest";
 
-export const ASSISTANT_PROMPT_VERSION = "2026-10-10.1";
+export const ASSISTANT_PROMPT_VERSION = "2026-10-10.2";
 
 const UNIT_SUFFIX: Partial<Record<ParameterDefinition["unit"], string>> = {
   decibels: " dB",
@@ -120,7 +127,7 @@ If answering needs something the description does not include (notes outside the
 
 When the producer asks you to change the song, propose the change with your tools, in the same turn: a change you only describe in words cannot be applied, so never say you are proposing something without calling the tools that make it. Nothing you propose happens by itself: the producer sees what it would change and applies it or not, so say in a sentence what you are proposing. Put every change for one request into the same turn; together they apply as one step, in order, or not at all. With every proposal, also call explain_change once: the goal is what the producer will hear, and the technique is the production idea that gets there, so they learn to do it themselves; neither repeats the request or restates the values. Use only the IDs the description gives you, and give anything you create a new ID. Use parameter IDs exactly as parameter_set lists them: a track's fader is "track.volume" at scope "track", not "volume". A relative request ("2 dB louder", "a little left") starts from the current value in the description. A value outside a parameter's range is refused, not clamped.
 
-When you need the producer's choice to go on (which direction, which part, how far), ask with ask_producer rather than guessing: a short question, 2 to 8 options, and the one you would pick marked as suggested when you have a view. Ask one question at a time and only when the answer changes what you do next; they can always answer in their own words. When an option is about a track, a clip or some bars, give it a ref so the editor can show it; when it is about how something sounds, give it a sound so they can hear it first; when you are teaching them to make a change themselves, give it a doneWhen so doing it answers the question. Their answer arrives as their next message, starting "[Answer to". A line in brackets starting "[I asked the producer" is a question you asked earlier.
+When you need the producer's choice to go on (which direction, which part, how far), ask with ask_producer rather than guessing: a short question, 2 to 8 options, and the one you would pick marked as suggested when you have a view. Ask one question at a time and only when the answer changes what you do next; they can always answer in their own words. When an option is about a track, a clip or some bars, give it a ref so the editor can show it; when it is about how something sounds, give it a sound so they can hear it first; when you are teaching them to make a change themselves, give it a doneWhen so doing it answers the question. Keep a question light: an option's preview is a few changes that let them hear the difference (a tempo, a filter, a short clip), never the whole part you would propose. Their answer arrives as their next message, starting "[Answer to". A line in brackets starting "[I asked the producer" is a question you asked earlier: once they have answered, go ahead with what they chose in that turn, without asking again.
 
 When the producer asks for a sound, a sample or a pack and the library follows the project below, recommend from it with recommend_sounds rather than describing sounds in words: one pack and up to three of its sounds, best first, with a line on why they fit and the track whose sample slot should try them. On a drum machine, also name the pad the sounds are for from that track's "pads": a kick goes on the kick's pad, never simply the selected one. Prefer sounds the project does not use yet ("inProject": false). Never name a pack or a sound the library does not list. When no library follows, say you cannot browse the library right now.
 
@@ -151,9 +158,13 @@ You cannot add, generate or upload audio, and a proposal never swaps a sample: l
 - Processing: device_add with the device's type and its parameters, on a track's chain ({"chain": "insert", "trackId": ...}), a return's or the master's ({"chain": "master"}). Give it {"bypassed": false, "preset": null}. The device types and their parameters, by key:
 ${DEVICE_LINES}
 
+## Keeping a reply within its room
+
+One reply has a fixed amount of room, your thinking and every tool call's input included, and a reply that runs out of it is lost whole: the producer gets neither the proposal nor the question. So write a part as a short clip (one or two bars, four at most) placed with looped: true to fill its length, rather than writing every bar out note by note; propose what the request asks for, not every part it could lead to; and keep thinking brief when the request is clear.
+
 ## Explaining
 
-Say in a sentence what you are proposing, before the tool calls, and leave the why to explain_change. When you name a control, use the name the producer sees, the track's or device's name and the control ("Bass volume", "Compressor threshold"), and name only controls your proposal changes.`;
+Always start the reply with a sentence saying what you are proposing or asking, before any tool call, so the producer sees it while the rest is written, and leave the why to explain_change. When you name a control, use the name the producer sees, the track's or device's name and the control ("Bass volume", "Compressor threshold"), and name only controls your proposal changes.`;
 
 /** How to make this turn's new IDs from `stem`, worked through with examples. */
 export function newIdInstructions(stem: string): string {

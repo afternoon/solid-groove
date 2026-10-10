@@ -54,6 +54,7 @@ const entityId = z.string().min(1).max(64);
 const bar = z.int().min(1).max(ASK_LIMITS.maxBar);
 const BPM = z.number().min(1).max(999);
 const DECIBELS = z.number().min(-60).max(6);
+const PERCENT = z.number().min(0).max(100);
 
 /** A part of the song an option is about. */
 export const askReferenceSchema = z
@@ -101,7 +102,8 @@ export type AskSound = z.infer<typeof askSoundSchema>;
 /**
  * A change in the editor that answers the question as the option. Each holds
  * once the project has moved from where it was when the question was asked:
- * a value into its range, a track or a device more than there were.
+ * a value (tempo, swing, a fader) into its range, a track or a device more
+ * than there were.
  */
 export const askPredicateSchema = z
   .discriminatedUnion("kind", [
@@ -110,6 +112,13 @@ export const askPredicateSchema = z
       min: BPM.optional(),
       max: BPM.optional(),
     }),
+    z
+      .strictObject({
+        kind: z.literal("swing"),
+        min: PERCENT.optional(),
+        max: PERCENT.optional(),
+      })
+      .describe("The song's swing, in percent: 50 is straight, 75 the most."),
     z.strictObject({
       kind: z.literal("trackAdded"),
       trackType: trackTypeSchema.optional(),
@@ -135,7 +144,13 @@ export const askPredicateSchema = z
     }),
   ])
   .superRefine((predicate, issues) => {
-    if (predicate.kind !== "tempo" && predicate.kind !== "trackVolume") return;
+    if (
+      predicate.kind !== "tempo" &&
+      predicate.kind !== "swing" &&
+      predicate.kind !== "trackVolume"
+    ) {
+      return;
+    }
     const { min, max } = predicate;
     if (min === undefined && max === undefined) {
       issues.addIssue({ code: "custom", message: "a range needs a min, a max or both" });
@@ -253,10 +268,81 @@ export function isAskCall(call: Pick<AssistantToolCall, "name">): boolean {
   return call.name === ASK_PRODUCER_TOOL_NAME;
 }
 
-/** The call as an ask, or null when its input is not one. */
+/**
+ * The call as an ask, or null when its input is not one.
+ *
+ * Lenient about the parts a question can do without, so one slip does not
+ * throw the whole question away (a broken ask is a broken reply): an option's
+ * extra (a description, a ref, a sound or a doneWhen) that does not validate
+ * is dropped and the option kept; an option with no usable label, a repeated
+ * label, or one past the eighth is dropped; a context, a suggestion or a
+ * multiSelect that does not validate (or a suggestion whose option was
+ * dropped) is left out; an unknown field is ignored. What is left must still
+ * be a whole question, with at least two options.
+ */
 export function parseAskCall(call: AssistantToolCall): AssistantAsk | null {
-  const parsed = askProducerInputSchema.safeParse(call.input);
+  const parsed = askProducerInputSchema.safeParse(salvageAskInput(call.input));
   return parsed.success ? { id: call.id, ...parsed.data } : null;
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/** `value` when `schema` accepts it, otherwise nothing. */
+function validOrNothing<T>(schema: z.ZodType<T>, value: unknown): T | undefined {
+  if (value === undefined) return undefined;
+  const parsed = schema.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
+}
+
+/** One option with its invalid extras dropped, or null when its label is unusable. */
+function salvageOption(raw: unknown): AskOption | null {
+  if (!isRecord(raw)) return null;
+  const label = validOrNothing(text(ASK_LIMITS.labelChars), raw.label);
+  if (label === undefined) return null;
+  const extras = {
+    description: validOrNothing(text(ASK_LIMITS.descriptionChars), raw.description),
+    ref: validOrNothing(askReferenceSchema, raw.ref),
+    sound: validOrNothing(askSoundSchema, raw.sound),
+    doneWhen: validOrNothing(askPredicateSchema, raw.doneWhen),
+  };
+  const option: Record<string, unknown> = { label };
+  for (const [key, value] of Object.entries(extras)) {
+    if (value !== undefined) option[key] = value;
+  }
+  return option as AskOption;
+}
+
+/**
+ * The tool's input with everything a question can do without, and that does
+ * not validate, taken out (see {@link parseAskCall}). Input that is not an
+ * object, or has no options list, comes back as it was, for the schema to
+ * refuse.
+ */
+function salvageAskInput(input: unknown): unknown {
+  if (!isRecord(input) || !Array.isArray(input.options)) return input;
+  const options: AskOption[] = [];
+  const labels = new Set<string>();
+  /** Where each kept option was in the input, so a suggestion still points at it. */
+  const from: number[] = [];
+  input.options.forEach((raw, index) => {
+    if (options.length >= ASK_LIMITS.maxOptions) return;
+    const option = salvageOption(raw);
+    if (!option || labels.has(option.label.toLowerCase())) return;
+    labels.add(option.label.toLowerCase());
+    options.push(option);
+    from.push(index);
+  });
+  const suggested =
+    typeof input.suggested === "number" ? from.indexOf(input.suggested) : -1;
+  const context = validOrNothing(text(ASK_LIMITS.contextChars), input.context);
+  return {
+    question: input.question,
+    options,
+    ...(context === undefined ? {} : { context }),
+    ...(suggested >= 0 ? { suggested } : {}),
+    ...(typeof input.multiSelect === "boolean" ? { multiSelect: input.multiSelect } : {}),
+  };
 }
 
 /** An ask from the wire, or null when it is not one. Never throws. */

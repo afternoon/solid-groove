@@ -163,9 +163,22 @@ describe("runAssistantTurn: a completed turn", () => {
     expect(JSON.stringify(h.chunks)).not.toContain("private reasoning");
   });
 
-  it("returns a refusal or a cut-off reply with its stop reason", async () => {
-    const h = harness([replyEvents(["I can't help"], { stopReason: "max_tokens" })]);
-    expect((await run(h)).stopReason).toBe("max_tokens");
+  it("returns a refusal with its stop reason", async () => {
+    const h = harness([replyEvents(["I can't help"], { stopReason: "refusal" })]);
+    expect((await run(h)).stopReason).toBe("refusal");
+  });
+
+  // Production QA (GRV-42): a reply that ran out of room came back as a turn
+  // with nothing in it, and the panel's empty reply simply vanished.
+  it("fails a reply cut off at max_tokens as reply_too_long, and logs it", async () => {
+    const h = harness([
+      replyEvents(["Here is a boom bap be"], { stopReason: "max_tokens" }),
+    ]);
+    const error = await failure(run(h));
+    expect(error.code).toBe("reply_too_long");
+    expect(error.details.retryable).toBe(true);
+    expect(h.logs).toHaveLength(1);
+    expect(h.logs[0]?.outcome).toBe("reply_too_long");
   });
 
   it("sends the project context and a pseudonymous ID, never the uid", async () => {
@@ -244,21 +257,38 @@ describe("runAssistantTurn: asking the producer (GRV-42)", () => {
     expect((await run(h)).ask?.question).toBe("Where should the drop land?");
   });
 
+  it("keeps a question whose option carries an extra that does not validate", async () => {
+    const input = {
+      ...askInput,
+      options: [
+        {
+          label: "Bar 17",
+          sound: {
+            kind: "preview",
+            calls: Array.from({ length: 21 }, () => ({
+              name: "parameter_set",
+              input: {},
+            })),
+          },
+        },
+        { label: "Bar 25", ref: { kind: "bars", startBar: 25, endBar: 24 } },
+      ],
+      memory: "likes drops",
+    };
+    const h = harness([
+      toolUseEvents("A question.", [{ name: ASK_PRODUCER_TOOL_NAME, input }]),
+    ]);
+    const result = await run(h);
+    expect(result.ask?.options).toEqual([{ label: "Bar 17" }, { label: "Bar 25" }]);
+  });
+
   it.each([
     ["one option", { ...askInput, options: [{ label: "Bar 17" }] }],
-    [
-      "nine options",
-      {
-        ...askInput,
-        options: Array.from({ length: 9 }, (_, i) => ({ label: `Bar ${i}` })),
-      },
-    ],
-    ["a suggestion past the options", { ...askInput, suggested: 2 }],
     [
       "two options with one label",
       { ...askInput, options: [{ label: "Bar 17" }, { label: "bar 17" }] },
     ],
-    ["a field the tool does not take", { ...askInput, memory: "likes drops" }],
+    ["no question", { ...askInput, question: "" }],
   ])("treats a question with %s as a malformed reply", async (_name, input) => {
     const h = harness([
       toolUseEvents("A question.", [{ name: ASK_PRODUCER_TOOL_NAME, input }]),
@@ -400,7 +430,7 @@ describe("runAssistantTurn: tools and proposals (GRV-4)", () => {
     ]);
   });
 
-  it("drops the tool calls of a turn cut off before it finished", async () => {
+  it("fails a turn whose tool calls were cut off, rather than dropping them silently", async () => {
     const events = toolUseEvents("Muting it.", [muteCall]);
     const h = harness([
       events.map((step) =>
@@ -415,9 +445,7 @@ describe("runAssistantTurn: tools and proposals (GRV-4)", () => {
           : step,
       ),
     ]);
-    const result = await run(h);
-    expect(result.stopReason).toBe("max_tokens");
-    expect(result.proposal).toBeNull();
+    await expectCode(run(h), "reply_too_long");
   });
 
   // The tools stream eagerly, so the API no longer checks their input (GRV-6):
@@ -569,6 +597,22 @@ describe("runAssistantTurn: timeout", () => {
     expect(h.provider.requests).toHaveLength(1);
     expect(h.provider.aborted).toBe(1);
     expect(h.logs[0]).toMatchObject({ outcome: "timeout", attempts: 1 });
+  });
+
+  // GRV-42: a turn that streams no text for minutes (thinking, a large
+  // proposal) still tells the browser it is alive, and stops once it ends.
+  it("sends empty heartbeat chunks while a silent turn runs, and none after", async () => {
+    const [start, ...rest] = replyEvents(["Done."]);
+    const h = harness([[start, { wait: 60 }, ...rest]], {
+      inactivityTimeoutMs: 1_000,
+      heartbeatIntervalMs: 10,
+    });
+    expect((await run(h)).text).toBe("Done.");
+    const beats = h.chunks.filter((chunk) => chunk.text === "");
+    expect(beats.length).toBeGreaterThanOrEqual(2);
+    const sent = h.chunks.length;
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    expect(h.chunks).toHaveLength(sent);
   });
 
   it("lets a reply that keeps streaming run past the timeout", async () => {

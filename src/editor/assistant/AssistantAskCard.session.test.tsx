@@ -7,11 +7,12 @@ import { createRecordingTransport } from "../../analytics/transport";
 import type { AssistantAsk } from "../../assistant/ask";
 import type { AssistantProposal, AssistantStopReason } from "../../assistant/protocol";
 import { ASSISTANT_TOOLSET_VERSION } from "../../assistant/tools";
+import { createControlGesture } from "../../commands";
 import { setParameter } from "../../commands/definitions/parameters";
 import { createControlRegistry } from "../../controls/registry";
 import type { Project } from "../../domain/entities";
 import { createSliceFixtureProject } from "../../domain/fixtures";
-import { SONG_TEMPO } from "../../domain/parameters";
+import { SONG_SWING, SONG_TEMPO } from "../../domain/parameters";
 import { createInMemoryProjectRepository } from "../../persistence/inMemoryProjectRepository";
 import { createManualClock } from "../../shared/clock";
 import { clickAndFlush, fireAndFlush } from "../../testing/events";
@@ -395,6 +396,49 @@ describe("a question answered by doing, against the editor session (GRV-42)", ()
     expect(askCard()).toBeInTheDocument();
     expect(client.turns).toHaveLength(2);
     expect(transport.named("assistant_ask_answered")).toHaveLength(0);
+  });
+
+  it("is answered by dragging the swing control into an option's range", async () => {
+    const { session, client, transport, send, reply, start } = await setUp();
+    expect(start.song.swing).toBe(SONG_SWING.defaultValue);
+    const swingTo = (value: number) =>
+      setParameter({ scope: "song", parameterId: SONG_SWING.id }, value);
+    const SWING: AssistantAsk = {
+      id: "toolu_swing",
+      question: "How much swing?",
+      options: [
+        { label: "Keep it straight" },
+        { label: "A light shuffle", doneWhen: { kind: "swing", min: 54, max: 62 } },
+        { label: "Heavy swing", doneWhen: { kind: "swing", min: 63 } },
+      ],
+      multiSelect: false,
+    };
+    await send("Teach me swing");
+    reply({ ask: SWING });
+    expect(askCard()).toBeInTheDocument();
+
+    // The swing control's own path: one gesture, steps applied as it moves,
+    // committed when it is let go (`useSongControls`).
+    const control = createControlGesture({
+      beginGesture: (options) => session.beginGesture(options),
+      dispatch: (commands) => session.dispatch(commands),
+      summary: () => "Set swing",
+      command: swingTo,
+    });
+    fireAndFlush(() => control.input(54));
+    fireAndFlush(() => control.input(58));
+    await settle();
+    expect(askCard()).toBeInTheDocument();
+    fireAndFlush(() => control.commit(58));
+    await settle();
+    expect(session.committedProject.song.swing).toBe(58);
+    expect(askCard()).toBeNull();
+    expect(client.last().request.messages.at(-1)?.text).toBe(
+      '[Answer to "How much swing?"] Did it in the editor: A light shuffle.',
+    );
+    expect(transport.named("assistant_ask_answered")[0]?.params).toMatchObject({
+      how: "did_it",
+    });
   });
 });
 
