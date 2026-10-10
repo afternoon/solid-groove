@@ -23,6 +23,7 @@
 
 import type { AssistantAsk } from "../ask";
 import {
+  ASSISTANT_CALL_LIMITS,
   ASSISTANT_MODEL_ID,
   ASSISTANT_MODELS,
   type AssistantModelProfile,
@@ -142,8 +143,13 @@ export function describeTurnError(error: EvalTurnError): string {
   return `${error.code}: ${error.message}${provider.length > 0 ? ` (provider: ${provider.join(", ")})` : ""}${auth}`;
 }
 
-/** The eval's own limit on one turn, retries included. */
-export const DEFAULT_TURN_TIMEOUT_MS = 120_000;
+/**
+ * The eval's own limit on one turn, retries included: production's, the Cloud
+ * Function's ceiling. A full loop sketch streams for minutes, so a shorter
+ * limit counts turns production would finish as errored.
+ */
+export const DEFAULT_TURN_TIMEOUT_MS =
+  ASSISTANT_CALL_LIMITS.functionTimeoutSeconds * 1000;
 
 /**
  * The in-memory guards' limits: high enough that a full run never trips them.

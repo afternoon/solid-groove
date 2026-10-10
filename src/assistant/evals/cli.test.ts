@@ -10,7 +10,7 @@ function options(argv: string[], env: Record<string, string | undefined> = {}) {
 }
 
 describe("parseEvalArgs", () => {
-  it("defaults to every case, 3 runs, the configured model and a 120 s turn limit", () => {
+  it("defaults to every case, 3 runs, the configured model and production's 540 s turn limit", () => {
     expect(options([])).toEqual({
       caseIds: [],
       runs: 3,
@@ -18,7 +18,7 @@ describe("parseEvalArgs", () => {
       out: null,
       replay: null,
       concurrency: 3,
-      turnTimeoutMs: 120_000,
+      turnTimeoutMs: 540_000,
     });
   });
 

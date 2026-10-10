@@ -20,6 +20,11 @@
  * plus a four-digit counter. The first live eval run failed every proposal
  * that created anything, because the model could not count out an ID's 21
  * characters by hand; it copies a given string reliably.
+ *
+ * 2026-10-10.1 (GRV-6 rework): placements on a track may not overlap, and
+ * the description now lists where each track's placements sit. The variation
+ * cases failed most runs by placing the new clip on top of the original,
+ * whose position the model could not see.
  */
 import { customAlphabet } from "nanoid";
 import { MAX_CLIP_LENGTH_BARS } from "../domain/clipLength";
@@ -43,7 +48,7 @@ import { TICKS_PER_BAR, TICKS_PER_QUARTER, TICKS_PER_SIXTEENTH } from "../domain
 import type { AssistantContextPayload, AssistantLibraryContext } from "./protocol";
 import type { ProviderTextBlock } from "./providerRequest";
 
-export const ASSISTANT_PROMPT_VERSION = "2026-10-09.6";
+export const ASSISTANT_PROMPT_VERSION = "2026-10-10.1";
 
 const UNIT_SUFFIX: Partial<Record<ParameterDefinition["unit"], string>> = {
   decibels: " dB",
@@ -127,7 +132,7 @@ A genre, a reference or the song's current style is a starting point, never a ru
 
 - IDs are a prefix, an underscore and exactly ${ID_SUFFIX_LENGTH} letters, digits, "_" or "-". Tracks ${ID_PREFIXES.track}_, clips ${ID_PREFIXES.clip}_, notes ${ID_PREFIXES.event}_, placements ${ID_PREFIXES.placement}_, devices ${ID_PREFIXES.device}_, drum pads ${ID_PREFIXES.pad}_, returns ${ID_PREFIXES.return}_. Copy an existing ID exactly. Make a new one only from the stem given after the project description, as it says there: never by counting out characters yourself, and never reuse one.
 - parameter_set takes the full parameter ID at song, track, master, send and return scope: ${SONG_TEMPO.id} (${SONG_TEMPO.min} to ${SONG_TEMPO.max}) and ${SONG_SWING.id} (${SONG_SWING.min} straight to ${SONG_SWING.max}) on the song; ${TRACK_VOLUME.id} (${TRACK_VOLUME.min} to ${TRACK_VOLUME.max} dB) and ${TRACK_PAN.id} on a track; ${MASTER_VOLUME.id} on the master; ${TRACK_SEND_LEVEL.id} (0 to 1) on a send; ${RETURN_VOLUME.id} and ${RETURN_PAN.id} on a return. At instrument and device scope it takes the bare key listed below (cutoff, threshold).
-- A bar of 4/4 is ${TICKS_PER_BAR} ticks and a sixteenth ${TICKS_PER_SIXTEENTH}. A clip's notes sit at ticks inside the clip; a clip is at most ${MAX_CLIP_LENGTH_BARS} bars long. A placement puts a clip on its track's timeline at startTicks for durationTicks, and looped: true repeats the clip to fill it.
+- A bar of 4/4 is ${TICKS_PER_BAR} ticks and a sixteenth ${TICKS_PER_SIXTEENTH}. A clip's notes sit at ticks inside the clip; a clip is at most ${MAX_CLIP_LENGTH_BARS} bars long. A placement puts a clip on its track's timeline at startTicks for durationTicks, and looped: true repeats the clip to fill it. Placements on one track may not overlap: each track's placements are in the description, so put a new one where nothing on its track is playing, or shorten or move the one in the way with placement_update in the same call.
 - A track's order runs from 0 and a new one goes at the end, at the number of tracks the description lists. A device's order is its place in its chain; 0 puts it first, which is always valid.
 
 ## Sounds

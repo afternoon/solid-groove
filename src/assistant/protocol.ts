@@ -30,6 +30,21 @@ const ticks = z.int().min(0);
  */
 export const MAX_CONTEXT_PADS = 64;
 
+/**
+ * The most placements one track's context lists, the earliest first. A track
+ * with more says so through `placementCount`.
+ */
+export const MAX_CONTEXT_PLACEMENTS = 64;
+
+/** One placement: where a clip sits on its track's timeline. */
+export const assistantPlacementContextSchema = z.strictObject({
+  id: z.string().max(64),
+  clipId: z.string().max(64),
+  startTicks: ticks,
+  durationTicks: ticks,
+  looped: z.boolean(),
+});
+
 /** One track, as the assistant sees it (ADR 0007 decision 1). */
 export const assistantTrackContextSchema = z.strictObject({
   id: z.string().max(64),
@@ -51,6 +66,15 @@ export const assistantTrackContextSchema = z.strictObject({
   pads: z
     .array(z.strictObject({ id: z.string().max(64), name }))
     .max(MAX_CONTEXT_PADS)
+    .default([]),
+  /**
+   * The track's placements, earliest first, at most
+   * {@link MAX_CONTEXT_PLACEMENTS} (GRV-6). Defaults to empty so a tab on an
+   * earlier bundle, which sends none, keeps working until it reloads.
+   */
+  placements: z
+    .array(assistantPlacementContextSchema)
+    .max(MAX_CONTEXT_PLACEMENTS)
     .default([]),
 });
 

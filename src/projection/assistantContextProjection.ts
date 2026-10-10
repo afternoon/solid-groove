@@ -39,6 +39,19 @@ export interface AssistantTrackSummary {
    * name the pad a sound is for (GRV-23). Empty for any other instrument.
    */
   readonly pads: readonly AssistantPadSummary[];
+  /**
+   * Where the track's clips sit on the timeline, in start order, so a new
+   * placement can go beside them rather than on top of them (GRV-6).
+   */
+  readonly placements: readonly AssistantPlacementSummary[];
+}
+
+export interface AssistantPlacementSummary {
+  readonly id: string;
+  readonly clipId: string;
+  readonly startTicks: number;
+  readonly durationTicks: number;
+  readonly looped: boolean;
 }
 
 export interface AssistantPadSummary {
@@ -76,6 +89,9 @@ export interface AssistantContext {
 }
 
 function summarizeTrack(track: Track, project: Project): AssistantTrackSummary {
+  const placements = project.song.placements.filter(
+    (placement) => placement.trackId === track.id,
+  );
   return {
     id: track.id,
     name: track.name,
@@ -87,13 +103,20 @@ function summarizeTrack(track: Track, project: Project): AssistantTrackSummary {
     muted: track.mixer.muted,
     soloed: track.mixer.soloed,
     clipCount: project.clips.filter((clip) => clip.trackId === track.id).length,
-    placementCount: project.song.placements.filter(
-      (placement) => placement.trackId === track.id,
-    ).length,
+    placementCount: placements.length,
     pads:
       track.instrument?.kind === "drumMachine"
         ? track.instrument.pads.map((pad) => ({ id: pad.id, name: pad.name }))
         : [],
+    placements: placements
+      .map((placement) => ({
+        id: placement.id,
+        clipId: placement.clipId,
+        startTicks: placement.startTicks,
+        durationTicks: placement.durationTicks,
+        looped: placement.looped,
+      }))
+      .sort((a, b) => a.startTicks - b.startTicks),
   };
 }
 

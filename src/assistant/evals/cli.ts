@@ -12,6 +12,7 @@ import {
   type AssistantModelId,
 } from "../config";
 import { EVAL_CASES, type EvalCase } from "./cases";
+import { DEFAULT_TURN_TIMEOUT_MS } from "./run";
 
 export interface EvalCliOptions {
   readonly caseIds: string[];
@@ -39,7 +40,7 @@ export class EvalUsageError extends Error {
 export const EVAL_USAGE =
   "Usage: bun run eval:assistant -- [case ...] [--runs N] [--model ID] [--out DIR] [--replay REPORT] [--concurrency N] [--timeout SECONDS]";
 
-const DEFAULT_TURN_TIMEOUT_SECONDS = 120;
+const DEFAULT_TURN_TIMEOUT_SECONDS = DEFAULT_TURN_TIMEOUT_MS / 1000;
 
 function caseList(cases: readonly EvalCase[]): string {
   return cases.map((entry) => entry.id).join(", ");

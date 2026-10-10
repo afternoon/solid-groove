@@ -12,7 +12,7 @@
  *   bun run eval:assistant -- --runs 5           N runs per case
  *   bun run eval:assistant -- --model claude-haiku-4-5
  *   bun run eval:assistant -- --out tmp/evals    where the report goes
- *   bun run eval:assistant -- --timeout 180      per-turn limit in seconds (default 120)
+ *   bun run eval:assistant -- --timeout 180      per-turn limit in seconds (default 540, production's)
  *   bun run eval:assistant -- --replay <report.json>
  *       re-judge a saved report's proposals with the current checks (no model call)
  *
