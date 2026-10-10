@@ -21,9 +21,22 @@
  * from the callable error's `details`, and whether it may be retried is
  * derived from that code by {@link AssistantGatewayError}, never taken from
  * the wire.
+ *
+ * **Every turn ends** (GRV-42). Production QA saw the panel sit on "Writing…"
+ * with an empty reply for minutes, so a turn always reaches a terminal event:
+ * one that sends nothing at all, not even the gateway's heartbeat, for
+ * {@link ASSISTANT_CLIENT_SILENCE_MS} is a `timeout`; a stream that ends with
+ * no result (the Firebase SDK leaves its result pending forever when the
+ * connection closes without one, or when the function answers with anything
+ * but its event stream) is `provider_unavailable`; a reply cut off at
+ * `max_tokens` is `reply_too_long`; and a completed turn with nothing in it,
+ * no text, proposal or question, is an error rather than a reply that
+ * silently vanishes. The gateway's heartbeats are empty text chunks, which
+ * keep the turn alive and are never passed on.
  */
 import { z } from "zod";
 import { type AssistantAsk, parseAssistantAsk } from "./ask";
+import { ASSISTANT_CLIENT_SILENCE_MS } from "./config";
 import {
   ASSISTANT_ERROR_CODES,
   type AssistantErrorCode,
@@ -129,6 +142,7 @@ const CODES_BY_CALLABLE: Readonly<Record<string, AssistantErrorCode>> = {
   "functions/cancelled": "cancelled",
   "functions/resource-exhausted": "quota_exceeded",
   "functions/failed-precondition": "provider_error",
+  "functions/out-of-range": "reply_too_long",
   "functions/unavailable": "provider_unavailable",
   "functions/internal": "provider_unavailable",
 };
@@ -162,46 +176,108 @@ export function assistantErrorFrom(error: unknown): AssistantErrorDetails {
   return assistantErrorDetails(CODES_BY_CALLABLE[callable] ?? "provider_unavailable");
 }
 
+/** How long a turn's result may lag behind the end of its chunks. */
+export const RESULT_GRACE_MS = 5_000;
+
+export interface AssistantClientOptions {
+  /** Defaults to {@link ASSISTANT_CLIENT_SILENCE_MS}. */
+  readonly silenceMs?: number;
+  /** Defaults to {@link RESULT_GRACE_MS}. */
+  readonly resultGraceMs?: number;
+}
+
+const NO_RESULT = Symbol("no result");
+
+/** `promise`, or {@link NO_RESULT} if it has not settled within `ms`. */
+function within<T>(promise: Promise<T>, ms: number): Promise<T | typeof NO_RESULT> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<typeof NO_RESULT>((resolve) => {
+    timer = setTimeout(() => resolve(NO_RESULT), ms);
+  });
+  return Promise.race([promise, late]).finally(() => clearTimeout(timer));
+}
+
 /**
  * The client over one transport. Stateless: every call to `send` is its own
  * turn, and the conversation itself is held above this layer.
  */
 export function createAssistantClient(
   transport: AssistantTurnTransport,
+  options: AssistantClientOptions = {},
 ): AssistantClient {
+  const silenceMs = options.silenceMs ?? ASSISTANT_CLIENT_SILENCE_MS;
+  const resultGraceMs = options.resultGraceMs ?? RESULT_GRACE_MS;
   return {
     send(request, onEvent) {
       const controller = new AbortController();
       let settled = false;
+      let silence: ReturnType<typeof setTimeout> | undefined;
 
       /** Terminal events close the turn, so nothing can be emitted after one. */
       const emit = (event: AssistantStreamEvent): void => {
         if (settled) return;
-        if (event.type === "done" || event.type === "error") settled = true;
+        if (event.type === "done" || event.type === "error") {
+          settled = true;
+          clearTimeout(silence);
+        }
         onEvent(event);
       };
-      const malformed = () =>
-        emit({ type: "error", error: assistantErrorDetails("malformed_response") });
+      const fail = (code: AssistantErrorCode) =>
+        emit({ type: "error", error: assistantErrorDetails(code) });
+      const malformed = () => fail("malformed_response");
+      /** Restarts the wait for the turn's next sign of life. */
+      const heard = () => {
+        clearTimeout(silence);
+        silence = setTimeout(() => {
+          if (settled) return;
+          fail("timeout");
+          controller.abort();
+        }, silenceMs);
+      };
+      heard();
 
       void (async () => {
         try {
           const stream = await transport(request, { signal: controller.signal });
+          if (settled) return;
+          heard();
           // Claim the result's rejection now: the loop below can throw first,
           // and an unclaimed rejected promise is an unhandled rejection.
           const result = stream.result;
           result.catch(() => undefined);
           for await (const chunk of stream.chunks) {
             if (settled) return;
+            heard();
             const parsed = chunkSchema.safeParse(chunk);
             if (!parsed.success) return malformed();
-            emit({ type: "text", text: parsed.data.text });
+            // An empty chunk is the gateway's heartbeat: alive, nothing to show.
+            if (parsed.data.text.length > 0) {
+              emit({ type: "text", text: parsed.data.text });
+            }
           }
-          const raw = await result;
           if (settled) return;
+          const raw = await within(result, resultGraceMs);
+          if (settled) return;
+          if (raw === NO_RESULT) {
+            controller.abort();
+            return fail("provider_unavailable");
+          }
           const turn = resultSchema.safeParse(raw);
           if (!turn.success) return malformed();
           const ask = turn.data.ask == null ? null : parseAssistantAsk(turn.data.ask);
           if (turn.data.ask != null && !ask) return malformed();
+          if (!ask && !turn.data.proposal) {
+            // Cut off, with whatever it proposed or asked dropped.
+            if (turn.data.stopReason === "max_tokens") return fail("reply_too_long");
+            // Nothing to show at all: say so rather than end on nothing.
+            if (turn.data.text.trim().length === 0) {
+              return fail(
+                turn.data.stopReason === "refusal"
+                  ? "provider_error"
+                  : "malformed_response",
+              );
+            }
+          }
           if (turn.data.proposal) {
             emit({ type: "proposal", proposal: turn.data.proposal as AssistantProposal });
           }

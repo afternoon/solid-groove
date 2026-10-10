@@ -11,7 +11,7 @@ import type { AskReference, AskSound } from "../../assistant/ask";
 import { validateProposal } from "../../assistant/proposal";
 import { ASSISTANT_TOOLSET_VERSION } from "../../assistant/tools";
 import type { RawCommandInput } from "../../commands";
-import type { NoteTrigger, Project, Track } from "../../domain/entities";
+import type { Clip, NoteTrigger, Project, Track } from "../../domain/entities";
 import type { TrackId } from "../../domain/ids";
 import { TICKS_PER_BAR } from "../../domain/time";
 import {
@@ -48,15 +48,57 @@ export function barsLabel(ref: Extract<AskReference, { kind: "bars" }>): string 
     : `Bars ${ref.startBar}–${ref.endBar}`;
 }
 
+/** The one entry `matches` picks out, or undefined for none or several. */
+function only<T>(items: readonly T[], matches: (item: T) => boolean): T | undefined {
+  const found = items.filter(matches);
+  return found.length === 1 ? found[0] : undefined;
+}
+
+const sameName = (a: string, b: string) =>
+  a.trim().toLowerCase() === b.trim().toLowerCase();
+
+/**
+ * The track a question's `trackId` points at. The model is given each track's
+ * ID, but a drum machine's pads come with IDs and names of their own, and an
+ * option about "the kick" names the kick pad as often as the track it is on
+ * (GRV-42 QA: a "Kick (BD)" option highlighted nothing). So a pad's ID
+ * resolves to the track that has it, and a name that picks out exactly one
+ * track (or one pad) resolves to that track. Anything else is no track.
+ */
+export function resolveTrack(project: Project, trackId: string): Track | undefined {
+  const { tracks } = project.song;
+  const padsOf = (track: Track) =>
+    track.instrument?.kind === "drumMachine" ? track.instrument.pads : [];
+  return (
+    tracks.find((track) => track.id === trackId) ??
+    tracks.find((track) => padsOf(track).some((pad) => pad.id === trackId)) ??
+    only(tracks, (track) => sameName(track.name, trackId)) ??
+    only(tracks, (track) => padsOf(track).some((pad) => sameName(pad.name, trackId)))
+  );
+}
+
+/**
+ * The clip a question's `clipId` points at: the clip, or the clip of a
+ * placement whose ID was given instead (the model sees both), or the one clip
+ * with that name.
+ */
+export function resolveClip(project: Project, clipId: string): Clip | undefined {
+  const byId = project.clips.find((clip) => clip.id === clipId);
+  if (byId) return byId;
+  const placement = project.song.placements.find((candidate) => candidate.id === clipId);
+  if (placement) return project.clips.find((clip) => clip.id === placement.clipId);
+  return only(project.clips, (clip) => sameName(clip.name, clipId));
+}
+
 /** What a reference names in `project`, or null when the project has no such thing. */
 export function referenceLabel(project: Project, ref: AskReference): string | null {
   switch (ref.kind) {
     case "track": {
-      const track = project.song.tracks.find((candidate) => candidate.id === ref.trackId);
+      const track = resolveTrack(project, ref.trackId);
       return track ? `Track ${track.name}` : null;
     }
     case "clip": {
-      const clip = project.clips.find((candidate) => candidate.id === ref.clipId);
+      const clip = resolveClip(project, ref.clipId);
       return clip ? `Clip ${clip.name}` : null;
     }
     case "bars":
@@ -89,24 +131,22 @@ function barsSpan(ref: Extract<AskReference, { kind: "bars" }>) {
 export function referenceBands(project: Project, ref: AskReference): ArrangementBand[] {
   const trackIds = project.song.tracks.map((track) => track.id);
   switch (ref.kind) {
-    case "track":
-      return trackIds.includes(ref.trackId as TrackId)
-        ? [
-            {
-              trackIds: [ref.trackId as TrackId],
-              startTicks: 0,
-              endTicks: songEnd(project),
-            },
-          ]
+    case "track": {
+      const track = resolveTrack(project, ref.trackId);
+      return track
+        ? [{ trackIds: [track.id], startTicks: 0, endTicks: songEnd(project) }]
         : [];
-    case "clip":
+    }
+    case "clip": {
+      const clipId = resolveClip(project, ref.clipId)?.id;
       return project.song.placements
-        .filter((placement) => placement.clipId === ref.clipId)
+        .filter((placement) => placement.clipId === clipId)
         .map((placement) => ({
           trackIds: [placement.trackId],
           startTicks: placement.startTicks,
           endTicks: placement.startTicks + placement.durationTicks,
         }));
+    }
     case "bars":
       return trackIds.length > 0 ? [{ trackIds, ...barsSpan(ref) }] : [];
   }
@@ -129,14 +169,15 @@ export function referenceSelection(
   ref: AskReference,
 ): ReferenceSelection {
   switch (ref.kind) {
-    case "track": {
-      const found = project.song.tracks.some((track) => track.id === ref.trackId);
-      return { trackId: found ? (ref.trackId as TrackId) : null, arrangement: null };
-    }
+    case "track":
+      return {
+        trackId: resolveTrack(project, ref.trackId)?.id ?? null,
+        arrangement: null,
+      };
     case "clip": {
-      const clip = project.clips.find((candidate) => candidate.id === ref.clipId);
+      const clip = resolveClip(project, ref.clipId);
       const placements = project.song.placements.filter(
-        (placement) => placement.clipId === ref.clipId,
+        (placement) => placement.clipId === clip?.id,
       );
       return {
         trackId: clip?.trackId ?? null,
@@ -187,6 +228,6 @@ export function previewCommands(
 /** Whether `sound` can be heard in `project`. */
 export function canHearIn(project: Project, sound: AskSound): boolean {
   if (sound.kind === "preview") return previewCommands(project, sound) !== null;
-  const track = project.song.tracks.find((candidate) => candidate.id === sound.trackId);
+  const track = resolveTrack(project, sound.trackId);
   return track !== undefined && auditionTrigger(track) !== null;
 }

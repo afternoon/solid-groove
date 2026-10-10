@@ -73,4 +73,17 @@ describe("the assistant's system prompt", () => {
     expect(ASSISTANT_SYSTEM_PROMPT).toContain("a starting point, never a rule");
     expect(ASSISTANT_SYSTEM_PROMPT).not.toMatch(/follow (the )?genre conventions/i);
   });
+
+  // GRV-42 QA: a reply that wrote no text and spent its room on a drum beat
+  // ran out of room, leaving the producer an empty "Writing…" reply.
+  it("keeps a reply within its room: the sentence first, short looped parts, light previews", () => {
+    expect(ASSISTANT_SYSTEM_PROMPT).toContain(
+      "Always start the reply with a sentence saying what you are proposing or asking, before any tool call",
+    );
+    expect(ASSISTANT_SYSTEM_PROMPT).toContain(
+      "a reply that runs out of it is lost whole",
+    );
+    expect(ASSISTANT_SYSTEM_PROMPT).toContain("looped: true to fill its length");
+    expect(ASSISTANT_SYSTEM_PROMPT).toContain("never the whole part you would propose");
+  });
 });

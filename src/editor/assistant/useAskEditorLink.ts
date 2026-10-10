@@ -31,6 +31,7 @@ import {
   referenceBands,
   referenceLabel,
   referenceSelection,
+  resolveTrack,
 } from "./askReferences";
 
 export interface UseAskEditorLinkOptions {
@@ -100,9 +101,7 @@ export function useAskEditorLink(options: UseAskEditorLinkOptions): AskEditorLin
     const project = committed();
     if (!project || (!gesture && !mayStartSound())) return;
     if (sound.kind === "track") {
-      const track = project.song.tracks.find(
-        (candidate) => candidate.id === sound.trackId,
-      );
+      const track = resolveTrack(project, sound.trackId);
       const trigger = track && auditionTrigger(track);
       if (track && trigger) {
         void options.audio.auditionTrack(track.id, trigger, TICKS_PER_QUARTER, 0.8);

@@ -89,6 +89,8 @@ beforeAll(async () => {
 afterEach(async () => {
   cleanup();
   vi.restoreAllMocks();
+  // The assistant's conversation is kept per tab (GRV-42): never across tests.
+  sessionStorage.clear();
   try {
     await AudioRuntimeModule.getAudioRuntime().close();
   } catch {

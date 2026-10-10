@@ -452,6 +452,87 @@ describe("options that carry more than words (GRV-42)", () => {
     expect(chat().ask.focused()).toBeNull();
   });
 
+  const highlights = (calls: readonly string[]) =>
+    calls.filter((call) => call.startsWith("highlight"));
+  const TRACK_HIGHLIGHT = 'highlight {"kind":"track","trackId":"trk_bd"}';
+  const BARS_HIGHLIGHT = 'highlight {"kind":"bars","startBar":1,"endBar":2}';
+
+  it("puts the highlight away when the pointer leaves the options, even if the chip missed it", async () => {
+    const { link, calls } = recordingLink();
+    const { client } = renderChat({ link });
+    await send("Where do I start?");
+    ask(client.last(), RICH);
+    calls.length = 0;
+
+    fireAndFlush(() => fireEvent.pointerEnter(option("The kick")));
+    // No pointerleave on the chip (disabled while a reply streams, or redrawn
+    // under the pointer): leaving the options still puts it away.
+    const options = card()?.querySelector("fieldset");
+    if (!options) throw new Error("no options");
+    fireAndFlush(() => fireEvent.pointerLeave(options));
+    expect(highlights(calls)).toEqual([TRACK_HIGHLIGHT, "highlight none"]);
+    expect(calls.at(-1)).toBe("stop");
+  });
+
+  it("does not leave a clicked chip's highlight behind when the pointer moves off", async () => {
+    const { link, calls } = recordingLink();
+    const { client } = renderChat({ link });
+    await send("Where do I start?");
+    ask(client.last(), { ...RICH, multiSelect: true });
+    calls.length = 0;
+
+    const kick = option("The kick");
+    fireAndFlush(() => fireEvent.pointerEnter(kick));
+    fireAndFlush(() => fireEvent.pointerDown(kick));
+    fireAndFlush(() => kick.focus());
+    clickAndFlush(kick);
+    fireAndFlush(() => fireEvent.pointerLeave(kick));
+    expect(highlights(calls).at(-1)).toBe("highlight none");
+    expect(document.activeElement).toBe(kick);
+  });
+
+  it("keeps a keyboard-focused chip's highlight through a hover over another, and clears it on blur", async () => {
+    const { link, calls } = recordingLink();
+    const { client } = renderChat({ link });
+    await send("Where do I start?");
+    ask(client.last(), RICH);
+    calls.length = 0;
+
+    fireAndFlush(() => option("The kick").focus());
+    fireAndFlush(() => fireEvent.pointerEnter(option("The opening")));
+    fireAndFlush(() => fireEvent.pointerLeave(option("The opening")));
+    expect(highlights(calls)).toEqual([TRACK_HIGHLIGHT, BARS_HIGHLIGHT, TRACK_HIGHLIGHT]);
+
+    fireAndFlush(() => option("The kick").blur());
+    expect(highlights(calls).at(-1)).toBe("highlight none");
+  });
+
+  it("does not let a blur take away the highlight of the chip under the pointer", async () => {
+    const { link, calls } = recordingLink();
+    const { client } = renderChat({ link });
+    await send("Where do I start?");
+    ask(client.last(), RICH);
+    fireAndFlush(() => option("The opening").focus());
+    calls.length = 0;
+
+    fireAndFlush(() => fireEvent.pointerEnter(option("The kick")));
+    fireAndFlush(() => option("The opening").blur());
+    expect(highlights(calls)).toEqual([TRACK_HIGHLIGHT, TRACK_HIGHLIGHT]);
+  });
+
+  it("puts a hovered chip's highlight away when the question goes from under it", async () => {
+    const { link, calls } = recordingLink();
+    const { client } = renderChat({ link });
+    await send("Where do I start?");
+    ask(client.last(), RICH);
+    calls.length = 0;
+
+    fireAndFlush(() => fireEvent.pointerEnter(option("The kick")));
+    clickAndFlush(inCard().getByRole("button", { name: "Dismiss the question" }));
+    expect(card()).toBeNull();
+    expect(highlights(calls).at(-1)).toBe("highlight none");
+  });
+
   it("selects what a picked option is about", async () => {
     const { link, calls } = recordingLink();
     const { client } = renderChat({ link });

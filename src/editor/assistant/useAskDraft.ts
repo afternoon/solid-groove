@@ -41,8 +41,19 @@ export interface AskDraft {
    * shown and its sound plays, until the pointer leaves.
    */
   hover(index: number | null): void;
-  /** Option `index` has focus, or none does: its part of the song is shown. */
-  focus(index: number | null): void;
+  /**
+   * Option `index` has gone from under the pointer, or from the page: what it
+   * showed is put away if it is still the hovered one.
+   */
+  unhover(index: number): void;
+  /**
+   * Option `index` has focus, or none does: its part of the song is shown
+   * while nothing is hovered, unless `show` is false (focus a click gave it,
+   * which should not outlast the pointer).
+   */
+  focus(index: number | null, show?: boolean): void;
+  /** Option `index` has lost focus, or left the page, if it had it. */
+  unfocus(index: number): void;
   /** The option with focus, if one has it. */
   focused(): number | null;
   /** Whether option `index` has a sound that can be heard now. */
@@ -90,9 +101,30 @@ export function useAskDraft(options: UseAskDraftOptions): AskDraft {
     conversation.pendingAsk()?.ask.options[index];
   /** Plain, not a signal: only the keys ask which option has focus. */
   let focusedIndex: number | null = null;
+  /** Whether the focused option shows its part of the song: not when a click gave it focus. */
+  let focusShown = false;
+  /** The option under the pointer. */
+  let hoveredIndex: number | null = null;
+  /** Which of the two last moved to an option, so it wins while both hold one. */
+  let latest: "hover" | "focus" = "hover";
+
+  /**
+   * Shows the one option's part of the song that should be showing: the
+   * option the pointer or focus last went to, else the one the other still
+   * holds. Hover and focus are kept apart so one ending never leaves the
+   * other's highlight behind, or takes away a highlight the other still holds
+   * (GRV-42 QA).
+   */
+  function showHighlight(): void {
+    const shownFocus = focusShown ? focusedIndex : null;
+    const index =
+      latest === "focus" ? (shownFocus ?? hoveredIndex) : (hoveredIndex ?? shownFocus);
+    link?.highlight((index === null ? undefined : option(index))?.ref ?? null);
+  }
 
   /** Puts away whatever an option is showing or playing. */
   function release(): void {
+    hoveredIndex = null;
     link?.highlight(null);
     link?.stopHearing();
   }
@@ -105,6 +137,7 @@ export function useAskDraft(options: UseAskDraftOptions): AskDraft {
     () => conversation.pendingAsk()?.ask.id ?? null,
     () => {
       focusedIndex = null;
+      focusShown = false;
       untrack(release);
     },
   );
@@ -179,6 +212,24 @@ export function useAskDraft(options: UseAskDraftOptions): AskDraft {
     return sent;
   }
 
+  function hover(index: number | null): void {
+    hoveredIndex = index;
+    if (index !== null) latest = "hover";
+    showHighlight();
+    const hovered = index === null ? undefined : option(index);
+    if (hovered?.sound && link?.canHear(hovered.sound)) link.hear(hovered.sound);
+    else link?.stopHearing();
+  }
+
+  function focus(index: number | null, show = true): void {
+    focusedIndex = index;
+    focusShown = index !== null && show;
+    if (focusShown) latest = "focus";
+    showHighlight();
+    // A blur stops what Space started, unless the pointer is playing something.
+    if (index === null && hoveredIndex === null) link?.stopHearing();
+  }
+
   return {
     picked: () => current()?.picked ?? [],
     text: () => current()?.text ?? "",
@@ -219,18 +270,14 @@ export function useAskDraft(options: UseAskDraftOptions): AskDraft {
       conversation.dismissAsk();
       setDraft(null);
     },
-    hover(index) {
-      const hovered = index === null ? undefined : option(index);
-      link?.highlight(hovered?.ref ?? null);
-      if (hovered?.sound && link?.canHear(hovered.sound)) link.hear(hovered.sound);
-      else link?.stopHearing();
+    hover,
+    unhover(index) {
+      if (hoveredIndex === index) hover(null);
     },
     focused: () => (conversation.pendingAsk() ? focusedIndex : null),
-    focus(index) {
-      focusedIndex = index;
-      const focused = index === null ? undefined : option(index);
-      link?.highlight(focused?.ref ?? null);
-      if (index === null) link?.stopHearing();
+    focus,
+    unfocus(index) {
+      if (focusedIndex === index) focus(null);
     },
     canHear(index) {
       const sound = option(index)?.sound;

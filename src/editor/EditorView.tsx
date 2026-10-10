@@ -45,6 +45,7 @@ import ArrangementPane from "./ArrangementPane";
 import AssistantPanel from "./assistant/AssistantPanel";
 import { createAssistantLibrary } from "./assistant/assistantLibrary";
 import type { ScopeSelection, ScopeSources } from "./assistant/assistantScope";
+import { conversationStorageKey } from "./assistant/conversationStore";
 import { recommendationSlot } from "./assistant/recommendationCardModel";
 import { useAskEditorLink } from "./assistant/useAskEditorLink";
 import { useAssistantChat } from "./assistant/useAssistantChat";
@@ -423,9 +424,13 @@ export default function EditorView(props: EditorViewProps): JSX.Element {
     },
   });
   // The conversation (GRV-26): one per editor, kept while the panel is
-  // closed, gone on a reload.
+  // closed, and across a reload of the same project in this tab (GRV-42).
   const chat = useAssistantChat({
     project,
+    conversationKey: () => {
+      const uid = props.libraryAccount?.uid;
+      return uid ? conversationStorageKey(uid, props.projectId) : null;
+    },
     view: () => props.view,
     sources: assistantSources,
     account: () => ({

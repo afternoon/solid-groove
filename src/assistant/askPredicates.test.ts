@@ -44,6 +44,42 @@ describe("answering a question by doing (GRV-42)", () => {
     expect(predicateHolds(predicate, slow, withSong(slow, { tempo: 95 }))).toBe(false);
   });
 
+  it("holds a swing once the song moves into the range, not while it already was", () => {
+    const predicate: AskPredicate = { kind: "swing", min: 55 };
+    const straight = withSong(asked, { swing: 50 });
+    expect(predicateHolds(predicate, straight, withSong(straight, { swing: 58 }))).toBe(
+      true,
+    );
+    expect(predicateHolds(predicate, straight, straight)).toBe(false);
+    expect(predicateHolds(predicate, straight, withSong(straight, { swing: 54 }))).toBe(
+      false,
+    );
+    const swung = withSong(asked, { swing: 60 });
+    expect(predicateHolds(predicate, swung, withSong(swung, { swing: 66 }))).toBe(false);
+  });
+
+  it("answers a swing question by the producer's own swing change", () => {
+    const straight = withSong(asked, { swing: 50 });
+    const ask: AssistantAsk = {
+      id: "toolu_swing",
+      question: "How much swing?",
+      options: [
+        { label: "Straight" },
+        { label: "Light", doneWhen: { kind: "swing", min: 54, max: 62 } },
+        { label: "Heavy", doneWhen: { kind: "swing", min: 63 } },
+      ],
+      multiSelect: false,
+    };
+    const at = (swing: number) => withSong(straight, { swing });
+    expect(optionDoneByEdit(ask, straight, straight, at(58))).toBe(1);
+    expect(optionDoneByEdit(ask, straight, at(58), at(70))).toBe(2);
+    expect(optionDoneByEdit(ask, straight, straight, at(52))).toBeNull();
+    // A tempo change answers no swing question.
+    expect(
+      optionDoneByEdit(ask, straight, straight, withSong(straight, { tempo: 90 })),
+    ).toBeNull();
+  });
+
   it("holds a mute or solo once the track's flag changes to it", () => {
     const predicate: AskPredicate = {
       kind: "trackFlag",

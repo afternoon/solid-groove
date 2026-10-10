@@ -1,8 +1,10 @@
 /**
  * The conversation in the assistant's panel (GRV-26): what has been said,
  * the reply streaming now, and the three things a producer can do about it
- * (send, Stop, Try again). It lives in memory for the session: closing the
- * panel keeps it, a reload loses it (keeping it is GRV-8).
+ * (send, Stop, Try again). Closing the panel keeps it, and with a
+ * {@link UseAssistantConversationOptions.persistence} key a reload of the
+ * same project brings back what was said and a question still waiting
+ * (GRV-42, `conversationStore.ts`).
  *
  * Every turn goes through an {@link AssistantClient}, the one door to the
  * gateway, and each is stamped with the scope it was sent with. Nothing here
@@ -21,7 +23,14 @@
  * question had and how it was answered. Never the text of a message, a
  * reply, a question or an answer, and nothing about what is in scope.
  */
-import { type Accessor, createSignal, onCleanup } from "solid-js";
+import {
+  type Accessor,
+  createEffect,
+  createMemo,
+  createSignal,
+  onCleanup,
+  untrack,
+} from "solid-js";
 import type { Analytics } from "../../analytics/analytics";
 import {
   type AskAnswer,
@@ -49,6 +58,7 @@ import { splitRecommendations } from "../../assistant/recommendation";
 import type { Project } from "../../domain/entities";
 import type { SuggestionId } from "../../projection/projectAnalysisProjection";
 import { type AssistantScope, scopedContext } from "./assistantScope";
+import { type ConversationStore, createConversationStore } from "./conversationStore";
 
 /** What a turn was asked: the producer's words and the scope they were sent with. */
 export interface TurnOrigin {
@@ -185,6 +195,16 @@ export interface UseAssistantConversationOptions {
     library: AssistantLibraryContext | null,
     origin: TurnOrigin,
   ) => void;
+  /**
+   * Where the conversation is kept across a reload (GRV-42): the key for this
+   * account and project (`conversationStorageKey`), or null while there is
+   * none, and the store, this tab's session storage by default. Without it
+   * the conversation lives in memory only.
+   */
+  readonly persistence?: {
+    readonly key: Accessor<string | null>;
+    readonly store?: ConversationStore;
+  };
 }
 
 export interface AssistantConversation {
@@ -274,6 +294,7 @@ export function useAssistantConversation(
   // Leaving the editor stops the reply on its way, at the gateway too, rather
   // than leaving it to write into a conversation nobody can see.
   onCleanup(() => inFlight?.stop());
+  if (options.persistence) keep(options.persistence);
 
   const append = (entry: ConversationEntry) =>
     setEntries((current) => [...current, entry]);
@@ -543,6 +564,57 @@ export function useAssistantConversation(
     setEntries((current) => current.filter((entry) => !stale.has(entry.id)));
     startTurn(last.request, last.origin);
     return true;
+  }
+
+  /**
+   * Restores the conversation kept under the key once the project has loaded
+   * (a question's options are read against it), then keeps every change. A
+   * new key (another project) brings back its own conversation, or none.
+   */
+  function keep(
+    persistence: NonNullable<UseAssistantConversationOptions["persistence"]>,
+  ) {
+    const store = persistence.store ?? createConversationStore();
+    const loaded = createMemo(() => options.project() !== null);
+    let restoredKey: string | null = null;
+    createEffect(
+      () => ({
+        key: persistence.key(),
+        loaded: loaded(),
+        pending: pendingAsk(),
+        // A streaming reply changes with every word: it is kept when the turn
+        // starts and when it ends, not word by word.
+        entries: streaming() ? untrack(entries) : entries(),
+      }),
+      ({ key, loaded: ready, pending, entries: current }) => {
+        if (key === null) return;
+        if (key === restoredKey) {
+          store.save(key, current, pending?.replyId ?? null);
+          return;
+        }
+        if (!ready) return;
+        const switching = restoredKey !== null;
+        restoredKey = key;
+        if (switching) inFlight?.stop();
+        const stored = store.load(key);
+        if (!stored && !switching) return;
+        setEntries(stored?.entries ?? []);
+        for (const entry of stored?.entries ?? []) {
+          const n = Number(/^entry-(\d+)$/.exec(entry.id)?.[1] ?? 0);
+          if (n > nextId) nextId = n;
+        }
+        setPendingAsk(
+          stored?.pendingAsk
+            ? {
+                ...stored.pendingAsk,
+                // What it was asked against went with the reload: only a change
+                // from here on answers it by doing.
+                asked: untrack(() => options.committedProject?.() ?? options.project()),
+              }
+            : null,
+        );
+      },
+    );
   }
 
   return {

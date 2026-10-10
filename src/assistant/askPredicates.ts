@@ -56,6 +56,8 @@ function stateHolds(predicate: AskPredicate, project: Project): boolean {
   switch (predicate.kind) {
     case "tempo":
       return inRange(project.song.tempo, predicate.min, predicate.max);
+    case "swing":
+      return inRange(project.song.swing, predicate.min, predicate.max);
     case "trackFlag":
       return track(project, predicate.trackId)?.mixer[predicate.flag] === predicate.value;
     case "trackVolume": {

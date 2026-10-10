@@ -19,8 +19,13 @@
  * 6. calls the provider, streaming the reply's text as it arrives, under a
  *    per-attempt inactivity timeout, retrying a transient failure that has
  *    not streamed anything yet, and abandoning the call if the browser goes away;
- * 7. validates the reply and logs one redacted record of how it went;
- * 8. keeps the completed turn in the transcript store if, and only if, the
+ * 7. validates the reply and logs one redacted record of how it went: a
+ *    reply cut off at `max_tokens` is a `reply_too_long` failure, never a
+ *    reply with its proposal or question silently dropped (GRV-42);
+ * 8. sends an empty text chunk every few seconds while it runs, so the
+ *    browser can tell a long silent turn (thinking, a large proposal) from a
+ *    connection that died (GRV-42);
+ * 9. keeps the completed turn in the transcript store if, and only if, the
  *    account has said yes (GRV-8, `retention.ts`). Keeping it never fails or
  *    changes the turn: the reply is the same either way.
  *
@@ -38,6 +43,7 @@
 import { type AssistantAsk, askProducerTool, isAskCall, parseAskCall } from "./ask";
 import {
   ASSISTANT_CALL_LIMITS,
+  ASSISTANT_HEARTBEAT_INTERVAL_MS,
   ASSISTANT_HISTORY_TOKEN_BUDGET,
   ASSISTANT_LIMITS,
   ASSISTANT_MODEL_ID,
@@ -454,6 +460,29 @@ async function keepTranscript(
   deps.onTranscript?.(write);
 }
 
+const TOO_LONG_MESSAGE =
+  "The assistant's reply ran out of room before it finished. Try asking for a smaller change.";
+
+/**
+ * Sends `onChunk` an empty text chunk every `intervalMs` until the returned
+ * stop is called. A heartbeat that cannot be sent is ignored: the turn's own
+ * chunks report a dead connection.
+ */
+function startHeartbeat(
+  onChunk: AssistantTurnOptions["onChunk"],
+  intervalMs: number,
+): () => void {
+  const beat = () => {
+    try {
+      void Promise.resolve(onChunk({ type: "text", text: "" })).catch(() => {});
+    } catch {
+      // As above: a heartbeat never fails the turn.
+    }
+  };
+  const timer = setInterval(beat, intervalMs);
+  return () => clearInterval(timer);
+}
+
 /**
  * The turn's question, or null when it asks none. The first `ask_producer`
  * call is the question; the tool asks one at a time, so any later one is
@@ -512,6 +541,10 @@ export async function runAssistantTurn(
       }),
     );
 
+  const stopHeartbeat = startHeartbeat(
+    options.onChunk,
+    limits.heartbeatIntervalMs ?? ASSISTANT_HEARTBEAT_INTERVAL_MS,
+  );
   try {
     const uid = authenticate(caller);
     const turn = parseRequest(rawRequest);
@@ -548,6 +581,12 @@ export async function runAssistantTurn(
       if (cost > 0) await deps.guards.addSpend(spendDay(deps.now()), cost);
       const { outcome } = attempt;
       if (outcome.kind === "completed") {
+        // Cut off before it finished: whatever it was proposing or asking is
+        // gone (`StreamReader.result`), and its text may stop mid-sentence.
+        // Said as a failure, not passed off as a reply that did nothing.
+        if (outcome.stopReason === "max_tokens") {
+          throw new AssistantGatewayError("reply_too_long", TOO_LONG_MESSAGE);
+        }
         const ask = askOf(outcome.toolCalls);
         finish("completed", outcome.stopReason);
         const proposal = proposalOf(turn, outcome.toolCalls);
@@ -603,5 +642,7 @@ export async function runAssistantTurn(
     // as such, and left for the function to report as an internal error.
     finish("internal_error", null);
     throw error;
+  } finally {
+    stopHeartbeat();
   }
 }

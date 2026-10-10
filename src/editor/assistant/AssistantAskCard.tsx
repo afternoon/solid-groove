@@ -1,5 +1,5 @@
 import type { JSX } from "@solidjs/web";
-import { createEffect, For, Show, untrack } from "solid-js";
+import { createEffect, For, onCleanup, Show, untrack } from "solid-js";
 import { ASK_LIMITS } from "../../assistant/ask";
 import { CloseIcon } from "../../components/icons";
 
@@ -62,6 +62,8 @@ export default function AssistantAskCard(props: AssistantAskCardProps): JSX.Elem
   const ask = () => props.pending.ask;
   const questionId = () => `assistant-ask-${ask().id}`;
   let card: HTMLElement | undefined;
+  /** The chip a pointer went down on, so the focus that follows is known as a click's. */
+  let pressed: number | null = null;
 
   // A new question takes focus from an empty composer, so its keys work at
   // once. The question's ID is the one reactive read: the draft is read once,
@@ -97,7 +99,14 @@ export default function AssistantAskCard(props: AssistantAskCardProps): JSX.Elem
       <p id={questionId()} class="assistant-ask-question">
         {ask().question}
       </p>
-      <fieldset class="assistant-ask-options" aria-labelledby={questionId()}>
+      {/* Leaving the options puts away whatever they show, even when a chip
+          missed its own pointerleave (disabled while a reply streams, or
+          redrawn under the pointer). */}
+      <fieldset
+        class="assistant-ask-options"
+        aria-labelledby={questionId()}
+        onPointerLeave={() => props.draft.hover(null)}
+      >
         <For each={ask().options}>
           {(option, index) => {
             const suggested = () => ask().suggested === index();
@@ -107,6 +116,15 @@ export default function AssistantAskCard(props: AssistantAskCardProps): JSX.Elem
             // ID, so none of the question's own words sits in an attribute.
             const about = () => props.draft.about(index());
             const audible = () => props.draft.canHear(index());
+            // A chip that goes while hovered or focused (the question
+            // replaced, the options redrawn under a still pointer) gets no
+            // pointerleave or blur, so it puts its own highlight away.
+            onCleanup(() =>
+              untrack(() => {
+                props.draft.unhover(index());
+                props.draft.unfocus(index());
+              }),
+            );
             const described = () =>
               [
                 option.description ? part("description") : "",
@@ -135,9 +153,20 @@ export default function AssistantAskCard(props: AssistantAskCardProps): JSX.Elem
                 disabled={props.streaming}
                 onClick={() => props.draft.pick(index())}
                 onPointerEnter={() => props.draft.hover(index())}
-                onPointerLeave={() => props.draft.hover(null)}
-                onFocus={() => props.draft.focus(index())}
-                onBlur={() => props.draft.focus(null)}
+                onPointerLeave={() => {
+                  pressed = null;
+                  props.draft.unhover(index());
+                }}
+                onPointerDown={() => {
+                  pressed = index();
+                }}
+                onFocus={() => {
+                  // Focus a click gave the chip shows nothing of its own: the
+                  // hover already shows it, and it must go with the pointer.
+                  props.draft.focus(index(), pressed !== index());
+                  pressed = null;
+                }}
+                onBlur={() => props.draft.unfocus(index())}
               >
                 <span class="assistant-ask-key" aria-hidden="true">
                   {index() + 1}
