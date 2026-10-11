@@ -13,10 +13,12 @@ export default function DashboardPage() {
   return (
     <main class="dashboard">
       <Title>{pageTitle("Projects")}</Title>
-      <h1 class="dashboard-title">Projects</h1>
       <AuthProvider>
         <SignedInOnly fallback={<TapeLoader label="Loading projects" />}>
           <OnboardingGate fallback={<TapeLoader label="Loading projects" />}>
+            {/* Inside the gate, so the heading only shows once the producer
+                is past the welcome: a page that shows it is the dashboard. */}
+            <h1 class="dashboard-title">Projects</h1>
             <Dashboard />
           </OnboardingGate>
         </SignedInOnly>
