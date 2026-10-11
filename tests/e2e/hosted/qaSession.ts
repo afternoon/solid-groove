@@ -216,3 +216,21 @@ export async function signInAsQaAccount(
   await installFirebaseUser(page, apiKey, record);
   return account;
 }
+
+/**
+ * Gets a signed-in page that opened the dashboard past the welcome (GRV-25),
+ * if it was sent there: an account that has not been through onboarding is
+ * taken to the welcome first, and the QA accounts start without a profile.
+ * Choosing "Skip to the studio" is what a producer who wants the dashboard
+ * does, and it is remembered, so a later run goes straight there. Leaves the
+ * page on the dashboard either way.
+ */
+export async function passWelcome(page: Page): Promise<void> {
+  const projects = page.getByRole("heading", { name: "Projects" });
+  const skip = page.getByRole("button", { name: "Skip to the studio" });
+  await projects.or(skip).first().waitFor();
+  if (await skip.isVisible()) {
+    await skip.click();
+  }
+  await projects.waitFor();
+}

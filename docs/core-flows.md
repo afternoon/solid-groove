@@ -147,12 +147,17 @@ signing in from the landing page and arriving signed in. From creating a project
 onwards the journey is the one it always was: edit the starter pattern and hear
 it. Parked at `test.fixme` until #854's stack lands.
 
+**Revised for onboarding (GRV-25).** A new account now meets Cue at the welcome
+before the dashboard, so step 3 passes through it with Skip to the studio. The
+welcome itself is CF-035's subject.
+
 **Preconditions:** you have been invited: your Google address is on the alpha
 list. You have no projects.
 
 1. Open the landing page.
 2. Choose Sign in, and sign in with Google as the invited address.
-3. You arrive at the dashboard, signed in, with no projects yet.
+3. You arrive signed in at the welcome, where Cue introduces itself. Choose
+   Skip to the studio: you are on the dashboard, with no projects yet.
 4. Create a new project.
 5. The project opens on the arrangement, with a four-on-the-floor starter
    pattern sitting on its only track, a drum machine named "BD".

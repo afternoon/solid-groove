@@ -29,6 +29,16 @@ export interface AssistantAskCardProps {
    * is in an empty composer, waiting, rather than writing something else.
    */
   takeFocus(): boolean;
+  /**
+   * What the "something else" box is called when a question means something
+   * more particular by it (onboarding's "Artists you love", GRV-25).
+   */
+  readonly textLabel?: string;
+  /**
+   * A worded way to put the question away, in place of the close icon
+   * (onboarding's "Skip this question", GRV-25).
+   */
+  readonly skipLabel?: string;
 }
 
 /** The card's accessible name. */
@@ -87,15 +97,31 @@ export default function AssistantAskCard(props: AssistantAskCardProps): JSX.Elem
     >
       <div class="assistant-ask-head">
         <span class="assistant-entry-label">{ask().context ?? "Question"}</span>
-        <button
-          type="button"
-          class="assistant-ask-dismiss"
-          aria-label="Dismiss the question"
-          title="Dismiss the question"
-          onClick={() => props.draft.dismiss()}
+        <Show
+          when={props.skipLabel}
+          fallback={
+            <button
+              type="button"
+              class="assistant-ask-dismiss"
+              aria-label="Dismiss the question"
+              title="Dismiss the question"
+              onClick={() => props.draft.dismiss()}
+            >
+              <CloseIcon size={12} />
+            </button>
+          }
         >
-          <CloseIcon size={12} />
-        </button>
+          {(label) => (
+            <button
+              type="button"
+              class="assistant-ask-skip"
+              disabled={props.streaming}
+              onClick={() => props.draft.dismiss()}
+            >
+              {label()}
+            </button>
+          )}
+        </Show>
       </div>
       <p id={questionId()} class="assistant-ask-question">
         {ask().question}
@@ -229,8 +255,8 @@ export default function AssistantAskCard(props: AssistantAskCardProps): JSX.Elem
           ref={(element) => props.bindText(element)}
           type="text"
           class="assistant-ask-input"
-          aria-label={ASK_TEXT_LABEL}
-          placeholder={`${ASK_TEXT_LABEL}…`}
+          aria-label={props.textLabel ?? ASK_TEXT_LABEL}
+          placeholder={`${props.textLabel ?? ASK_TEXT_LABEL}…`}
           maxlength={ASK_LIMITS.answerChars}
           value={props.draft.text()}
           disabled={props.streaming}

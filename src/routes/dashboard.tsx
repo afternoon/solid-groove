@@ -6,6 +6,7 @@ import { AuthProvider } from "../auth/AuthProvider";
 import SignedInOnly from "../auth/SignedInOnly";
 import Dashboard from "../components/Dashboard";
 import TapeLoader from "../components/TapeLoader";
+import OnboardingGate from "../onboarding/OnboardingGate";
 import "./dashboard.css";
 
 export default function DashboardPage() {
@@ -15,7 +16,9 @@ export default function DashboardPage() {
       <h1 class="dashboard-title">Projects</h1>
       <AuthProvider>
         <SignedInOnly fallback={<TapeLoader label="Loading projects" />}>
-          <Dashboard />
+          <OnboardingGate fallback={<TapeLoader label="Loading projects" />}>
+            <Dashboard />
+          </OnboardingGate>
         </SignedInOnly>
       </AuthProvider>
     </main>
