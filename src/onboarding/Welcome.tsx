@@ -89,7 +89,7 @@ export default function Welcome(props: WelcomeProps): JSX.Element {
         .then((result) => {
           if (cancelled || !result.ok) return;
           if (result.profile?.onboarding) navigate("/projects", { replace: true });
-          else onboarding.started();
+          else onboarding.started(result.profile);
         })
         .catch(() => {});
       return () => {
@@ -200,7 +200,7 @@ export default function Welcome(props: WelcomeProps): JSX.Element {
                 {OPEN_STUDIO_LABEL}
               </button>
             </Match>
-            <Match when={onboarding.stage() === "asking"}>
+            <Match when={onboarding.stage() === "asking" && !onboarding.finished()}>
               <button
                 type="button"
                 class="welcome-skip"

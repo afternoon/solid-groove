@@ -20,7 +20,7 @@
  * question (which, and how), `onboarding_completed` or `onboarding_skipped`,
  * and, with the producer's consent, the validation event. Never an answer.
  */
-import { type Accessor, createSignal } from "solid-js";
+import { type Accessor, createSignal, onCleanup } from "solid-js";
 import type { Analytics } from "../analytics/analytics";
 import {
   type AskAnswer,
@@ -100,11 +100,17 @@ export interface Onboarding extends AskConversation {
   /** Whether Skip to the studio or Open the studio is under way. */
   readonly leaving: Accessor<boolean>;
   /**
+   * Whether the last question has been settled: from then on the welcome is
+   * finishing, and Skip to the studio is no longer offered.
+   */
+  readonly finished: Accessor<boolean>;
+  /**
    * Logs `onboarding_started`, once: called when the profile's load confirms
    * onboarding is still to do, so someone sent on to the dashboard never
-   * counts as starting it.
+   * counts as starting it. `profile` is what that load read, which every
+   * save builds on, so nothing it already held is lost.
    */
-  started(): void;
+  started(profile: ProducerProfile | null): void;
 }
 
 const ANSWER_SCOPE = "Song";
@@ -136,9 +142,22 @@ export function useOnboarding(options: UseOnboardingOptions): Onboarding {
   let memoryNow: ProducerMemory = EMPTY_MEMORY;
   let consentNow = false;
   const [leaving, setLeaving] = createSignal(false);
+  const [finished, setFinished] = createSignal(false);
   const skipped = new Set<OnboardingQuestionId>();
-  /** The profile as last saved, so a later save keeps what it already held. */
-  let saved: ProducerProfile | null = null;
+  /**
+   * The profile a save builds on: what the welcome's load read, then what
+   * each save wrote. `undefined` until a load has succeeded, and nothing is
+   * saved before one has, so a save never writes over a profile it has not
+   * seen.
+   */
+  let base: ProducerProfile | null | undefined;
+  // Cue's replies wait a moment before they are said; leaving the welcome
+  // cancels any still waiting.
+  const timers = new Set<ReturnType<typeof setTimeout>>();
+  onCleanup(() => {
+    for (const timer of timers) clearTimeout(timer);
+    timers.clear();
+  });
   let questionIndex = 0;
   let nextId = 1;
   const id = () => {
@@ -167,7 +186,11 @@ export function useOnboarding(options: UseOnboardingOptions): Onboarding {
     };
     if (delay <= 0) return say();
     setStreaming(true);
-    setTimeout(say, delay);
+    const timer = setTimeout(() => {
+      timers.delete(timer);
+      say();
+    }, delay);
+    timers.add(timer);
   }
 
   const question = (): OnboardingQuestion | null => {
@@ -181,17 +204,20 @@ export function useOnboarding(options: UseOnboardingOptions): Onboarding {
   const answeredCount = () =>
     ONBOARDING_QUESTION_IDS.filter((qid) => isAnswered(memoryNow, qid)).length;
 
-  /** The profile as it stands, built on whatever was saved before. */
-  function profileNow(onboarding: ProducerProfile["onboarding"]): ProducerProfile {
-    const base = saved ?? emptyProfile(clock.now());
+  /** The profile as it stands, built on what was loaded or last saved. */
+  function profileNow(
+    onboarding: ProducerProfile["onboarding"],
+    on: ProducerProfile | null,
+  ): ProducerProfile {
+    const start = on ?? emptyProfile(clock.now());
     const later =
       onboarding === "skipped"
         ? ONBOARDING_QUESTION_IDS.filter((qid) => !isAnswered(memoryNow, qid))
         : ONBOARDING_QUESTION_IDS.filter((qid) => skipped.has(qid));
     return {
-      ...base,
+      ...start,
       onboarding,
-      onboardedAt: base.onboardedAt ?? clock.now(),
+      onboardedAt: start.onboardedAt ?? clock.now(),
       memory: memoryNow,
       laterQuestions: later,
       validationConsent: consentNow,
@@ -206,18 +232,26 @@ export function useOnboarding(options: UseOnboardingOptions): Onboarding {
    */
   let saveChain: Promise<unknown> = Promise.resolve();
   function queueSave(onboarding: ProducerProfile["onboarding"]): Promise<boolean> {
-    const run = saveChain.then(() => save(profileNow(onboarding)));
+    const run = saveChain.then(() => save(onboarding));
     saveChain = run;
     return run;
   }
 
-  async function save(profile: ProducerProfile): Promise<boolean> {
+  async function save(onboarding: ProducerProfile["onboarding"]): Promise<boolean> {
     const uid = options.uid();
     if (!uid) return false;
     try {
-      const result = await (await options.profiles()).saveProfile(uid, profile);
+      const repository = await options.profiles();
+      // The welcome's own load has not landed (or failed): read the profile
+      // now, and save nothing unless that read succeeds.
+      if (base === undefined) {
+        const loaded = await repository.loadProfile(uid);
+        if (!loaded.ok) return false;
+        base = loaded.profile;
+      }
+      const result = await repository.saveProfile(uid, profileNow(onboarding, base));
       if (!result.ok) return false;
-      saved = result.profile;
+      base = result.profile;
       return true;
     } catch {
       return false;
@@ -238,7 +272,11 @@ export function useOnboarding(options: UseOnboardingOptions): Onboarding {
       reply(ack, next);
       return;
     }
+    setFinished(true);
     reply(`${ack} ${SAVED_TEXT}`, null, () => {
+      // Skip to the studio is hidden from here, but a skip already under way
+      // has saved its own outcome; completing would write over it.
+      if (leaving()) return;
       options.analytics.log("onboarding_completed", { answered_count: answeredCount() });
       options.analytics.logFeatureFirstUse("onboarding");
       reply(lessonOfferText(memoryNow.goal, "welcome"), null);
@@ -253,6 +291,10 @@ export function useOnboarding(options: UseOnboardingOptions): Onboarding {
     setPendingAsk(null);
     memoryNow = applyAnswer(memoryNow, current.id, answer);
     setMemory(memoryNow);
+    // Words typed to a single-choice question have no field to go in, so the
+    // question is still unanswered: it is kept to ask later, as a skip is.
+    const unanswered = !isAnswered(memoryNow, current.id);
+    if (unanswered) skipped.add(current.id);
     options.analytics.log("onboarding_question_answered", {
       question_id: current.id,
       how: answerHow(answer),
@@ -267,7 +309,7 @@ export function useOnboarding(options: UseOnboardingOptions): Onboarding {
       answers: pending.ask.question,
       wire: answerMessage(pending.ask, answer),
     });
-    advance(current.id, false);
+    advance(current.id, unanswered);
     return true;
   }
 
@@ -303,7 +345,7 @@ export function useOnboarding(options: UseOnboardingOptions): Onboarding {
     // Only the latest tick counts: a tick undone before its save landed
     // shares nothing.
     if (ok && value && consentNow) {
-      logValidation(options.analytics, profileNow("completed"));
+      logValidation(options.analytics, profileNow("completed", base ?? null));
     }
   }
 
@@ -371,7 +413,8 @@ export function useOnboarding(options: UseOnboardingOptions): Onboarding {
   }
 
   let startLogged = false;
-  function started(): void {
+  function started(profile: ProducerProfile | null): void {
+    if (base === undefined) base = profile;
     if (startLogged) return;
     startLogged = true;
     options.analytics.log("onboarding_started", {});
@@ -388,6 +431,7 @@ export function useOnboarding(options: UseOnboardingOptions): Onboarding {
     skipAll,
     openStudio,
     leaving,
+    finished,
     started,
     pendingAsk,
     streaming,
