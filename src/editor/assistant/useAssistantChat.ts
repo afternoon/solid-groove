@@ -42,6 +42,7 @@ import {
   type RecommendationEditorPort,
   useAssistantRecommendations,
 } from "./useAssistantRecommendations";
+import { type CueNudge, useCueNudge } from "./useCueNudge";
 import { type AssistantMemoryProposals, useMemoryProposals } from "./useMemoryProposals";
 
 /** Who is here to talk: a signed-in account, or someone who must sign in. */
@@ -124,6 +125,8 @@ export interface AssistantChat {
   readonly ask: AskDraft;
   /** The memory cards, when there is a profile to save them to (GRV-25). */
   readonly memory: AssistantMemoryProposals | null;
+  /** Cue's one nudge a day, when there is a profile to read it from (GRV-25). */
+  readonly nudge: CueNudge | null;
 }
 
 export type { AskDraft } from "./useAskDraft";
@@ -219,6 +222,15 @@ export function useAssistantChat(options: UseAssistantChatOptions): AssistantCha
       : undefined,
   });
 
+  const nudge = profile
+    ? useCueNudge({
+        profile,
+        expanded: options.expanded,
+        conversation,
+        analytics: options.analytics,
+      })
+    : null;
+
   const ask = useAskDraft({
     conversation,
     project: options.project,
@@ -254,5 +266,6 @@ export function useAssistantChat(options: UseAssistantChatOptions): AssistantCha
     recommendations,
     ask,
     memory,
+    nudge,
   };
 }
