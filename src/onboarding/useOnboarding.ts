@@ -99,6 +99,12 @@ export interface Onboarding extends AskConversation {
   openStudio(): Promise<ProjectId>;
   /** Whether Skip to the studio or Open the studio is under way. */
   readonly leaving: Accessor<boolean>;
+  /**
+   * Logs `onboarding_started`, once: called when the profile's load confirms
+   * onboarding is still to do, so someone sent on to the dashboard never
+   * counts as starting it.
+   */
+  started(): void;
 }
 
 const ANSWER_SCOPE = "Song";
@@ -192,6 +198,19 @@ export function useOnboarding(options: UseOnboardingOptions): Onboarding {
     };
   }
 
+  /**
+   * Saves run one after another, each building its profile only when its turn
+   * comes, so a later save (a tick of the share box while the completed
+   * profile is still on its way) carries everything the earlier one did and
+   * lands after it.
+   */
+  let saveChain: Promise<unknown> = Promise.resolve();
+  function queueSave(onboarding: ProducerProfile["onboarding"]): Promise<boolean> {
+    const run = saveChain.then(() => save(profileNow(onboarding)));
+    saveChain = run;
+    return run;
+  }
+
   async function save(profile: ProducerProfile): Promise<boolean> {
     const uid = options.uid();
     if (!uid) return false;
@@ -207,7 +226,7 @@ export function useOnboarding(options: UseOnboardingOptions): Onboarding {
 
   async function saveCompleted(): Promise<void> {
     setStage("saving");
-    setStage((await save(profileNow("completed"))) ? "saved" : "save_failed");
+    setStage((await queueSave("completed")) ? "saved" : "save_failed");
   }
 
   /** The next question, or the end once there are none. */
@@ -276,10 +295,16 @@ export function useOnboarding(options: UseOnboardingOptions): Onboarding {
   async function setConsent(value: boolean): Promise<void> {
     consentNow = value;
     setConsentSignal(value);
-    if (stage() !== "saved" && stage() !== "save_failed") return;
-    const ok = await save(profileNow("completed"));
+    // The box is only drawn once the questions are done. A tick while the
+    // completed profile is still saving queues a save behind that one.
+    if (stage() === "asking") return;
+    const ok = await queueSave("completed");
     setStage(ok ? "saved" : "save_failed");
-    if (ok && value) logValidation(options.analytics, profileNow("completed"));
+    // Only the latest tick counts: a tick undone before its save landed
+    // shares nothing.
+    if (ok && value && consentNow) {
+      logValidation(options.analytics, profileNow("completed"));
+    }
   }
 
   async function skipAll(): Promise<void> {
@@ -287,7 +312,7 @@ export function useOnboarding(options: UseOnboardingOptions): Onboarding {
     setLeaving(true);
     options.analytics.log("onboarding_skipped", { answered_count: answeredCount() });
     // Even a failed save lets them through: the welcome comes back next time.
-    await save(profileNow("skipped"));
+    await queueSave("skipped");
   }
 
   /**
@@ -345,7 +370,12 @@ export function useOnboarding(options: UseOnboardingOptions): Onboarding {
     await saveCompleted();
   }
 
-  options.analytics.log("onboarding_started", {});
+  let startLogged = false;
+  function started(): void {
+    if (startLogged) return;
+    startLogged = true;
+    options.analytics.log("onboarding_started", {});
+  }
 
   return {
     entries,
@@ -358,6 +388,7 @@ export function useOnboarding(options: UseOnboardingOptions): Onboarding {
     skipAll,
     openStudio,
     leaving,
+    started,
     pendingAsk,
     streaming,
     answerAsk,

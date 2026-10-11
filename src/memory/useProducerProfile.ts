@@ -1,8 +1,10 @@
 /**
  * One producer's profile, loaded for whoever is signed in and saved whole
  * (GRV-25): what the editor's memory cards and the Memory page read and
- * change. Every change is a function of the profile as last saved, so two
- * changes in a row never lose one another.
+ * change. Changes run one at a time, each applied to the profile the change
+ * before it saved, so two in flight together never lose one another; and none
+ * runs until the profile has loaded, so a change can never write an empty
+ * profile over one that could not be read.
  */
 import { type Accessor, createEffect, createSignal } from "solid-js";
 import { emptyProfile, type ProducerProfile } from "../persistence/profileDocuments";
@@ -20,9 +22,10 @@ export interface ProducerProfileStore {
   /** The profile as it stands now, past any change not yet drawn. */
   current(): ProducerProfile | null;
   /**
-   * Saves `change` applied to the profile as it stands (an empty one for
-   * someone with none). Resolves with the saved profile, or null when the
-   * save failed and nothing changed.
+   * Saves `change` applied to the profile as it stands, after any change
+   * already on its way (an empty profile for someone with none). Resolves
+   * with the saved profile, or null when nothing changed: the save failed, or
+   * the profile has not loaded, or failed to.
    */
   update(
     change: (profile: ProducerProfile) => ProducerProfile,
@@ -47,12 +50,20 @@ export function useProducerProfile(
   // still see the profile from before it.
   let now: ProducerProfile | null = null;
   let owner: string | null = null;
+  /** Whether `now` is the stored profile: the load finished and succeeded. */
+  let ready = false;
+  /** Bumped on every sign-in change, so a change queued before it lapses. */
+  let generation = 0;
+  /** The last change queued: the next one waits for it to settle. */
+  let queue: Promise<unknown> = Promise.resolve();
 
   createEffect(
     () => options.uid(),
     (uid) => {
       owner = uid;
       now = null;
+      ready = false;
+      generation += 1;
       setProfile(null);
       setLoaded(false);
       setFailed(false);
@@ -65,6 +76,7 @@ export function useProducerProfile(
             if (cancelled) return;
             if (result.ok) {
               now = result.profile;
+              ready = true;
               setProfile(result.profile);
             } else {
               setFailed(true);
@@ -83,21 +95,33 @@ export function useProducerProfile(
     },
   );
 
-  async function update(
+  async function apply(
+    uid: string,
+    since: number,
     change: (current: ProducerProfile) => ProducerProfile,
   ): Promise<ProducerProfile | null> {
-    const uid = owner;
-    if (!uid) return null;
+    if (!ready || since !== generation) return null;
     const next = change(now ?? emptyProfile(clock.now()));
     try {
       const result = await (await repository()).saveProfile(uid, next);
-      if (!result.ok || owner !== uid) return null;
+      if (!result.ok || since !== generation) return null;
       now = result.profile;
       setProfile(result.profile);
       return result.profile;
     } catch {
       return null;
     }
+  }
+
+  function update(
+    change: (current: ProducerProfile) => ProducerProfile,
+  ): Promise<ProducerProfile | null> {
+    const uid = owner;
+    if (!uid || !ready) return Promise.resolve(null);
+    const since = generation;
+    const run = queue.then(() => apply(uid, since, change));
+    queue = run;
+    return run;
   }
 
   return { profile, loaded, failed, current: () => now, update };

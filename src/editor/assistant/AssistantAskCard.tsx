@@ -40,9 +40,10 @@ export interface AssistantAskCardProps {
    */
   readonly skipLabel?: string;
   /**
-   * Whether to show the keys line under the options. Only where the editor's
-   * shortcut layer is listening do `1`-`8` and Enter work, so the welcome
-   * (GRV-25), which has none, leaves it out.
+   * Whether the card offers its option keys: the chips' `1`-`8` badges, their
+   * `aria-keyshortcuts`, and the keys line under them. Only the editor's
+   * shortcut layer answers those keys, so the welcome (GRV-25), where only
+   * Enter in the text box works, leaves them all out.
    */
   readonly keyHint?: boolean;
 }
@@ -78,6 +79,7 @@ export function askHint(count: number, multiSelect: boolean): string {
 export default function AssistantAskCard(props: AssistantAskCardProps): JSX.Element {
   const ask = () => props.pending.ask;
   const questionId = () => `assistant-ask-${ask().id}`;
+  const keyHint = () => props.keyHint ?? true;
   let card: HTMLElement | undefined;
   /** The chip a pointer went down on, so the focus that follows is known as a click's. */
   let pressed: number | null = null;
@@ -180,7 +182,7 @@ export default function AssistantAskCard(props: AssistantAskCardProps): JSX.Elem
                 aria-pressed={
                   ask().multiSelect ? (picked() ? "true" : "false") : undefined
                 }
-                aria-keyshortcuts={String(index() + 1)}
+                aria-keyshortcuts={keyHint() ? String(index() + 1) : undefined}
                 aria-labelledby={part("label")}
                 aria-describedby={described()}
                 disabled={props.streaming}
@@ -201,9 +203,11 @@ export default function AssistantAskCard(props: AssistantAskCardProps): JSX.Elem
                 }}
                 onBlur={() => props.draft.unfocus(index())}
               >
-                <span class="assistant-ask-key" aria-hidden="true">
-                  {index() + 1}
-                </span>
+                <Show when={keyHint()}>
+                  <span class="assistant-ask-key" aria-hidden="true">
+                    {index() + 1}
+                  </span>
+                </Show>
                 <span class="assistant-ask-text">
                   <span id={part("label")} class="assistant-ask-label">
                     {option.label}
@@ -278,7 +282,7 @@ export default function AssistantAskCard(props: AssistantAskCardProps): JSX.Elem
           Send
         </button>
       </div>
-      <Show when={props.keyHint ?? true}>
+      <Show when={keyHint()}>
         <span class="assistant-composer-hint assistant-ask-hint">
           {askHint(ask().options.length, ask().multiSelect)}
         </span>

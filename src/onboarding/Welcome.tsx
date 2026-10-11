@@ -21,6 +21,7 @@ import type { ProfileRepository } from "../persistence/profileRepository";
 import type { ProjectRepository } from "../persistence/projectRepository";
 import { getProfileRepository } from "../profileRepositoryClient";
 import { getProjectRepository } from "../projectRepositoryClient";
+import { useShortcuts } from "../shortcuts/useShortcuts";
 import CueMark from "./CueMark";
 import { MemoryCard } from "./MemoryCard";
 import { type Onboarding, useOnboarding } from "./useOnboarding";
@@ -59,28 +60,6 @@ export default function Welcome(props: WelcomeProps): JSX.Element {
   const navigate = useNavigate();
   const uid = () => auth.user?.uid ?? null;
 
-  // Someone who has completed or skipped onboarding already goes on to the
-  // dashboard. The uid is the one reactive read; the read and the navigation
-  // are the apply half's.
-  createEffect(
-    () => uid(),
-    (id) => {
-      if (!id) return;
-      let cancelled = false;
-      profiles()
-        .then((repository) => repository.loadProfile(id))
-        .then((result) => {
-          if (!cancelled && result.ok && result.profile?.onboarding) {
-            navigate("/projects", { replace: true });
-          }
-        })
-        .catch(() => {});
-      return () => {
-        cancelled = true;
-      };
-    },
-  );
-
   const onboarding = useOnboarding({
     uid,
     profiles,
@@ -96,6 +75,43 @@ export default function Welcome(props: WelcomeProps): JSX.Element {
     },
   });
   const draft = useAskDraft({ conversation: onboarding, project: () => null });
+
+  // Someone who has completed or skipped onboarding already goes on to the
+  // dashboard; anyone else has started it. The uid is the one reactive read;
+  // the read, the navigation and the event are the apply half's.
+  createEffect(
+    () => uid(),
+    (id) => {
+      if (!id) return;
+      let cancelled = false;
+      profiles()
+        .then((repository) => repository.loadProfile(id))
+        .then((result) => {
+          if (cancelled || !result.ok) return;
+          if (result.profile?.onboarding) navigate("/projects", { replace: true });
+          else onboarding.started();
+        })
+        .catch(() => {});
+      return () => {
+        cancelled = true;
+      };
+    },
+  );
+
+  // Enter in the question's text box sends the answer, as it does in the
+  // panel: the registry's `assistant.send`, live while that box has focus
+  // (the `composer` context). The digits and the chips' Enter are the
+  // editor's alone, so the card leaves their hints off here.
+  let askText: HTMLElement | undefined;
+  const askTextHasFocus = () =>
+    askText !== undefined && document.activeElement === askText;
+  useShortcuts({
+    analytics,
+    handlers: () => ({
+      "assistant.send": { run: () => void draft.finish(), isEnabled: askTextHasFocus },
+    }),
+    contexts: () => (askTextHasFocus() ? ["composer"] : []),
+  });
 
   async function skip(): Promise<void> {
     await onboarding.skipAll();
@@ -156,7 +172,9 @@ export default function Welcome(props: WelcomeProps): JSX.Element {
               pending={pending()}
               draft={draft}
               streaming={onboarding.streaming()}
-              bindText={() => {}}
+              bindText={(element) => {
+                askText = element;
+              }}
               takeFocus={() => true}
               textLabel={onboarding.question()?.textLabel}
               skipLabel="Skip this question"
@@ -166,7 +184,13 @@ export default function Welcome(props: WelcomeProps): JSX.Element {
         </Show>
         <div class="welcome-actions">
           <Switch>
-            <Match when={onboarding.stage() === "saved"}>
+            {/* A failed save still lets them in: the card offers the retry,
+                and the welcome comes back next time if it never lands. */}
+            <Match
+              when={
+                onboarding.stage() === "saved" || onboarding.stage() === "save_failed"
+              }
+            >
               <button
                 type="button"
                 class="assistant-button-primary welcome-open"
