@@ -226,11 +226,15 @@ export async function signInAsQaAccount(
  * page on the dashboard either way.
  */
 export async function passWelcome(page: Page): Promise<void> {
-  const projects = page.getByRole("heading", { name: "Projects" });
+  // Wait for something only the gate's far side or the welcome draws: the
+  // dashboard's New Project button, or the welcome's Skip. Anything the
+  // dashboard page draws before its gate has read the profile would end the
+  // wait before the redirect, and Skip would never be pressed.
+  const ready = page.getByRole("button", { name: "New Project" });
   const skip = page.getByRole("button", { name: "Skip to the studio" });
-  await projects.or(skip).first().waitFor();
+  await ready.or(skip).first().waitFor();
   if (await skip.isVisible()) {
     await skip.click();
   }
-  await projects.waitFor();
+  await ready.waitFor();
 }

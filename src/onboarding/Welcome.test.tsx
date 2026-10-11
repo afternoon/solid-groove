@@ -50,7 +50,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function renderWelcome() {
+function renderWelcome(replyDelayMs = 0) {
   transport = createRecordingTransport();
   const analytics = new Analytics({
     transport,
@@ -63,7 +63,7 @@ function renderWelcome() {
       analytics={analytics}
       profiles={() => Promise.resolve(profiles)}
       projects={() => Promise.resolve(projects)}
-      replyDelayMs={0}
+      replyDelayMs={replyDelayMs}
     />
   ));
   return { projects };
@@ -242,6 +242,96 @@ describe("the welcome (GRV-25)", () => {
     expect(stored?.pendingAsk?.ask.question).toMatch(/first lesson/);
     expect(loadLayout().mode).not.toBe("closed");
     expect(transport.named("project_created")).toHaveLength(1);
+  });
+});
+
+describe("what the welcome saves on (GRV-25)", () => {
+  it("keeps what the profile already held when onboarding completes", async () => {
+    await profiles.saveProfile("user-1", {
+      ...emptyProfile(1),
+      notes: [{ id: "note-1", text: "Likes swung hats", createdAt: 1 }],
+      validationConsent: true,
+      lastNudgeDay: "2026-10-01",
+    });
+    renderWelcome();
+    await waitFor(() => expect(transport.named("onboarding_started")).toHaveLength(1));
+    answerEverything();
+
+    await waitFor(async () => {
+      const loaded = await profiles.loadProfile("user-1");
+      expect(loaded.ok && loaded.profile?.onboarding).toBe("completed");
+    });
+    const loaded = await profiles.loadProfile("user-1");
+    expect(loaded.ok && loaded.profile).toMatchObject({
+      notes: [{ id: "note-1", text: "Likes swung hats" }],
+      lastNudgeDay: "2026-10-01",
+      memory: { taste: ["House", "Techno"] },
+    });
+  });
+
+  it("saves nothing over a profile it could not read", async () => {
+    vi.spyOn(profiles, "loadProfile").mockResolvedValue(
+      profileFailure("unavailable", "offline"),
+    );
+    const save = vi.spyOn(profiles, "saveProfile");
+    renderWelcome();
+    answerEverything();
+    const memory = await screen.findByRole("region", { name: "Saved to memory" });
+    await waitFor(() =>
+      expect(within(memory).getByRole("button", { name: /try again/i })).toBeVisible(),
+    );
+    expect(save).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: OPEN_STUDIO_LABEL })).toBeVisible();
+  });
+
+  it("keeps a single-choice question answered only in words to ask later", async () => {
+    renderWelcome();
+    clickAndFlush(option("House"));
+    send();
+    type("Something else", "a bit of everything");
+    send();
+    clickAndFlush(within(card()).getByRole("button", { name: "Skip this question" }));
+    clickAndFlush(option("Drums and beats"));
+    send();
+    clickAndFlush(option("Ableton Move"));
+    send();
+
+    await waitFor(async () => {
+      const loaded = await profiles.loadProfile("user-1");
+      expect(loaded.ok && loaded.profile?.onboarding).toBe("completed");
+    });
+    const loaded = await profiles.loadProfile("user-1");
+    expect(loaded.ok && loaded.profile).toMatchObject({
+      memory: { experience: null },
+      laterQuestions: ["experience", "goal"],
+    });
+  });
+
+  it("stops offering Skip once the last question is answered", async () => {
+    renderWelcome(20);
+    const next = async (text: RegExp) =>
+      waitFor(() => expect(card()).toHaveTextContent(text));
+    clickAndFlush(option("House"));
+    send();
+    await next(/How much music have you made/);
+    clickAndFlush(option("Played around"));
+    await next(/goal/i);
+    clickAndFlush(within(card()).getByRole("button", { name: "Skip this question" }));
+    await next(/learn/i);
+    clickAndFlush(option("Drums and beats"));
+    send();
+    await next(/gear|make music with/i);
+    clickAndFlush(option("Ableton Move"));
+    send();
+
+    // Cue is still writing its last reply, and Skip is already gone.
+    expect(screen.queryByRole("button", { name: SKIP_LABEL })).not.toBeInTheDocument();
+    await screen.findByRole("button", { name: OPEN_STUDIO_LABEL });
+    await waitFor(async () => {
+      const loaded = await profiles.loadProfile("user-1");
+      expect(loaded.ok && loaded.profile?.onboarding).toBe("completed");
+    });
+    expect(transport.named("onboarding_skipped")).toHaveLength(0);
   });
 });
 
