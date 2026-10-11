@@ -1,10 +1,13 @@
 /**
  * One producer's profile, loaded for whoever is signed in and saved whole
  * (GRV-25): what the editor's memory cards and the Memory page read and
- * change. Changes run one at a time, each applied to the profile the change
- * before it saved, so two in flight together never lose one another; and none
- * runs until the profile has loaded, so a change can never write an empty
- * profile over one that could not be read.
+ * change. Changes run one at a time, and each reads the stored profile again
+ * just before it applies, so two in flight together never lose one another,
+ * and neither does a change made elsewhere (the Memory page in another tab
+ * forgetting everything) get written back over by this page's older copy.
+ * None runs until the profile has loaded, and none saves when its read
+ * fails, so a change can never write an empty profile over one that could
+ * not be read.
  */
 import { type Accessor, createEffect, createSignal } from "solid-js";
 import { emptyProfile, type ProducerProfile } from "../persistence/profileDocuments";
@@ -22,10 +25,11 @@ export interface ProducerProfileStore {
   /** The profile as it stands now, past any change not yet drawn. */
   current(): ProducerProfile | null;
   /**
-   * Saves `change` applied to the profile as it stands, after any change
-   * already on its way (an empty profile for someone with none). Resolves
-   * with the saved profile, or null when nothing changed: the save failed, or
-   * the profile has not loaded, or failed to.
+   * Saves `change` applied to the stored profile, read again once any
+   * change already on its way has settled (an empty profile for someone
+   * with none). Resolves with the saved profile, or null when nothing
+   * changed: the read or the save failed, `change` threw, or the profile has
+   * not loaded, or failed to.
    */
   update(
     change: (profile: ProducerProfile) => ProducerProfile,
@@ -101,9 +105,13 @@ export function useProducerProfile(
     change: (current: ProducerProfile) => ProducerProfile,
   ): Promise<ProducerProfile | null> {
     if (!ready || since !== generation) return null;
-    const next = change(now ?? emptyProfile(clock.now()));
     try {
-      const result = await (await repository()).saveProfile(uid, next);
+      const store = await repository();
+      // The copy here may be stale: another page may have saved since.
+      const fresh = await store.loadProfile(uid);
+      if (!fresh.ok || since !== generation) return null;
+      const next = change(fresh.profile ?? emptyProfile(clock.now()));
+      const result = await store.saveProfile(uid, next);
       if (!result.ok || since !== generation) return null;
       now = result.profile;
       setProfile(result.profile);
@@ -120,7 +128,8 @@ export function useProducerProfile(
     if (!uid || !ready) return Promise.resolve(null);
     const since = generation;
     const run = queue.then(() => apply(uid, since, change));
-    queue = run;
+    // A change that throws rejects its own caller only, never the ones after.
+    queue = run.catch(() => null);
     return run;
   }
 

@@ -2,6 +2,7 @@ import { createRoot, flush } from "solid-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { InMemoryProfileRepository } from "../persistence/inMemoryProfileRepository";
 import {
+  EMPTY_MEMORY,
   emptyProfile,
   type MemoryNote,
   type ProducerProfile,
@@ -10,16 +11,16 @@ import { profileFailure } from "../persistence/profileRepository";
 import { type ProducerProfileStore, useProducerProfile } from "./useProducerProfile";
 
 const UID = "user-1";
-let dispose: () => void = () => {};
+const disposers: (() => void)[] = [];
 
 afterEach(() => {
-  dispose();
+  for (const dispose of disposers.splice(0)) dispose();
   vi.restoreAllMocks();
 });
 
 function open(profiles: InMemoryProfileRepository): ProducerProfileStore {
   const store = createRoot((disposeRoot) => {
-    dispose = disposeRoot;
+    disposers.push(disposeRoot);
     return useProducerProfile({
       uid: () => UID,
       repository: () => Promise.resolve(profiles),
@@ -119,5 +120,63 @@ describe("useProducerProfile (GRV-25)", () => {
 
     const saved = await store.update(remember(note("n1", "First note")));
     expect(saved?.notes.map(({ id }) => id)).toEqual(["n1"]);
+  });
+
+  it("never brings back what another open page forgot", async () => {
+    const profiles = new InMemoryProfileRepository();
+    await profiles.saveProfile(UID, {
+      ...emptyProfile(1),
+      onboarding: "completed",
+      memory: { ...EMPTY_MEMORY, taste: ["House"] },
+      notes: [note("n0", "Likes swung hats")],
+    });
+    // The editor and the Memory page, each with its own copy.
+    const editor = open(profiles);
+    const memoryPage = open(profiles);
+    await loaded(editor);
+    await loaded(memoryPage);
+
+    await memoryPage.update((profile) => ({
+      ...profile,
+      memory: EMPTY_MEMORY,
+      notes: [],
+    }));
+    const confirmed = await editor.update(remember(note("n1", "Works in D minor")));
+
+    expect(confirmed?.notes.map(({ id }) => id)).toEqual(["n1"]);
+    const stored = await profiles.loadProfile(UID);
+    expect(stored.ok && stored.profile).toMatchObject({
+      memory: { taste: [] },
+      notes: [{ id: "n1" }],
+    });
+  });
+
+  it("saves nothing when the profile cannot be read again", async () => {
+    const profiles = new InMemoryProfileRepository();
+    await profiles.saveProfile(UID, emptyProfile(1));
+    const store = open(profiles);
+    await loaded(store);
+    vi.spyOn(profiles, "loadProfile").mockResolvedValue(
+      profileFailure("unavailable", "offline"),
+    );
+    const saveProfile = vi.spyOn(profiles, "saveProfile");
+
+    expect(await store.update(remember(note("n1", "Offline")))).toBeNull();
+    expect(saveProfile).not.toHaveBeenCalled();
+  });
+
+  it("carries on after a change that throws", async () => {
+    const profiles = new InMemoryProfileRepository();
+    await profiles.saveProfile(UID, emptyProfile(1));
+    const store = open(profiles);
+    await loaded(store);
+
+    const thrown = store.update(() => {
+      throw new Error("bad change");
+    });
+    const kept = store.update(remember(note("n2", "Kept")));
+
+    expect(await thrown).toBeNull();
+    expect((await kept)?.notes.map(({ id }) => id)).toEqual(["n2"]);
   });
 });
