@@ -7,7 +7,11 @@ import {
   type RecordingTransport,
 } from "../analytics/transport";
 import { InMemoryProfileRepository } from "../persistence/inMemoryProfileRepository";
-import { emptyProfile, type ProducerProfile } from "../persistence/profileDocuments";
+import {
+  emptyProfile,
+  MAX_MEMORY_LIST,
+  type ProducerProfile,
+} from "../persistence/profileDocuments";
 import { clickAndFlush, fireAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
 import MemoryPage from "./MemoryPage";
@@ -95,6 +99,21 @@ describe("the Memory page (GRV-25)", () => {
       "Works early now",
     ]);
     expect(transport.named("onboarding_validation")).toHaveLength(0);
+  });
+
+  it("saves a list without repeats and no longer than memory keeps", async () => {
+    await renderPage();
+    const many = Array.from({ length: MAX_MEMORY_LIST + 4 }, (_, i) => `Synth ${i}`);
+    fireAndFlush(() =>
+      fireEvent.input(screen.getByLabelText("Gear"), {
+        target: { value: ["OP-1", "op-1", ...many].join(", ") },
+      }),
+    );
+    clickAndFlush(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(async () => expect((await stored()).memory.gear[0]).toBe("OP-1"));
+    const gear = (await stored()).memory.gear;
+    expect(gear).toHaveLength(MAX_MEMORY_LIST);
+    expect(gear.filter((item) => item.toLowerCase() === "op-1")).toHaveLength(1);
   });
 
   it("forgets one field, one note, and logs which without what it said", async () => {

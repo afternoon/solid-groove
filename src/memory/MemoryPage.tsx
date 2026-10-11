@@ -7,7 +7,12 @@ import ConfirmDialog from "../components/ConfirmDialog";
 import TapeLoader from "../components/TapeLoader";
 import { MASK_CONTENT } from "../monitoring/replayPrivacy";
 import { CONSENT_LABEL, CONSENT_NOTE } from "../onboarding/MemoryCard";
-import { EXPERIENCE_CHOICES, GOAL_CHOICES, typedItems } from "../onboarding/questions";
+import {
+  EXPERIENCE_CHOICES,
+  GOAL_CHOICES,
+  typedItems,
+  uniqueItems,
+} from "../onboarding/questions";
 import { logValidation } from "../onboarding/validation";
 import {
   EMPTY_MEMORY,
@@ -70,12 +75,12 @@ function memoryOf(draft: Draft): ProducerMemory {
   );
   const goal = GOAL_CHOICES.find(([, value]) => value === draft.fields.goal);
   return {
-    taste: typedItems(draft.fields.taste),
+    taste: uniqueItems(typedItems(draft.fields.taste)),
     artists: draft.fields.artists.trim().slice(0, MAX_ARTISTS_CHARS),
     experience: experience?.[1] ?? null,
     goal: goal?.[1] ?? null,
-    learn: typedItems(draft.fields.learn),
-    gear: typedItems(draft.fields.gear),
+    learn: uniqueItems(typedItems(draft.fields.learn)),
+    gear: uniqueItems(typedItems(draft.fields.gear)),
   };
 }
 
