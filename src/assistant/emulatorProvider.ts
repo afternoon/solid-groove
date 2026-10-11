@@ -32,6 +32,9 @@
  *   the project's first track and bars 1-2, let it be heard, and answer
  *   themselves when the tempo goes to 100 BPM or below
  *   ({@link emulatorRichAsk}).
+ * - `[remember]`: a short reply that ends in `remember_producer` (GRV-25),
+ *   proposing {@link EMULATOR_REMEMBER}'s note. The gateway only lets it
+ *   through on a turn that carries the producer's memory.
  * - anything else: a short reply, streamed in pieces with a pause between.
  *
  * Like the rest of `src/assistant`, it imports no Firebase and no SDK.
@@ -39,6 +42,7 @@
 import { setParameter } from "../commands/definitions/parameters";
 import { SONG_TEMPO } from "../domain/parameters";
 import { ASK_PRODUCER_TOOL_NAME, type AskProducerInput } from "./ask";
+import { REMEMBER_TOOL_NAME } from "./memory";
 import { LIBRARY_BLOCK_HEADING, PROJECT_BLOCK_HEADING } from "./prompt";
 import type { AssistantLibraryContext } from "./protocol";
 import type { AssistantProvider } from "./provider";
@@ -356,6 +360,19 @@ function askReply(multiSelect: boolean): Step[] {
   ]);
 }
 
+/** What `[remember]` proposes remembering. */
+export const EMULATOR_REMEMBER = {
+  kind: "note",
+  text: "Making more trap lately",
+} as const;
+
+/** `[remember]`'s reply: one `remember_producer` call. */
+function rememberReply(): Step[] {
+  return proposalReply("Sounds like that will matter next time too.", [
+    { id: "toolu_remember", name: REMEMBER_TOOL_NAME, input: EMULATOR_REMEMBER },
+  ]);
+}
+
 function lastUserMessage(request: ProviderMessagesRequest): string {
   for (let index = request.messages.length - 1; index >= 0; index -= 1) {
     const message = request.messages[index];
@@ -399,6 +416,7 @@ export function createEmulatorAssistantProvider(
     if (message.includes("[ask-rich]")) return richAskReply(request);
     if (message.includes("[ask-multi]")) return askReply(true);
     if (message.includes("[ask]")) return askReply(false);
+    if (message.includes("[remember]")) return rememberReply();
     return textReply(EMULATOR_REPLY_CHUNKS);
   }
 
