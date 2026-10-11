@@ -39,6 +39,12 @@ export interface AssistantAskCardProps {
    * (onboarding's "Skip this question", GRV-25).
    */
   readonly skipLabel?: string;
+  /**
+   * Whether to show the keys line under the options. Only where the editor's
+   * shortcut layer is listening do `1`-`8` and Enter work, so the welcome
+   * (GRV-25), which has none, leaves it out.
+   */
+  readonly keyHint?: boolean;
 }
 
 /** The card's accessible name. */
@@ -272,9 +278,11 @@ export default function AssistantAskCard(props: AssistantAskCardProps): JSX.Elem
           Send
         </button>
       </div>
-      <span class="assistant-composer-hint assistant-ask-hint">
-        {askHint(ask().options.length, ask().multiSelect)}
-      </span>
+      <Show when={props.keyHint ?? true}>
+        <span class="assistant-composer-hint assistant-ask-hint">
+          {askHint(ask().options.length, ask().multiSelect)}
+        </span>
+      </Show>
     </section>
   );
 }

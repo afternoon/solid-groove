@@ -160,6 +160,7 @@ export default function Welcome(props: WelcomeProps): JSX.Element {
               takeFocus={() => true}
               textLabel={onboarding.question()?.textLabel}
               skipLabel="Skip this question"
+              keyHint={false}
             />
           )}
         </Show>

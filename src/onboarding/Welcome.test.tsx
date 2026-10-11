@@ -100,6 +100,8 @@ describe("the welcome (GRV-25)", () => {
     ).toBeVisible();
     expect(screen.getByRole("button", { name: SKIP_LABEL })).toBeInTheDocument();
     expect(transport.named("onboarding_started")).toHaveLength(1);
+    // The editor's keys are not listening here, so the card does not offer them.
+    expect(card()).not.toHaveTextContent(/Enter sends|picks/);
   });
 
   it("asks one question at a time and shows each answer in the conversation", () => {
