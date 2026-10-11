@@ -10,6 +10,8 @@ import { type Accessor, createEffect, createMemo, createSignal } from "solid-js"
 import type { Analytics } from "../../analytics/analytics";
 import type { AssistantClient } from "../../assistant/assistantClient";
 import type { Project } from "../../domain/entities";
+import { memoryContext } from "../../memory/memoryEdits";
+import type { ProducerProfileStore } from "../../memory/useProducerProfile";
 import type { Suggestion } from "../../projection/projectAnalysisProjection";
 import type { EditorViewName } from "../editorViews";
 import type { AskEditorLink } from "./askReferences";
@@ -40,6 +42,7 @@ import {
   type RecommendationEditorPort,
   useAssistantRecommendations,
 } from "./useAssistantRecommendations";
+import { type AssistantMemoryProposals, useMemoryProposals } from "./useMemoryProposals";
 
 /** Who is here to talk: a signed-in account, or someone who must sign in. */
 export interface AssistantAccount {
@@ -92,6 +95,12 @@ export interface UseAssistantChatOptions {
   readonly conversationKey?: Accessor<string | null>;
   /** The store it is kept in; this tab's session storage by default. */
   readonly conversationStore?: ConversationStore;
+  /**
+   * The producer's profile (GRV-25): what Cue remembers, sent with every
+   * turn, and where a confirmed memory card is saved. Without it turns carry
+   * no memory.
+   */
+  readonly profile?: ProducerProfileStore;
 }
 
 export interface AssistantChat {
@@ -113,6 +122,8 @@ export interface AssistantChat {
   readonly recommendations: AssistantRecommendations | null;
   /** The pending question's answer so far (GRV-42). */
   readonly ask: AskDraft;
+  /** The memory cards, when there is a profile to save them to (GRV-25). */
+  readonly memory: AssistantMemoryProposals | null;
 }
 
 export type { AskDraft } from "./useAskDraft";
@@ -167,6 +178,11 @@ export function useAssistantChat(options: UseAssistantChatOptions): AssistantCha
         })
       : null;
 
+  const profile = options.profile;
+  const memory = profile
+    ? useMemoryProposals({ store: profile, analytics: options.analytics })
+    : null;
+
   const conversation = useAssistantConversation({
     client: options.client,
     project: options.project,
@@ -188,6 +204,16 @@ export function useAssistantChat(options: UseAssistantChatOptions): AssistantCha
       ? (entryId, call, library, origin) =>
           recommendations.receive(entryId, call, library, origin)
       : undefined,
+    memory: profile
+      ? () => {
+          const current = profile.profile();
+          return current ? memoryContext(current) : null;
+        }
+      : undefined,
+    onMemoryProposal: memory
+      ? (entryId, proposal) => memory.receive(entryId, proposal)
+      : undefined,
+    onMemoryQuestionAsked: memory ? (question) => memory.asked(question) : undefined,
     persistence: options.conversationKey
       ? { key: options.conversationKey, store: options.conversationStore }
       : undefined,
@@ -227,5 +253,6 @@ export function useAssistantChat(options: UseAssistantChatOptions): AssistantCha
     proposals,
     recommendations,
     ask,
+    memory,
   };
 }

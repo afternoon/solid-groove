@@ -55,6 +55,7 @@ import {
 } from "./config";
 import type { AssistantGuardStores } from "./guards";
 import { type BoundedHistory, boundHistory, estimateTokens } from "./history";
+import { rememberTool } from "./memory";
 import { ASSISTANT_PROMPT_VERSION, buildSystemBlocks, createIdStem } from "./prompt";
 import {
   AssistantGatewayError,
@@ -212,11 +213,13 @@ async function prepare(
   turn: AssistantTurnRequest,
   idStem: string,
 ): Promise<PreparedTurn> {
-  const system = buildSystemBlocks(turn.context, turn.library, idStem);
-  // A turn that carries the library may also recommend from it (GRV-23).
+  const system = buildSystemBlocks(turn.context, turn.library, idStem, turn.memory);
+  // A turn that carries the library may also recommend from it (GRV-23), and
+  // one that carries the producer's memory may propose adding to it (GRV-25).
   const tools = [
     ...providerTools([...assistantTools(), EXPLAIN_TOOL, askProducerTool()]),
     ...(turn.library ? [recommendationTool()] : []),
+    ...(turn.memory ? providerTools([rememberTool()]) : []),
   ];
   // The tool definitions take room in the window just as the prompt does.
   const systemTokens =

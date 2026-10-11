@@ -80,8 +80,10 @@ import {
  *    proposal's goal and technique (GRV-5).
  * 6: a turn that carries the library is offered `recommend_sounds`
  *    (`recommendation.ts`, GRV-23).
+ * 7: a turn that carries the producer's memory is offered `remember_producer`
+ *    (`memory.ts`), and `ask_producer` takes a `memoryQuestion` (GRV-25).
  */
-export const ASSISTANT_TOOLSET_VERSION = 6;
+export const ASSISTANT_TOOLSET_VERSION = 7;
 
 /** The song's own parameters the assistant may set: its tempo and its swing. */
 const SONG_PARAMETER_IDS: readonly string[] = [SONG_TEMPO.id, SONG_SWING.id];
