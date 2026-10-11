@@ -1,4 +1,11 @@
-import { cleanup, render, screen, waitFor, within } from "@solidjs/testing-library";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@solidjs/testing-library";
 import { flush } from "solid-js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Analytics } from "../analytics/analytics";
@@ -16,6 +23,7 @@ import {
 import { InMemoryProfileRepository } from "../persistence/inMemoryProfileRepository";
 import { createInMemoryProjectRepository } from "../persistence/inMemoryProjectRepository";
 import { emptyProfile } from "../persistence/profileDocuments";
+import { profileFailure } from "../persistence/profileRepository";
 import { clickAndFlush, fireAndFlush } from "../testing/events";
 import { memoryStorage } from "../testing/storage";
 import Welcome, { OPEN_STUDIO_LABEL, SKIP_LABEL } from "./Welcome";
@@ -39,6 +47,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   navigate.mockReset();
+  vi.restoreAllMocks();
 });
 
 function renderWelcome() {
@@ -88,7 +97,7 @@ function answerEverything() {
 }
 
 describe("the welcome (GRV-25)", () => {
-  it("introduces Cue under its name and asks what music you love, with a way out", () => {
+  it("introduces Cue under its name and asks what music you love, with a way out", async () => {
     renderWelcome();
     expect(screen.getByRole("heading", { level: 1, name: "Cue" })).toBeInTheDocument();
     expect(screen.getByRole("log", { name: "Conversation" })).toHaveTextContent(
@@ -99,9 +108,29 @@ describe("the welcome (GRV-25)", () => {
       within(card()).getByRole("textbox", { name: "Artists you love" }),
     ).toBeVisible();
     expect(screen.getByRole("button", { name: SKIP_LABEL })).toBeInTheDocument();
-    expect(transport.named("onboarding_started")).toHaveLength(1);
+    await waitFor(() => expect(transport.named("onboarding_started")).toHaveLength(1));
     // The editor's keys are not listening here, so the card does not offer them.
     expect(card()).not.toHaveTextContent(/Enter sends|picks/);
+    expect(card().querySelector(".assistant-ask-key")).toBeNull();
+    expect(option("House")).not.toHaveAttribute("aria-keyshortcuts");
+  });
+
+  it("sends the typed answer when Enter is pressed in the text box", () => {
+    renderWelcome();
+    clickAndFlush(option("House"));
+    type("Artists you love", "Four Tet");
+    const box = within(card()).getByRole("textbox", { name: "Artists you love" });
+    box.focus();
+    fireAndFlush(() => {
+      fireEvent.keyDown(box, { key: "Enter" });
+    });
+    expect(screen.getByRole("log", { name: "Conversation" })).toHaveTextContent(
+      "House · Four Tet",
+    );
+    expect(card()).toHaveTextContent(/How much music have you made/);
+    expect(
+      transport.named("shortcut_used").map(({ params }) => params.action_id),
+    ).toEqual(["assistant.send"]);
   });
 
   it("asks one question at a time and shows each answer in the conversation", () => {
@@ -216,6 +245,50 @@ describe("the welcome (GRV-25)", () => {
   });
 });
 
+describe("when memory will not save (GRV-25)", () => {
+  it("still offers a way into the studio beside the retry", async () => {
+    vi.spyOn(profiles, "saveProfile").mockResolvedValue(
+      profileFailure("unavailable", "offline"),
+    );
+    renderWelcome();
+    answerEverything();
+    const memory = await screen.findByRole("region", { name: "Saved to memory" });
+    await waitFor(() =>
+      expect(within(memory).getByRole("button", { name: /try again/i })).toBeVisible(),
+    );
+    const open = screen.getByRole("button", { name: OPEN_STUDIO_LABEL });
+    clickAndFlush(open);
+    await waitFor(() => expect(navigate).toHaveBeenCalled());
+    expect(String(navigate.mock.calls[0]?.[0])).toMatch(/^\/projects\/prj_/);
+  });
+
+  it("keeps a tick of the share box made while the profile is still saving", async () => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const save = profiles.saveProfile.bind(profiles);
+    vi.spyOn(profiles, "saveProfile").mockImplementation(async (uid, profile) => {
+      await gate;
+      return save(uid, profile);
+    });
+    renderWelcome();
+    answerEverything();
+    const memory = await screen.findByRole("region", { name: "Saved to memory" });
+    expect(memory).toHaveTextContent(/Saving/);
+
+    clickAndFlush(within(memory).getByRole("checkbox"));
+    release();
+
+    await waitFor(() => expect(transport.named("onboarding_validation")).toHaveLength(1));
+    const loaded = await profiles.loadProfile("user-1");
+    expect(loaded.ok && loaded.profile).toMatchObject({
+      onboarding: "completed",
+      validationConsent: true,
+    });
+  });
+});
+
 describe("skipping the welcome (GRV-25)", () => {
   it("saves onboarding as skipped and goes to the dashboard", async () => {
     renderWelcome();
@@ -247,5 +320,7 @@ describe("skipping the welcome (GRV-25)", () => {
     await waitFor(() =>
       expect(navigate).toHaveBeenCalledWith("/projects", { replace: true }),
     );
+    // They are not starting onboarding, so it is not logged as started.
+    expect(transport.named("onboarding_started")).toHaveLength(0);
   });
 });
