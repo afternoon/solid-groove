@@ -1,0 +1,18 @@
+{
+  "id": "grv25",
+  "title": "Onboarding with Cue (GRV-25)",
+  "steps": [
+    {
+      "file": "01-the-welcome-cue-says-hello-and-asks-the-.png",
+      "caption": "The welcome: Cue says hello and asks the first of five questions"
+    },
+    {
+      "file": "02-saved-to-memory-the-unticked-share-box-a.png",
+      "caption": "Saved to memory, the unticked share box, and the offer of a first lesson"
+    },
+    {
+      "file": "03-the-studio-opens-with-cue-s-panel-and-th.png",
+      "caption": "The studio opens with Cue's panel and the same conversation in it"
+    }
+  ]
+}
