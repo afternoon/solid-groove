@@ -1,0 +1,18 @@
+{
+  "id": "grv25r",
+  "title": "Cue proposes a memory",
+  "steps": [
+    {
+      "file": "01-cue-asks-before-it-remembers-anything.png",
+      "caption": "Cue asks before it remembers anything"
+    },
+    {
+      "file": "02-remembered-the-receipt-with-undo.png",
+      "caption": "Remembered: the receipt, with Undo"
+    },
+    {
+      "file": "03-undone-cue-won-t-remember-it.png",
+      "caption": "Undone: Cue won't remember it"
+    }
+  ]
+}
