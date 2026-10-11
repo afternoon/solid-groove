@@ -1,5 +1,6 @@
 import type { JSX } from "@solidjs/web";
 import { createEffect, Match, Show, Switch } from "solid-js";
+import { ASSISTANT_NAME } from "../../../site.config.mjs";
 import {
   CloseIcon,
   DockRightIcon,
@@ -8,7 +9,7 @@ import {
   RestoreIcon,
   SparkIcon,
 } from "../../components/icons";
-import AssistantChatView, { WRITING_STATUS } from "./AssistantChatView";
+import AssistantChatView, { COMPOSER_LABEL, WRITING_STATUS } from "./AssistantChatView";
 import {
   FLOATING_INSET,
   FLOATING_WIDTH,
@@ -58,7 +59,7 @@ function panelStatus(chat: AssistantChat | undefined): string {
 }
 
 /** The note under the composer while there is no conversation to hold. */
-export const UNAVAILABLE_NOTE = "The assistant isn't available yet";
+export const UNAVAILABLE_NOTE = `${ASSISTANT_NAME} isn't available yet`;
 
 /**
  * The assistant's panel (#849, AI-004a): the chrome, its three homes and its
@@ -105,7 +106,7 @@ export default function AssistantPanel(props: AssistantPanelProps): JSX.Element 
           "--assistant-bar-height": `${MINIMISED_HEIGHT}px`,
           "--assistant-inset": `${FLOATING_INSET}px`,
         }}
-        aria-label="Assistant"
+        aria-label={ASSISTANT_NAME}
         tabindex={-1}
       >
         <Show when={expanded()}>
@@ -124,7 +125,7 @@ export default function AssistantPanel(props: AssistantPanelProps): JSX.Element 
           >
             <span class="assistant-panel-title">
               <SparkIcon size={12} />
-              Assistant
+              {ASSISTANT_NAME}
             </span>
             {/* The status slot, so the minimised bar still says it:
                 "Writing…" while a reply streams, "Previewing a change" while a
@@ -186,7 +187,7 @@ export default function AssistantPanel(props: AssistantPanelProps): JSX.Element 
           <div class="assistant-panel-composer">
             <textarea
               class="assistant-panel-input"
-              aria-label="Message the assistant"
+              aria-label={COMPOSER_LABEL}
               aria-describedby="assistant-panel-unavailable"
               disabled
             />

@@ -69,7 +69,7 @@ describe("TelemetryDisclosure (PRD OPS-02, section 10 Security and privacy)", ()
     it("discloses that assistant conversations are stored, and stay with us", () => {
       setup();
       const body =
-        screen.getByText(/conversations with the assistant are stored/).textContent ?? "";
+        screen.getByText(/conversations with Cue are stored/).textContent ?? "";
       expect(body).toContain("never sent to Google Analytics or Sentry");
       expect(body).toContain("deleting a project deletes its conversations");
     });

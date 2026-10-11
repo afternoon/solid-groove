@@ -9,13 +9,13 @@ import { expect, type Locator, type Page } from "@playwright/test";
  * its markup. The panel (#849), the conversation (GRV-26) and the proposal
  * card (GRV-5) meet them as written.
  *
- *  - the header's "Assistant" button (`aria-keyshortcuts` carries Ctrl+K/⌘K);
- *  - the panel: a region named "Assistant", whose header has "Minimise",
+ *  - the header's "Cue" button (GRV-25 named the assistant; it was "Assistant") (`aria-keyshortcuts` carries Ctrl+K/⌘K);
+ *  - the panel: a region named "Cue", whose header has "Minimise",
  *    "Dock to the right", "Float" and "Close" buttons. Minimised, the region
  *    is the header bar alone, and a click on its title floats it again;
  *  - its resize edge: a separator named "Resize height" while floating and
  *    "Resize width" while docked;
- *  - the composer: a textbox named "Message the assistant", and a button named
+ *  - the composer: a textbox named "Message Cue", and a button named
  *    "Scope: <what>" that says what the assistant reads and may change;
  *  - the conversation: a log named "Conversation";
  *  - a proposal: a region named "Proposal" with "Preview", "Apply" and "Cancel"
@@ -84,11 +84,11 @@ export async function reloadSaved(page: Page): Promise<void> {
 
 /** The header button that opens and closes the assistant. */
 export const assistantButton = (page: Page): Locator =>
-  page.getByRole("button", { name: "Assistant", exact: true });
+  page.getByRole("button", { name: "Cue", exact: true });
 
 /** The assistant panel, floating or docked. */
 export const panel = (page: Page): Locator =>
-  page.getByRole("region", { name: "Assistant", exact: true });
+  page.getByRole("region", { name: "Cue", exact: true });
 
 export const panelButton = (page: Page, name: string): Locator =>
   panel(page).getByRole("button", { name, exact: true });
@@ -97,7 +97,7 @@ export const resizeEdge = (page: Page, name: "Resize height" | "Resize width"): 
   panel(page).getByRole("separator", { name });
 
 export const composer = (page: Page): Locator =>
-  panel(page).getByRole("textbox", { name: "Message the assistant" });
+  panel(page).getByRole("textbox", { name: "Message Cue" });
 
 export const scope = (page: Page): Locator =>
   panel(page).getByRole("button", { name: /^Scope\b/ });
