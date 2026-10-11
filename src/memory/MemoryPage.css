@@ -106,10 +106,25 @@
   cursor: default;
 }
 
-.memory-page-forget:hover,
-.memory-page-forget-all:hover {
+.memory-page-forget:hover {
   background: var(--color-background-hover);
   color: var(--color-foreground-bright);
+}
+
+/* Forgetting everything is destructive, so it is the loudest control on the
+   page (docs/design.md): a full-strength fill with black on it, as the
+   confirm dialog's destructive button is. Its wording carries the warning. */
+.memory-page-forget-all {
+  border-color: var(--color-danger-solid);
+  background: var(--color-danger-solid);
+  color: var(--color-on-accent);
+  font-weight: 600;
+}
+
+.memory-page-forget-all:hover {
+  border-color: var(--color-accent-dim);
+  background: var(--color-accent-dim);
+  color: var(--color-on-accent);
 }
 
 .memory-page-forget:focus-visible,
